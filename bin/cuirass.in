@@ -1,0 +1,103 @@
+#!/bin/sh
+# -*- scheme -*-
+exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
+!#
+;;;; cuirass - continuous integration system
+;;;
+;;; Copyright © 2016 Mathieu Lirzin <mthl@gnu.org>
+;;;
+;;; This file is part of Cuirass.
+;;;
+;;; Cuirass is free software; you can redistribute it and/or modify it
+;;; under the terms of the GNU General Public License as published by
+;;; the Free Software Foundation; either version 3 of the License, or (at
+;;; your option) any later version.
+;;;
+;;; Cuirass is distributed in the hope that it will be useful, but
+;;; WITHOUT ANY WARRANTY; without even the implied warranty of
+;;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+;;; GNU General Public License for more details.
+;;;
+;;; You should have received a copy of the GNU General Public License
+;;; along with Cuirass.  If not, see <http://www.gnu.org/licenses/>.
+
+(use-modules (cuirass base)
+             (ice-9 match))
+
+(define %guix-repository
+  (make-parameter "git://git.savannah.gnu.org/guix.git"))
+
+(define* (pull-changes dir)
+  "Get the latest version of Guix repository.  Clone repository in directory
+DIR if required."
+  (or (file-exists? dir) (mkdir dir))
+  (with-directory-excursion dir
+    (let ((guixdir "guix"))
+      (or (file-exists? guixdir)
+          (system* "git" "clone" (%guix-repository) guixdir))
+      (with-directory-excursion guixdir
+        (and (zero? (system* "git" "fetch")) ;no 'git pull' to avoid merges
+             (zero? (system* "git" "reset" "--hard" "origin/master")))))))
+
+(define (compile dir)
+  "Compile files in Guix cloned repository in directory DIR."
+  (with-directory-excursion (string-append dir "/guix")
+    (or (file-exists? "configure") (system* "./bootstrap"))
+    (or (file-exists? "Makefile")
+        (system* "./configure" "--localstatedir=/var"))
+    (zero? (system* "make" "-j" (number->string (current-processor-count))))))
+
+(define %user-module
+  ;; Cuirass user module.
+  (let ((m (make-module)))
+    (beautify-user-module! m)
+    m))
+
+(define (build-packages store jobs)
+  "Build JOBS which is a list of job.  ((job-symbol pair ...) ...)"
+  (map (lambda (thing)
+         (let ((name (symbol->string (car thing)))
+               (drv  (cdadr thing)))
+           (format #t "building ~A => ~A~%" name drv)
+           ((guix-variable 'derivations 'build-derivations) store (list drv))))
+       jobs))
+
+(define (evaluate dir)
+  "Evaluate and build package derivations in directory DIR."
+  (save-module-excursion
+   (lambda ()
+     (set-current-module %user-module)
+     (primitive-load (string-append dir "/guix/build-aux/hydra/gnu-system.scm"))))
+  (let ((store ((guix-variable 'store 'open-connection))))
+    (dynamic-wind
+      (const #t)
+      (lambda ()
+        ((guix-variable 'store 'set-build-options) store
+         #:use-substitutes? #f)
+        (build-packages
+         store
+         (match ((module-ref %user-module 'hydra-jobs) store '())
+           (((names . thunks) ...)
+            (map (lambda (job thunk)
+                   (format (current-error-port) "evaluating '~a'... " job)
+                   (force-output (current-error-port))
+                   (cons job (call-with-time-display thunk)))
+                 names thunks)))))
+      (lambda ()
+        ((guix-variable 'store 'close-connection) store)))))
+
+
+;;;
+;;; Entry point.
+;;;
+
+(define* (main #:optional (args (command-line)))
+  (match args
+    ((program interval)
+     (let ((cachedir (getenv "CUIRASS_CACHEDIR")))
+       (while #t
+         (pull-changes cachedir)
+         (compile cachedir)
+         (evaluate cachedir)
+         (sleep (string->number interval)))))
+    (_ (main (list (car args) "60")))))

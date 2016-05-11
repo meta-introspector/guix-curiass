@@ -1,0 +1,10 @@
+Cuirass is continuous integration system using GNU Guix.  It is
+intended as replacement for Hydra.
+
+Requirements
+============
+
+GNU Guix must be installed along with all its development dependencies
+as described here:
+
+  https://www.gnu.org/software/guix/manual/html_node/Building-from-Git.html#Building-from-Git
