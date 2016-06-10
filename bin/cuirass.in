@@ -31,14 +31,16 @@ exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
   (display "
 Run Guix job from a git repository cloned in CACHEDIR.
 
-  -I, --interval[=]N        Wait N seconds between each evaluation
+  -f  --use-file=FILE       Use FILE which defines the job to evaluate.
+  -I, --interval=N          Wait N seconds between each evaluation
   -V, --version             Display version
   -h, --help                Display this help message")
   (newline)
   (show-package-information))
 
 (define %options
-  `((interval (single-char #\I) (value #t))
+  `((file     (single-char #\f) (value #t))
+    (interval (single-char #\I) (value #t))
     (version  (single-char #\V) (value #f))
     (help     (single-char #\h) (value #f))))
 
@@ -80,12 +82,12 @@ DIR if required."
            ((guix-variable 'derivations 'build-derivations) store (list drv))))
        jobs))
 
-(define (evaluate dir)
+(define (evaluate dir spec)
   "Evaluate and build package derivations in directory DIR."
   (save-module-excursion
    (lambda ()
      (set-current-module %user-module)
-     (primitive-load (string-append dir "/guix/build-aux/hydra/gnu-system.scm"))))
+     (primitive-load (string-append dir "/" spec))))
   (let ((store ((guix-variable 'store 'open-connection))))
     (dynamic-wind
       (const #t)
@@ -120,12 +122,14 @@ DIR if required."
       (show-version progname)
       (exit 0))
      (else
-      (let* ((args     (option-ref opts '() #f))
+      (let* ((jobfile  (option-ref opts 'file
+                                   "guix/build-aux/hydra/gnu-system.scm"))
+             (args     (option-ref opts '() #f))
              (cachedir (if (null? args)
                            (getenv "CUIRASS_CACHEDIR")
                            (car args))))
         (while #t
           (pull-changes cachedir)
           (compile cachedir)
-          (evaluate cachedir)
+          (evaluate cachedir jobfile)
           (sleep (string->number (option-ref opts 'interval "60")))))))))
