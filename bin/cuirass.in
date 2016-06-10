@@ -22,7 +22,25 @@ exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
 ;;; along with Cuirass.  If not, see <http://www.gnu.org/licenses/>.
 
 (use-modules (cuirass base)
+             (cuirass ui)
+             (ice-9 getopt-long)
              (ice-9 match))
+
+(define* (show-help #:optional (prog (program-name)))
+  (simple-format #t "Usage: ~a [OPTIONS] [CACHEDIR]" prog)
+  (display "
+Run Guix job from a git repository cloned in CACHEDIR.
+
+  -I, --interval[=]N        Wait N seconds between each evaluation
+  -V, --version             Display version
+  -h, --help                Display this help message")
+  (newline)
+  (show-package-information))
+
+(define %options
+  `((interval (single-char #\I) (value #t))
+    (version  (single-char #\V) (value #f))
+    (help     (single-char #\h) (value #f))))
 
 (define %guix-repository
   (make-parameter "git://git.savannah.gnu.org/guix.git"))
@@ -92,12 +110,22 @@ DIR if required."
 ;;;
 
 (define* (main #:optional (args (command-line)))
-  (match args
-    ((program interval)
-     (let ((cachedir (getenv "CUIRASS_CACHEDIR")))
-       (while #t
-         (pull-changes cachedir)
-         (compile cachedir)
-         (evaluate cachedir)
-         (sleep (string->number interval)))))
-    (_ (main (list (car args) "60")))))
+  (let ((opts     (getopt-long args %options))
+        (progname "cuirass"))
+    (cond
+     ((option-ref opts 'help #f)
+      (show-help progname)
+      (exit 0))
+     ((option-ref opts 'version #f)
+      (show-version progname)
+      (exit 0))
+     (else
+      (let* ((args     (option-ref opts '() #f))
+             (cachedir (if (null? args)
+                           (getenv "CUIRASS_CACHEDIR")
+                           (car args))))
+        (while #t
+          (pull-changes cachedir)
+          (compile cachedir)
+          (evaluate cachedir)
+          (sleep (string->number (option-ref opts 'interval "60")))))))))

@@ -3,7 +3,10 @@
 bin_SCRIPTS = bin/cuirass
 noinst_SCRIPTS = pre-inst-env
 
-dist_pkgmodule_DATA = src/cuirass/base.scm
+dist_pkgmodule_DATA = \
+  src/cuirass/base.scm \
+  src/cuirass/ui.scm
+
 nodist_pkgmodule_DATA = \
   $(dist_pkgmodule_DATA:%.scm=%.go) \
   src/cuirass/config.scm \
