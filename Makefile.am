@@ -5,6 +5,7 @@ noinst_SCRIPTS = pre-inst-env
 
 dist_pkgmodule_DATA = \
   src/cuirass/base.scm \
+  src/cuirass/job.scm \
   src/cuirass/ui.scm
 
 nodist_pkgmodule_DATA = \

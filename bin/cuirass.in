@@ -22,6 +22,7 @@ exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
 ;;; along with Cuirass.  If not, see <http://www.gnu.org/licenses/>.
 
 (use-modules (cuirass base)
+             (cuirass job)
              (cuirass ui)
              (ice-9 getopt-long)
              (ice-9 match))
@@ -74,12 +75,11 @@ DIR if required."
     m))
 
 (define (build-packages store jobs)
-  "Build JOBS which is a list of job.  ((job-symbol pair ...) ...)"
-  (map (lambda (thing)
-         (let ((name (symbol->string (car thing)))
-               (drv  (cdadr thing)))
-           (format #t "building ~A => ~A~%" name drv)
-           ((guix-variable 'derivations 'build-derivations) store (list drv))))
+  "Build JOBS which is a list of <job> objects."
+  (map (match-lambda
+         (($ <job> name drv)
+          (format #t "building ~A => ~A~%" name drv)
+          ((guix-variable 'derivations 'build-derivations) store (list drv))))
        jobs))
 
 (define (evaluate dir spec)
@@ -101,7 +101,9 @@ DIR if required."
             (map (lambda (job thunk)
                    (format (current-error-port) "evaluating '~a'... " job)
                    (force-output (current-error-port))
-                   (cons job (call-with-time-display thunk)))
+                   (make-job (symbol->string job)
+                             (assoc-ref (call-with-time-display thunk)
+                                        'derivation)))
                  names thunks)))))
       (lambda ()
         ((guix-variable 'store 'close-connection) store)))))
