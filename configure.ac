@@ -19,7 +19,8 @@ pkgmoduledir="${moduledir}/cuirass"
 AC_SUBST([moduledir])
 AC_SUBST([pkgmoduledir])
 
-AC_CONFIG_FILES([Makefile])
+AC_CONFIG_FILES([Makefile
+                 src/cuirass/config.scm])
 AC_CONFIG_FILES([bin/cuirass], [chmod +x bin/cuirass])
 AC_CONFIG_FILES([pre-inst-env:build-aux/pre-inst-env.in],
   [chmod +x pre-inst-env])

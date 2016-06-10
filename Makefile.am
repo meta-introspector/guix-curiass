@@ -4,7 +4,10 @@ bin_SCRIPTS = bin/cuirass
 noinst_SCRIPTS = pre-inst-env
 
 dist_pkgmodule_DATA = src/cuirass/base.scm
-nodist_pkgmodule_DATA = $(dist_pkgmodule_DATA:%.scm=%.go)
+nodist_pkgmodule_DATA = \
+  $(dist_pkgmodule_DATA:%.scm=%.go) \
+  src/cuirass/config.scm \
+  src/cuirass/config.go
 
 TEST_EXTENSIONS = .scm
 AM_TESTS_ENVIRONMENT = env GUILE_AUTO_COMPILE='0'
@@ -54,7 +57,10 @@ EXTRA_DIST = \
   .dir-locals.el \
   $(TESTS)
 
-CLEANFILES = $(nodist_pkgmodule_DATA)
+DISTCLEANFILES = src/cuirass/config.scm
+CLEANFILES = \
+  $(dist_pkgmodule_DATA:%.scm=%.go) \
+  src/cuirass/config.go
 
 ## -------------- ##
 ## Silent rules.  ##
