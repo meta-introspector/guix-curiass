@@ -23,10 +23,15 @@
             make-job
             job?
             job-name
-            job-derivation))
+            job-derivation
+            job-metadata))
 
 (define-record-type <job>
-  (make-job name derivation)
+  (%make-job name derivation metadata)
   job?
   (name       job-name)                 ;string
-  (derivation job-derivation))          ;string
+  (derivation job-derivation)           ;string
+  (metadata   job-metadata))            ;alist
+
+(define* (make-job name drv #:optional (metadata '()))
+  (%make-job name drv metadata))
