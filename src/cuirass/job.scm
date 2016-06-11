@@ -24,7 +24,13 @@
             job?
             job-name
             job-derivation
-            job-metadata))
+            job-metadata
+
+            <job-spec>
+            make-job-spec
+            job-spec-name
+            job-spec-proc
+            job-spec-metadata))
 
 (define-record-type <job>
   (%make-job name derivation metadata)
@@ -35,3 +41,13 @@
 
 (define* (make-job name drv #:optional (metadata '()))
   (%make-job name drv metadata))
+
+(define-record-type <job-spec>
+  (%make-job-spec name proc metadata)
+  job-spec?
+  (name       job-spec-name)            ;string
+  (proc       job-spec-proc)            ;thunk
+  (metadata   job-spec-metadata))       ;alist
+
+(define* (make-job-spec #:key name procedure metadata)
+  (%make-job-spec name procedure metadata))

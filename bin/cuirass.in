@@ -91,15 +91,13 @@ DIR if required."
        (format #t "prepending ~s to the load path~%" guixdir)
        (set! %load-path (cons guixdir %load-path)))
      (primitive-load spec)))
-  (match ((module-ref %user-module 'hydra-jobs) store '())
-    (((names . thunks) ...)
-     (map (lambda (job thunk)
-            (format (current-error-port) "evaluating '~a'... " job)
+  (let ((job-specs ((module-ref %user-module 'hydra-jobs) store '())))
+    (map (match-lambda
+           (($ <job-spec> name thunk metadata)
+            (format (current-error-port) "evaluating '~a'... " name)
             (force-output (current-error-port))
-            (make-job (symbol->string job)
-                      (assoc-ref (call-with-time-display thunk)
-                                 'derivation)))
-          names thunks))))
+            (make-job name (call-with-time-display thunk) metadata)))
+         job-specs)))
 
 
 ;;;

@@ -25,7 +25,8 @@
   ;; newer, even though they may not correspond.
   (set! %fresh-auto-compile #t))
 
-(use-modules (guix config)
+(use-modules (cuirass job)
+             (guix config)
              (guix store)
              (guix grafts)
              (guix packages)
@@ -52,39 +53,46 @@
              (srfi srfi-26)
              (ice-9 match))
 
-(define* (package->alist store package system
-                         #:optional (package-derivation package-derivation))
+(define (package-metadata package)
   "Convert PACKAGE to an alist suitable for Hydra."
-  (parameterize ((%graft? #f))
-    `((derivation . ,(derivation-file-name
-                      (package-derivation store package system
-                                          #:graft? #f)))
-      (description . ,(package-synopsis package))
-      (long-description . ,(package-description package))
-      (license . ,(package-license package))
-      (home-page . ,(package-home-page package))
-      (maintainers . ("bug-guix@gnu.org"))
-      (max-silent-time . ,(or (assoc-ref (package-properties package)
-                                         'max-silent-time)
-                              3600))              ;1 hour by default
-      (timeout . ,(or (assoc-ref (package-properties package) 'timeout)
-                      72000)))))                  ;20 hours by default
+  `((description . ,(package-synopsis package))
+    (long-description . ,(package-description package))
+    (license . ,(package-license package))
+    (home-page . ,(package-home-page package))
+    (maintainers . ("bug-guix@gnu.org"))
+    (max-silent-time . ,(or (assoc-ref (package-properties package)
+                                       'max-silent-time)
+                            3600))      ;1 hour by default
+    (timeout . ,(or (assoc-ref (package-properties package) 'timeout)
+                    72000))))           ;20 hours by default
 
-(define (package-job store job-name package system)
-  "Return a job called JOB-NAME that builds PACKAGE on SYSTEM."
-  (let ((job-name (symbol-append job-name (string->symbol ".")
-                                 (string->symbol system))))
-    `(,job-name . ,(cut package->alist store package system))))
+(define (package-job-spec store job-name package system)
+  "Return a non evaluated job called JOB-NAME that builds PACKAGE on SYSTEM."
+  (make-job-spec
+   #:name
+   (string-append (symbol->string job-name) "." system)
+   #:procedure
+   (λ ()
+     (derivation-file-name
+      (parameterize ((%graft? #f))
+        (package-derivation store package system #:graft? #f))))
+   #:metadata
+   (package-metadata package)))
 
-(define (package-cross-job store job-name package target system)
-  "Return a job called TARGET.JOB-NAME that cross-builds PACKAGE for TARGET on
-SYSTEM."
-  `(,(symbol-append (string->symbol target) (string->symbol ".") job-name
-                    (string->symbol ".") (string->symbol system)) .
-    ,(cute package->alist store package system
-           (lambda* (store package system #:key graft?)
-             (package-cross-derivation store package target system
-                                       #:graft? graft?)))))
+(define (package-cross-job-spec store job-name package target system)
+  "Return a non evaluated job called TARGET.JOB-NAME that cross-builds PACKAGE
+for TARGET on SYSTEM."
+  (make-job-spec
+   #:name
+   (string-append target "." (symbol->string job-name) "." system)
+   #:procedure
+   (λ ()
+     (derivation-file-name
+      (parameterize ((%graft? #f))
+        (package-cross-derivation store package target system
+                                  #:graft? #f))))
+   #:metadata
+   (package-metadata package)))
 
 (define %core-packages
   ;; Note: Don't put the '-final' package variants because (1) that's
@@ -107,37 +115,34 @@ SYSTEM."
   '("mips64el-linux-gnu"
     "mips64el-linux-gnuabi64"))
 
-(define (tarball-jobs store system)
+(define (tarball-job-specs store system)
   "Return Hydra jobs to build the self-contained Guix binary tarball."
-  (define (->alist drv)
-    `((derivation . ,(derivation-file-name drv))
-      (description . "Stand-alone binary Guix tarball")
+  (list
+   (make-job-spec
+    #:name
+    (string-append "binary-tarball." system)
+    #:procedure
+    (λ ()
+      (derivation-file-name
+       (parameterize ((%graft? #f))
+         (run-with-store store
+           (mbegin %store-monad
+             (set-guile-for-build (default-guile))
+             (self-contained-tarball))
+           #:system system))))
+    #:metadata
+    `((description . "Stand-alone binary Guix tarball")
       (long-description . "This is a tarball containing binaries of Guix and
 all its dependencies, and ready to be installed on non-GuixSD distributions.")
       (license . ,gpl3+)
       (home-page . ,%guix-home-page-url)
-      (maintainers . ("bug-guix@gnu.org"))))
-
-  (define (->job name drv)
-    (let ((name (symbol-append name (string->symbol ".")
-                               (string->symbol system))))
-      `(,name . ,(lambda ()
-                   (parameterize ((%graft? #f))
-                     (->alist drv))))))
-
-  ;; XXX: Add a job for the stable Guix?
-  (list (->job 'binary-tarball
-               (run-with-store store
-                 (mbegin %store-monad
-                   (set-guile-for-build (default-guile))
-                   (self-contained-tarball))
-                 #:system system))))
+      (maintainers . ("bug-guix@gnu.org"))))))
 
 (define job-name
   ;; Return the name of a package's job.
   (compose string->symbol package-full-name))
 
-(define package->job
+(define package->job-spec
   (let ((base-packages
          (delete-duplicates
           (append-map (match-lambda
@@ -152,7 +157,7 @@ valid."
       (cond ((member package base-packages)
              #f)
             ((supported-package? package system)
-             (package-job store (job-name package) package system))
+             (package-job-spec store (job-name package) package system))
             (else
              #f)))))
 
@@ -189,8 +194,8 @@ valid."
 
     (append-map (lambda (target)
                   (map (lambda (package)
-                         (package-cross-job store (job-name package)
-                                            package target system))
+                         (package-cross-job-spec store (job-name package)
+                                                 package target system))
                        %packages-to-cross-build))
                 (remove (either from-32-to-64? same?) %cross-targets)))
 
@@ -210,16 +215,15 @@ valid."
                                        (cons package result)))
                                  '()))
                            (job (lambda (package)
-                                  (package->job store package
-                                                system))))
+                                  (package->job-spec store package system))))
                        (append (filter-map job all)
-                               (tarball-jobs store system)
+                               (tarball-job-specs store system)
                                (cross-jobs system))))
                     ((core)
                      ;; Build core packages only.
                      (append (map (lambda (package)
-                                    (package-job store (job-name package)
-                                                 package system))
+                                    (package-job-spec store (job-name package)
+                                                      package system))
                                   %core-packages)
                              (cross-jobs system)))
                     (else
