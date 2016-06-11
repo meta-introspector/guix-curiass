@@ -91,19 +91,15 @@ DIR if required."
        (format #t "prepending ~s to the load path~%" guixdir)
        (set! %load-path (cons guixdir %load-path)))
      (primitive-load spec)))
-  ((guix-variable 'store 'set-build-options) store
-   #:use-substitutes? #f)
-  (build-packages
-   store
-   (match ((module-ref %user-module 'hydra-jobs) store '())
-     (((names . thunks) ...)
-      (map (lambda (job thunk)
-             (format (current-error-port) "evaluating '~a'... " job)
-             (force-output (current-error-port))
-             (make-job (symbol->string job)
-                       (assoc-ref (call-with-time-display thunk)
-                                  'derivation)))
-           names thunks)))))
+  (match ((module-ref %user-module 'hydra-jobs) store '())
+    (((names . thunks) ...)
+     (map (lambda (job thunk)
+            (format (current-error-port) "evaluating '~a'... " job)
+            (force-output (current-error-port))
+            (make-job (symbol->string job)
+                      (assoc-ref (call-with-time-display thunk)
+                                 'derivation)))
+          names thunks))))
 
 
 ;;;
@@ -133,7 +129,10 @@ DIR if required."
             (while #t
               (pull-changes cachedir)
               (compile cachedir)
-              (evaluate store cachedir jobfile)
+              (let ((jobs (evaluate store cachedir jobfile)))
+                ((guix-variable 'store 'set-build-options) store
+                 #:use-substitutes? #f)
+                (build-packages store jobs))
               (sleep (string->number (option-ref opts 'interval "60")))))
           (lambda ()
             ((guix-variable 'store 'close-connection) store))))))))
