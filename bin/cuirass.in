@@ -82,7 +82,7 @@ DIR if required."
           ((guix-variable 'derivations 'build-derivations) store (list drv))))
        jobs))
 
-(define (evaluate dir spec)
+(define (evaluate store dir spec)
   "Evaluate and build package derivations in directory DIR."
   (save-module-excursion
    (lambda ()
@@ -91,25 +91,19 @@ DIR if required."
        (format #t "prepending ~s to the load path~%" guixdir)
        (set! %load-path (cons guixdir %load-path)))
      (primitive-load spec)))
-  (let ((store ((guix-variable 'store 'open-connection))))
-    (dynamic-wind
-      (const #t)
-      (lambda ()
-        ((guix-variable 'store 'set-build-options) store
-         #:use-substitutes? #f)
-        (build-packages
-         store
-         (match ((module-ref %user-module 'hydra-jobs) store '())
-           (((names . thunks) ...)
-            (map (lambda (job thunk)
-                   (format (current-error-port) "evaluating '~a'... " job)
-                   (force-output (current-error-port))
-                   (make-job (symbol->string job)
-                             (assoc-ref (call-with-time-display thunk)
-                                        'derivation)))
-                 names thunks)))))
-      (lambda ()
-        ((guix-variable 'store 'close-connection) store)))))
+  ((guix-variable 'store 'set-build-options) store
+   #:use-substitutes? #f)
+  (build-packages
+   store
+   (match ((module-ref %user-module 'hydra-jobs) store '())
+     (((names . thunks) ...)
+      (map (lambda (job thunk)
+             (format (current-error-port) "evaluating '~a'... " job)
+             (force-output (current-error-port))
+             (make-job (symbol->string job)
+                       (assoc-ref (call-with-time-display thunk)
+                                  'derivation)))
+           names thunks)))))
 
 
 ;;;
@@ -127,13 +121,19 @@ DIR if required."
       (show-version progname)
       (exit 0))
      (else
-      (let* ((jobfile  (option-ref opts 'file "tests/gnu-system.scm"))
+      (let* ((store    ((guix-variable 'store 'open-connection)))
+             (jobfile  (option-ref opts 'file "tests/gnu-system.scm"))
              (args     (option-ref opts '() #f))
              (cachedir (if (null? args)
                            (getenv "CUIRASS_CACHEDIR")
                            (car args))))
-        (while #t
-          (pull-changes cachedir)
-          (compile cachedir)
-          (evaluate cachedir jobfile)
-          (sleep (string->number (option-ref opts 'interval "60")))))))))
+        (dynamic-wind
+          (const #t)
+          (lambda ()
+            (while #t
+              (pull-changes cachedir)
+              (compile cachedir)
+              (evaluate store cachedir jobfile)
+              (sleep (string->number (option-ref opts 'interval "60")))))
+          (lambda ()
+            ((guix-variable 'store 'close-connection) store))))))))
