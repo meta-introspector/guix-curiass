@@ -170,8 +170,9 @@ valid."
   "Return Hydra jobs."
   (define subset
     (match (assoc-ref arguments 'subset)
-      ("core" 'core)                              ; only build core packages
-      (_ 'all)))                                  ; build everything
+      ("core" 'core)                    ; only build core packages
+      ("hello" 'hello)                  ; only build hello
+      (_ 'all)))                        ; build everything
 
   (define (cross-jobs system)
     (define (from-32-to-64? target)
@@ -226,6 +227,11 @@ valid."
                                                       package system))
                                   %core-packages)
                              (cross-jobs system)))
+                    ((hello)
+                     ;; Build hello package only.
+                     (if (string=? system (%current-system))
+                         (list (package-job-spec store (job-name hello) hello system))
+                         '()))
                     (else
                      (error "unknown subset" subset))))
                 %hydra-supported-systems)))
