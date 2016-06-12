@@ -32,7 +32,8 @@ exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
   (display "
 Run Guix job from a git repository cloned in CACHEDIR.
 
-  -f  --use-file=FILE       Use FILE which defines the job to evaluate.
+  -f  --use-file=FILE       Use FILE which defines the job to evaluate
+      --subset=SET          Evaluate SET which is a subset of Guix packages
   -I, --interval=N          Wait N seconds between each evaluation
   -V, --version             Display version
   -h, --help                Display this help message")
@@ -41,6 +42,7 @@ Run Guix job from a git repository cloned in CACHEDIR.
 
 (define %options
   `((file     (single-char #\f) (value #t))
+    (subset   (value #t))
     (interval (single-char #\I) (value #t))
     (version  (single-char #\V) (value #f))
     (help     (single-char #\h) (value #f))))
@@ -82,7 +84,7 @@ DIR if required."
           ((guix-variable 'derivations 'build-derivations) store (list drv))))
        jobs))
 
-(define (evaluate store dir spec)
+(define (evaluate store dir spec args)
   "Evaluate and build package derivations in directory DIR."
   (save-module-excursion
    (lambda ()
@@ -91,7 +93,7 @@ DIR if required."
        (format #t "prepending ~s to the load path~%" guixdir)
        (set! %load-path (cons guixdir %load-path)))
      (primitive-load spec)))
-  (let ((job-specs ((module-ref %user-module 'hydra-jobs) store '())))
+  (let ((job-specs ((module-ref %user-module 'hydra-jobs) store args)))
     (map (match-lambda
            (($ <job-spec> name thunk metadata)
             (format (current-error-port) "evaluating '~a'... " name)
@@ -117,6 +119,7 @@ DIR if required."
      (else
       (let* ((store    ((guix-variable 'store 'open-connection)))
              (jobfile  (option-ref opts 'file "tests/gnu-system.scm"))
+             (subset   (option-ref opts 'subset "all"))
              (args     (option-ref opts '() #f))
              (cachedir (if (null? args)
                            (getenv "CUIRASS_CACHEDIR")
@@ -127,7 +130,8 @@ DIR if required."
             (while #t
               (pull-changes cachedir)
               (compile cachedir)
-              (let ((jobs (evaluate store cachedir jobfile)))
+              (let ((jobs (evaluate store cachedir jobfile
+                                    (acons 'subset subset '()))))
                 ((guix-variable 'store 'set-build-options) store
                  #:use-substitutes? #f)
                 (build-packages store jobs))
