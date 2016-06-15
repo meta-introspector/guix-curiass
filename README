@@ -8,3 +8,5 @@ GNU Guix must be installed along with all its development dependencies
 as described here:
 
   https://www.gnu.org/software/guix/manual/html_node/Building-from-Git.html#Building-from-Git
+
+Its modules must be found by Guile in '%load-path'.
