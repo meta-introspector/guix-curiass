@@ -33,7 +33,6 @@ exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
 Run Guix job from a git repository cloned in CACHEDIR.
 
   -f  --use-file=FILE       Use FILE which defines the job to evaluate
-      --subset=SET          Evaluate SET which is a subset of Guix packages
   -I, --interval=N          Wait N seconds between each evaluation
   -V, --version             Display version
   -h, --help                Display this help message")
@@ -42,39 +41,40 @@ Run Guix job from a git repository cloned in CACHEDIR.
 
 (define %options
   `((file     (single-char #\f) (value #t))
-    (subset   (value #t))
     (interval (single-char #\I) (value #t))
     (version  (single-char #\V) (value #f))
     (help     (single-char #\h) (value #f))))
-
-(define %guix-repository
-  (make-parameter "git://git.savannah.gnu.org/guix.git"))
-
-(define* (pull-changes dir)
-  "Get the latest version of Guix repository.  Clone repository in directory
-DIR if required."
-  (or (file-exists? dir) (mkdir dir))
-  (with-directory-excursion dir
-    (let ((guixdir "guix"))
-      (or (file-exists? guixdir)
-          (system* "git" "clone" (%guix-repository) guixdir))
-      (with-directory-excursion guixdir
-        (and (zero? (system* "git" "fetch")) ;no 'git pull' to avoid merges
-             (zero? (system* "git" "reset" "--hard" "origin/master")))))))
-
-(define (compile dir)
-  "Compile files in Guix cloned repository in directory DIR."
-  (with-directory-excursion (string-append dir "/guix")
-    (or (file-exists? "configure") (system* "./bootstrap"))
-    (or (file-exists? "Makefile")
-        (system* "./configure" "--localstatedir=/var"))
-    (zero? (system* "make" "-j" (number->string (current-processor-count))))))
 
 (define %user-module
   ;; Cuirass user module.
   (let ((m (make-module)))
     (beautify-user-module! m)
     m))
+
+(define (fetch-repository cachedir spec)
+  "Get the latest version of Guix repository.  Clone repository in directory
+DIR if required."
+  (or (file-exists? cachedir) (mkdir cachedir))
+  (with-directory-excursion cachedir
+    (match spec
+      (($ <job-spec> name url branch)
+       (or (file-exists? name) (system* "git" "clone" url name))
+       (with-directory-excursion name
+         (and (zero? (system* "git" "fetch"))
+              (zero? (system* "git" "reset" "--hard"
+                              (string-append "origin/" branch)))))))))
+
+(define (evaluate store cachedir spec)
+  "Evaluate and build package derivations."
+  (save-module-excursion
+   (lambda ()
+     (set-current-module %user-module)
+     (let ((dir (string-append cachedir "/" (job-spec-name spec))))
+       (format #t "prepending ~s to the load path~%" dir)
+       (set! %load-path (cons dir %load-path)))
+     (primitive-load (job-spec-file spec))))
+  (let ((proc (module-ref %user-module (job-spec-proc spec))))
+    (proc store (job-spec-arguments spec))))
 
 (define (build-packages store jobs)
   "Build JOBS which is a list of <job> objects."
@@ -87,23 +87,6 @@ DIR if required."
                   ((guix-variable 'derivations
                                   'derivation-path->output-path) drv))))
        jobs))
-
-(define (evaluate store dir spec args)
-  "Evaluate and build package derivations in directory DIR."
-  (save-module-excursion
-   (lambda ()
-     (set-current-module %user-module)
-     (let ((guixdir (string-append dir "/guix")))
-       (format #t "prepending ~s to the load path~%" guixdir)
-       (set! %load-path (cons guixdir %load-path)))
-     (primitive-load spec)))
-  (let ((job-specs ((module-ref %user-module 'hydra-jobs) store args)))
-    (map (match-lambda
-           (($ <job-spec> name thunk metadata)
-            (format (current-error-port) "evaluating '~a'... " name)
-            (force-output (current-error-port))
-            (make-job name (call-with-time-display thunk) metadata)))
-         job-specs)))
 
 
 ;;;
@@ -121,24 +104,23 @@ DIR if required."
       (show-version progname)
       (exit 0))
      (else
-      (let* ((store    ((guix-variable 'store 'open-connection)))
-             (jobfile  (option-ref opts 'file "tests/gnu-system.scm"))
-             (subset   (option-ref opts 'subset "all"))
+      (let* ((specfile (option-ref opts 'file "tests/hello-subset.scm"))
+             (spec     (primitive-load specfile))
              (args     (option-ref opts '() #f))
              (cachedir (if (null? args)
                            (getenv "CUIRASS_CACHEDIR")
                            (car args))))
-        (dynamic-wind
-          (const #t)
-          (lambda ()
-            (while #t
-              (pull-changes cachedir)
-              (compile cachedir)
-              (let ((jobs (evaluate store cachedir jobfile
-                                    (acons 'subset subset '()))))
-                ((guix-variable 'store 'set-build-options) store
-                 #:use-substitutes? #f)
-                (build-packages store jobs))
-              (sleep (string->number (option-ref opts 'interval "60")))))
-          (lambda ()
-            ((guix-variable 'store 'close-connection) store))))))))
+        (while #t
+          (fetch-repository cachedir spec)
+          (let ((store ((guix-variable 'store 'open-connection))))
+            (dynamic-wind
+              (const #t)
+              (lambda ()
+                (let* ((jobs  (evaluate store cachedir spec))
+                       (set-build-options
+                        (guix-variable 'store 'set-build-options)))
+                  (set-build-options store #:use-substitutes? #f)
+                  (build-packages store jobs)))
+              (lambda ()
+                ((guix-variable 'store 'close-connection) store))))
+          (sleep (string->number (option-ref opts 'interval "60")))))))))
