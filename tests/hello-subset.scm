@@ -24,10 +24,17 @@
 (define (local-file file)
   (string-append (dirname (current-filename)) "/" file))
 
-(make-job-spec
- #:name "guix"
- #:url "git://git.savannah.gnu.org/guix.git"
- #:branch "master"
- #:file (local-file "gnu-system.scm")
- #:proc 'hydra-jobs
- #:arguments '((subset . "hello")))
+(list (make-job-spec
+       #:name "guix"
+       #:url "git://git.savannah.gnu.org/guix.git"
+       #:branch "master"
+       #:file (local-file "gnu-system.scm")
+       #:proc 'hydra-jobs
+       #:arguments '((subset . "hello")))
+      (make-job-spec
+       #:name "guix"
+       #:url "git://git.savannah.gnu.org/guix.git"
+       #:branch "core-updates"
+       #:file (local-file "gnu-system.scm")
+       #:proc 'hydra-jobs
+       #:arguments '((subset . "hello"))))

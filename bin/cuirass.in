@@ -105,22 +105,25 @@ DIR if required."
       (exit 0))
      (else
       (let* ((specfile (option-ref opts 'file "tests/hello-subset.scm"))
-             (spec     (primitive-load specfile))
+             (specs    (primitive-load specfile))
              (args     (option-ref opts '() #f))
              (cachedir (if (null? args)
                            (getenv "CUIRASS_CACHEDIR")
                            (car args))))
         (while #t
-          (fetch-repository cachedir spec)
-          (let ((store ((guix-variable 'store 'open-connection))))
-            (dynamic-wind
-              (const #t)
-              (lambda ()
-                (let* ((jobs  (evaluate store cachedir spec))
-                       (set-build-options
-                        (guix-variable 'store 'set-build-options)))
-                  (set-build-options store #:use-substitutes? #f)
-                  (build-packages store jobs)))
-              (lambda ()
-                ((guix-variable 'store 'close-connection) store))))
+          (for-each
+           (λ (spec)
+             (fetch-repository cachedir spec)
+             (let ((store ((guix-variable 'store 'open-connection))))
+               (dynamic-wind
+                 (const #t)
+                 (lambda ()
+                   (let* ((jobs  (evaluate store cachedir spec))
+                          (set-build-options
+                           (guix-variable 'store 'set-build-options)))
+                     (set-build-options store #:use-substitutes? #f)
+                     (build-packages store jobs)))
+                 (lambda ()
+                   ((guix-variable 'store 'close-connection) store)))))
+           specs)
           (sleep (string->number (option-ref opts 'interval "60")))))))))
