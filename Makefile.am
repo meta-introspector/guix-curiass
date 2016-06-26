@@ -5,6 +5,7 @@ noinst_SCRIPTS = pre-inst-env
 
 dist_pkgmodule_DATA = \
   src/cuirass/base.scm \
+  src/cuirass/database.scm \
   src/cuirass/job.scm \
   src/cuirass/ui.scm
 
@@ -20,7 +21,9 @@ SCM_LOG_DRIVER = \
   $(builddir)/pre-inst-env $(GUILE) \
   $(srcdir)/build-aux/test-driver.scm
 
-TESTS = tests/base.scm
+TESTS = \
+  tests/base.scm \
+  tests/database.scm
 
 # Unset 'GUILE_LOAD_COMPILED_PATH' altogether while compiling.  Otherwise, if
 # $GUILE_LOAD_COMPILED_PATH contains $(cuirassmoduledir), we may find .go
