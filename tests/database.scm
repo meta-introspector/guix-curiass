@@ -26,26 +26,31 @@
             #:derivation (string-append name ".drv")
             #:metadata '()))
 
-(define tmp-database
-  (let ((dir (dirname (current-filename))))
-    (string-append dir "/tmp.db")))
+(define %db
+  ;; Global Slot for a database object.
+  (make-parameter #t))
 
-(define %db (make-parameter #t))
-(define %id (make-parameter #t))
+(define %id
+  ;; Global Slot for a job ID in the database.
+  (make-parameter #t))
 
-(dynamic-wind
-  (const #t)
-  (λ ()
-    (test-assert "db-init"
-      (%db (db-init tmp-database)))
+(parameterize ((%package-database
+                ;; Use an empty and temporary database for the tests.
+                (let ((dir (dirname (current-filename))))
+                  (string-append dir "/tmp.db"))))
+  (dynamic-wind
+    (const #t)
+    (λ ()
+      (test-assert "db-init"
+        (%db (db-init)))
 
-    (test-assert "db-add-evaluation"
-      (%id (db-add-evaluation (%db) (make-dummy-job))))
+      (test-assert "db-add-evaluation"
+        (%id (db-add-evaluation (%db) (make-dummy-job))))
 
-    (test-assert "db-get-evaluation"
-      (db-get-evaluation (%db) (%id)))
+      (test-assert "db-get-evaluation"
+        (db-get-evaluation (%db) (%id)))
 
-    (test-assert "db-close"
-      (db-close (%db))))
-  (λ ()
-    (delete-file tmp-database)))
+      (test-assert "db-close"
+        (db-close (%db))))
+    (λ ()
+      (delete-file (%package-database)))))

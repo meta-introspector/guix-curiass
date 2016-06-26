@@ -19,14 +19,20 @@
 
 (define-module (cuirass database)
   #:use-module (cuirass base)
+  #:use-module (cuirass config)
   #:use-module (cuirass job)
   #:use-module (sqlite3)
-  #:export (db-init
+  #:export (;; Procedures.
+            db-init
             db-open
             db-close
             db-add-evaluation
             db-get-evaluation
-            db-delete-evaluation))
+            db-delete-evaluation
+            ;; Parameters.
+            %package-database
+            ;; Macros.
+            with-database))
 
 (define (sqlite-exec db sql)
   "Wrap 'sqlite-prepare', 'sqlite-step', and 'sqlite-finalize'."
@@ -34,20 +40,24 @@
     (sqlite-step stmt)
     (sqlite-finalize stmt)))
 
-(define (db-init db-name)
-  "Open database contained in DB-NAME, to store or read jobs and builds
-informations.  DB-NAME must be a string.  SCHEMA must be some SQL statements
-initialize the database.  Return a database object."
-  (when (file-exists? db-name)
-    (format (current-error-port) "Removing leftover database ~a~%" db-name)
-    (delete-file db-name))
-  (let* ((db (sqlite-open db-name (logior SQLITE_OPEN_CREATE
-                                          SQLITE_OPEN_READWRITE))))
-    (for-each (λ (sql) (sqlite-exec db sql))
-              '("PRAGMA foreign_keys=OFF;"
-                "BEGIN TRANSACTION;"
-                "COMMIT;"
-                "
+(define %package-database
+  ;; Define to the database file name of this package.
+  (make-parameter (string-append %localstatedir "/" %package ".db")))
+
+(define (db-init)
+  "Open the database to store and read jobs and builds informations.  Return a
+database object."
+  (let ((db-name (%package-database)))
+    (when (file-exists? db-name)
+      (format (current-error-port) "Removing leftover database ~a~%" db-name)
+      (delete-file db-name))
+    (let ((db (sqlite-open db-name (logior SQLITE_OPEN_CREATE
+                                           SQLITE_OPEN_READWRITE))))
+      (for-each (λ (sql) (sqlite-exec db sql))
+                '("PRAGMA foreign_keys=OFF;"
+                  "BEGIN TRANSACTION;"
+                  "COMMIT;"
+                  "
 CREATE TABLE job_spec (
   name            text not null,
   url             text not null,
@@ -57,7 +67,7 @@ CREATE TABLE job_spec (
   arguments       text not null,
   primary key (name)
 );"
-                "
+                  "
 CREATE TABLE build (
   id              integer primary key autoincrement not null,
   job_spec        text not null,
@@ -65,13 +75,12 @@ CREATE TABLE build (
   output          text
   -- foreign key (job_spec) references job_spec(name)
 );"))
-    db))
+      db)))
 
-(define (db-open filename)
-  "Open database contained in FILENAME, to store or read jobs and builds
-informations.  Return a database object.  FILENAME must be a string corresponding
-to a valid file name."
-  (sqlite-open filename SQLITE_OPEN_READWRITE))
+(define (db-open)
+  "Open database to store or read jobs and builds informations.  Return a
+database object."
+  (sqlite-open (%package-database) SQLITE_OPEN_READWRITE))
 
 (define (db-close db)
   "Close database object DB."
@@ -102,6 +111,16 @@ to a valid file name."
   "Delete a job in database DB which corresponds to ID."
   (sqlite-exec db
                (format #f "delete from build where id=~A;" id)))
+
+(define-syntax-rule (with-database db body ...)
+  "Run BODY with a connection to the database which is bound to DB in BODY."
+  (let ((db (db-init)))
+    (dynamic-wind
+      (const #t)
+      (lambda ()
+        body ...)
+      (lambda ()
+        (db-close db)))))
 
 ;; (define (db-add-build db id)
 ;;   "Store a build result corresponding to ID in database DB.")

@@ -111,30 +111,29 @@ DIR if required."
       (show-version progname)
       (exit 0))
      (else
-      (let* ((specfile (option-ref opts 'file "tests/hello-subset.scm"))
-             (dbfile   (option-ref opts 'database %package-database))
-             (specs    (primitive-load specfile))
-             (args     (option-ref opts '() #f))
-             (cachedir (if (null? args)
-                           (getenv "CUIRASS_CACHEDIR")
-                           (car args))))
-        (db-close (db-init dbfile))
-        (while #t
-          (for-each
-           (λ (spec)
-             (fetch-repository cachedir spec)
-             (let ((store ((guix-variable 'store 'open-connection)))
-                   (db    (db-open dbfile)))
-               (dynamic-wind
-                 (const #t)
-                 (lambda ()
-                   (let* ((jobs (evaluate store db cachedir spec))
-                          (set-build-options
-                           (guix-variable 'store 'set-build-options)))
-                     (set-build-options store #:use-substitutes? #f)
-                     (build-packages store jobs)))
-                 (lambda ()
-                   ((guix-variable 'store 'close-connection) store)
-                   (db-close db)))))
-           specs)
-          (sleep (string->number (option-ref opts 'interval "60")))))))))
+      (parameterize ((%package-database
+                      (option-ref opts 'database (%package-database))))
+        (let* ((specfile (option-ref opts 'file "tests/hello-subset.scm"))
+               (specs    (primitive-load specfile))
+               (args     (option-ref opts '() #f))
+               (cachedir (if (null? args)
+                             (getenv "CUIRASS_CACHEDIR")
+                             (car args))))
+          (with-database db
+            (while #t
+              (for-each
+               (λ (spec)
+                 (fetch-repository cachedir spec)
+                 (let ((store ((guix-variable 'store 'open-connection))))
+                   (dynamic-wind
+                     (const #t)
+                     (lambda ()
+                       (let* ((jobs (evaluate store db cachedir spec))
+                              (set-build-options
+                               (guix-variable 'store 'set-build-options)))
+                         (set-build-options store #:use-substitutes? #f)
+                         (build-packages store jobs)))
+                     (lambda ()
+                       ((guix-variable 'store 'close-connection) store)))))
+               specs)
+              (sleep (string->number (option-ref opts 'interval "60")))))))))))

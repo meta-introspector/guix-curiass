@@ -8,4 +8,7 @@
      (bug-reference-url-format . "http://bugs.gnu.org/%s")
      (bug-reference-bug-regexp
       . "<https?://\\(debbugs\\|bugs\\)\\.gnu\\.org/\\([0-9]+\\)>")))
- (scheme-mode     . ((indent-tabs-mode . nil))))
+ (scheme-mode
+  .
+  ((indent-tabs-mode . nil)
+   (eval . (put 'with-database 'scheme-indent-function 1)))))
