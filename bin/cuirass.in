@@ -21,7 +21,8 @@ exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
 ;;; You should have received a copy of the GNU General Public License
 ;;; along with Cuirass.  If not, see <http://www.gnu.org/licenses/>.
 
-(use-modules (cuirass base)
+(use-modules (cuirass config)
+             (cuirass base)
              (cuirass database)
              (cuirass job)
              (cuirass ui)
@@ -34,6 +35,7 @@ exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
 Run Guix job from a git repository cloned in CACHEDIR.
 
   -f  --use-file=FILE       Use FILE which defines the job to evaluate
+  -D  --database=DB         Use DB to store build results.
   -I, --interval=N          Wait N seconds between each evaluation
   -V, --version             Display version
   -h, --help                Display this help message")
@@ -42,6 +44,7 @@ Run Guix job from a git repository cloned in CACHEDIR.
 
 (define %options
   `((file     (single-char #\f) (value #t))
+    (database (single-char #\f) (value #t))
     (interval (single-char #\I) (value #t))
     (version  (single-char #\V) (value #f))
     (help     (single-char #\h) (value #f))))
@@ -109,7 +112,7 @@ DIR if required."
       (exit 0))
      (else
       (let* ((specfile (option-ref opts 'file "tests/hello-subset.scm"))
-             (dbfile   "tmp.db")
+             (dbfile   (option-ref opts 'database %package-database))
              (specs    (primitive-load specfile))
              (args     (option-ref opts '() #f))
              (cachedir (if (null? args)

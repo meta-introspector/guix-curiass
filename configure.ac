@@ -8,6 +8,12 @@ AM_SILENT_RULES([yes])		# enables silent rules by default
 
 AC_CANONICAL_HOST
 
+# Prepare a version of $localstatedir that does not contain references to
+# shell variables.
+expanded_prefix="`eval echo $prefix | sed -e "s|NONE|/usr/local|g"`"
+expanded_localstatedir="`eval echo $localstatedir | sed -e "s|NONE|$expanded_prefix|g"`"
+AC_SUBST([expanded_localstatedir])
+
 PKG_CHECK_MODULES([GUILE], [guile-2.0 >= 2.0.7])
 AC_PATH_PROG([GUILE], [guile])
 AC_PATH_PROG([GUILD], [guild])

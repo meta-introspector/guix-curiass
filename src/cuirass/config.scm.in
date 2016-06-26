@@ -46,3 +46,7 @@
 (define-public %package-version
   ;; Define to the version of this package.
   "@PACKAGE_VERSION@")
+
+(define-public %package-database
+  ;; Define to the database file name of this package.
+  (string-append "@expanded_localstatedir@/" %package ".db"))
