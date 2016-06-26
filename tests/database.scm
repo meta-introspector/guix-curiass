@@ -34,10 +34,10 @@
   ;; Global Slot for a job ID in the database.
   (make-parameter #t))
 
-(parameterize ((%package-database
-                ;; Use an empty and temporary database for the tests.
-                (let ((dir (dirname (current-filename))))
-                  (string-append dir "/tmp.db"))))
+(parameterize
+    ((%package-database
+      ;; Use an empty and temporary database for the tests.
+      (string-append (getcwd) "/" (number->string (getpid)) "-tmp.db")))
   (dynamic-wind
     (const #t)
     (λ ()
