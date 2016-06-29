@@ -21,6 +21,7 @@
   #:use-module (cuirass base)
   #:use-module (cuirass config)
   #:use-module (cuirass job)
+  ;; #:use-module (ice-9 rdelim)
   #:use-module (sqlite3)
   #:export (;; Procedures.
             db-init
@@ -29,6 +30,7 @@
             db-add-evaluation
             db-get-evaluation
             db-delete-evaluation
+            db-add-build-log
             ;; Parameters.
             %package-database
             ;; Macros.
@@ -72,6 +74,7 @@ CREATE TABLE build (
   id              integer primary key autoincrement not null,
   job_spec        text not null,
   drv             text not null,
+  log             text,
   output          text
   -- foreign key (job_spec) references job_spec(name)
 );"))
@@ -88,15 +91,15 @@ database object."
 
 (define (db-add-evaluation db job)
   "Store a derivation result in database DB and return its ID."
-   (sqlite-exec
-    db
-    (format #f "insert into build (job_spec, drv) values ('~A', '~A');"
-            (job-name job)
-            (job-derivation job)))
-   (let* ((stmt (sqlite-prepare db "select last_insert_rowid() from build;"))
-          (res  (sqlite-step stmt)))
-     (sqlite-finalize stmt)
-     (vector-ref res 0)))
+  (sqlite-exec
+   db
+   (format #f "insert into build (job_spec, drv) values ('~A', '~A');"
+           (job-name job)
+           (job-derivation job)))
+  (let* ((stmt (sqlite-prepare db "select last_insert_rowid() from build;"))
+         (res  (sqlite-step stmt)))
+    (sqlite-finalize stmt)
+    (vector-ref res 0)))
 
 (define (db-get-evaluation db id)
   "Retrieve a job in database DB which corresponds to ID."
@@ -122,5 +125,23 @@ database object."
       (lambda ()
         (db-close db)))))
 
-;; (define (db-add-build db id)
-;;   "Store a build result corresponding to ID in database DB.")
+(define* (read-quoted-string #:optional port)
+  "Read all of the characters out of PORT and return them as a SQL quoted
+string."
+  (let loop ((chars '()))
+    (let ((char (read-char port)))
+      (cond ((eof-object? char) (list->string (reverse! chars)))
+            ((char=? char #\')  (loop (cons* char char chars)))
+            (else (loop (cons char chars)))))))
+
+(define (db-add-build-log db job log)
+  "Store a build LOG corresponding to JOB in database DB."
+  (let ((id   (assoc-ref (job-metadata job) 'id))
+        (log* (cond ((string? log) log)
+                    ((port? log)
+                     (seek log 0 SEEK_SET)
+                     (read-quoted-string log))
+                    (else #f))))
+    (sqlite-exec db
+                 (format #f "update build set log='~A' where id=~A;"
+                         log* id))))

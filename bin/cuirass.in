@@ -79,21 +79,33 @@ DIR if required."
      (primitive-load (job-spec-file spec))))
   (let* ((proc (module-ref %user-module (job-spec-proc spec)))
          (jobs (proc store (job-spec-arguments spec))))
-    (for-each (λ (job) (db-add-evaluation db job))
-              jobs)
-    jobs))
+    (map (λ (job)
+           (let ((id (db-add-evaluation db job)))
+             (make-job #:name (job-name job)
+                       #:derivation (job-derivation job)
+                       #:metadata (acons 'id id (job-metadata job)))))
+         jobs)))
 
-(define (build-packages store jobs)
+(define (build-packages store db jobs)
   "Build JOBS which is a list of <job> objects."
-  (map (match-lambda
-         (($ <job> name drv)
-          (format #t "building ~A...~%" drv)
-          ((guix-variable 'derivations 'build-derivations)
-           store (list drv))
-          (format #t "~A~%"
-                  ((guix-variable 'derivations
-                                  'derivation-path->output-path) drv))))
-       jobs))
+  (let ((build-derivations (guix-variable 'derivations 'build-derivations))
+        (current-build-output-port
+         (guix-variable 'store 'current-build-output-port))
+        (derivation-path->output-path
+         (guix-variable 'derivations 'derivation-path->output-path)))
+    (map (lambda (job)
+           (let ((log-port (tmpfile))
+                 (name     (job-name job))
+                 (drv      (job-derivation job)))
+             (setvbuf log-port _IOLBF)
+             (format #t "building ~A...~%" drv)
+             ;; (build-derivations store (list drv))
+             (parameterize ((current-build-output-port log-port))
+               (build-derivations store (list drv))
+               (db-add-build-log db job log-port)
+               (close-port log-port))
+             (format #t "~A~%" (derivation-path->output-path drv))))
+         jobs)))
 
 
 ;;;
@@ -128,11 +140,11 @@ DIR if required."
                    (dynamic-wind
                      (const #t)
                      (lambda ()
-                       (let* ((jobs (evaluate store db cachedir spec))
-                              (set-build-options
-                               (guix-variable 'store 'set-build-options)))
+                       (let ((jobs (evaluate store db cachedir spec))
+                             (set-build-options
+                              (guix-variable 'store 'set-build-options)))
                          (set-build-options store #:use-substitutes? #f)
-                         (build-packages store jobs)))
+                         (build-packages store db jobs)))
                      (lambda ()
                        ((guix-variable 'store 'close-connection) store)))))
                specs)

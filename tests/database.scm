@@ -21,10 +21,10 @@
              (cuirass job)
              (srfi srfi-64))
 
-(define* (make-dummy-job #:optional (name "foo"))
+(define* (make-dummy-job #:optional (name "foo") #:key (metadata '()))
   (make-job #:name name
             #:derivation (string-append name ".drv")
-            #:metadata '()))
+            #:metadata metadata))
 
 (define %db
   ;; Global Slot for a database object.
@@ -49,6 +49,13 @@
 
       (test-assert "db-get-evaluation"
         (db-get-evaluation (%db) (%id)))
+
+      (test-equal "db-add-build-log"
+        (let ((job (make-dummy-job #:metadata `((id . ,(%id)))))
+              (log-column 3))
+          (db-add-build-log (%db) job "foo log")
+          (vector-ref (db-get-evaluation (%db) (%id)) log-column))
+        "foo log")
 
       (test-assert "db-close"
         (db-close (%db))))
