@@ -21,7 +21,6 @@
   #:use-module (cuirass base)
   #:use-module (cuirass config)
   #:use-module (cuirass job)
-  ;; #:use-module (ice-9 rdelim)
   #:use-module (sqlite3)
   #:export (;; Procedures.
             db-init
