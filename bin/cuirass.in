@@ -26,8 +26,7 @@ exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
              (cuirass database)
              (cuirass job)
              (cuirass ui)
-             (ice-9 getopt-long)
-             (ice-9 match))
+             (ice-9 getopt-long))
 
 (define* (show-help prog)
   (simple-format #t "Usage: ~a [OPTIONS] [CACHEDIR]" prog)
@@ -60,13 +59,14 @@ Run Guix job from a git repository cloned in CACHEDIR.
 DIR if required."
   (or (file-exists? cachedir) (mkdir cachedir))
   (with-directory-excursion cachedir
-    (match spec
-      (($ <job-spec> name url branch)
-       (or (file-exists? name) (system* "git" "clone" url name))
-       (with-directory-excursion name
-         (and (zero? (system* "git" "fetch"))
-              (zero? (system* "git" "reset" "--hard"
-                              (string-append "origin/" branch)))))))))
+    (let ((name   (job-name job))
+          (url    (job-url job))
+          (branch (job-branch job)))
+      (or (file-exists? name) (system* "git" "clone" url name))
+      (with-directory-excursion name
+        (and (zero? (system* "git" "fetch"))
+             (zero? (system* "git" "reset" "--hard"
+                             (string-append "origin/" branch))))))))
 
 (define (evaluate store db cachedir spec)
   "Evaluate and build package derivations.  Return a list a jobs."
