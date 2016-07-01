@@ -103,7 +103,6 @@ DIR if required."
                  (drv      (job-derivation job)))
              (setvbuf log-port _IOLBF)
              (format #t "building ~A...~%" drv)
-             ;; (build-derivations store (list drv))
              (parameterize ((current-build-output-port log-port))
                (build-derivations store (list drv))
                (db-add-build-log db job log-port)
