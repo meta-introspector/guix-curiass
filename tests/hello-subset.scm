@@ -27,6 +27,7 @@
 (list (make-job-spec
        #:name "guix"
        #:url "git://git.savannah.gnu.org/guix.git"
+       #:load-path "."
        #:branch "master"
        #:file (local-file "gnu-system.scm")
        #:proc 'hydra-jobs
@@ -34,6 +35,7 @@
       (make-job-spec
        #:name "guix"
        #:url "git://git.savannah.gnu.org/guix.git"
+       #:load-path "."
        #:branch "core-updates"
        #:file (local-file "gnu-system.scm")
        #:proc 'hydra-jobs
@@ -41,6 +43,7 @@
       (make-job-spec
        #:name "guix"
        #:url "git://git.savannah.gnu.org/guix.git"
+       #:load-path "."
        #:tag "v0.9.0"
        #:file (local-file "gnu-system.scm")
        #:proc 'hydra-jobs

@@ -72,15 +72,22 @@ DIR if required."
                                  commit
                                  (string-append "origin/" branch)))))))))
 
+(define (set-load-path! cachedir spec)
+  "Set %LOAD-PATH to match what is specified in SPEC."
+  (let* ((name (job-spec-name spec))
+         (path (job-spec-load-path spec))
+         (dir  (string-join (list cachedir name path) "/")))
+    (format #t "prepending ~s to the load path~%" dir)
+    (set! %load-path (cons dir %load-path))))
+
 (define (evaluate store db cachedir spec)
   "Evaluate and build package derivations.  Return a list a jobs."
   (save-module-excursion
    (lambda ()
      (set-current-module %user-module)
-     (let ((dir (string-append cachedir "/" (job-spec-name spec))))
-       (format #t "prepending ~s to the load path~%" dir)
-       (set! %load-path (cons dir %load-path)))
-     (primitive-load (job-spec-file spec))))
+     ;; Handle both relative and absolute file names for SPEC-FILE.
+     (with-directory-excursion cachedir
+       (primitive-load (job-spec-file spec)))))
   (let* ((proc (module-ref %user-module (job-spec-proc spec)))
          (jobs (proc store (job-spec-arguments spec))))
     (map (λ (job)
@@ -140,16 +147,20 @@ DIR if required."
               (for-each
                (λ (spec)
                  (fetch-repository cachedir spec)
-                 (let ((store ((guix-variable 'store 'open-connection))))
-                   (dynamic-wind
-                     (const #t)
-                     (lambda ()
-                       (let ((jobs (evaluate store db cachedir spec))
-                             (set-build-options
-                              (guix-variable 'store 'set-build-options)))
-                         (set-build-options store #:use-substitutes? #f)
-                         (build-packages store db jobs)))
-                     (lambda ()
-                       ((guix-variable 'store 'close-connection) store)))))
+                 (let ((old-path %load-path))
+                   (and (job-spec-load-path spec)
+                        (set-load-path! cachedir spec))
+                   (let ((store ((guix-variable 'store 'open-connection))))
+                     (dynamic-wind
+                       (const #t)
+                       (lambda ()
+                         (let ((jobs (evaluate store db cachedir spec))
+                               (set-build-options
+                                (guix-variable 'store 'set-build-options)))
+                           (set-build-options store #:use-substitutes? #f)
+                           (build-packages store db jobs)))
+                       (lambda ()
+                         ((guix-variable 'store 'close-connection) store)
+                         (set! %load-path old-path))))))
                specs)
               (sleep (string->number interval))))))))))
