@@ -19,3 +19,7 @@
 
 (use-modules (cuirass base)
              (srfi srfi-64))
+
+(test-error "invalid program name"
+  'wrong-type-arg
+  (%program-name #f))

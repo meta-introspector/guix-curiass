@@ -18,13 +18,15 @@
 ;;; along with Cuirass.  If not, see <http://www.gnu.org/licenses/>.
 
 (define-module (cuirass ui)
+  #:use-module (cuirass base)
   #:use-module (cuirass config)
   #:export (show-version
             show-package-information))
 
-(define (show-version prog)
+(define (show-version)
   "Display version information for COMMAND."
-  (simple-format #t "~a (~a) ~a~%" prog %package-name %package-version)
+  (simple-format #t "~a (~a) ~a~%"
+                 (%program-name) %package-name %package-version)
   (display "Copyright (C) 2016 the Cuirass authors
 License GPLv3+: GNU GPL version 3 or later <http://gnu.org/licenses/gpl.html>
 This is free software: you are free to change and redistribute it.

@@ -28,8 +28,8 @@ exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
              (cuirass ui)
              (ice-9 getopt-long))
 
-(define* (show-help prog)
-  (simple-format #t "Usage: ~a [OPTIONS] [CACHEDIR]" prog)
+(define* (show-help)
+  (simple-format #t "Usage: ~a [OPTIONS] [CACHEDIR]" (%program-name))
   (display "
 Run Guix job from a git repository cloned in CACHEDIR.
 
@@ -113,19 +113,20 @@ DIR if required."
 ;;;
 
 (define* (main #:optional (args (command-line)))
-  (let ((opts     (getopt-long args %options))
-        (progname "cuirass"))
-    (cond
-     ((option-ref opts 'help #f)
-      (show-help progname)
-      (exit 0))
-     ((option-ref opts 'version #f)
-      (show-version progname)
-      (exit 0))
-     (else
-      (parameterize ((%package-database
-                      (option-ref opts 'database (%package-database))))
+  (let ((opts (getopt-long args %options)))
+    (parameterize
+        ((%program-name     (car args))
+         (%package-database (option-ref opts 'database (%package-database))))
+      (cond
+       ((option-ref opts 'help #f)
+        (show-help)
+        (exit 0))
+       ((option-ref opts 'version #f)
+        (show-version)
+        (exit 0))
+       (else
         (let* ((specfile (option-ref opts 'file "tests/hello-subset.scm"))
+               (interval (option-ref opts 'interval "60"))
                (specs    (primitive-load specfile))
                (args     (option-ref opts '() #f))
                (cachedir (if (null? args)
@@ -148,4 +149,4 @@ DIR if required."
                      (lambda ()
                        ((guix-variable 'store 'close-connection) store)))))
                specs)
-              (sleep (string->number (option-ref opts 'interval "60")))))))))))
+              (sleep (string->number interval))))))))))

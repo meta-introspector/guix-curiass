@@ -1,6 +1,7 @@
 ;;;; base.scm - Cuirass base module
 ;;;
 ;;; Copyright © 2012, 2016 Ludovic Courtès <ludo@gnu.org>
+;;; Copyright © 2016 Mathieu Lirzin <mthl@gnu.org>
 ;;;
 ;;; This file is part of Cuirass.
 ;;;
@@ -20,9 +21,23 @@
 (define-module (cuirass base)
   #:use-module (ice-9 format)
   #:use-module (srfi srfi-19)
-  #:export (guix-variable
-            with-directory-excursion
-            call-with-time-display))
+  #:export (;; Procedures.
+            guix-variable
+            call-with-time-display
+            ;; Parameters.
+            %program-name
+            ;; Macros.
+            with-directory-excursion))
+
+(define %program-name
+  ;; Similar in spirit to Gnulib 'progname' module.
+  (make-parameter ""
+    (λ (val)
+      (cond ((not (string? val))
+             (scm-error 'wrong-type-arg
+                        "%program-name" "Not a string: ~S" (list #f) #f))
+            ((string-rindex val #\/) => (λ (idx) (substring val (1+ idx))))
+            (else val)))))
 
 (define (guix-variable module name)
   "Dynamically link variable NAME under Guix module MODULE and return it.
