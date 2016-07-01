@@ -37,4 +37,11 @@
        #:branch "core-updates"
        #:file (local-file "gnu-system.scm")
        #:proc 'hydra-jobs
+       #:arguments '((subset . "hello")))
+      (make-job-spec
+       #:name "guix"
+       #:url "git://git.savannah.gnu.org/guix.git"
+       #:tag "v0.9.0"
+       #:file (local-file "gnu-system.scm")
+       #:proc 'hydra-jobs
        #:arguments '((subset . "hello"))))

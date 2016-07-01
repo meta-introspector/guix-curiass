@@ -33,6 +33,8 @@
             job-spec-name
             job-spec-url
             job-spec-branch
+            job-spec-commit
+            job-spec-tag
             job-spec-file
             job-spec-proc
             job-spec-arguments))
@@ -56,14 +58,17 @@
                   metadata)))))
 
 (define-record-type <job-spec>
-  (%make-job-spec name url branch file proc arguments)
+  (%make-job-spec name url branch commit file proc arguments)
   job-spec?
   (name      job-spec-name)             ;string
   (url       job-spec-url)              ;string
   (branch    job-spec-branch)           ;string
+  (commit    job-spec-commit)           ;string
+  (tag       job-spec-tag)              ;string
   (file      job-spec-file)             ;string
   (proc      job-spec-proc)             ;symbol
   (arguments job-spec-arguments))       ;alist
 
-(define* (make-job-spec #:key name url branch file proc arguments)
-  (%make-job-spec name url branch file proc arguments))
+(define* (make-job-spec #:key name url commit tag file proc arguments
+                        (branch "master"))
+  (%make-job-spec name url branch tag file proc arguments))
