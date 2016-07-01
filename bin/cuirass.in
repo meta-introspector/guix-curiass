@@ -59,9 +59,9 @@ Run Guix job from a git repository cloned in CACHEDIR.
 DIR if required."
   (or (file-exists? cachedir) (mkdir cachedir))
   (with-directory-excursion cachedir
-    (let ((name   (job-name job))
-          (url    (job-url job))
-          (branch (job-branch job)))
+    (let ((name   (job-spec-name spec))
+          (url    (job-spec-url spec))
+          (branch (job-spec-branch spec)))
       (or (file-exists? name) (system* "git" "clone" url name))
       (with-directory-excursion name
         (and (zero? (system* "git" "fetch"))
