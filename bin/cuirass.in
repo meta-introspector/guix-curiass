@@ -43,7 +43,7 @@ exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
   (show-package-information))
 
 (define %options
-  `((cache-directory            (value #t))
+  '((cache-directory            (value #t))
     (file     (single-char #\f) (value #t))
     (database (single-char #\f) (value #t))
     (interval (single-char #\I) (value #t))
