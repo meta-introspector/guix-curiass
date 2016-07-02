@@ -24,7 +24,8 @@ SCM_LOG_DRIVER = \
 
 TESTS = \
   tests/base.scm \
-  tests/database.scm
+  tests/database.scm \
+  tests/utils.scm
 
 # Unset 'GUILE_LOAD_COMPILED_PATH' altogether while compiling.  Otherwise, if
 # $GUILE_LOAD_COMPILED_PATH contains $(cuirassmoduledir), we may find .go
