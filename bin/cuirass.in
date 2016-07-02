@@ -30,10 +30,10 @@ exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
              (ice-9 getopt-long))
 
 (define* (show-help)
-  (simple-format #t "Usage: ~a [OPTIONS] [CACHEDIR]" (%program-name))
-  (display "
-Run Guix job from a git repository cloned in CACHEDIR.
+  (simple-format #t "Usage: ~a [OPTIONS] ~%" (%program-name))
+  (display "Run build jobs.
 
+      --cache-directory=DIR Use DIR for storing repository data
   -f  --use-file=FILE       Use FILE which defines the job to evaluate
   -D  --database=DB         Use DB to store build results.
   -I, --interval=N          Wait N seconds between each evaluation
@@ -43,7 +43,8 @@ Run Guix job from a git repository cloned in CACHEDIR.
   (show-package-information))
 
 (define %options
-  `((file     (single-char #\f) (value #t))
+  `((cache-directory            (value #t))
+    (file     (single-char #\f) (value #t))
     (database (single-char #\f) (value #t))
     (interval (single-char #\I) (value #t))
     (version  (single-char #\V) (value #f))
@@ -55,39 +56,41 @@ Run Guix job from a git repository cloned in CACHEDIR.
     (beautify-user-module! m)
     m))
 
-(define (fetch-repository cachedir spec)
-  "Get the latest version of Guix repository.  Clone repository in directory
-DIR if required."
-  (or (file-exists? cachedir) (mkdir cachedir))
-  (with-directory-excursion cachedir
-    (let ((name   (job-spec-name spec))
-          (url    (job-spec-url spec))
-          (branch (job-spec-branch spec))
-          (commit (job-spec-commit spec))
-          (tag    (job-spec-tag spec)))
-      (or (file-exists? name) (system* "git" "clone" url name))
-      (with-directory-excursion name
-        (and (zero? (system* "git" "fetch"))
-             (zero? (system* "git" "reset" "--hard"
-                             (or tag
-                                 commit
-                                 (string-append "origin/" branch)))))))))
+(define (fetch-repository spec)
+  "Get the latest version of repository specified in SPEC.  Clone repository
+if required."
+  (let ((cachedir (%package-cachedir)))
+    (or (file-exists? cachedir) (mkdir cachedir))
+    (with-directory-excursion cachedir
+      (let ((name   (job-spec-name spec))
+            (url    (job-spec-url spec))
+            (branch (job-spec-branch spec))
+            (commit (job-spec-commit spec))
+            (tag    (job-spec-tag spec)))
+        (or (file-exists? name) (system* "git" "clone" url name))
+        (with-directory-excursion name
+          (and (zero? (system* "git" "fetch"))
+               (zero? (system* "git" "reset" "--hard"
+                               (or tag
+                                   commit
+                                   (string-append "origin/" branch))))))))))
 
-(define (set-load-path! cachedir spec)
+(define (set-load-path! spec)
   "Set %LOAD-PATH to match what is specified in SPEC."
   (let* ((name (job-spec-name spec))
          (path (job-spec-load-path spec))
-         (dir  (string-join (list cachedir name path) "/")))
+         (dir  (string-join (list (%package-cachedir) name path) "/")))
     (format #t "prepending ~s to the load path~%" dir)
     (set! %load-path (cons dir %load-path))))
 
-(define (evaluate store db cachedir spec)
+(define (evaluate store db spec)
   "Evaluate and build package derivations.  Return a list a jobs."
   (save-module-excursion
    (lambda ()
      (set-current-module %user-module)
      ;; Handle both relative and absolute file names for SPEC-FILE.
-     (with-directory-excursion cachedir
+     (with-directory-excursion
+         (string-append (%package-cachedir) "/" (job-spec-name spec))
        (primitive-load (job-spec-file spec)))))
   (let* ((proc (module-ref %user-module (job-spec-proc spec)))
          (jobs (proc store (job-spec-arguments spec))))
@@ -127,7 +130,9 @@ DIR if required."
   (let ((opts (getopt-long args %options)))
     (parameterize
         ((%program-name     (car args))
-         (%package-database (option-ref opts 'database (%package-database))))
+         (%package-database (option-ref opts 'database (%package-database)))
+         (%package-cachedir
+          (option-ref opts 'cache-directory (%package-cachedir))))
       (cond
        ((option-ref opts 'help #f)
         (show-help)
@@ -138,24 +143,20 @@ DIR if required."
        (else
         (let* ((specfile (option-ref opts 'file "tests/hello-subset.scm"))
                (interval (option-ref opts 'interval "60"))
-               (specs    (primitive-load specfile))
-               (args     (option-ref opts '() #f))
-               (cachedir (if (null? args)
-                             (getenv "CUIRASS_CACHEDIR")
-                             (car args))))
+               (specs    (primitive-load specfile)))
           (with-database db
             (while #t
               (for-each
                (λ (spec)
-                 (fetch-repository cachedir spec)
+                 (fetch-repository spec)
                  (let ((old-path %load-path))
                    (and (job-spec-load-path spec)
-                        (set-load-path! cachedir spec))
+                        (set-load-path! spec))
                    (let ((store ((guix-variable 'store 'open-connection))))
                      (dynamic-wind
                        (const #t)
                        (lambda ()
-                         (let ((jobs (evaluate store db cachedir spec))
+                         (let ((jobs (evaluate store db spec))
                                (set-build-options
                                 (guix-variable 'store 'set-build-options)))
                            (set-build-options store #:use-substitutes? #f)

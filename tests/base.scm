@@ -23,3 +23,7 @@
 (test-error "invalid program name"
   'wrong-type-arg
   (%program-name #f))
+
+(test-error "invalid cache directory"
+  'wrong-type-arg
+  (%package-cachedir #f))

@@ -25,7 +25,8 @@
             guix-variable
             call-with-time-display
             ;; Parameters.
-            %program-name))
+            %program-name
+            %package-cachedir))
 
 (define %program-name
   ;; Similar in spirit to Gnulib 'progname' module.
@@ -36,6 +37,17 @@
                         "%program-name" "Not a string: ~S" (list #f) #f))
             ((string-rindex val #\/) => (λ (idx) (substring val (1+ idx))))
             (else val)))))
+
+(define %package-cachedir
+  ;; Define to location of cache directory of this package.
+  (make-parameter (or (getenv "CUIRASS_CACHEDIR")
+                      (string-append (or (getenv "HOME") ".")
+                                     "/.cache/cuirass"))
+    (λ (val)
+      (if (string? val)
+          val
+          (scm-error 'wrong-type-arg
+                     "%package-cachedir" "Not a string: ~S" (list #f) #f)))))
 
 (define (guix-variable module name)
   "Dynamically link variable NAME under Guix module MODULE and return it.
