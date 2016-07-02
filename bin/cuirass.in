@@ -30,11 +30,10 @@ exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
              (ice-9 getopt-long))
 
 (define* (show-help)
-  (simple-format #t "Usage: ~a [OPTIONS] ~%" (%program-name))
-  (display "Run build jobs.
+  (simple-format #t "Usage: ~a [OPTIONS] SPECFILE~%" (%program-name))
+  (display "Run build jobs from SPECFILE.
 
       --cache-directory=DIR Use DIR for storing repository data
-  -f  --use-file=FILE       Use FILE which defines the job to evaluate
   -D  --database=DB         Use DB to store build results.
   -I, --interval=N          Wait N seconds between each evaluation
   -V, --version             Display version
@@ -44,7 +43,6 @@ exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
 
 (define %options
   '((cache-directory            (value #t))
-    (file     (single-char #\f) (value #t))
     (database (single-char #\f) (value #t))
     (interval (single-char #\I) (value #t))
     (version  (single-char #\V) (value #f))
@@ -144,7 +142,8 @@ if required."
 ;;;
 
 (define* (main #:optional (args (command-line)))
-  (let ((opts (getopt-long args %options)))
+  (let* ((opts     (getopt-long args %options))
+         (specfile (option-ref opts '() '())))
     (parameterize
         ((%program-name     (car args))
          (%package-database (option-ref opts 'database (%package-database)))
@@ -157,13 +156,15 @@ if required."
        ((option-ref opts 'version #f)
         (show-version)
         (exit 0))
+       ((null? specfile)
+        (display "You must provide a specification file as argument.~%")
+        (exit 1))
        (else
-        (let* ((specfile (option-ref opts 'file "tests/hello-subset.scm"))
-               (interval (string->number (option-ref opts 'interval "60")))
-               (specs (save-module-excursion
-                       (λ ()
-                         (set-current-module (make-user-module))
-                         (primitive-load specfile)))))
+        (let ((interval (string->number (option-ref opts 'interval "60")))
+              (specs    (save-module-excursion
+                         (λ ()
+                           (set-current-module (make-user-module))
+                           (primitive-load (car specfile))))))
           (with-database db
             (while #t
               (process-specs db specs)
