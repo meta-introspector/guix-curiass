@@ -119,10 +119,8 @@ database object."
   (let ((db (db-init)))
     (dynamic-wind
       (const #t)
-      (lambda ()
-        body ...)
-      (lambda ()
-        (db-close db)))))
+      (λ () body ...)
+      (λ () (db-close db)))))
 
 (define* (read-quoted-string #:optional port)
   "Read all of the characters out of PORT and return them as a SQL quoted

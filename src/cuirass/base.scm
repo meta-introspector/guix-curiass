@@ -68,7 +68,7 @@ values."
 (define (call-with-time-display thunk)
   "Call THUNK and write to the current output port its duration."
   (call-with-time thunk
-    (lambda (time . results)
+    (λ (time . results)
       (format #t "~,3f seconds~%"
               (+ (time-second time)
                  (/ (time-nanosecond time) 1e9)))

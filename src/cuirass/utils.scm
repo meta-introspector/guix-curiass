@@ -23,11 +23,15 @@
   #:export (;; Procedures
             mkdir-p
             ;; Macros.
+            λ*
             with-directory-excursion))
+
+(define-syntax-rule (λ* formals body ...)
+  (lambda* formals body ...))
 
 (define mkdir-p
   (let ((not-slash (char-set-complement (char-set #\/))))
-    (lambda* (dir #:optional mode)
+    (λ* (dir #:optional mode)
       "Create directory DIR and all its ancestors."
       (let ((absolute? (string-prefix? "/" dir)))
         (let loop ((components (string-tokenize dir not-slash))
@@ -36,12 +40,12 @@
             ((head tail ...)
              (let ((dir-name (string-append root "/" head)))
                (catch 'system-error
-                 (lambda ()
+                 (λ ()
                    (if mode
                        (mkdir dir-name mode)
                        (mkdir dir-name))
                    (loop tail dir-name))
-                 (lambda args
+                 (λ args
                    ;; On GNU/Hurd we can get EROFS instead of EEXIST here.
                    ;; Thus, if we get something other than EEXIST, check
                    ;; whether DIR-NAME exists.  See
@@ -57,9 +61,6 @@
   "Run BODY with DIR as the process's current directory."
   (let ((init (getcwd)))
     (dynamic-wind
-      (lambda ()
-        (chdir dir))
-      (lambda ()
-        body ...)
-      (lambda ()
-        (chdir init)))))
+      (λ () (chdir dir))
+      (λ () body ...)
+      (λ () (chdir init)))))

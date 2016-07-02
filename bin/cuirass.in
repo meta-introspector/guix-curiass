@@ -86,7 +86,7 @@ if required."
 (define (evaluate store db spec)
   "Evaluate and build package derivations.  Return a list a jobs."
   (save-module-excursion
-   (lambda ()
+   (λ ()
      (set-current-module %user-module)
      ;; Handle both relative and absolute file names for SPEC-FILE.
      (with-directory-excursion
@@ -108,7 +108,7 @@ if required."
          (guix-variable 'store 'current-build-output-port))
         (derivation-path->output-path
          (guix-variable 'derivations 'derivation-path->output-path)))
-    (map (lambda (job)
+    (map (λ (job)
            (let ((log-port (tmpfile))
                  (name     (job-name job))
                  (drv      (job-derivation job)))
@@ -155,13 +155,13 @@ if required."
                    (let ((store ((guix-variable 'store 'open-connection))))
                      (dynamic-wind
                        (const #t)
-                       (lambda ()
+                       (λ ()
                          (let ((jobs (evaluate store db spec))
                                (set-build-options
                                 (guix-variable 'store 'set-build-options)))
                            (set-build-options store #:use-substitutes? #f)
                            (build-packages store db jobs)))
-                       (lambda ()
+                       (λ ()
                          ((guix-variable 'store 'close-connection) store)
                          (set! %load-path old-path))))))
                specs)
