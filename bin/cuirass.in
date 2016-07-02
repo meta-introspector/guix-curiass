@@ -26,6 +26,7 @@ exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
              (cuirass database)
              (cuirass job)
              (cuirass ui)
+             (cuirass utils)
              (ice-9 getopt-long))
 
 (define* (show-help)

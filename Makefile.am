@@ -7,7 +7,8 @@ dist_pkgmodule_DATA = \
   src/cuirass/base.scm \
   src/cuirass/database.scm \
   src/cuirass/job.scm \
-  src/cuirass/ui.scm
+  src/cuirass/ui.scm \
+  src/cuirass/utils.scm
 
 nodist_pkgmodule_DATA = \
   $(dist_pkgmodule_DATA:%.scm=%.go) \

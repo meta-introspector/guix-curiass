@@ -1,6 +1,6 @@
 ;;;; base.scm - Cuirass base module
 ;;;
-;;; Copyright © 2012, 2016 Ludovic Courtès <ludo@gnu.org>
+;;; Copyright © 2016 Ludovic Courtès <ludo@gnu.org>
 ;;; Copyright © 2016 Mathieu Lirzin <mthl@gnu.org>
 ;;;
 ;;; This file is part of Cuirass.
@@ -25,9 +25,7 @@
             guix-variable
             call-with-time-display
             ;; Parameters.
-            %program-name
-            ;; Macros.
-            with-directory-excursion))
+            %program-name))
 
 (define %program-name
   ;; Similar in spirit to Gnulib 'progname' module.
@@ -46,17 +44,6 @@ file, Guile tries to load the module directly as it reads the source, which
 fails in our case, leading to the creation of empty (guix ...) modules."
   (let ((m (resolve-interface `(guix ,module))))
     (module-ref m name)))
-
-(define-syntax-rule (with-directory-excursion dir body ...)
-  "Run BODY with DIR as the process's current directory."
-  (let ((init (getcwd)))
-    (dynamic-wind
-      (lambda ()
-        (chdir dir))
-      (lambda ()
-        body ...)
-      (lambda ()
-        (chdir init)))))
 
 (define (call-with-time thunk kont)
   "Call THUNK and pass KONT the elapsed time followed by THUNK's return
