@@ -33,6 +33,7 @@ exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
   (simple-format #t "Usage: ~a [OPTIONS] SPECFILE~%" (%program-name))
   (display "Run build jobs from SPECFILE.
 
+      --one-shot            Evaluate and build jobs only once
       --cache-directory=DIR Use DIR for storing repository data
   -D  --database=DB         Use DB to store build results.
   -I, --interval=N          Wait N seconds between each evaluation
@@ -42,7 +43,8 @@ exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
   (show-package-information))
 
 (define %options
-  '((cache-directory            (value #t))
+  '((one-shot                   (value #f))
+    (cache-directory            (value #t))
     (database (single-char #\f) (value #t))
     (interval (single-char #\I) (value #t))
     (version  (single-char #\V) (value #f))
@@ -160,12 +162,15 @@ if required."
         (display "You must provide a specification file as argument.~%")
         (exit 1))
        (else
-        (let ((interval (string->number (option-ref opts 'interval "60")))
-              (specs    (save-module-excursion
-                         (λ ()
-                           (set-current-module (make-user-module))
-                           (primitive-load (car specfile))))))
+        (let ((one-shot? (option-ref opts 'one-shot #f))
+              (interval  (string->number (option-ref opts 'interval "60")))
+              (specs     (save-module-excursion
+                          (λ ()
+                            (set-current-module (make-user-module))
+                            (primitive-load (car specfile))))))
           (with-database db
-            (while #t
-              (process-specs db specs)
-              (sleep interval)))))))))
+            (if one-shot?
+                (process-specs db specs)
+                (while #t
+                  (process-specs db specs)
+                  (sleep interval))))))))))
