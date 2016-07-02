@@ -1,6 +1,7 @@
 ;;;; utils.scm -- helper procedures
 ;;;
 ;;; Copyright © 2012, 2013, 2016 Ludovic Courtès <ludo@gnu.org>
+;;; Copyright © 2015 David Thompson <davet@gnu.org>
 ;;; Copyright © 2016 Mathieu Lirzin <mthl@gnu.org>
 ;;;
 ;;; This file is part of Cuirass.
@@ -22,6 +23,7 @@
   #:use-module (ice-9 match)
   #:export (;; Procedures
             mkdir-p
+            make-user-module
             ;; Macros.
             λ*
             with-directory-excursion))
@@ -64,3 +66,12 @@
       (λ () (chdir dir))
       (λ () body ...)
       (λ () (chdir init)))))
+
+(define* (make-user-module #:optional (modules '()))
+  "Return a new user module with the additional MODULES loaded."
+  ;; Module in which the machine description file is loaded.
+  (let ((module (make-fresh-user-module)))
+    (for-each (lambda (iface)
+                (module-use! module (resolve-interface iface)))
+              modules)
+    module))

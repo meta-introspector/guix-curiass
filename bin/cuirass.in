@@ -50,12 +50,6 @@ exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
     (version  (single-char #\V) (value #f))
     (help     (single-char #\h) (value #f))))
 
-(define %user-module
-  ;; Cuirass user module.
-  (let ((m (make-module)))
-    (beautify-user-module! m)
-    m))
-
 (define (fetch-repository spec)
   "Get the latest version of repository specified in SPEC.  Clone repository
 if required."
@@ -85,21 +79,22 @@ if required."
 
 (define (evaluate store db spec)
   "Evaluate and build package derivations.  Return a list a jobs."
-  (save-module-excursion
-   (λ ()
-     (set-current-module %user-module)
-     ;; Handle both relative and absolute file names for SPEC-FILE.
-     (with-directory-excursion
-         (string-append (%package-cachedir) "/" (job-spec-name spec))
-       (primitive-load (job-spec-file spec)))))
-  (let* ((proc (module-ref %user-module (job-spec-proc spec)))
-         (jobs (proc store (job-spec-arguments spec))))
-    (map (λ (job)
-           (let ((id (db-add-evaluation db job)))
-             (make-job #:name (job-name job)
-                       #:derivation (job-derivation job)
-                       #:metadata (acons 'id id (job-metadata job)))))
-         jobs)))
+  (let ((mod (make-user-module)))
+    (save-module-excursion
+     (λ ()
+       (set-current-module mod)
+       ;; Handle both relative and absolute file names for SPEC-FILE.
+       (with-directory-excursion
+           (string-append (%package-cachedir) "/" (job-spec-name spec))
+         (primitive-load (job-spec-file spec)))))
+    (let* ((proc (module-ref mod (job-spec-proc spec)))
+           (jobs (proc store (job-spec-arguments spec))))
+      (map (λ (job)
+             (let ((id (db-add-evaluation db job)))
+               (make-job #:name (job-name job)
+                         #:derivation (job-derivation job)
+                         #:metadata (acons 'id id (job-metadata job)))))
+           jobs))))
 
 (define (build-packages store db jobs)
   "Build JOBS which is a list of <job> objects."
@@ -120,6 +115,28 @@ if required."
                (close-port log-port))
              (format #t "~A~%" (derivation-path->output-path drv))))
          jobs)))
+
+(define (process-spec db spec)
+  "Evaluate and build SPEC"
+  (fetch-repository spec)
+  (let ((old-path %load-path))
+    (and (job-spec-load-path spec) (set-load-path! spec))
+    (let ((store ((guix-variable 'store 'open-connection))))
+      (dynamic-wind
+        (const #t)
+        (λ ()
+          (let ((jobs (evaluate store db spec))
+                (set-build-options
+                 (guix-variable 'store 'set-build-options)))
+            (set-build-options store #:use-substitutes? #f)
+            (build-packages store db jobs)))
+        (λ ()
+          ((guix-variable 'store 'close-connection) store)
+          (set! %load-path old-path))))))
+
+(define (process-specs db jobspecs)
+  "Evaluate and build JOBSPECS and store results in DB."
+  (for-each (λ (spec) (process-spec db spec)) jobspecs))
 
 
 ;;;
@@ -142,27 +159,12 @@ if required."
         (exit 0))
        (else
         (let* ((specfile (option-ref opts 'file "tests/hello-subset.scm"))
-               (interval (option-ref opts 'interval "60"))
-               (specs    (primitive-load specfile)))
+               (interval (string->number (option-ref opts 'interval "60")))
+               (specs (save-module-excursion
+                       (λ ()
+                         (set-current-module (make-user-module))
+                         (primitive-load specfile)))))
           (with-database db
             (while #t
-              (for-each
-               (λ (spec)
-                 (fetch-repository spec)
-                 (let ((old-path %load-path))
-                   (and (job-spec-load-path spec)
-                        (set-load-path! spec))
-                   (let ((store ((guix-variable 'store 'open-connection))))
-                     (dynamic-wind
-                       (const #t)
-                       (λ ()
-                         (let ((jobs (evaluate store db spec))
-                               (set-build-options
-                                (guix-variable 'store 'set-build-options)))
-                           (set-build-options store #:use-substitutes? #f)
-                           (build-packages store db jobs)))
-                       (λ ()
-                         ((guix-variable 'store 'close-connection) store)
-                         (set! %load-path old-path))))))
-               specs)
-              (sleep (string->number interval))))))))))
+              (process-specs db specs)
+              (sleep interval)))))))))
