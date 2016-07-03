@@ -15,15 +15,22 @@ nodist_pkgmodule_DATA = \
   src/cuirass/config.scm \
   src/cuirass/config.go
 
-TEST_EXTENSIONS = .scm
-AM_TESTS_ENVIRONMENT = env GUILE_AUTO_COMPILE='0'
+TEST_EXTENSIONS = .scm .sh
+AM_TESTS_ENVIRONMENT = \
+  env GUILE_AUTO_COMPILE='0' \
+  testsrcdir='$(abs_top_srcdir)/tests' \
+  testbuilddir='$(abs_top_builddir)/tests'
 
 SCM_LOG_DRIVER = \
   $(builddir)/pre-inst-env $(GUILE) \
   $(srcdir)/build-aux/test-driver.scm
 
+SH_LOG_COMPILER = $(top_builddir)/pre-inst-env $(SHELL)
+AM_SH_LOG_FLAGS = -x -e
+
 TESTS = \
   tests/base.scm \
+  tests/basic.sh \
   tests/database.scm \
   tests/utils.scm
 
@@ -64,6 +71,8 @@ gen-ChangeLog:
 
 EXTRA_DIST = \
   .dir-locals.el \
+  tests/gnu-system.scm \
+  tests/hello-subset.scm \
   $(TESTS)
 
 DISTCLEANFILES = src/cuirass/config.scm

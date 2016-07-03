@@ -10,6 +10,7 @@
 /build-aux/config.sub
 /build-aux/install-sh
 /build-aux/missing
+/build-aux/test-driver
 /cache/
 /config.cache
 /configure
