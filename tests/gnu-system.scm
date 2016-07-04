@@ -184,7 +184,7 @@ valid."
 
     (append-map (lambda (target)
                   (map (lambda (package)
-                         (package-cross-job store (job-name package)
+                         (package-cross-job store (%job-name package)
                                             package target system))
                        %packages-to-cross-build))
                 (remove (either from-32-to-64? same?) %cross-targets)))
@@ -212,7 +212,7 @@ valid."
                     ((core)
                      ;; Build core packages only.
                      (append (map (lambda (package)
-                                    (package-job store (job-name package)
+                                    (package-job store (%job-name package)
                                                  package system))
                                   %core-packages)
                              (cross-jobs system)))
