@@ -72,6 +72,7 @@ gen-ChangeLog:
 EXTRA_DIST = \
   .dir-locals.el \
   tests/gnu-system.scm \
+  tests/guix-jobs.scm \
   tests/hello-subset.scm \
   $(TESTS)
 
