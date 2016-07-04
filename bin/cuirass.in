@@ -120,7 +120,8 @@ if required."
   "Evaluate and build SPEC"
   (fetch-repository spec)
   (let ((old-path %load-path))
-    (and (job-spec-load-path spec) (set-load-path! spec))
+    (when (job-spec-load-path spec)
+      (set-load-path! spec))
     (let ((store ((guix-variable 'store 'open-connection))))
       (dynamic-wind
         (const #t)
