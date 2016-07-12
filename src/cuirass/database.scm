@@ -93,8 +93,8 @@ database object."
   (sqlite-exec
    db
    (format #f "insert into build (job_spec, drv) values ('~A', '~A');"
-           (job-name job)
-           (job-derivation job)))
+           (assq-ref job #:job-name)
+           (assq-ref job #:derivation)))
   (let* ((stmt (sqlite-prepare db "select last_insert_rowid() from build;"))
          (res  (sqlite-step stmt)))
     (sqlite-finalize stmt)
@@ -133,7 +133,7 @@ string."
 
 (define (db-add-build-log db job log)
   "Store a build LOG corresponding to JOB in database DB."
-  (let ((id   (assoc-ref (job-metadata job) 'id))
+  (let ((id   (assq-ref job #:id))
         (log* (cond ((string? log) log)
                     ((port? log)
                      (seek log 0 SEEK_SET)

@@ -1,0 +1,96 @@
+#!/bin/sh
+# -*- scheme -*-
+GUILE_LOAD_PATH="$1"
+export GUILE_LOAD_PATH
+exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
+!#
+;;;; evaluate - convert a specification to a job list
+;;; Copyright © 2016 Ludovic Courtès <ludo@gnu.org>
+;;; Copyright © 2016 Mathieu Lirzin <mthl@gnu.org>
+;;;
+;;; This file is part of Cuirass.
+;;;
+;;; Cuirass is free software; you can redistribute it and/or modify it
+;;; under the terms of the GNU General Public License as published by
+;;; the Free Software Foundation; either version 3 of the License, or (at
+;;; your option) any later version.
+;;;
+;;; Cuirass is distributed in the hope that it will be useful, but
+;;; WITHOUT ANY WARRANTY; without even the implied warranty of
+;;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+;;; GNU General Public License for more details.
+;;;
+;;; You should have received a copy of the GNU General Public License
+;;; along with Cuirass.  If not, see <http://www.gnu.org/licenses/>.
+
+(use-modules (ice-9 format)
+             (ice-9 match)
+             (ice-9 pretty-print)
+             (guix store)
+             (srfi srfi-19))
+
+(define-syntax-rule (with-directory-excursion dir body ...)
+  "Run BODY with DIR as the process's current directory."
+  (let ((init (getcwd)))
+    (dynamic-wind
+      (λ () (chdir dir))
+      (λ () body ...)
+      (λ () (chdir init)))))
+
+(define (call-with-time thunk kont)
+  "Call THUNK and pass KONT the elapsed time followed by THUNK's return
+value."
+  (let* ((start  (current-time time-monotonic))
+         (result (thunk))
+         (end    (current-time time-monotonic)))
+    (kont (time-difference end start) result)))
+
+(define (call-with-time-display thunk)
+  "Call THUNK and write to the current output port its duration."
+  (call-with-time thunk
+    (λ (time result)
+      (let ((duration (+ (time-second time)
+                         (/ (time-nanosecond time) 1e9))))
+        (format (current-error-port) "evaluate '~A': ~,3f seconds~%"
+                (assq-ref result #:job-name)
+                duration)
+        (acons #:duration duration result)))))
+
+(define* (main #:optional (args (command-line)))
+  (match args
+    ((command load-path cachedir specstr)
+     ;; Load FILE, a Scheme file that defines Hydra jobs.
+     (let* ((%user-module (make-fresh-user-module))
+            (spec (eval-string specstr %user-module))
+            (stdout (current-output-port))
+            (stderr (current-error-port)))
+       (save-module-excursion
+        (λ ()
+          (set-current-module %user-module)
+          (with-directory-excursion
+              (string-append cachedir "/" (assq-ref spec #:name))
+            (primitive-load (assq-ref spec #:file)))))
+       (with-store store
+         ;; Make sure we don't resort to substitutes.
+         (set-build-options store #:use-substitutes? #f #:substitute-urls '())
+         ;; Grafts can trigger early builds.  We do not want that to happen
+         ;; during evaluation, so use a sledgehammer to catch such problems.
+         (set! build-things
+               (λ (store . args)
+                 (display "error: trying to build things during evaluation!~%"
+                          stderr)
+                 (format stderr "'build-things' arguments: ~S~%" args)
+                 (exit 1)))
+         ;; Call the entry point of FILE and print the resulting job sexp.
+         (pretty-print
+          (let* ((proc   (module-ref %user-module 'hydra-jobs) )
+                 (thunks (proc store (assq-ref spec #:arguments))))
+            (map (λ (thunk)
+                   (call-with-time-display thunk))
+                 thunks))
+          stdout))))
+    ((command _ ...)
+     (format (current-error-port) "Usage: ~A FILE
+Evaluate the Hydra jobs defined in FILE.~%"
+             command)
+     (exit 1))))

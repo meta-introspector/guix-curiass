@@ -17,34 +17,29 @@
 ;;; You should have received a copy of the GNU General Public License
 ;;; along with Cuirass.  If not, see <http://www.gnu.org/licenses/>.
 
-(use-modules (cuirass job))
-
-;; In the common case jobs will be defined relative to the repository.
-;; However for testing purpose use local gnu-system.scm instead.
 (define (local-file file)
+  ;; In the common case jobs will be defined relative to the repository.
+  ;; However for testing purpose use local gnu-system.scm instead.
   (string-append (dirname (current-filename)) "/" file))
 
-(list (make-job-spec
-       #:name "guix"
-       #:url "git://git.savannah.gnu.org/guix.git"
-       #:load-path "."
-       #:branch "master"
-       #:file (local-file "gnu-system.scm")
-       #:proc 'hydra-jobs
-       #:arguments '((subset . "hello")))
-      (make-job-spec
-       #:name "guix"
-       #:url "git://git.savannah.gnu.org/guix.git"
-       #:load-path "."
-       #:branch "core-updates"
-       #:file (local-file "gnu-system.scm")
-       #:proc 'hydra-jobs
-       #:arguments '((subset . "hello")))
-      (make-job-spec
-       #:name "guix"
-       #:url "git://git.savannah.gnu.org/guix.git"
-       #:load-path "."
-       #:tag "v0.9.0"
-       #:file (local-file "gnu-system.scm")
-       #:proc 'hydra-jobs
-       #:arguments '((subset . "hello"))))
+`(((#:name . "guix")
+   (#:url . "git://git.savannah.gnu.org/guix.git")
+   (#:load-path . ".")
+   (#:branch . "master")
+   (#:file . ,(local-file "gnu-system.scm"))
+   (#:proc . hydra-jobs)
+   (#:arguments (subset . "hello")))
+  ((#:name . "guix")
+   (#:url . "git://git.savannah.gnu.org/guix.git")
+   (#:load-path . ".")
+   (#:branch . "core-updates")
+   (#:file . ,(local-file "gnu-system.scm"))
+   (#:proc . hydra-jobs)
+   (#:arguments (subset . "hello")))
+  ((#:name . "guix")
+   (#:url . "git://git.savannah.gnu.org/guix.git")
+   (#:load-path . ".")
+   (#:tag . "v0.9.0")
+   (#:file . ,(local-file "gnu-system.scm"))
+   (#:proc . hydra-jobs)
+   (#:arguments (subset . "hello"))))

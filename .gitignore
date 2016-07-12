@@ -6,6 +6,7 @@
 /aclocal.m4
 /autom4te.cache/
 /bin/cuirass
+/bin/evaluate
 /build-aux/config.guess
 /build-aux/config.sub
 /build-aux/install-sh

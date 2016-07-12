@@ -27,7 +27,10 @@ exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
              (cuirass job)
              (cuirass ui)
              (cuirass utils)
-             (ice-9 getopt-long))
+             (guix derivations)
+             (guix store)
+             (ice-9 getopt-long)
+             (ice-9 popen))
 
 (define* (show-help)
   (simple-format #t "Usage: ~a [OPTIONS] SPECFILE~%" (%program-name))
@@ -56,11 +59,11 @@ if required."
   (let ((cachedir (%package-cachedir)))
     (or (file-exists? cachedir) (mkdir cachedir))
     (with-directory-excursion cachedir
-      (let ((name   (job-spec-name spec))
-            (url    (job-spec-url spec))
-            (branch (job-spec-branch spec))
-            (commit (job-spec-commit spec))
-            (tag    (job-spec-tag spec)))
+      (let ((name   (assq-ref spec #:name))
+            (url    (assq-ref spec #:url))
+            (branch (assq-ref spec #:branch))
+            (commit (assq-ref spec #:commit))
+            (tag    (assq-ref spec #:tag)))
         (or (file-exists? name) (system* "git" "clone" url name))
         (with-directory-excursion name
           (and (zero? (system* "git" "fetch"))
@@ -69,71 +72,53 @@ if required."
                                    commit
                                    (string-append "origin/" branch))))))))))
 
-(define (set-load-path! spec)
-  "Set %LOAD-PATH to match what is specified in SPEC."
-  (let* ((name (job-spec-name spec))
-         (path (job-spec-load-path spec))
-         (dir  (string-join (list (%package-cachedir) name path) "/")))
-    (format #t "prepending ~s to the load path~%" dir)
-    (set! %load-path (cons dir %load-path))))
+(define (compile dir)
+  ;; Required for fetching Guix bootstrap tarballs.
+  "Compile files in repository in directory DIR."
+  (with-directory-excursion dir
+    (or (file-exists? "configure") (system* "./bootstrap"))
+    (or (file-exists? "Makefile")
+        (system* "./configure" "--localstatedir=/var"))
+    (zero? (system* "make" "-j" (number->string (current-processor-count))))))
 
 (define (evaluate store db spec)
-  "Evaluate and build package derivations.  Return a list a jobs."
-  (let ((mod (make-user-module)))
-    (save-module-excursion
-     (λ ()
-       (set-current-module mod)
-       ;; Handle both relative and absolute file names for SPEC-FILE.
-       (with-directory-excursion
-           (string-append (%package-cachedir) "/" (job-spec-name spec))
-         (primitive-load (job-spec-file spec)))))
-    (let* ((proc (module-ref mod (job-spec-proc spec)))
-           (jobs (proc store (job-spec-arguments spec))))
-      (map (λ (job)
-             (let ((id (db-add-evaluation db job)))
-               (make-job #:name (job-name job)
-                         #:derivation (job-derivation job)
-                         #:metadata (acons 'id id (job-metadata job)))))
-           jobs))))
+  "Evaluate and build package derivations.  Return a job alist."
+  (let* ((port (open-pipe* OPEN_READ
+                           "evaluate"
+                           (string-append (%package-cachedir) "/"
+                                          (assq-ref spec #:name) "/"
+                                          (assq-ref spec #:load-path))
+                           (%package-cachedir)
+                           (string-append "'" (object->string spec))))
+         (jobs (read port)))
+    (close-pipe port)
+    (map (λ (job)
+           (acons #:id (db-add-evaluation db job) job))
+         jobs)))
 
 (define (build-packages store db jobs)
   "Build JOBS which is a list of <job> objects."
-  (let ((build-derivations (guix-variable 'derivations 'build-derivations))
-        (current-build-output-port
-         (guix-variable 'store 'current-build-output-port))
-        (derivation-path->output-path
-         (guix-variable 'derivations 'derivation-path->output-path)))
-    (map (λ (job)
-           (let ((log-port (tmpfile))
-                 (name     (job-name job))
-                 (drv      (job-derivation job)))
-             (setvbuf log-port _IOLBF)
-             (format #t "building ~A...~%" drv)
-             (parameterize ((current-build-output-port log-port))
-               (build-derivations store (list drv))
-               (db-add-build-log db job log-port)
-               (close-port log-port))
-             (format #t "~A~%" (derivation-path->output-path drv))))
-         jobs)))
+  (map (λ (job)
+         (let ((log-port (tmpfile))
+               (name     (assq-ref job #:job-name))
+               (drv      (assq-ref job #:derivation)))
+           (setvbuf log-port _IOLBF)
+           (format #t "building ~A...~%" drv)
+           (parameterize ((current-build-output-port log-port))
+             (build-derivations store (list drv))
+             (db-add-build-log db job log-port)
+             (close-port log-port))
+           (format #t "~A~%" (derivation-path->output-path drv))))
+       jobs))
 
 (define (process-spec db spec)
   "Evaluate and build SPEC"
   (fetch-repository spec)
-  (let ((old-path %load-path))
-    (when (job-spec-load-path spec)
-      (set-load-path! spec))
-    (let ((store ((guix-variable 'store 'open-connection))))
-      (dynamic-wind
-        (const #t)
-        (λ ()
-          (let ((jobs (evaluate store db spec))
-                (set-build-options
-                 (guix-variable 'store 'set-build-options)))
-            (set-build-options store #:use-substitutes? #f)
-            (build-packages store db jobs)))
-        (λ ()
-          ((guix-variable 'store 'close-connection) store)
-          (set! %load-path old-path))))))
+  (compile (string-append (%package-cachedir) "/" (assq-ref spec #:name)))
+  (with-store store
+    (let ((jobs (evaluate store db spec)))
+      (set-build-options store #:use-substitutes? #f)
+      (build-packages store db jobs))))
 
 (define (process-specs db jobspecs)
   "Evaluate and build JOBSPECS and store results in DB."

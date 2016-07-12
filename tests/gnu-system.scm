@@ -25,8 +25,7 @@
   ;; newer, even though they may not correspond.
   (set! %fresh-auto-compile #t))
 
-(use-modules (cuirass job)
-             (guix config)
+(use-modules (guix config)
              (guix store)
              (guix grafts)
              (guix packages)
@@ -55,36 +54,38 @@
 
 (define (package-metadata package)
   "Convert PACKAGE to an alist suitable for Hydra."
-  `((description . ,(package-synopsis package))
-    (long-description . ,(package-description package))
-    (license . ,(package-license package))
-    (home-page . ,(package-home-page package))
-    (maintainers . ("bug-guix@gnu.org"))
-    (max-silent-time . ,(or (assoc-ref (package-properties package)
-                                       'max-silent-time)
-                            3600))      ;1 hour by default
-    (timeout . ,(or (assoc-ref (package-properties package) 'timeout)
-                    72000))))           ;20 hours by default
+  `((#:description . ,(package-synopsis package))
+    (#:long-description . ,(package-description package))
+    ;; (#:license . ,(package-license package))
+    (#:home-page . ,(package-home-page package))
+    (#:maintainers . ("bug-guix@gnu.org"))
+    (#:max-silent-time . ,(or (assoc-ref (package-properties package)
+                                         'max-silent-time)
+                              3600))      ;1 hour by default
+    (#:timeout . ,(or (assoc-ref (package-properties package) 'timeout)
+                      72000))))           ;20 hours by default
 
 (define (package-job store job-name package system)
   "Return a job called JOB-NAME that builds PACKAGE on SYSTEM."
-  (make-job
-   #:name (string-append (symbol->string job-name) "." system)
-   #:derivation (derivation-file-name
-                 (parameterize ((%graft? #f))
-                   (package-derivation store package system #:graft? #f)))
-   #:metadata (package-metadata package)))
+  (λ ()
+    `((#:job-name . ,(string-append (symbol->string job-name) "." system))
+      (#:derivation . ,(derivation-file-name
+                        (parameterize ((%graft? #f))
+                          (package-derivation store package system
+                                              #:graft? #f))))
+      ,@(package-metadata package))))
 
 (define (package-cross-job store job-name package target system)
   "Return a job called TARGET.JOB-NAME that cross-builds PACKAGE
 for TARGET on SYSTEM."
-  (make-job
-   #:name (string-append target "." (symbol->string job-name) "." system)
-   #:derivation (derivation-file-name
-                 (parameterize ((%graft? #f))
-                   (package-cross-derivation store package target system
-                                             #:graft? #f)))
-   #:metadata (package-metadata package)))
+  (λ ()
+    `((#:job-name . ,(string-join (list target (symbol->string job-name) system)
+                                  "."))
+      (#:derivation . ,(derivation-file-name
+                        (parameterize ((%graft? #f))
+                          (package-cross-derivation store package target system
+                                                    #:graft? #f))))
+      ,@(package-metadata package))))
 
 (define %core-packages
   ;; Note: Don't put the '-final' package variants because (1) that's
@@ -107,25 +108,24 @@ for TARGET on SYSTEM."
   '("mips64el-linux-gnu"
     "mips64el-linux-gnuabi64"))
 
-(define (tarball-jobs store system)
+(define (tarball-job store system)
   "Return Hydra jobs to build the self-contained Guix binary tarball."
-  (list
-   (make-job
-    #:name (string-append "binary-tarball." system)
-    #:derivation (derivation-file-name
-                  (parameterize ((%graft? #f))
-                    (run-with-store store
-                      (mbegin %store-monad
-                        (set-guile-for-build (default-guile))
-                        (self-contained-tarball))
-                      #:system system)))
-    #:metadata
-    `((description . "Stand-alone binary Guix tarball")
-      (long-description . "This is a tarball containing binaries of Guix and
-all its dependencies, and ready to be installed on non-GuixSD distributions.")
-      (license . ,gpl3+)
-      (home-page . ,%guix-home-page-url)
-      (maintainers . ("bug-guix@gnu.org"))))))
+  (λ ()
+    `((#:job-name . (string-append "binary-tarball." system))
+      (#:derivation . ,(derivation-file-name
+                        (parameterize ((%graft? #f))
+                          (run-with-store store
+                            (mbegin %store-monad
+                              (set-guile-for-build (default-guile))
+                              (self-contained-tarball))
+                            #:system system))))
+      (#:description . "Stand-alone binary Guix tarball")
+      (#:long-description . "This is a tarball containing binaries of Guix
+and all its dependencies, and ready to be installed on non-GuixSD
+distributions.")
+      ;; (#:license . ,gpl3+)
+      (#:home-page . ,%guix-home-page-url)
+      (#:maintainers . ("bug-guix@gnu.org")))))
 
 (define %job-name
   ;; Return the name of a package's job.
@@ -207,7 +207,7 @@ valid."
                        (append (filter-map (lambda (pkg)
                                              (package->job store pkg system))
                                            pkgs)
-                               (tarball-jobs store system)
+                               (list (tarball-job store system))
                                (cross-jobs system))))
                     ((core)
                      ;; Build core packages only.

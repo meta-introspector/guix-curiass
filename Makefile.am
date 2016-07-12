@@ -1,6 +1,6 @@
 ## Process this file with automake to produce Makefile.in.
 
-bin_SCRIPTS = bin/cuirass
+bin_SCRIPTS = bin/cuirass bin/evaluate
 noinst_SCRIPTS = pre-inst-env
 
 dist_pkgmodule_DATA = \
@@ -30,7 +30,7 @@ AM_SH_LOG_FLAGS = -x -e
 
 TESTS = \
   tests/base.scm \
-  tests/basic.sh \
+## tests/basic.sh # takes too long to execute
   tests/database.scm \
   tests/utils.scm
 

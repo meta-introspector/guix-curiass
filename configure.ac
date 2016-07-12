@@ -28,6 +28,7 @@ AC_SUBST([pkgmoduledir])
 AC_CONFIG_FILES([Makefile
                  src/cuirass/config.scm])
 AC_CONFIG_FILES([bin/cuirass], [chmod +x bin/cuirass])
+AC_CONFIG_FILES([bin/evaluate], [chmod +x bin/evaluate])
 AC_CONFIG_FILES([pre-inst-env:build-aux/pre-inst-env.in],
   [chmod +x pre-inst-env])
 AC_OUTPUT
