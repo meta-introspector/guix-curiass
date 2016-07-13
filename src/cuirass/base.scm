@@ -22,7 +22,6 @@
   #:use-module (ice-9 format)
   #:use-module (srfi srfi-19)
   #:export (;; Procedures.
-            guix-variable
             call-with-time-display
             ;; Parameters.
             %program-name
@@ -48,14 +47,6 @@
           val
           (scm-error 'wrong-type-arg
                      "%package-cachedir" "Not a string: ~S" (list #f) #f)))))
-
-(define (guix-variable module name)
-  "Dynamically link variable NAME under Guix module MODULE and return it.
-Note: this is used instead of `@', because when using `@' in an uncompiled
-file, Guile tries to load the module directly as it reads the source, which
-fails in our case, leading to the creation of empty (guix ...) modules."
-  (let ((m (resolve-interface `(guix ,module))))
-    (module-ref m name)))
 
 (define (call-with-time thunk kont)
   "Call THUNK and pass KONT the elapsed time followed by THUNK's return
