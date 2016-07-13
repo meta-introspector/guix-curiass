@@ -18,7 +18,6 @@
 ;;; along with Cuirass.  If not, see <http://www.gnu.org/licenses/>.
 
 (use-modules (cuirass database)
-             (cuirass job)
              (srfi srfi-64))
 
 (define* (make-dummy-job #:optional (name "foo"))

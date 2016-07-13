@@ -24,7 +24,6 @@ exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
 (use-modules (cuirass config)
              (cuirass base)
              (cuirass database)
-             (cuirass job)
              (cuirass ui)
              (cuirass utils)
              (guix derivations)

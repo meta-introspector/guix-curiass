@@ -20,7 +20,6 @@
 (define-module (cuirass database)
   #:use-module (cuirass base)
   #:use-module (cuirass config)
-  #:use-module (cuirass job)
   #:use-module (sqlite3)
   #:export (;; Procedures.
             db-init

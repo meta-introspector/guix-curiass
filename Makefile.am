@@ -6,7 +6,6 @@ noinst_SCRIPTS = pre-inst-env
 dist_pkgmodule_DATA = \
   src/cuirass/base.scm \
   src/cuirass/database.scm \
-  src/cuirass/job.scm \
   src/cuirass/ui.scm \
   src/cuirass/utils.scm
 
