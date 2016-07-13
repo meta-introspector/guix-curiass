@@ -31,8 +31,8 @@ exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
              (ice-9 getopt-long)
              (ice-9 popen))
 
-(define* (show-help)
-  (simple-format #t "Usage: ~a [OPTIONS] SPECFILE~%" (%program-name))
+(define (show-help)
+  (format #t "Usage: ~a [OPTIONS] SPECFILE~%" (%program-name))
   (display "Run build jobs from SPECFILE.
 
       --one-shot            Evaluate and build jobs only once
