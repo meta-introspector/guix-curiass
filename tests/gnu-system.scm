@@ -35,21 +35,13 @@
              ((guix utils) #:select (%current-system))
              ((guix scripts system) #:select (read-operating-system))
              (gnu packages)
-             (gnu packages gcc)
-             (gnu packages base)
-             (gnu packages gawk)
-             (gnu packages guile)
-             (gnu packages gettext)
-             (gnu packages compression)
-             (gnu packages multiprecision)
-             (gnu packages make-bootstrap)
              (gnu packages commencement)
-             (gnu packages package-management)
+             (gnu packages guile)
+             (gnu packages make-bootstrap)
              (gnu system)
              (gnu system vm)
              (gnu system install)
              (srfi srfi-1)
-             (srfi srfi-26)
              (ice-9 match))
 
 (define (package-metadata package)
@@ -91,15 +83,17 @@ for TARGET on SYSTEM."
   ;; Note: Don't put the '-final' package variants because (1) that's
   ;; implicit, and (2) they cannot be cross-built (due to the explicit input
   ;; chain.)
-  (list gcc-4.8 gcc-4.9 gcc-5 glibc binutils
-        gmp mpfr mpc coreutils findutils diffutils patch sed grep
-        gawk gnu-gettext hello guile-2.0 zlib gzip xz
-        %bootstrap-binaries-tarball
-        %binutils-bootstrap-tarball
-        %glibc-bootstrap-tarball
-        %gcc-bootstrap-tarball
-        %guile-bootstrap-tarball
-        %bootstrap-tarballs))
+  (append (map specification->package
+               '("gcc@4.8" "gcc@4.9" "gcc@5" "glibc" "binutils"
+                 "gmp" "mpfr" "mpc" "coreutils" "findutils" "diffutils" "patch" "sed" "grep"
+                 "gawk" "gettext" "hello" "zlib" "gzip" "xz"))
+          (list guile-2.0
+                %bootstrap-binaries-tarball
+                %binutils-bootstrap-tarball
+                %glibc-bootstrap-tarball
+                %gcc-bootstrap-tarball
+                %guile-bootstrap-tarball
+                %bootstrap-tarballs)))
 
 (define %packages-to-cross-build
   %core-packages)
@@ -219,7 +213,8 @@ valid."
                     ((hello)
                      ;; Build hello package only.
                      (if (string=? system (%current-system))
-                         (list (package-job store (%job-name hello) hello system))
+                         (let ((hello (specification->package "hello")))
+                           (list (package-job store (%job-name hello) hello system)))
                          '()))
                     (else
                      (error "unknown subset" subset))))
