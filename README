@@ -16,4 +16,4 @@ Example
 
 A quick way to manually test Cuirass is to execute:
 
-  ./pre-inst-env cuirass --interval=10 tests/hello-subset.scm
+  ./pre-inst-env cuirass --one-shot tests/hello-subset.scm --database=test.db
