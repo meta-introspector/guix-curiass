@@ -1,5 +1,4 @@
-;;;; hello-subset.scm - job specification test for hello subset.
-;;;
+;;; hello-subset.scm -- job specification test for hello subset
 ;;; Copyright © 2016 Mathieu Lirzin <mthl@gnu.org>
 ;;;
 ;;; This file is part of Cuirass.
@@ -22,24 +21,23 @@
   ;; However for testing purpose use local gnu-system.scm instead.
   (string-append (dirname (current-filename)) "/" file))
 
-`(((#:name . "guix")
-   (#:url . "git://git.savannah.gnu.org/guix.git")
-   (#:load-path . ".")
-   (#:branch . "master")
-   (#:file . ,(local-file "gnu-system.scm"))
-   (#:proc . hydra-jobs)
-   (#:arguments (subset . "hello")))
-  ((#:name . "guix")
-   (#:url . "git://git.savannah.gnu.org/guix.git")
-   (#:load-path . ".")
-   (#:branch . "core-updates")
-   (#:file . ,(local-file "gnu-system.scm"))
-   (#:proc . hydra-jobs)
-   (#:arguments (subset . "hello")))
-  ((#:name . "guix")
-   (#:url . "git://git.savannah.gnu.org/guix.git")
-   (#:load-path . ".")
-   (#:tag . "v0.9.0")
-   (#:file . ,(local-file "gnu-system.scm"))
-   (#:proc . hydra-jobs)
-   (#:arguments (subset . "hello"))))
+(define job-base
+  `((#:name . "guix")
+    (#:url . "git://git.savannah.gnu.org/guix.git")
+    (#:load-path . ".")
+    (#:file . ,(local-file "gnu-system.scm"))
+    (#:proc . hydra-jobs)
+    (#:arguments (subset . "hello"))))
+
+(define guix-master
+  (acons #:branch "master" job-base))
+
+(define guix-core-updates
+  (acons #:branch "core-updates" job-base))
+
+(define guix-0.10
+  (acons #:tag "v0.10.0" job-base))
+
+(list guix-master
+      guix-core-updates
+      guix-0.10)
