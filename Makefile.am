@@ -31,6 +31,7 @@ TESTS = \
   tests/base.scm \
 ## tests/basic.sh # takes too long to execute
   tests/database.scm \
+  tests/ui.scm \
   tests/utils.scm
 
 # Unset 'GUILE_LOAD_COMPILED_PATH' altogether while compiling.  Otherwise, if

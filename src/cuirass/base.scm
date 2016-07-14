@@ -24,18 +24,7 @@
   #:export (;; Procedures.
             call-with-time-display
             ;; Parameters.
-            %program-name
             %package-cachedir))
-
-(define %program-name
-  ;; Similar in spirit to Gnulib 'progname' module.
-  (make-parameter ""
-    (λ (val)
-      (cond ((not (string? val))
-             (scm-error 'wrong-type-arg
-                        "%program-name" "Not a string: ~S" (list #f) #f))
-            ((string-rindex val #\/) => (λ (idx) (substring val (1+ idx))))
-            (else val)))))
 
 (define %package-cachedir
   ;; Define to location of cache directory of this package.

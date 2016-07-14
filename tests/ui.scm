@@ -1,4 +1,4 @@
-;;; base.scm -- tests for (cuirass base) module
+;;; ui.scm -- tests for (cuirass ui) module
 ;;; Copyright © 2016 Mathieu Lirzin <mthl@gnu.org>
 ;;;
 ;;; This file is part of Cuirass.
@@ -16,9 +16,9 @@
 ;;; You should have received a copy of the GNU General Public License
 ;;; along with Cuirass.  If not, see <http://www.gnu.org/licenses/>.
 
-(use-modules (cuirass base)
+(use-modules (cuirass ui)
              (srfi srfi-64))
 
-(test-error "invalid cache directory"
+(test-error "invalid program name"
   'wrong-type-arg
-  (%package-cachedir #f))
+  (%program-name #f))

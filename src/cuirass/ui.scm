@@ -18,10 +18,22 @@
 ;;; along with Cuirass.  If not, see <http://www.gnu.org/licenses/>.
 
 (define-module (cuirass ui)
-  #:use-module (cuirass base)
   #:use-module (cuirass config)
-  #:export (show-version
-            show-package-information))
+  #:export (;; Procedures.
+            show-version
+            show-package-information
+            ;; Parameters.
+            %program-name))
+
+(define %program-name
+  ;; Similar in spirit to Gnulib 'progname' module.
+  (make-parameter ""
+    (λ (val)
+      (cond ((not (string? val))
+             (scm-error 'wrong-type-arg
+                        "%program-name" "Not a string: ~S" (list #f) #f))
+            ((string-rindex val #\/) => (λ (idx) (substring val (1+ idx))))
+            (else val)))))
 
 (define (show-version)
   "Display version information for COMMAND."
