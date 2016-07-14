@@ -31,7 +31,8 @@
              (guix packages)
              (guix derivations)
              (guix monads)
-             ((guix licenses) #:select (gpl3+))
+             ((guix licenses)
+              #:select (gpl3+ license-name license-uri license-comment))
              ((guix utils) #:select (%current-system))
              ((guix scripts system) #:select (read-operating-system))
              (gnu packages)
@@ -44,11 +45,17 @@
              (srfi srfi-1)
              (ice-9 match))
 
+(define (license->alist lcs)
+  "Return LCS <license> object as an alist."
+  `((name . ,(license-name lcs))
+    (uri . ,(license-uri lcs))
+    (comment . ,(license-comment lcs))))
+
 (define (package-metadata package)
   "Convert PACKAGE to an alist suitable for Hydra."
   `((#:description . ,(package-synopsis package))
     (#:long-description . ,(package-description package))
-    ;; (#:license . ,(package-license package))
+    (#:license . ,(license->alist (package-license package)))
     (#:home-page . ,(package-home-page package))
     (#:maintainers . ("bug-guix@gnu.org"))
     (#:max-silent-time . ,(or (assoc-ref (package-properties package)
@@ -117,7 +124,7 @@ for TARGET on SYSTEM."
       (#:long-description . "This is a tarball containing binaries of Guix
 and all its dependencies, and ready to be installed on non-GuixSD
 distributions.")
-      ;; (#:license . ,gpl3+)
+      (#:license . ,(license->alist gpl3+))
       (#:home-page . ,%guix-home-page-url)
       (#:maintainers . ("bug-guix@gnu.org")))))
 
