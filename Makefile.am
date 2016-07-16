@@ -14,6 +14,8 @@ nodist_pkgmodule_DATA = \
   src/cuirass/config.scm \
   src/cuirass/config.go
 
+dist_pkgdata_DATA = src/schema.sql
+
 TEST_EXTENSIONS = .scm .sh
 AM_TESTS_ENVIRONMENT = \
   env GUILE_AUTO_COMPILE='0' \

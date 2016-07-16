@@ -1,5 +1,4 @@
-;;;; database.scm - store evaluation and build results
-;;;
+;;; database.scm -- store evaluation and build results
 ;;; Copyright © 2016 Mathieu Lirzin <mthl@gnu.org>
 ;;;
 ;;; This file is part of Cuirass.
@@ -18,8 +17,8 @@
 ;;; along with Cuirass.  If not, see <http://www.gnu.org/licenses/>.
 
 (define-module (cuirass database)
-  #:use-module (cuirass base)
   #:use-module (cuirass config)
+  #:use-module (ice-9 rdelim)
   #:use-module (sqlite3)
   #:export (;; Procedures.
             db-init
@@ -29,6 +28,7 @@
             db-get-evaluation
             db-delete-evaluation
             db-add-build-log
+            read-sql-file
             ;; Parameters.
             %package-database
             ;; Macros.
@@ -44,6 +44,24 @@
   ;; Define to the database file name of this package.
   (make-parameter (string-append %localstatedir "/" %package ".db")))
 
+(define %package-schema-file
+  ;; Define to the database schema file of this package.
+  (make-parameter (string-append (or (getenv "CUIRASS_DATADIR")
+                                     (string-append %datadir "/" %package))
+                                 "/schema.sql")))
+
+(define (read-sql-file file-name)
+  "Return a list of string containing SQL instructions from FILE-NAME."
+  (call-with-input-file file-name
+    (λ (port)
+      (let loop ((insts '()))
+        (let ((inst (read-delimited ";" port 'concat)))
+          (if (or (eof-object? inst)
+                  ;; Don't cons the spaces after the last instructions.
+                  (string-every char-whitespace? inst))
+              (reverse! insts)
+              (loop (cons inst insts))))))))
+
 (define (db-init)
   "Open the database to store and read jobs and builds informations.  Return a
 database object."
@@ -53,29 +71,8 @@ database object."
       (delete-file db-name))
     (let ((db (sqlite-open db-name (logior SQLITE_OPEN_CREATE
                                            SQLITE_OPEN_READWRITE))))
-      (for-each (λ (sql) (sqlite-exec db sql))
-                '("PRAGMA foreign_keys=OFF;"
-                  "BEGIN TRANSACTION;"
-                  "COMMIT;"
-                  "
-CREATE TABLE job_spec (
-  name            text not null,
-  url             text not null,
-  branch          text not null,
-  file            text not null,
-  proc            text not null,
-  arguments       text not null,
-  primary key (name)
-);"
-                  "
-CREATE TABLE build (
-  id              integer primary key autoincrement not null,
-  job_spec        text not null,
-  drv             text not null,
-  log             text,
-  output          text
-  -- foreign key (job_spec) references job_spec(name)
-);"))
+      (for-each (λ (sql) (false-if-exception (sqlite-exec db sql)))
+                (read-sql-file (%package-schema-file)))
       db)))
 
 (define (db-open)

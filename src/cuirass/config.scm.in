@@ -47,6 +47,10 @@
   ;; Define to the version of this package.
   "@PACKAGE_VERSION@")
 
+(define-public %datadir
+  ;; Define to DATADIR without reference to '${prefix}'.
+  "@expanded_datadir@")
+
 (define-public %localstatedir
   ;; Define to LOCALSTATEDIR without reference to '${prefix}'.
   "@expanded_localstatedir@")
