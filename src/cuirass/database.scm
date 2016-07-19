@@ -71,7 +71,7 @@ database object."
       (delete-file db-name))
     (let ((db (sqlite-open db-name (logior SQLITE_OPEN_CREATE
                                            SQLITE_OPEN_READWRITE))))
-      (for-each (λ (sql) (false-if-exception (sqlite-exec db sql)))
+      (for-each (λ (sql) (sqlite-exec db sql))
                 (read-sql-file (%package-schema-file)))
       db)))
 
