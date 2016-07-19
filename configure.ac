@@ -22,6 +22,8 @@ AC_PATH_PROG([GUILD], [guild])
 AS_IF([test -z "$ac_cv_path_GUILD"],
   [AC_MSG_ERROR(['guild' program cannot be found.])])
 
+GUILE_MODULE_REQUIRED([sqlite3])
+
 moduledir="${datarootdir}/guile/site/2.0"
 pkgmoduledir="${moduledir}/cuirass"
 AC_SUBST([moduledir])
