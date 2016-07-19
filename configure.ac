@@ -24,11 +24,6 @@ AS_IF([test -z "$ac_cv_path_GUILD"],
 
 GUILE_MODULE_REQUIRED([sqlite3])
 
-moduledir="${datarootdir}/guile/site/2.0"
-pkgmoduledir="${moduledir}/cuirass"
-AC_SUBST([moduledir])
-AC_SUBST([pkgmoduledir])
-
 AC_CONFIG_FILES([Makefile
                  src/cuirass/config.scm])
 AC_CONFIG_FILES([bin/cuirass], [chmod +x bin/cuirass])

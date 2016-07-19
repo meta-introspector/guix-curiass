@@ -3,6 +3,7 @@
 bin_SCRIPTS = bin/cuirass bin/evaluate
 noinst_SCRIPTS = pre-inst-env
 
+pkgmoduledir=$(datarootdir)/guile/site/2.0/$(PACKAGE)
 dist_pkgmodule_DATA = \
   src/cuirass/base.scm \
   src/cuirass/database.scm \
