@@ -34,9 +34,12 @@
             ;; Macros.
             with-database))
 
-(define (sqlite-exec db sql)
-  "Wrap 'sqlite-prepare', 'sqlite-step', and 'sqlite-finalize'."
-  (let ((stmt (sqlite-prepare db sql)))
+(define (sqlite-exec db msg . args)
+  "Wrap 'sqlite-prepare', 'sqlite-step', and 'sqlite-finalize'. Send message
+MSG to database DB.  MSG can contain '~A' and '~S' escape characters which
+will be replaced by ARGS."
+  (let* ((sql  (apply simple-format #f msg args))
+         (stmt (sqlite-prepare db sql)))
     (sqlite-step stmt)
     (sqlite-finalize stmt)))
 
@@ -86,11 +89,9 @@ database object."
 
 (define (db-add-evaluation db job)
   "Store a derivation result in database DB and return its ID."
-  (sqlite-exec
-   db
-   (format #f "insert into build (job_spec, drv) values ('~A', '~A');"
-           (assq-ref job #:job-name)
-           (assq-ref job #:derivation)))
+  (sqlite-exec db "insert into build (job_spec, drv) values ('~A', '~A');"
+               (assq-ref job #:job-name)
+               (assq-ref job #:derivation))
   (let* ((stmt (sqlite-prepare db "select last_insert_rowid() from build;"))
          (res  (sqlite-step stmt)))
     (sqlite-finalize stmt)
@@ -107,8 +108,7 @@ database object."
 
 (define (db-delete-evaluation db id)
   "Delete a job in database DB which corresponds to ID."
-  (sqlite-exec db
-               (format #f "delete from build where id=~A;" id)))
+  (sqlite-exec db "delete from build where id=~A;" id))
 
 (define-syntax-rule (with-database db body ...)
   "Run BODY with a connection to the database which is bound to DB in BODY."
@@ -135,6 +135,4 @@ string."
                      (seek log 0 SEEK_SET)
                      (read-quoted-string log))
                     (else #f))))
-    (sqlite-exec db
-                 (format #f "update build set log='~A' where id=~A;"
-                         log* id))))
+    (sqlite-exec db "update build set log='~A' where id=~A;" log* id)))
