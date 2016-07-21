@@ -72,6 +72,12 @@ gen-ChangeLog:
 	      mv $(distdir)/cl-t $(distdir)/ChangeLog; } \
 	fi
 
+.PHONY:	sql-check
+sql-check: src/schema.sql
+	@echo "$<"
+	$(AM_V_at)sqlite3 tmp-$$$.db < $< ; \
+	rm tmp-$$$.db
+
 EXTRA_DIST = \
   .dir-locals.el \
   tests/gnu-system.scm \
