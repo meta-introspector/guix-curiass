@@ -98,15 +98,16 @@ database object."
   (map (λ (key) (or (assq-ref alst key) default-value))
        keys))
 
+(define (last-insert-rowid db)
+  (vector-ref (car (sqlite-exec db "SELECT last_insert_rowid();"))
+              0))
+
 (define (db-add-evaluation db job)
   "Store a derivation result in database DB and return its ID."
   (sqlite-exec db "insert into build (job_spec, drv) values ('~A', '~A');"
                (assq-ref job #:job-name)
                (assq-ref job #:derivation))
-  (let* ((stmt (sqlite-prepare db "select last_insert_rowid() from build;"))
-         (res  (sqlite-step stmt)))
-    (sqlite-finalize stmt)
-    (vector-ref res 0)))
+  (last-insert-rowid db))
 
 (define (db-get-evaluation db id)
   "Retrieve a job in database DB which corresponds to ID."
