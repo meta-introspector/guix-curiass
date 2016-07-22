@@ -12,7 +12,7 @@ AC_CANONICAL_HOST
 # references to shell variables.
 expanded_prefix="`eval echo $prefix | sed -e "s|NONE|/usr/local|g"`"
 AC_SUBST([expanded_datadir],
-  [`eval echo $datadir | sed -e "s|NONE|$expanded_prefix|g"`])
+  [`eval echo $datarootdir | sed -e "s|NONE|$expanded_prefix|g"`])
 AC_SUBST([expanded_localstatedir],
   [`eval echo $localstatedir | sed -e "s|NONE|$expanded_prefix|g"`])
 
