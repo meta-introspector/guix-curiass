@@ -21,6 +21,7 @@
   #:use-module (ice-9 rdelim)
   #:use-module (sqlite3)
   #:export (;; Procedures.
+            assq-refs
             db-init
             db-open
             db-close
@@ -92,6 +93,10 @@ database object."
 (define (db-close db)
   "Close database object DB."
   (sqlite-close db))
+
+(define* (assq-refs alst keys #:optional default-value)
+  (map (λ (key) (or (assq-ref alst key) default-value))
+       keys))
 
 (define (db-add-evaluation db job)
   "Store a derivation result in database DB and return its ID."
