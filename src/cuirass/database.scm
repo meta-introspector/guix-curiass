@@ -111,12 +111,7 @@ database object."
 
 (define (db-get-evaluation db id)
   "Retrieve a job in database DB which corresponds to ID."
-  (let* ((stmt (sqlite-prepare
-                db
-                (format #f "select * from build where id=~A;" id)))
-         (res  (sqlite-step stmt)))
-    (sqlite-finalize stmt)
-    res))
+  (car (sqlite-exec db "select * from build where id=~A;" id)))
 
 (define (db-delete-evaluation db id)
   "Delete a job in database DB which corresponds to ID."
