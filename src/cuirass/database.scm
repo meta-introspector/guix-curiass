@@ -29,6 +29,7 @@
             db-delete-evaluation
             db-add-build-log
             read-sql-file
+            sqlite-exec
             ;; Parameters.
             %package-database
             ;; Macros.
@@ -39,9 +40,14 @@
 MSG to database DB.  MSG can contain '~A' and '~S' escape characters which
 will be replaced by ARGS."
   (let* ((sql  (apply simple-format #f msg args))
-         (stmt (sqlite-prepare db sql)))
-    (sqlite-step stmt)
-    (sqlite-finalize stmt)))
+         (stmt (sqlite-prepare db sql))
+         (res  (let loop ((res '()))
+                 (let ((row (sqlite-step stmt)))
+                   (if (not row)
+                       (reverse! res)
+                       (loop (cons row res)))))))
+    (sqlite-finalize stmt)
+    res))
 
 (define %package-database
   ;; Define to the database file name of this package.

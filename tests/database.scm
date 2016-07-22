@@ -42,6 +42,16 @@
       (test-assert "db-init"
         (%db (db-init)))
 
+      (test-assert "sqlite-exec"
+        (begin
+          (sqlite-exec (%db) "\
+INSERT INTO build (job_spec, drv) VALUES ('job1', 'drv1');")
+          (sqlite-exec (%db) "\
+INSERT INTO build (job_spec, drv) VALUES ('job2', 'drv2');")
+          (sqlite-exec (%db) "\
+INSERT INTO build (job_spec, drv) VALUES ('job3', 'drv3');")
+          (sqlite-exec (%db) "SELECT * FROM build;")))
+
       (test-assert "db-add-evaluation"
         (%id (db-add-evaluation (%db) (make-dummy-job))))
 
