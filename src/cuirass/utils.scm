@@ -1,5 +1,4 @@
-;;;; utils.scm -- helper procedures
-;;;
+;;; utils.scm -- helper procedures
 ;;; Copyright © 2012, 2013, 2016 Ludovic Courtès <ludo@gnu.org>
 ;;; Copyright © 2015 David Thompson <davet@gnu.org>
 ;;; Copyright © 2016 Mathieu Lirzin <mthl@gnu.org>
