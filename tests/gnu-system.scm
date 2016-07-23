@@ -47,9 +47,12 @@
 
 (define (license->alist lcs)
   "Return LCS <license> object as an alist."
-  `((name . ,(license-name lcs))
-    (uri . ,(license-uri lcs))
-    (comment . ,(license-comment lcs))))
+  ;; Sometimes 'license' field is a list of licenses.
+  (if (list? lcs)
+      (map license->alist lcs)
+      `((name . ,(license-name lcs))
+        (uri . ,(license-uri lcs))
+        (comment . ,(license-comment lcs)))))
 
 (define (package-metadata package)
   "Convert PACKAGE to an alist suitable for Hydra."
