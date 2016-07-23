@@ -118,10 +118,11 @@ if required."
               (compile (string-append (%package-cachedir) "/"
                                       (assq-ref spec #:name)))
               (with-store store
-                (let* ((id    (db-add-specification db spec))
-                       (spec* (acons #:id id spec))
-                       (jobs  (evaluate store db spec*)))
-                  (db-add-evaluation db jobs)
+                (let* ((jobs (evaluate store db spec)))
+                  (for-each (λ (job)
+                              (or (evaluation-exists? db job)
+                                  (db-add-evaluation db job)))
+                            jobs)
                   (set-build-options store #:use-substitutes? #f)
                   (build-packages store db jobs))))
             jobspecs))
@@ -158,8 +159,10 @@ if required."
                             (set-current-module (make-user-module))
                             (primitive-load (car specfile))))))
           (with-database db
-            (if one-shot?
-                (process-specs db specs)
-                (while #t
-                  (process-specs db specs)
-                  (sleep interval))))))))))
+            (for-each (λ (spec) (db-add-specification db spec)) specs)
+            (let ((specs* (db-get-specifications db)))
+              (if one-shot?
+                  (process-specs db specs*)
+                  (while #t
+                    (process-specs db specs*)
+                    (sleep interval)))))))))))

@@ -20,6 +20,18 @@
 (use-modules (cuirass database)
              (srfi srfi-64))
 
+(define example-spec
+  '((#:id . 1)
+    (#:name . "guix")
+    (#:url . "git://git.savannah.gnu.org/guix.git")
+    (#:load-path . ".")
+    (#:file . "/tmp/gnu-system.scm")
+    (#:proc . hydra-jobs)
+    (#:arguments (subset . "hello"))
+    (#:branch . "master")
+    (#:tag . #f)
+    (#:commit . #f)))
+
 (define* (make-dummy-job #:optional (name "foo"))
   `((#:name . ,name)
     (#:derivation . ,(string-append name ".drv"))
@@ -55,6 +67,12 @@ INSERT INTO Evaluations (derivation, job_name, specification)\
 INSERT INTO Evaluations (derivation, job_name, specification)\
   VALUES ('drv3', 'job3', 3);")
           (sqlite-exec (%db) "SELECT * FROM Evaluations;")))
+
+      (test-equal "db-add-specification"
+        example-spec
+        (begin
+          (db-add-specification (%db) example-spec)
+          (car (db-get-specifications (%db)))))
 
       (test-assert "db-add-evaluation"
         (let* ((job (make-dummy-job))

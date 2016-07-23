@@ -18,6 +18,8 @@
 
 (define-module (cuirass database)
   #:use-module (cuirass config)
+  #:use-module (cuirass utils)
+  #:use-module (ice-9 match)
   #:use-module (ice-9 rdelim)
   #:use-module (sqlite3)
   #:export (;; Procedures.
@@ -26,6 +28,8 @@
             db-open
             db-close
             db-add-specification
+            db-get-specifications
+            evaluation-exists?
             db-add-evaluation
             db-get-evaluation
             db-delete-evaluation
@@ -115,6 +119,32 @@ INSERT INTO Specifications\
           (assq-refs spec '(#:branch #:tag #:commit) "NULL")))
   (last-insert-rowid db))
 
+(define (db-get-specifications db)
+  (let loop ((rows  (sqlite-exec db "SELECT * FROM Specifications;"))
+             (specs '()))
+    (match rows
+      (() specs)
+      ((#(id name url load-path file proc args branch tag rev) . rest)
+       (loop rest
+             (cons `((#:id . ,id)
+                     (#:name . ,name)
+                     (#:url . ,url)
+                     (#:load-path . ,load-path)
+                     (#:file . ,file)
+                     (#:proc . ,(with-input-from-string proc read))
+                     (#:arguments . ,(with-input-from-string args read))
+                     (#:branch . ,branch)
+                     (#:tag . ,(if (string=? tag "NULL") #f tag))
+                     (#:commit . ,(if (string=? rev "NULL") #f rev)))
+                   specs))))))
+
+(define (evaluation-exists? db job)
+  "Check if JOB is already added to DB."
+  (let ((primary-key (assq-ref job #:derivation)))
+    (not (null? (sqlite-exec db "\
+SELECT * FROM Evaluations WHERE derivation='~A';"
+                             primary-key)))))
+
 (define (db-add-evaluation db job)
   "Store a derivation result in database DB and return its ID."
   (sqlite-exec db "\
@@ -126,7 +156,7 @@ INSERT INTO Evaluations (derivation, job_name, specification)\
 
 (define (db-get-evaluation db id)
   "Retrieve a job in database DB which corresponds to ID."
-  (car (sqlite-exec db "select * from Evaluations where derivation='~A';" id)))
+  (car (sqlite-exec db "SELECT * FROM Evaluations WHERE derivation='~A';" id)))
 
 (define (db-delete-evaluation db id)
   "Delete a job in database DB which corresponds to ID."
