@@ -80,7 +80,7 @@ if required."
     (zero? (system* "make" "-j" (number->string (current-processor-count))))))
 
 (define (evaluate store db spec)
-  "Evaluate and build package derivations.  Return a job alist."
+  "Evaluate and build package derivations.  Return a list of jobs."
   (let* ((port (open-pipe* OPEN_READ
                            "evaluate"
                            (string-append (%package-cachedir) "/"
