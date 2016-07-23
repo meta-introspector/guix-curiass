@@ -87,7 +87,7 @@ if required."
                                           (assq-ref spec #:name) "/"
                                           (assq-ref spec #:load-path))
                            (%package-cachedir)
-                           (string-append "'" (object->string spec))))
+                           (object->string spec)))
          (jobs (read port)))
     (close-pipe port)
     ;; Keep track of SPEC id in the returned jobs.

@@ -60,10 +60,10 @@ value."
   (match args
     ((command load-path cachedir specstr)
      ;; Load FILE, a Scheme file that defines Hydra jobs.
-     (let* ((%user-module (make-fresh-user-module))
-            (spec (eval-string specstr %user-module))
-            (stdout (current-output-port))
-            (stderr (current-error-port)))
+     (let ((%user-module (make-fresh-user-module))
+           (spec         (with-input-from-string specstr read))
+           (stdout       (current-output-port))
+           (stderr       (current-error-port)))
        (save-module-excursion
         (λ ()
           (set-current-module %user-module)
