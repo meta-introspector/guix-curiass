@@ -74,18 +74,18 @@ will be replaced by ARGS."
               (reverse! insts)
               (loop (cons inst insts))))))))
 
-(define (db-init)
+(define* (db-init #:optional (db-name (%package-database))
+                  #:key (schema (%package-schema-file)))
   "Open the database to store and read jobs and builds informations.  Return a
 database object."
-  (let ((db-name (%package-database)))
-    (when (file-exists? db-name)
-      (format (current-error-port) "Removing leftover database ~a~%" db-name)
-      (delete-file db-name))
-    (let ((db (sqlite-open db-name (logior SQLITE_OPEN_CREATE
-                                           SQLITE_OPEN_READWRITE))))
-      (for-each (λ (sql) (sqlite-exec db sql))
-                (read-sql-file (%package-schema-file)))
-      db)))
+  (when (file-exists? db-name)
+    (format (current-error-port) "Removing leftover database ~a~%" db-name)
+    (delete-file db-name))
+  (let ((db (sqlite-open db-name (logior SQLITE_OPEN_CREATE
+                                         SQLITE_OPEN_READWRITE))))
+    (for-each (λ (sql) (sqlite-exec db sql))
+              (read-sql-file schema))
+    db))
 
 (define (db-open)
   "Open database to store or read jobs and builds informations.  Return a
