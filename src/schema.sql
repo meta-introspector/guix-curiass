@@ -1,18 +1,32 @@
-create table job_spec (
-  name            text not null,
-  url             text not null,
-  branch          text not null,
-  file            text not null,
-  proc            text not null,
-  arguments       text not null,
-  primary key (name)
+BEGIN TRANSACTION;
+
+CREATE TABLE Specifications (
+  id            INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+  repo_name     TEXT NOT NULL,
+  url           TEXT NOT NULL,
+  load_path     TEXT NOT NULL,
+  file          TEXT NOT NULL,
+  proc          TEXT NOT NULL,
+  arguments     TEXT NOT NULL,
+  -- The following columns are optional.
+  branch        TEXT,
+  tag           TEXT,
+  revision      TEXT
 );
 
-create table build (
-  id              integer primary key autoincrement not null,
-  job_spec        text not null,
-  drv             text not null,
-  log             text,
-  output          text
-  -- foreign key (job_spec) references job_spec(name)
+CREATE TABLE Evaluations (
+  derivation    TEXT NOT NULL PRIMARY KEY,
+  job_name      TEXT NOT NULL,
+  specification INTEGER NOT NULL,
+  FOREIGN KEY (specification) REFERENCES Specifications (id)
 );
+
+CREATE TABLE Builds (
+  id              INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+  derivation      TEXT NOT NULL,
+  log             TEXT NOT NULL,
+  output          TEXT,         -- NULL if build failed
+  FOREIGN KEY (derivation) REFERENCES Evaluations (derivation)
+);
+
+COMMIT;

@@ -25,6 +25,7 @@
             db-init
             db-open
             db-close
+            db-add-specification
             db-add-evaluation
             db-get-evaluation
             db-delete-evaluation
@@ -33,6 +34,7 @@
             sqlite-exec
             ;; Parameters.
             %package-database
+            %package-schema-file
             ;; Macros.
             with-database))
 
@@ -102,20 +104,33 @@ database object."
   (vector-ref (car (sqlite-exec db "SELECT last_insert_rowid();"))
               0))
 
+(define (db-add-specification db spec)
+  "Store specification SPEC in database DB and return its ID."
+  (apply sqlite-exec db "\
+INSERT INTO Specifications\
+  (repo_name, url, load_path, file, proc, arguments, branch, tag, revision)\
+    VALUES ('~A', '~A', '~A', '~A', '~S', '~S', '~A', '~A', '~A');"
+         (append
+          (assq-refs spec '(#:name #:url #:load-path #:file #:proc #:arguments))
+          (assq-refs spec '(#:branch #:tag #:commit) "NULL")))
+  (last-insert-rowid db))
+
 (define (db-add-evaluation db job)
   "Store a derivation result in database DB and return its ID."
-  (sqlite-exec db "insert into build (job_spec, drv) values ('~A', '~A');"
+  (sqlite-exec db "\
+INSERT INTO Evaluations (derivation, job_name, specification)\
+  VALUES ('~A', '~A', '~A');"
+               (assq-ref job #:derivation)
                (assq-ref job #:job-name)
-               (assq-ref job #:derivation))
-  (last-insert-rowid db))
+               (assq-ref job #:spec-id)))
 
 (define (db-get-evaluation db id)
   "Retrieve a job in database DB which corresponds to ID."
-  (car (sqlite-exec db "select * from build where id=~A;" id)))
+  (car (sqlite-exec db "select * from Evaluations where derivation='~A';" id)))
 
 (define (db-delete-evaluation db id)
   "Delete a job in database DB which corresponds to ID."
-  (sqlite-exec db "delete from build where id=~A;" id))
+  (sqlite-exec db "delete from Evaluations where derivation='~A';" id))
 
 (define-syntax-rule (with-database db body ...)
   "Run BODY with a connection to the database which is bound to DB in BODY."
