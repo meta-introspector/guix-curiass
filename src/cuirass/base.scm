@@ -47,8 +47,10 @@ values."
 (define (call-with-time-display thunk)
   "Call THUNK and write to the current output port its duration."
   (call-with-time thunk
-    (λ (time . results)
-      (format #t "~,3f seconds~%"
-              (+ (time-second time)
-                 (/ (time-nanosecond time) 1e9)))
-      (apply values results))))
+    (λ (time result)
+      (let ((duration (+ (time-second time)
+                         (/ (time-nanosecond time) 1e9))))
+        (format (current-error-port) "evaluate '~A': ~,3f seconds~%"
+                (assq-ref result #:job-name)
+                duration)
+        (acons #:duration duration result)))))

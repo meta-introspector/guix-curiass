@@ -11,6 +11,7 @@
  (scheme-mode
   .
   ((indent-tabs-mode . nil)
+   (eval . (put 'call-with-time 'scheme-indent-function 1))
    (eval . (put 'test-error 'scheme-indent-function 1))
    (eval . (put 'make-parameter 'scheme-indent-function 1))
    (eval . (put 'with-database 'scheme-indent-function 1)))))

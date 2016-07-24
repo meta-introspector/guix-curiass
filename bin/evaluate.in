@@ -1,6 +1,6 @@
 #!/bin/sh
 # -*- scheme -*-
-GUILE_LOAD_PATH="$1"
+GUILE_LOAD_PATH="$1${GUILE_LOAD_PATH:+:}$GUILE_LOAD_PATH"
 export GUILE_LOAD_PATH
 exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
 !#
@@ -23,38 +23,11 @@ exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
 ;;; You should have received a copy of the GNU General Public License
 ;;; along with Cuirass.  If not, see <http://www.gnu.org/licenses/>.
 
-(use-modules (ice-9 format)
+(use-modules (cuirass base)
+             (cuirass utils)
              (ice-9 match)
              (ice-9 pretty-print)
-             (guix store)
-             (srfi srfi-19))
-
-(define-syntax-rule (with-directory-excursion dir body ...)
-  "Run BODY with DIR as the process's current directory."
-  (let ((init (getcwd)))
-    (dynamic-wind
-      (λ () (chdir dir))
-      (λ () body ...)
-      (λ () (chdir init)))))
-
-(define (call-with-time thunk kont)
-  "Call THUNK and pass KONT the elapsed time followed by THUNK's return
-value."
-  (let* ((start  (current-time time-monotonic))
-         (result (thunk))
-         (end    (current-time time-monotonic)))
-    (kont (time-difference end start) result)))
-
-(define (call-with-time-display thunk)
-  "Call THUNK and write to the current output port its duration."
-  (call-with-time thunk
-    (λ (time result)
-      (let ((duration (+ (time-second time)
-                         (/ (time-nanosecond time) 1e9))))
-        (format (current-error-port) "evaluate '~A': ~,3f seconds~%"
-                (assq-ref result #:job-name)
-                duration)
-        (acons #:duration duration result)))))
+             (guix store))
 
 (define* (main #:optional (args (command-line)))
   (match args
