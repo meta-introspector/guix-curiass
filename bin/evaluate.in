@@ -79,18 +79,17 @@ value."
                (λ (store . args)
                  (display "error: trying to build things during evaluation!~%"
                           stderr)
-                 (format stderr "'build-things' arguments: ~S~%" args)
+                 (simple-format stderr "'build-things' arguments: ~S~%" args)
                  (exit 1)))
          ;; Call the entry point of FILE and print the resulting job sexp.
          (pretty-print
           (let* ((proc   (module-ref %user-module 'hydra-jobs) )
                  (thunks (proc store (assq-ref spec #:arguments))))
-            (map (λ (thunk)
-                   (call-with-time-display thunk))
+            (map (λ (thunk) (call-with-time-display thunk))
                  thunks))
           stdout))))
     ((command _ ...)
-     (format (current-error-port) "Usage: ~A FILE
+     (simple-format (current-error-port) "Usage: ~A FILE
 Evaluate the Hydra jobs defined in FILE.~%"
              command)
      (exit 1))))
