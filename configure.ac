@@ -22,6 +22,7 @@ AC_PATH_PROG([GUILD], [guild])
 AS_IF([test -z "$ac_cv_path_GUILD"],
   [AC_MSG_ERROR(['guild' program cannot be found.])])
 
+GUILE_MODULE_REQUIRED([guix])
 GUILE_MODULE_REQUIRED([sqlite3])
 
 AC_CONFIG_FILES([Makefile
