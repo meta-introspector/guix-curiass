@@ -35,6 +35,7 @@
             db-delete-evaluation
             db-add-build-log
             read-sql-file
+            read-quoted-string
             sqlite-exec
             ;; Parameters.
             %package-database
@@ -170,7 +171,7 @@ INSERT INTO Evaluations (derivation, job_name, specification)\
       (λ () body ...)
       (λ () (db-close db)))))
 
-(define* (read-quoted-string #:optional port)
+(define* (read-quoted-string #:optional (port (current-input-port)))
   "Read all of the characters out of PORT and return them as a SQL quoted
 string."
   (let loop ((chars '()))
