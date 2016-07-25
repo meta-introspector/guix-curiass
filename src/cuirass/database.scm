@@ -29,6 +29,8 @@
             db-close
             db-add-specification
             db-get-specifications
+            db-add-stamp
+            db-get-stamp
             evaluation-exists?
             db-add-evaluation
             db-get-evaluation
@@ -188,3 +190,23 @@ INSERT INTO Builds (derivation, log, output) VALUES ('~A', '~A', '~A');"
                (assq-ref build #:log)
                (assq-ref build #:output))
   (last-insert-rowid db))
+
+(define (db-get-stamp db spec)
+  "Return a stamp corresponding to specification SPEC in database DB."
+  (let ((res (sqlite-exec db "SELECT * FROM Stamps WHERE specification='~A';"
+                          (assq-ref spec #:id))))
+    (match res
+      (() "")
+      ((#(spec commit)) commit))))
+
+(define (db-add-stamp db spec commit)
+  "Associate stamp COMMIT to specification SPEC in database DB."
+  (if (string-null? (db-get-stamp db spec))
+      (sqlite-exec db "\
+INSERT INTO Stamps (specification, stamp) VALUES ('~A', '~A');"
+                   (assq-ref spec #:id)
+                   commit)
+      (sqlite-exec db "\
+UPDATE Stamps SET stamp='~A' WHERE specification='~A';"
+                   commit
+                   (assq-ref spec #:id))))

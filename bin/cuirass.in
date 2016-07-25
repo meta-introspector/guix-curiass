@@ -28,7 +28,8 @@ exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
              (guix derivations)
              (guix store)
              (ice-9 getopt-long)
-             (ice-9 popen))
+             (ice-9 popen)
+             (ice-9 rdelim))
 
 (define (show-help)
   (format #t "Usage: ~a [OPTIONS] SPECFILE~%" (%program-name))
@@ -54,6 +55,13 @@ exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
 (define (fetch-repository spec)
   "Get the latest version of repository specified in SPEC.  Clone repository
 if required."
+  (define (current-commit)
+    (let* ((pipe   (open-input-pipe "git log -n1"))
+           (log    (read-string pipe))
+           (commit (cadr (string-split log char-set:whitespace))))
+      (close-pipe pipe)
+      commit))
+
   (let ((cachedir (%package-cachedir)))
     (or (file-exists? cachedir) (mkdir cachedir))
     (with-directory-excursion cachedir
@@ -68,7 +76,8 @@ if required."
                (zero? (system* "git" "reset" "--hard"
                                (or tag
                                    commit
-                                   (string-append "origin/" branch))))))))))
+                                   (string-append "origin/" branch))))
+               (current-commit)))))))
 
 (define (compile dir)
   ;; Required for fetching Guix bootstrap tarballs.
@@ -116,13 +125,16 @@ if required."
 (define (process-specs db jobspecs)
   "Evaluate and build JOBSPECS and store results in DB."
   (for-each (λ (spec)
-              (fetch-repository spec)
-              (compile (string-append (%package-cachedir) "/"
-                                      (assq-ref spec #:name)))
-              (with-store store
-                (let ((jobs (evaluate store db spec)))
-                  (set-build-options store #:use-substitutes? #f)
-                  (build-packages store db jobs))))
+              (let ((commit (fetch-repository spec))
+                    (stamp  (db-get-stamp db spec)))
+                (unless (string=? commit stamp)
+                  (compile (string-append (%package-cachedir) "/"
+                                          (assq-ref spec #:name)))
+                  (with-store store
+                    (let ((jobs (evaluate store db spec)))
+                      (set-build-options store #:use-substitutes? #f)
+                      (build-packages store db jobs))))
+                (db-add-stamp db spec commit)))
             jobspecs))
 
 

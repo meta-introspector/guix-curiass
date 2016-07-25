@@ -14,6 +14,12 @@ CREATE TABLE Specifications (
   revision      TEXT
 );
 
+CREATE TABLE Stamps (
+  specification INTEGER NOT NULL PRIMARY KEY,
+  stamp         TEXT NOT NULL,
+  FOREIGN KEY (specification) REFERENCES Specifications (id)
+);
+
 CREATE TABLE Evaluations (
   derivation    TEXT NOT NULL PRIMARY KEY,
   job_name      TEXT NOT NULL,
