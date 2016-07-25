@@ -33,7 +33,7 @@
             db-add-evaluation
             db-get-evaluation
             db-delete-evaluation
-            db-add-build-log
+            db-add-build
             read-sql-file
             read-quoted-string
             sqlite-exec
@@ -180,12 +180,11 @@ string."
             ((char=? char #\')  (loop (cons* char char chars)))
             (else (loop (cons char chars)))))))
 
-(define (db-add-build-log db job log)
-  "Store a build LOG corresponding to JOB in database DB."
-  (let ((id   (assq-ref job #:id))
-        (log* (cond ((string? log) log)
-                    ((port? log)
-                     (seek log 0 SEEK_SET)
-                     (read-quoted-string log))
-                    (else #f))))
-    (sqlite-exec db "update build set log='~A' where id=~A;" log* id)))
+(define (db-add-build db build)
+  "Store BUILD in database DB."
+  (sqlite-exec db "\
+INSERT INTO Builds (derivation, log, output) VALUES ('~A', '~A', '~A');"
+               (assq-ref build #:derivation)
+               (assq-ref build #:log)
+               (assq-ref build #:output))
+  (last-insert-rowid db))
