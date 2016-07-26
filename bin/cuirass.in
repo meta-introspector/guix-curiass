@@ -32,11 +32,13 @@ exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
              (ice-9 rdelim))
 
 (define (show-help)
-  (format #t "Usage: ~a [OPTIONS] SPECFILE~%" (%program-name))
-  (display "Run build jobs from SPECFILE.
+  (format #t "Usage: ~a [OPTIONS]~%" (%program-name))
+  (display "Run build jobs from internal database.
 
       --one-shot            Evaluate and build jobs only once
       --cache-directory=DIR Use DIR for storing repository data
+  -S  --specifications=SPECFILE
+                            Add specifications from SPECFILE to database.
   -D  --database=DB         Use DB to store build results.
   -I, --interval=N          Wait N seconds between each evaluation
   -V, --version             Display version
@@ -45,12 +47,13 @@ exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
   (show-package-information))
 
 (define %options
-  '((one-shot                   (value #f))
-    (cache-directory            (value #t))
-    (database (single-char #\D) (value #t))
-    (interval (single-char #\I) (value #t))
-    (version  (single-char #\V) (value #f))
-    (help     (single-char #\h) (value #f))))
+  '((one-shot                         (value #f))
+    (cache-directory                  (value #t))
+    (specifications (single-char #\S) (value #t))
+    (database       (single-char #\D) (value #t))
+    (interval       (single-char #\I) (value #t))
+    (version        (single-char #\V) (value #f))
+    (help           (single-char #\h) (value #f))))
 
 (define (fetch-repository spec)
   "Get the latest version of repository specified in SPEC.  Clone repository
@@ -143,8 +146,7 @@ if required."
 ;;;
 
 (define* (main #:optional (args (command-line)))
-  (let* ((opts     (getopt-long args %options))
-         (specfile (option-ref opts '() '())))
+  (let* ((opts (getopt-long args %options)))
     (parameterize
         ((%program-name     (car args))
          (%package-database (option-ref opts 'database (%package-database)))
@@ -157,22 +159,21 @@ if required."
        ((option-ref opts 'version #f)
         (show-version)
         (exit 0))
-       ((null? specfile)
-        (display "You must provide a specification file as argument.")
-        (newline)
-        (exit 1))
        (else
         (let ((one-shot? (option-ref opts 'one-shot #f))
               (interval  (string->number (option-ref opts 'interval "60")))
-              (specs     (save-module-excursion
-                          (λ ()
-                            (set-current-module (make-user-module))
-                            (primitive-load (car specfile))))))
+              (specfile  (option-ref opts 'specifications #f)))
           (with-database db
-            (for-each (λ (spec) (db-add-specification db spec)) specs)
-            (let ((specs* (db-get-specifications db)))
+            (and specfile
+                 (let ((new-specs (save-module-excursion
+                                   (λ ()
+                                     (set-current-module (make-user-module))
+                                     (primitive-load specfile)))))
+                   (for-each (λ (spec) (db-add-specification db spec))
+                             new-specs)))
+            (let ((specs (db-get-specifications db)))
               (if one-shot?
-                  (process-specs db specs*)
+                  (process-specs db specs)
                   (while #t
-                    (process-specs db specs*)
+                    (process-specs db specs)
                     (sleep interval)))))))))))
