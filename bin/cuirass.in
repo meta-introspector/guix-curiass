@@ -161,7 +161,7 @@ if required."
         (exit 0))
        (else
         (let ((one-shot? (option-ref opts 'one-shot #f))
-              (interval  (string->number (option-ref opts 'interval "60")))
+              (interval  (string->number (option-ref opts 'interval "10")))
               (specfile  (option-ref opts 'specifications #f)))
           (with-database db
             (and specfile
