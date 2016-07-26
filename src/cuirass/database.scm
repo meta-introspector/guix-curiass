@@ -94,10 +94,10 @@ database object."
               (read-sql-file schema))
     db))
 
-(define (db-open)
+(define* (db-open #:optional (db (%package-database)))
   "Open database to store or read jobs and builds informations.  Return a
 database object."
-  (sqlite-open (%package-database) SQLITE_OPEN_READWRITE))
+  (sqlite-open db SQLITE_OPEN_READWRITE))
 
 (define (db-close db)
   "Close database object DB."
