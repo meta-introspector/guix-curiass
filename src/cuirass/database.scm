@@ -97,7 +97,9 @@ database object."
 (define* (db-open #:optional (db (%package-database)))
   "Open database to store or read jobs and builds informations.  Return a
 database object."
-  (sqlite-open db SQLITE_OPEN_READWRITE))
+  (if (file-exists? db)
+      (sqlite-open db SQLITE_OPEN_READWRITE)
+      (db-init db)))
 
 (define (db-close db)
   "Close database object DB."
@@ -167,7 +169,7 @@ INSERT INTO Evaluations (derivation, job_name, specification)\
 
 (define-syntax-rule (with-database db body ...)
   "Run BODY with a connection to the database which is bound to DB in BODY."
-  (let ((db (db-init)))
+  (let ((db (db-open)))
     (dynamic-wind
       (const #t)
       (λ () body ...)
