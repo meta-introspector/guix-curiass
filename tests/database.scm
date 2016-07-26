@@ -83,15 +83,6 @@ INSERT INTO Evaluations (derivation, job_name, specification)\
       (test-assert "db-get-evaluation"
         (db-get-evaluation (%db) (%id)))
 
-      (test-expect-fail "db-add-build-log")
-      ;; XXX: 'Builds' database table is not implemented yet.
-      (test-equal "db-add-build-log"
-        "foo log"
-        (let ((job (acons #:id (%id) (make-dummy-job)))
-              (log-column 3))
-          (db-add-build-log (%db) job "foo log")
-          (vector-ref (db-get-evaluation (%db) (%id)) log-column)))
-
       (test-assert "db-close"
         (db-close (%db))))
     (λ ()
