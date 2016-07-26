@@ -21,10 +21,17 @@ CREATE TABLE Stamps (
 );
 
 CREATE TABLE Evaluations (
-  derivation    TEXT NOT NULL PRIMARY KEY,
-  job_name      TEXT NOT NULL,
+  id            INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
   specification INTEGER NOT NULL,
   FOREIGN KEY (specification) REFERENCES Specifications (id)
+);
+
+CREATE TABLE Derivations (
+  derivation    TEXT NOT NULL,
+  evaluation    INTEGER NOT NULL,
+  job_name      TEXT NOT NULL,
+  PRIMARY KEY (derivation, evaluation),
+  FOREIGN KEY (evaluation) REFERENCES Evaluations (id)
 );
 
 CREATE TABLE Builds (

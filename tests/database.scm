@@ -57,15 +57,12 @@
 
       (test-assert "sqlite-exec"
         (begin
-          (sqlite-exec (%db) "\
-INSERT INTO Evaluations (derivation, job_name, specification)\
-  VALUES ('drv1', 'job1', 1);")
-          (sqlite-exec (%db) "\
-INSERT INTO Evaluations (derivation, job_name, specification)\
-  VALUES ('drv2', 'job2', 2);")
-          (sqlite-exec (%db) "\
-INSERT INTO Evaluations (derivation, job_name, specification)\
-  VALUES ('drv3', 'job3', 3);")
+          (sqlite-exec (%db)
+                       "INSERT INTO Evaluations (specification) VALUES (1);")
+          (sqlite-exec (%db)
+                       "INSERT INTO Evaluations (specification) VALUES (2);")
+          (sqlite-exec (%db)
+                       "INSERT INTO Evaluations (specification) VALUES (3);")
           (sqlite-exec (%db) "SELECT * FROM Evaluations;")))
 
       (test-equal "db-add-specification"
@@ -74,14 +71,14 @@ INSERT INTO Evaluations (derivation, job_name, specification)\
           (db-add-specification (%db) example-spec)
           (car (db-get-specifications (%db)))))
 
-      (test-assert "db-add-evaluation"
+      (test-assert "db-add-derivation"
         (let* ((job (make-dummy-job))
                (key (assq-ref job #:derivation)))
-          (db-add-evaluation (%db) job)
+          (db-add-derivation (%db) job)
           (%id key)))
 
-      (test-assert "db-get-evaluation"
-        (db-get-evaluation (%db) (%id)))
+      (test-assert "db-get-derivation"
+        (db-get-derivation (%db) (%id)))
 
       (test-assert "db-close"
         (db-close (%db))))

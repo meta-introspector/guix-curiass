@@ -31,9 +31,9 @@
             db-get-specifications
             db-add-stamp
             db-get-stamp
-            evaluation-exists?
             db-add-evaluation
-            db-get-evaluation
+            db-add-derivation
+            db-get-derivation
             db-add-build
             read-sql-file
             read-quoted-string
@@ -142,25 +142,23 @@ INSERT INTO Specifications\
                      (#:commit . ,(if (string=? rev "NULL") #f rev)))
                    specs))))))
 
-(define (evaluation-exists? db job)
-  "Check if JOB is already added to DB."
-  (let ((primary-key (assq-ref job #:derivation)))
-    (not (null? (sqlite-exec db "\
-SELECT * FROM Evaluations WHERE derivation='~A';"
-                             primary-key)))))
-
-(define (db-add-evaluation db job)
+(define (db-add-derivation db job)
   "Store a derivation result in database DB and return its ID."
   (sqlite-exec db "\
-INSERT INTO Evaluations (derivation, job_name, specification)\
+INSERT INTO Derivations (derivation, job_name, evaluation)\
   VALUES ('~A', '~A', '~A');"
                (assq-ref job #:derivation)
                (assq-ref job #:job-name)
-               (assq-ref job #:spec-id)))
+               (assq-ref job #:eval-id)))
 
-(define (db-get-evaluation db id)
+(define (db-get-derivation db id)
   "Retrieve a job in database DB which corresponds to ID."
-  (car (sqlite-exec db "SELECT * FROM Evaluations WHERE derivation='~A';" id)))
+  (car (sqlite-exec db "SELECT * FROM Derivations WHERE derivation='~A';" id)))
+
+(define (db-add-evaluation db spec-id)
+  (sqlite-exec db "INSERT INTO Evaluations (specification) VALUES ('~A');"
+               spec-id)
+  (last-insert-rowid db))
 
 (define-syntax-rule (with-database db body ...)
   "Run BODY with a connection to the database which is bound to DB in BODY."
