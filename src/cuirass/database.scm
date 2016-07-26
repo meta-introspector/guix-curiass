@@ -34,7 +34,6 @@
             evaluation-exists?
             db-add-evaluation
             db-get-evaluation
-            db-delete-evaluation
             db-add-build
             read-sql-file
             read-quoted-string
@@ -162,10 +161,6 @@ INSERT INTO Evaluations (derivation, job_name, specification)\
 (define (db-get-evaluation db id)
   "Retrieve a job in database DB which corresponds to ID."
   (car (sqlite-exec db "SELECT * FROM Evaluations WHERE derivation='~A';" id)))
-
-(define (db-delete-evaluation db id)
-  "Delete a job in database DB which corresponds to ID."
-  (sqlite-exec db "delete from Evaluations where derivation='~A';" id))
 
 (define-syntax-rule (with-database db body ...)
   "Run BODY with a connection to the database which is bound to DB in BODY."
