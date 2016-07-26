@@ -40,7 +40,7 @@ exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
   -S  --specifications=SPECFILE
                             Add specifications from SPECFILE to database.
   -D  --database=DB         Use DB to store build results.
-  -I, --interval=N          Wait N seconds between each evaluation
+  -I, --interval=N          Wait N seconds between each poll
   -V, --version             Display version
   -h, --help                Display this help message")
   (newline)
