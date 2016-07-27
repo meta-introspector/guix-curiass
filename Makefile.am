@@ -38,12 +38,11 @@ TESTS = \
   tests/utils.scm
 
 # Unset 'GUILE_LOAD_COMPILED_PATH' altogether while compiling.  Otherwise, if
-# $GUILE_LOAD_COMPILED_PATH contains $(cuirassmoduledir), we may find .go
-# files in there that are newer than the local .scm files (for instance
-# because the user ran 'make install' recently).  When that happens, we end up
-# loading those previously-installed .go files, which may be stale, thereby
-# breaking the whole thing.  Set GUILE_AUTO_COMPILE to 0 to avoid
-# auto-compiling guild.
+# $GUILE_LOAD_COMPILED_PATH contains $(pkgmoduledir), we may find .go files in
+# there that are newer than the local .scm files (for instance because the
+# user ran 'make install' recently).  When that happens, we end up loading
+# those previously-installed .go files, which may be stale, thereby breaking
+# the whole thing.  Set GUILE_AUTO_COMPILE to 0 to avoid auto-compiling guild.
 #
 # XXX: Use the C locale for when Guile lacks
 # <http://git.sv.gnu.org/cgit/guile.git/commit/?h=stable-2.0&id=e2c6bf3866d1186c60bacfbd4fe5037087ee5e3f>.
