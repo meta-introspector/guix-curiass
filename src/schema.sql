@@ -34,12 +34,16 @@ CREATE TABLE Derivations (
   FOREIGN KEY (evaluation) REFERENCES Evaluations (id)
 );
 
+-- Builds are not in a one to one relationship with derivations in order to
+-- keep track of non deterministic compilations.
 CREATE TABLE Builds (
-  id              INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
-  derivation      TEXT NOT NULL,
-  log             TEXT NOT NULL,
-  output          TEXT,         -- NULL if build failed
-  FOREIGN KEY (derivation) REFERENCES Evaluations (derivation)
+  derivation    TEXT NOT NULL,
+  evaluation    INTEGER NOT NULL,
+  log           TEXT NOT NULL,
+  output        TEXT,		-- NULL if build failed
+  PRIMARY KEY (derivation, evaluation),
+  FOREIGN KEY (derivation) REFERENCES Derivations (derivation),
+  FOREIGN KEY (evaluation) REFERENCES Evaluations (id)
 );
 
 COMMIT;

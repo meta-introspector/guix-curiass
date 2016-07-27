@@ -180,8 +180,10 @@ string."
 (define (db-add-build db build)
   "Store BUILD in database DB."
   (sqlite-exec db "\
-INSERT INTO Builds (derivation, log, output) VALUES ('~A', '~A', '~A');"
+INSERT INTO Builds (derivation, evaluation, log, output)\
+  VALUES ('~A', '~A', '~A', '~A');"
                (assq-ref build #:derivation)
+               (assq-ref build #:eval-id)
                (assq-ref build #:log)
                (assq-ref build #:output))
   (last-insert-rowid db))
