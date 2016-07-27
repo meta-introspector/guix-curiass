@@ -19,6 +19,10 @@
 (use-modules (cuirass ui)
              (srfi srfi-64))
 
+(test-begin "ui")
+
 (test-error "invalid program name"
   'wrong-type-arg
   (%program-name #f))
+
+(test-end)

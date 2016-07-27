@@ -19,6 +19,10 @@
 (use-modules (cuirass base)
              (srfi srfi-64))
 
+(test-begin "base")
+
 (test-error "invalid cache directory"
   'wrong-type-arg
   (%package-cachedir #f))
+
+(test-end)

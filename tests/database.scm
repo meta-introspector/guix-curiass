@@ -45,6 +45,8 @@
   ;; Global Slot for a job ID in the database.
   (make-parameter #t))
 
+(test-begin "database")
+
 (parameterize
     ((%package-database
       ;; Use an empty and temporary database for the tests.
@@ -84,3 +86,5 @@
         (db-close (%db))))
     (λ ()
       (delete-file (%package-database)))))
+
+(test-end)

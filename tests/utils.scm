@@ -23,6 +23,8 @@
 (define dir-1 (make-parameter ""))
 (define dir-2 (make-parameter ""))
 
+(test-begin "utils")
+
 (test-assert "with-directory-excursion"
   (let ((old (getcwd))
         (tmp (tmpnam)))
@@ -37,3 +39,5 @@
              (string=? (dir-2) old)))
       (λ ()
         (rmdir tmp)))))
+
+(test-end)
