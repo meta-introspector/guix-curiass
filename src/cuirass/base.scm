@@ -147,7 +147,8 @@ if required."
                   (compile (string-append (%package-cachedir) "/"
                                           (assq-ref spec #:name)))
                   (with-store store
-                    (let ((jobs (evaluate store db spec)))
+                    (let* ((spec* (acons #:current-commit commit spec))
+                           (jobs  (evaluate store db spec*)))
                       (set-build-options store #:use-substitutes? #f)
                       (build-packages store db jobs))))
                 (db-add-stamp db spec commit)))

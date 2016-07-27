@@ -59,12 +59,12 @@
 
       (test-assert "sqlite-exec"
         (begin
-          (sqlite-exec (%db)
-                       "INSERT INTO Evaluations (specification) VALUES (1);")
-          (sqlite-exec (%db)
-                       "INSERT INTO Evaluations (specification) VALUES (2);")
-          (sqlite-exec (%db)
-                       "INSERT INTO Evaluations (specification) VALUES (3);")
+          (sqlite-exec (%db) "\
+INSERT INTO Evaluations (specification, revision) VALUES (1, 1);")
+          (sqlite-exec (%db) "\
+INSERT INTO Evaluations (specification, revision) VALUES (2, 2);")
+          (sqlite-exec (%db) "\
+INSERT INTO Evaluations (specification, revision) VALUES (3, 3);")
           (sqlite-exec (%db) "SELECT * FROM Evaluations;")))
 
       (test-equal "db-add-specification"

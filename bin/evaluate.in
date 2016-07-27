@@ -60,8 +60,10 @@ exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
            (let* ((proc    (module-ref %user-module 'hydra-jobs))
                   (thunks  (proc store (assq-ref spec #:arguments)))
                   (db      (db-open))
-                  (spec-id (assq-ref spec #:id))
-                  (eval-id (db-add-evaluation db spec-id)))
+                  (commit  (assq-ref spec #:current-commit))
+                  (eval    `((#:specification . ,(assq-ref spec #:id))
+                             (#:revision . ,commit)))
+                  (eval-id (db-add-evaluation db eval)))
              (pretty-print
               (map (λ (thunk)
                      (let* ((job  (call-with-time-display thunk))

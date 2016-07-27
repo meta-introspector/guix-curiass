@@ -155,9 +155,11 @@ INSERT INTO Derivations (derivation, job_name, evaluation)\
   "Retrieve a job in database DB which corresponds to ID."
   (car (sqlite-exec db "SELECT * FROM Derivations WHERE derivation='~A';" id)))
 
-(define (db-add-evaluation db spec-id)
-  (sqlite-exec db "INSERT INTO Evaluations (specification) VALUES ('~A');"
-               spec-id)
+(define (db-add-evaluation db eval)
+  (sqlite-exec db "\
+INSERT INTO Evaluations (specification, revision) VALUES ('~A', '~A');"
+               (assq-ref eval #:specification)
+               (assq-ref eval #:revision))
   (last-insert-rowid db))
 
 (define-syntax-rule (with-database db body ...)

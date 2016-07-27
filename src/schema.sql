@@ -23,6 +23,7 @@ CREATE TABLE Stamps (
 CREATE TABLE Evaluations (
   id            INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
   specification INTEGER NOT NULL,
+  revision      TEXT NOT NULL,
   FOREIGN KEY (specification) REFERENCES Specifications (id)
 );
 
