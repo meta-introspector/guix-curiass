@@ -7,6 +7,7 @@ pkgmoduledir=$(datarootdir)/guile/site/2.0/$(PACKAGE)
 dist_pkgmodule_DATA = \
   src/cuirass/base.scm \
   src/cuirass/database.scm \
+  src/cuirass/http.scm \
   src/cuirass/ui.scm \
   src/cuirass/utils.scm
 
@@ -34,6 +35,7 @@ TESTS = \
   tests/base.scm \
 ## tests/basic.sh # takes too long to execute
   tests/database.scm \
+  tests/http.scm \
   tests/ui.scm \
   tests/utils.scm
 
