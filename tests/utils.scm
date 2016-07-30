@@ -25,6 +25,16 @@
 
 (test-begin "utils")
 
+(test-assert "alist?"
+  (and (alist? '())
+       (alist? '(("foo" 1 2)))
+       (alist? '(("foo" . 1)
+                 ("bar" . 2)))
+       (not (alist? 3))
+       (not (alist? '(1 2 3)))
+       (not (alist? 'foo))
+       (not (alist? #:bar))))
+
 (test-assert "with-directory-excursion"
   (let ((old (getcwd))
         (tmp (tmpnam)))
