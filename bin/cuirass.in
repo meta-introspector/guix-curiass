@@ -20,8 +20,7 @@ exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
 ;;; You should have received a copy of the GNU General Public License
 ;;; along with Cuirass.  If not, see <http://www.gnu.org/licenses/>.
 
-(use-modules (cuirass base)
-             (cuirass database)
+(use-modules (cuirass)
              (cuirass ui)
              (cuirass utils)
              (ice-9 getopt-long))
