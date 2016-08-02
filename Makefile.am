@@ -85,6 +85,7 @@ sql-check: src/schema.sql
 
 EXTRA_DIST = \
   .dir-locals.el \
+  bootstrap \
   tests/gnu-system.scm \
   tests/guix-jobs.scm \
   tests/hello-singleton.scm \
