@@ -1,0 +1,9 @@
+#!/bin/sh
+# Build an environment that includes all the regular and development
+# dependencies of Cuirass.
+
+set -e -x
+guix environment --ad-hoc \
+  autoconf automake bash coreutils findutils gawk git grep \
+  guile guile-json guile-sqlite3 guix gzip less libgcrypt make \
+  perl pkg-config sed sqlite tar "$@"
