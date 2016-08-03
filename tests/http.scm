@@ -22,12 +22,19 @@
 (test-begin "http")
 
 (test-equal "spec->json-string"
-  "{\"boolean\" : false,\"string\" : \"guix\",\"alist\" : {\"subset\" : \"hello\"},\"list\" : [1, \"2\", \"three\"],\"symbol\" : \"hydra-jobs\",\"number\" : 1}"
-  (spec->json-string   '((#:number . 1)
-                         (string . "guix")
-                         ("symbol" . hydra-jobs)
-                         (#:alist (subset . "hello"))
-                         (list 1 "2" #:three)
-                         ("boolean" . #f))))
+  (string-append "{"
+                 "\"boolean\" : false,"
+                 "\"string\" : \"guix\","
+                 "\"alist\" : {\"subset\" : \"hello\"},"
+                 "\"list\" : [1, \"2\", \"three\"],"
+                 "\"symbol\" : \"hydra-jobs\","
+                 "\"number\" : 1"
+                 "}")
+  (spec->json-string '((#:number . 1)
+                       (string . "guix")
+                       ("symbol" . hydra-jobs)
+                       (#:alist (subset . "hello"))
+                       (list 1 "2" #:three)
+                       ("boolean" . #f))))
 
 (test-end)
