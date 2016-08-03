@@ -4,12 +4,22 @@ intended as replacement for Hydra.
 Requirements
 ============
 
-GNU Guix must be installed along with all its development dependencies
-as described here:
+Cuirass currently depends on the following packages:
 
-  https://www.gnu.org/software/guix/manual/html_node/Building-from-Git.html#Building-from-Git
+  - GNU Guile 2.0.9 or later
+  - GNU Guix (and all its development dependencies)
+  - GNU Make
+  - Guile-JSON
+  - Guile-SQLite3
+  - Git
 
-Its modules must be found by Guile in '%load-path'.
+A convenient way to install those dependencies is to install Guix and execute
+the following command:
+
+  ./build-aux/guix-env
+
+This will build and enter an environment which provides all the necessary
+dependencies.
 
 Example
 =======
