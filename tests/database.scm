@@ -45,46 +45,40 @@
   ;; Global Slot for a job ID in the database.
   (make-parameter #t))
 
-(test-begin "database")
+(define database-name
+  ;; Use an empty and temporary database for the tests.
+  (string-append (getcwd) "/" (number->string (getpid)) "-tmp.db"))
 
-(parameterize
-    ((%package-database
-      ;; Use an empty and temporary database for the tests.
-      (string-append (getcwd) "/" (number->string (getpid)) "-tmp.db")))
-  (dynamic-wind
-    (const #t)
-    (λ ()
-      (test-assert "db-init"
-        (%db (db-init)))
+(test-group-with-cleanup "database"
+  (test-assert "db-init"
+    (%db (db-init database-name)))
 
-      (test-assert "sqlite-exec"
-        (begin
-          (sqlite-exec (%db) "\
+  (test-assert "sqlite-exec"
+    (begin
+      (sqlite-exec (%db) "\
 INSERT INTO Evaluations (specification, revision) VALUES (1, 1);")
-          (sqlite-exec (%db) "\
+      (sqlite-exec (%db) "\
 INSERT INTO Evaluations (specification, revision) VALUES (2, 2);")
-          (sqlite-exec (%db) "\
+      (sqlite-exec (%db) "\
 INSERT INTO Evaluations (specification, revision) VALUES (3, 3);")
-          (sqlite-exec (%db) "SELECT * FROM Evaluations;")))
+      (sqlite-exec (%db) "SELECT * FROM Evaluations;")))
 
-      (test-equal "db-add-specification"
-        example-spec
-        (begin
-          (db-add-specification (%db) example-spec)
-          (car (db-get-specifications (%db)))))
+  (test-equal "db-add-specification"
+    example-spec
+    (begin
+      (db-add-specification (%db) example-spec)
+      (car (db-get-specifications (%db)))))
 
-      (test-assert "db-add-derivation"
-        (let* ((job (make-dummy-job))
-               (key (assq-ref job #:derivation)))
-          (db-add-derivation (%db) job)
-          (%id key)))
+  (test-assert "db-add-derivation"
+    (let* ((job (make-dummy-job))
+           (key (assq-ref job #:derivation)))
+      (db-add-derivation (%db) job)
+      (%id key)))
 
-      (test-assert "db-get-derivation"
-        (db-get-derivation (%db) (%id)))
+  (test-assert "db-get-derivation"
+    (db-get-derivation (%db) (%id)))
 
-      (test-assert "db-close"
-        (db-close (%db))))
-    (λ ()
-      (delete-file (%package-database)))))
+  (test-assert "db-close"
+    (db-close (%db)))
 
-(test-end)
+  (delete-file database-name))
