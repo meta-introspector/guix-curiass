@@ -58,7 +58,8 @@ exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
          (parameterize ((%package-database database)
                         (%use-substitutes? (assoc-ref spec #:use-substitutes?)))
            ;; Call the entry point of FILE and print the resulting job sexp.
-           (let* ((proc    (module-ref %user-module 'hydra-jobs))
+           (let* ((proc-name (assq-ref spec #:proc))
+                  (proc    (module-ref %user-module proc-name))
                   (thunks  (proc store (assq-ref spec #:arguments)))
                   (db      (db-open))
                   (commit  (assq-ref spec #:current-commit))

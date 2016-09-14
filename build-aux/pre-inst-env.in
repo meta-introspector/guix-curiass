@@ -30,4 +30,7 @@ export CUIRASS_DATADIR
 PATH="$abs_top_builddir/bin:$PATH"
 export PATH
 
+GUIX_PACKAGE_PATH="guix${GUIX_PACKAGE_PATH:+:}$GUIX_PACKAGE_PATH"
+export GUIX_PACKAGE_PATH
+
 exec "$@"
