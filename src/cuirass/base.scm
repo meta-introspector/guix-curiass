@@ -149,8 +149,9 @@ if required."
               (let ((commit (fetch-repository spec))
                     (stamp  (db-get-stamp db spec)))
                 (unless (string=? commit stamp)
-                  (compile (string-append (%package-cachedir) "/"
-                                          (assq-ref spec #:name)))
+                  (unless (assq-ref spec #:no-compile?)
+                    (compile (string-append (%package-cachedir) "/"
+                                            (assq-ref spec #:name))))
                   (with-store store
                     (let* ((spec* (acons #:current-commit commit spec))
                            (jobs  (evaluate store db spec*)))

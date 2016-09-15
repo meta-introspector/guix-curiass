@@ -11,7 +11,8 @@ CREATE TABLE Specifications (
   -- The following columns are optional.
   branch        TEXT,
   tag           TEXT,
-  revision      TEXT
+  revision      TEXT,
+  no_compile_p  INTEGER
 );
 
 CREATE TABLE Stamps (

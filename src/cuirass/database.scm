@@ -115,12 +115,13 @@ database object."
 (define (db-add-specification db spec)
   "Store specification SPEC in database DB and return its ID."
   (apply sqlite-exec db "\
-INSERT INTO Specifications\
-  (repo_name, url, load_path, file, proc, arguments, branch, tag, revision)\
-    VALUES ('~A', '~A', '~A', '~A', '~S', '~S', '~A', '~A', '~A');"
+INSERT INTO Specifications (repo_name, url, load_path, file, proc, arguments, \
+                            branch, tag, revision, no_compile_p) \
+  VALUES ('~A', '~A', '~A', '~A', '~S', '~S', '~A', '~A', '~A', ~A);"
          (append
           (assq-refs spec '(#:name #:url #:load-path #:file #:proc #:arguments))
-          (assq-refs spec '(#:branch #:tag #:commit) "NULL")))
+          (assq-refs spec '(#:branch #:tag #:commit) "NULL")
+          (list (if (assq-ref spec #:no-compile?) "1" "0"))))
   (last-insert-rowid db))
 
 (define (db-get-specifications db)
@@ -128,7 +129,8 @@ INSERT INTO Specifications\
              (specs '()))
     (match rows
       (() specs)
-      ((#(id name url load-path file proc args branch tag rev) . rest)
+      ((#(id name url load-path file proc args branch tag rev no-compile?)
+        . rest)
        (loop rest
              (cons `((#:id . ,id)
                      (#:name . ,name)
@@ -139,7 +141,8 @@ INSERT INTO Specifications\
                      (#:arguments . ,(with-input-from-string args read))
                      (#:branch . ,branch)
                      (#:tag . ,(if (string=? tag "NULL") #f tag))
-                     (#:commit . ,(if (string=? rev "NULL") #f rev)))
+                     (#:commit . ,(if (string=? rev "NULL") #f rev))
+                     (#:no-compile? . ,(positive? no-compile?)))
                    specs))))))
 
 (define (db-add-derivation db job)

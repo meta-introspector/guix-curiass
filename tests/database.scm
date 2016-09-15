@@ -30,7 +30,8 @@
     (#:arguments (subset . "hello"))
     (#:branch . "master")
     (#:tag . #f)
-    (#:commit . #f)))
+    (#:commit . #f)
+    (#:no-compile? . #f)))
 
 (define* (make-dummy-job #:optional (name "foo"))
   `((#:name . ,name)
