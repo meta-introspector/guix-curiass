@@ -44,8 +44,9 @@ exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
               (string-append cachedir "/" (assq-ref spec #:name))
             (primitive-load (assq-ref spec #:file)))))
        (with-store store
-         ;; Make sure we don't resort to substitutes.
-         (set-build-options store #:use-substitutes? #f #:substitute-urls '())
+         (unless (assoc-ref spec #:use-substitutes?)
+           ;; Make sure we don't resort to substitutes.
+           (set-build-options store #:use-substitutes? #f #:substitute-urls '()))
          ;; Grafts can trigger early builds.  We do not want that to happen
          ;; during evaluation, so use a sledgehammer to catch such problems.
          (set! build-things
@@ -54,7 +55,8 @@ exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
                           stderr)
                  (simple-format stderr "'build-things' arguments: ~S~%" args)
                  (exit 1)))
-         (parameterize ((%package-database database))
+         (parameterize ((%package-database database)
+                        (%use-substitutes? (assoc-ref spec #:use-substitutes?)))
            ;; Call the entry point of FILE and print the resulting job sexp.
            (let* ((proc    (module-ref %user-module 'hydra-jobs))
                   (thunks  (proc store (assq-ref spec #:arguments)))

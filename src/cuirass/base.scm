@@ -34,7 +34,12 @@
             build-packages
             process-specs
             ;; Parameters.
-            %package-cachedir))
+            %package-cachedir
+            %use-substitutes?))
+
+(define %use-substitutes?
+  ;; Define whether to use substitutes
+  (make-parameter #f))
 
 (define %package-cachedir
   ;; Define to location of cache directory of this package.
@@ -149,7 +154,8 @@ if required."
                   (with-store store
                     (let* ((spec* (acons #:current-commit commit spec))
                            (jobs  (evaluate store db spec*)))
-                      (set-build-options store #:use-substitutes? #f)
+                      (unless (%use-substitutes?)
+                        (set-build-options store #:use-substitutes? #f))
                       (build-packages store db jobs))))
                 (db-add-stamp db spec commit)))
             jobspecs))
