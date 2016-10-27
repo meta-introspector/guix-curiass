@@ -83,9 +83,8 @@ exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
                                      (primitive-load specfile)))))
                    (for-each (λ (spec) (db-add-specification db spec))
                              new-specs)))
-            (let ((specs (db-get-specifications db)))
-              (if one-shot?
-                  (process-specs db specs)
-                  (while #t
-                    (process-specs db specs)
-                    (sleep interval)))))))))))
+            (if one-shot?
+                (process-specs db (db-get-specifications db))
+                (while #t
+                  (process-specs db (db-get-specifications db))
+                  (sleep interval))))))))))
