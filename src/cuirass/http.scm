@@ -58,18 +58,20 @@
 (define (request-path-components request)
   (split-and-decode-uri-path (uri-path (request-uri request))))
 
-(define (not-found request)
-  (values (build-response #:code 404)
-          (string-append "Resource not found: "
-                         (uri->string (request-uri request)))))
-
-(define (url-handler request body)
+(define (url-handler request body db)
+  (define* (respond response #:key body (db db))
+    (values response body db))
   (match (request-path-components request)
     (((or "jobsets" "specifications") . rest)
-     (values '((content-type . (application/json)))
-             (with-database db
-               (spec->json-string (car (db-get-specifications db))))))
-    (_ (not-found request))))
+     (respond '((content-type . (application/json)))
+              #:body (spec->json-string (car (db-get-specifications db)))))
+    (_
+     (respond (build-response #:code 404)
+              #:body (string-append "Resource not found: "
+                                    (uri->string (request-uri request)))))))
 
-(define (run-cuirass-server)
-  (run-server url-handler))
+(define (run-cuirass-server db)
+    (run-server url-handler
+                'http                   ;server implementation
+                '()                     ;implementation parameters
+                db))                    ;state
