@@ -30,4 +30,5 @@
     (for-each (λ (m) (module-use! i (resolve-interface m)))
               ;; Public modules.
               '((cuirass base)
-                (cuirass database)))))
+                (cuirass database)
+                (cuirass http)))))

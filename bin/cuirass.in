@@ -85,6 +85,10 @@ exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
                              new-specs)))
             (if one-shot?
                 (process-specs db (db-get-specifications db))
-                (while #t
-                  (process-specs db (db-get-specifications db))
-                  (sleep interval))))))))))
+                (begin
+                  (call-with-new-thread
+                   (λ ()
+                     (while #t
+                       (process-specs db (db-get-specifications db))
+                       (sleep interval))))
+                  (run-cuirass-server db))))))))))
