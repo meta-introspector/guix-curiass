@@ -1,8 +1,11 @@
 #!/bin/sh
 # -*- scheme -*-
+# @configure_input@
+GUILE_LOAD_PATH="@PACKAGE_LOAD_PATH@${GUILE_LOAD_PATH:+:}$GUILE_LOAD_PATH"
+GUILE_LOAD_COMPILED_PATH="@PACKAGE_LOAD_COMPILED_PATH@${GUILE_LOAD_COMPILED_PATH:+:}$GUILE_LOAD_COMPILED_PATH"
 exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
 !#
-;;; cuirass -- continuous integration tool
+;;;; cuirass -- continuous integration tool
 ;;; Copyright © 2016 Mathieu Lirzin <mthl@gnu.org>
 ;;;
 ;;; This file is part of Cuirass.

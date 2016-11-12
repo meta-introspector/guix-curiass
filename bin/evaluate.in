@@ -1,10 +1,11 @@
 #!/bin/sh
 # -*- scheme -*-
+# @configure_input@
 GUILE_LOAD_PATH="$1${GUILE_LOAD_PATH:+:}$GUILE_LOAD_PATH"
 export GUILE_LOAD_PATH
 exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
 !#
-;;; evaluate -- convert a specification to a job list
+;;;; evaluate -- convert a specification to a job list
 ;;; Copyright © 2016 Ludovic Courtès <ludo@gnu.org>
 ;;; Copyright © 2016 Mathieu Lirzin <mthl@gnu.org>
 ;;;

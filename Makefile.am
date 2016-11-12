@@ -1,5 +1,9 @@
 ## Process this file with automake to produce Makefile.in.
 
+# Guile local load paths.
+local_load_path = "$(abs_top_builddir)/src:$(abs_top_srcdir)/src"
+local_load_compiled_path = "$(abs_top_builddir)/src"
+
 bin_SCRIPTS = bin/cuirass bin/evaluate
 noinst_SCRIPTS = pre-inst-env
 
@@ -26,7 +30,9 @@ TEST_EXTENSIONS = .scm .sh
 AM_TESTS_ENVIRONMENT = \
   env GUILE_AUTO_COMPILE='0' \
   testsrcdir='$(abs_top_srcdir)/tests' \
-  testbuilddir='$(abs_top_builddir)/tests'
+  testbuilddir='$(abs_top_builddir)/tests' \
+  GUILE_LOAD_PATH="$(local_load_path)$${GUILE_LOAD_PATH:+:}$$GUILE_LOAD_PATH" \
+  GUILE_LOAD_COMPILED_PATH="$(local_load_compiled_path)$${GUILE_LOAD_COMPILED_PATH:+:}$$GUILE_LOAD_COMPILED_PATH"
 
 SCM_LOG_DRIVER = \
   $(builddir)/pre-inst-env $(GUILE) \
@@ -85,6 +91,8 @@ sql-check: src/schema.sql
 
 EXTRA_DIST = \
   .dir-locals.el \
+  bin/cuirass.in \
+  bin/evaluate.in \
   bootstrap \
   src/cuirass/config.scm.in \
   tests/gnu-system.scm \
@@ -93,7 +101,7 @@ EXTRA_DIST = \
   tests/hello-subset.scm \
   $(TESTS)
 
-MOSTLYCLEANFILES = src/cuirass/config.scm
+MOSTLYCLEANFILES = $(bin_SCRIPTS) src/cuirass/config.scm
 CLEANFILES = \
   $(nodist_guilesite_DATA) \
   $(dist_pkgmodule_DATA:%.scm=%.go) \
@@ -113,7 +121,11 @@ CLEANFILES = \
 do_subst = ( $(SED) \
   -e "s,@configure_input[@],Generated from $$in.  Do not edit by hand.,g" \
   -e 's,@datadir[@],$(datadir),g' \
+  -e 's,@datadir[@],$(datadir),g' \
+  -e 's,@GUILE[@],$(GUILE),g' \
   -e 's,@localstatedir[@],$(localstatedir),g' \
+  -e 's,@PACKAGE_LOAD_COMPILED_PATH[@],$(local_load_compiled_path),g' \
+  -e 's,@PACKAGE_LOAD_PATH[@],$(local_load_path),g' \
   | $(SHELL) ./config.status --file=- )
 
 # Generic instructions to perform the substitution.  Generated files shouldn't
@@ -130,8 +142,12 @@ generate_file = \
   fi; \
   chmod a-w $@-t; mv -f $@-t $@
 
-# This file depends on Makefile so it is rebuilt if $(VERSION),
+# These files depend on Makefile so they are rebuilt if $(VERSION),
 # $(datadir) or other do_subst'ituted variables change.
+bin/cuirass: $(srcdir)/bin/cuirass.in
+bin/evaluate: $(srcdir)/bin/evaluate.in
+$(bin_SCRIPTS): Makefile
+	$(generate_file); chmod +x $@
 src/cuirass/config.scm: $(srcdir)/src/cuirass/config.scm.in Makefile
 	$(generate_file)
 
@@ -139,6 +155,20 @@ src/cuirass/config.scm: $(srcdir)/src/cuirass/config.scm.in Makefile
 # compiled.
 go_files = $(nodist_guilesite_DATA) $(dist_pkgmodule_DATA:%.scm=%.go)
 $(go_files): src/cuirass/config.scm
+
+## -------------- ##
+## Installation.  ##
+## -------------- ##
+
+# Relocate the script---i.e., have them refer to the installed module
+# directory.
+install-exec-hook:
+	$(SED) \
+## XXX: Beware of the order of these two substitutions, because one is a
+## substring of the other.
+	  -e 's,$(local_load_path),$(guilesitedir),g' \
+	  -e 's,$(local_load_compiled_path),$(guilesitedir),g' \
+	  -i $(DESTDIR)$(bindir)/cuirass
 
 ## -------------- ##
 ## Silent rules.  ##

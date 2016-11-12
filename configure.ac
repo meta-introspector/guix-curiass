@@ -22,8 +22,6 @@ GUILE_MODULE_REQUIRED([json])
 GUILE_MODULE_REQUIRED([sqlite3])
 
 AC_CONFIG_FILES([Makefile])
-AC_CONFIG_FILES([bin/cuirass], [chmod +x bin/cuirass])
-AC_CONFIG_FILES([bin/evaluate], [chmod +x bin/evaluate])
 AC_CONFIG_FILES([pre-inst-env:build-aux/pre-inst-env.in],
   [chmod +x pre-inst-env])
 AC_OUTPUT
