@@ -86,17 +86,59 @@ sql-check: src/schema.sql
 EXTRA_DIST = \
   .dir-locals.el \
   bootstrap \
+  src/cuirass/config.scm.in \
   tests/gnu-system.scm \
   tests/guix-jobs.scm \
   tests/hello-singleton.scm \
   tests/hello-subset.scm \
   $(TESTS)
 
-DISTCLEANFILES = src/cuirass/config.scm
+MOSTLYCLEANFILES = src/cuirass/config.scm
 CLEANFILES = \
   $(nodist_guilesite_DATA) \
   $(dist_pkgmodule_DATA:%.scm=%.go) \
   src/cuirass/config.go
+
+## ----------------- ##
+## Generated files.  ##
+## ----------------- ##
+
+# 'AC_CONFIG_FILES' doesn't fully expand variables that depend on ${prefix}.
+# To use such variables in source files and scripts while following GNU Coding
+# Standards, let 'make' manage their replacement.
+
+# Use config.status to substitute the remainder where a single expansion is
+# sufficient.  We use a funny notation here to avoid configure substitutions
+# in our text.
+do_subst = ( $(SED) \
+  -e "s,@configure_input[@],Generated from $$in.  Do not edit by hand.,g" \
+  -e 's,@datadir[@],$(datadir),g' \
+  -e 's,@localstatedir[@],$(localstatedir),g' \
+  | $(SHELL) ./config.status --file=- )
+
+# Generic instructions to perform the substitution.  Generated files shouldn't
+# contain unexpanded '@substitutions@', and should be made read-only, to
+# prevent them from being edited by mistake instead of the file the are
+# generated from.
+generate_file = \
+  $(AM_V_GEN)rm -f $@ $@-t; \
+  $(MKDIR_P) $(@D); \
+  in=$@.in && $(do_subst) <$(srcdir)/$$in >$@-t; \
+  if LC_ALL=C grep '@[a-zA-Z0-9_][a-zA-Z0-9_]*@' $@-t; then \
+    echo "$@ contains unexpanded substitution (see lines above)"; \
+    exit 1; \
+  fi; \
+  chmod a-w $@-t; mv -f $@-t $@
+
+# This file depends on Makefile so it is rebuilt if $(VERSION),
+# $(datadir) or other do_subst'ituted variables change.
+src/cuirass/config.scm: $(srcdir)/src/cuirass/config.scm.in Makefile
+	$(generate_file)
+
+# Guile modules require 'src/cuirass/config.scm' to exist before being
+# compiled.
+go_files = $(nodist_guilesite_DATA) $(dist_pkgmodule_DATA:%.scm=%.go)
+$(go_files): src/cuirass/config.scm
 
 ## -------------- ##
 ## Silent rules.  ##

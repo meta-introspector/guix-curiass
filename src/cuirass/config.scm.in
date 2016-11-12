@@ -1,4 +1,5 @@
-;;; config.scm -- variables defined at configure time
+;;;; config.scm -- constants defined by the build system.
+;;; @configure_input@
 ;;; Copyright © 2016 Mathieu Lirzin <mthl@gnu.org>
 ;;;
 ;;; This file is part of Cuirass.
@@ -48,8 +49,8 @@
 
 (define-public %datadir
   ;; Define to DATADIR without reference to '${prefix}'.
-  "@expanded_datadir@")
+  "@datadir@")
 
 (define-public %localstatedir
   ;; Define to LOCALSTATEDIR without reference to '${prefix}'.
-  "@expanded_localstatedir@")
+  "@localstatedir@")

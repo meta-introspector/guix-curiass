@@ -8,14 +8,8 @@ AM_INIT_AUTOMAKE([foreign subdir-objects -Wall])
 AM_SILENT_RULES([yes])		# enables silent rules by default
 
 AC_CANONICAL_HOST
-
-# Prepare a version of installation directories that does not contain
-# references to shell variables.
-expanded_prefix="`eval echo $prefix | sed -e "s|NONE|/usr/local|g"`"
-AC_SUBST([expanded_datadir],
-  [`eval echo $datarootdir | sed -e "s|NONE|$expanded_prefix|g"`])
-AC_SUBST([expanded_localstatedir],
-  [`eval echo $localstatedir | sed -e "s|NONE|$expanded_prefix|g"`])
+AC_PROG_MKDIR_P
+AC_PROG_SED
 
 PKG_CHECK_MODULES([GUILE], [guile-2.0 >= 2.0.7])
 AC_PATH_PROG([GUILE], [guile])
@@ -27,8 +21,7 @@ GUILE_MODULE_REQUIRED([guix])
 GUILE_MODULE_REQUIRED([json])
 GUILE_MODULE_REQUIRED([sqlite3])
 
-AC_CONFIG_FILES([Makefile
-                 src/cuirass/config.scm])
+AC_CONFIG_FILES([Makefile])
 AC_CONFIG_FILES([bin/cuirass], [chmod +x bin/cuirass])
 AC_CONFIG_FILES([bin/evaluate], [chmod +x bin/evaluate])
 AC_CONFIG_FILES([pre-inst-env:build-aux/pre-inst-env.in],
