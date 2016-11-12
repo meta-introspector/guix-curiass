@@ -169,10 +169,9 @@ $(bin_SCRIPTS): Makefile
 src/cuirass/config.scm: $(srcdir)/src/cuirass/config.scm.in Makefile
 	$(generate_file)
 
-# Guile modules require 'src/cuirass/config.scm' to exist before being
-# compiled.
-go_files = $(nodist_guilesite_DATA) $(dist_pkgmodule_DATA:%.scm=%.go)
-$(go_files): src/cuirass/config.scm
+# Guile modules require 'src/cuirass/config.scm' to exist before their
+# compilation.
+BUILT_SOURCES = src/cuirass/config.scm
 
 ## -------------- ##
 ## Installation.  ##
