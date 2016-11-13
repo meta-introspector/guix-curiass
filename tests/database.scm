@@ -21,8 +21,7 @@
              (srfi srfi-64))
 
 (define example-spec
-  '((#:id . 1)
-    (#:name . "guix")
+  '((#:name . "guix")
     (#:url . "git://git.savannah.gnu.org/guix.git")
     (#:load-path . ".")
     (#:file . "/tmp/gnu-system.scm")

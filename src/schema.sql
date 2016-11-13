@@ -1,8 +1,7 @@
 BEGIN TRANSACTION;
 
 CREATE TABLE Specifications (
-  id            INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
-  repo_name     TEXT NOT NULL,
+  repo_name     TEXT NOT NULL PRIMARY KEY,
   url           TEXT NOT NULL,
   load_path     TEXT NOT NULL,
   file          TEXT NOT NULL,
@@ -16,16 +15,16 @@ CREATE TABLE Specifications (
 );
 
 CREATE TABLE Stamps (
-  specification INTEGER NOT NULL PRIMARY KEY,
+  specification TEXT NOT NULL PRIMARY KEY,
   stamp         TEXT NOT NULL,
-  FOREIGN KEY (specification) REFERENCES Specifications (id)
+  FOREIGN KEY (specification) REFERENCES Specifications (repo_name)
 );
 
 CREATE TABLE Evaluations (
   id            INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
-  specification INTEGER NOT NULL,
+  specification TEXT NOT NULL,
   revision      TEXT NOT NULL,
-  FOREIGN KEY (specification) REFERENCES Specifications (id)
+  FOREIGN KEY (specification) REFERENCES Specifications (repo_name)
 );
 
 CREATE TABLE Derivations (

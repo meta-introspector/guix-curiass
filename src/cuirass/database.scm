@@ -115,8 +115,8 @@ database object."
 (define (db-add-specification db spec)
   "Store specification SPEC in database DB and return its ID."
   (apply sqlite-exec db "\
-INSERT INTO Specifications (repo_name, url, load_path, file, proc, arguments, \
-                            branch, tag, revision, no_compile_p) \
+INSERT OR IGNORE INTO Specifications (repo_name, url, load_path, file, \
+                  proc, arguments, branch, tag, revision, no_compile_p) \
   VALUES ('~A', '~A', '~A', '~A', '~S', '~S', '~A', '~A', '~A', ~A);"
          (append
           (assq-refs spec '(#:name #:url #:load-path #:file #:proc #:arguments))
@@ -129,11 +129,10 @@ INSERT INTO Specifications (repo_name, url, load_path, file, proc, arguments, \
              (specs '()))
     (match rows
       (() specs)
-      ((#(id name url load-path file proc args branch tag rev no-compile?)
+      ((#(name url load-path file proc args branch tag rev no-compile?)
         . rest)
        (loop rest
-             (cons `((#:id . ,id)
-                     (#:name . ,name)
+             (cons `((#:name . ,name)
                      (#:url . ,url)
                      (#:load-path . ,load-path)
                      (#:file . ,file)
