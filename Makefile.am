@@ -139,7 +139,6 @@ CLEANFILES = \
 do_subst = ( $(SED) \
   -e "s,@configure_input[@],Generated from $$in.  Do not edit by hand.,g" \
   -e 's,@datadir[@],$(datadir),g' \
-  -e 's,@datadir[@],$(datadir),g' \
   -e 's,@GUILE[@],$(GUILE),g' \
   -e 's,@localstatedir[@],$(localstatedir),g' \
   -e 's,@PACKAGE_LOAD_COMPILED_PATH[@],$(local_load_compiled_path),g' \
