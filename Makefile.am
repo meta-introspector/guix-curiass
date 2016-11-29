@@ -19,8 +19,8 @@
 # along with Cuirass.  If not, see <http://www.gnu.org/licenses/>.
 
 # Guile local load paths.
-local_load_path = "$(abs_top_builddir)/src:$(abs_top_srcdir)/src"
-local_load_compiled_path = "$(abs_top_builddir)/src"
+local_load_path = $(abs_top_builddir)/src:$(abs_top_srcdir)/src
+local_load_compiled_path = $(abs_top_builddir)/src
 
 bin_SCRIPTS = bin/cuirass bin/evaluate
 noinst_SCRIPTS = pre-inst-env
