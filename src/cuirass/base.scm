@@ -82,7 +82,7 @@ if required."
       commit))
 
   (let ((cachedir (%package-cachedir)))
-    (or (file-exists? cachedir) (mkdir cachedir))
+    (or (file-exists? cachedir) (mkdir-p cachedir))
     (with-directory-excursion cachedir
       (let ((name   (assq-ref spec #:name))
             (url    (assq-ref spec #:url))
