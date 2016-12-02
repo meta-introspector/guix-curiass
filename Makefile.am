@@ -172,6 +172,13 @@ src/cuirass/config.scm: $(srcdir)/src/cuirass/config.scm.in Makefile
 # compilation.
 BUILT_SOURCES = src/cuirass/config.scm
 
+## --------------- ##
+## Documentation.  ##
+## --------------- ##
+
+info_TEXINFOS = doc/cuirass.texi
+doc_cuirass_TEXINFOS = doc/fdl-1.3.texi
+
 ## -------------- ##
 ## Installation.  ##
 ## -------------- ##

@@ -1,6 +1,8 @@
 *.go
+*.info
 *.log
 *.trs
+.dirstamp
 /*.status
 /INSTALL
 /aclocal.m4
@@ -10,12 +12,16 @@
 /build-aux/config.guess
 /build-aux/config.sub
 /build-aux/install-sh
+/build-aux/mdate-sh
 /build-aux/missing
 /build-aux/test-driver
+/build-aux/texinfo.tex
 /cache/
 /config.cache
 /configure
+/doc/version.texi
 /src/cuirass/config.scm
 Makefile
 Makefile.in
 pre-inst-env
+stamp-vti
