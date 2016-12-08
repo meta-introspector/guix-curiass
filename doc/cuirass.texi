@@ -7,8 +7,8 @@
 
 @copying
 
-This manual is for Cuirass version @value{VERSION}, a continuous
-integration tool using GNU Guix functional package manager.
+This manual is for Cuirass version @value{VERSION}, a build automation
+server.
 
 Copyright @copyright{} 2016 Mathieu Lirzin
 
@@ -22,15 +22,15 @@ Documentation License''.
 @end quotation
 @end copying
 
-@dircategory System administration
+@dircategory Software development
 @direntry
-* Cuirass: (cuirass).       Reproducible Continuous Integration.
+* Cuirass: (cuirass).       Build automation server.
 @end direntry
 
 @titlepage
 @title Cuirass Reference Manual
-@subtitle Reproducible Continuous Integration.
-@subtitle @value{UPDATED}, Cuirass Version @value{VERSION}
+@subtitle Build automation server
+@subtitle for version @value{VERSION}, @value{UPDATED}
 @author by Mathieu Lirzin
 
 @page
