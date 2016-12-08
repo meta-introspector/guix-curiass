@@ -59,7 +59,28 @@ Documentation License''.
 
 @c *********************************************************************
 @node Introduction
-@chapter Introduction
+@unnumbered Introduction
+@cindex introduction
+
+@dfn{Cuirass} is a general-purpose build automation server that checks
+out source files from @acronym{VCS, Version Control System}
+repositories, executes a @dfn{build job}, and notifies the results of
+that job.  A build job consists of a combinaison of tasks such as
+compiling source code to binary code and running automated tests.
+Notification is achieved by using a database that stores the build
+results associated with an HTTP server that provides a convenient way to
+access them.
+
+Cuirass is inspired by the @url{https://nixos.org/hydra/, Hydra}
+continuous build system. Unlike Hydra, it is built on top of the
+@url{https://www.gnu.org/software/guix/, GNU Guix} functional package
+manager.
+
+The goal of Cuirass is to provide both on-demand, scheduled, and
+triggered builds.  A Build server is an important tool in the software
+development process, because it allows modifying the source code while
+ensuring the portability and robustness of those changes.  It is the
+basis of the @dfn{Continuous integration} practice.
 
 @c *********************************************************************
 @node Continuous Integration
