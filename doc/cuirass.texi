@@ -49,7 +49,6 @@ Documentation License''.
 @c *********************************************************************
 @menu
 * Introduction::                What is Cuirass about?
-* Continuous Integration::      A practical solution
 * Invocation::                  How to run Cuirass.
 * Contributing::                Your help needed!
 * GNU Free Documentation License::  The license of this manual.
@@ -82,9 +81,13 @@ development process, because it allows modifying the source code while
 ensuring the portability and robustness of those changes.  It is the
 basis of the @dfn{Continuous integration} practice.
 
+@menu
+* Continuous Integration::      A Software development practice
+@end menu
+
 @c *********************************************************************
 @node Continuous Integration
-@chapter Continuous Integration
+@unnumberedsec Continuous Integration
 
 @c *********************************************************************
 @node Invocation
