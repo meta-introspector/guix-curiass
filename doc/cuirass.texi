@@ -49,7 +49,13 @@ Documentation License''.
 @c *********************************************************************
 @menu
 * Introduction::                What is Cuirass about?
+
+Tutorial sections:
+* Overview::                    A quick tour of Cuirass
+
+Reference sections:
 * Invocation::                  How to run Cuirass.
+
 * Contributing::                Your help needed!
 * GNU Free Documentation License::  The license of this manual.
 * Concept Index::               Concepts.
@@ -88,6 +94,44 @@ basis of the @dfn{Continuous integration} practice.
 @c *********************************************************************
 @node Continuous Integration
 @unnumberedsec Continuous Integration
+
+@c *********************************************************************
+@node Overview
+@chapter Overview
+
+@command{cuirass} acts as a daemon polling @acronym{VCS, version control
+system} repositories for changes, and evaluating a derivation when
+something has changed (@pxref{Derivations, Derivations,, guix, Guix}).
+As a final step the derivation is realised and the result of that build
+allows you to know if the job succeed or not.
+
+What is actually done by @command{cuirass} is specified in a @dfn{job
+specification} which is represented as an association list which is a
+basic and traditional Scheme data structure.  Here is an example of what
+a specification might look like:
+
+@lisp
+ `((#:name . "hello")
+   (#:url . "git://git.savannah.gnu.org/guix.git")
+   (#:branch . "master")
+   (#:no-compile? . #t)
+   (#:load-path . ".")
+   (#:proc . cuirass-jobs)
+   (#:file . "/tmp/drv-file.scm")
+   (#:arguments (subset . "hello")))
+@end lisp
+
+In this specification the keys are Scheme keywords which have the nice
+property of being self evaluating.  This means that they can't refer to
+another value like symbols do.
+
+Currently the only way to add those specifications to cuirass is to put
+a list of them in a file and set the @code{--specifications} command
+line option argument with the file name when launching the daemon
+(@pxref{Invocation}).  The specifications are persistent (they are kept
+in a SQLite database) so the next time @command{cuirass} is run the
+previously added specifications will remain active even if you don't
+keep the @code{--specifications} option.
 
 @c *********************************************************************
 @node Invocation
