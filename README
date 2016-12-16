@@ -26,9 +26,9 @@ Example
 
 A quick way to manually test Cuirass is to execute:
 
-  ./pre-inst-env cuirass --specifications=tests/hello-singleton.scm --database=test.db
+  ./pre-inst-env cuirass --specifications=examples/hello-singleton.scm --database=test.db
 
-This will read the file "tests/hello-singleton.scm" which contains a list of
+This will read the file "examples/hello-singleton.scm" which contains a list of
 specifications and add them to the database "test.db" which is created if it
 doesn't already exist.
 

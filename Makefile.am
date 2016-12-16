@@ -113,10 +113,10 @@ EXTRA_DIST = \
   bin/evaluate.in \
   bootstrap \
   src/cuirass/config.scm.in \
-  tests/gnu-system.scm \
-  tests/guix-jobs.scm \
-  tests/hello-singleton.scm \
-  tests/hello-subset.scm \
+  examples/gnu-system.scm \
+  examples/guix-jobs.scm \
+  examples/hello-singleton.scm \
+  examples/hello-subset.scm \
   $(TESTS)
 
 MOSTLYCLEANFILES = $(bin_SCRIPTS) src/cuirass/config.scm
