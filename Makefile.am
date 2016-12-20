@@ -34,6 +34,7 @@ dist_pkgmodule_DATA = \
   src/cuirass/base.scm \
   src/cuirass/database.scm \
   src/cuirass/http.scm \
+  src/cuirass/repo.scm \
   src/cuirass/ui.scm \
   src/cuirass/utils.scm
 
@@ -64,6 +65,7 @@ TESTS = \
 ## tests/basic.sh # takes too long to execute
   tests/database.scm \
   tests/http.scm \
+  tests/repo.scm \
   tests/ui.scm \
   tests/utils.scm
 

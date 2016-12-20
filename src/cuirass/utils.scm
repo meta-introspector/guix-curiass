@@ -25,6 +25,7 @@
             alist?
             mkdir-p
             make-user-module
+            call-with-temporary-directory
             ;; Macros.
             λ*
             with-directory-excursion))
@@ -81,3 +82,21 @@
                 (module-use! module (resolve-interface iface)))
               modules)
     module))
+
+
+;;;
+;;; Temporary files.
+;;;
+
+(define (call-with-temporary-directory proc)
+  "Call PROC with a name of a temporary directory; close the directory and
+delete it when leaving the dynamic extent of this call."
+  (let* ((parent  (or (getenv "TMPDIR") "/tmp"))
+         (tmp-dir (string-append parent "/" (basename (tmpnam)))))
+    (mkdir-p tmp-dir)
+    (dynamic-wind
+      (const #t)
+      (lambda ()
+        (proc tmp-dir))
+      (lambda ()
+        (false-if-exception (rmdir tmp-dir))))))
