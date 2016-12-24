@@ -169,6 +169,11 @@ build results. Since @code{cuirass} uses SQLite as a database engine,
 @var{database} must be a file name.  If the file doesn't exist, it will
 be created.
 
+@item --port=@var{num}
+@itemx -p @var{num}
+Make the HTTP interface listen on port @var{num}.  Use port 8080 by
+default.
+
 @item --interval=@var{n}
 @itemx -I @var{n}
 Wait @var{n} seconds between each poll.

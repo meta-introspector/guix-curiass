@@ -71,6 +71,7 @@
                                     (uri->string (request-uri request)))))))
 
 (define* (run-cuirass-server db #:key (port 8080))
+  (format (current-error-port) "listening on port ~A~%" port)
   (run-server url-handler
               'http                     ;server implementation
               `(#:port ,port)           ;implementation parameters
