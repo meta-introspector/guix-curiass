@@ -1,4 +1,4 @@
-;;; http.scm -- HTTP API
+;;;; http.scm -- HTTP API
 ;;; Copyright © 2016 Mathieu Lirzin <mthl@gnu.org>
 ;;;
 ;;; This file is part of Cuirass.
@@ -70,8 +70,8 @@
               #:body (string-append "Resource not found: "
                                     (uri->string (request-uri request)))))))
 
-(define (run-cuirass-server db)
-    (run-server url-handler
-                'http                   ;server implementation
-                '()                     ;implementation parameters
-                db))                    ;state
+(define* (run-cuirass-server db #:key (port 8080))
+  (run-server url-handler
+              'http                     ;server implementation
+              `(#:port ,port)           ;implementation parameters
+              db))                      ;state
