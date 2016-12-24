@@ -18,10 +18,6 @@
 # You should have received a copy of the GNU General Public License
 # along with Cuirass.  If not, see <http://www.gnu.org/licenses/>.
 
-# Guile local load paths.
-local_load_path = $(abs_top_builddir)/src:$(abs_top_srcdir)/src
-local_load_compiled_path = $(abs_top_builddir)/src
-
 bin_SCRIPTS = bin/cuirass bin/evaluate
 noinst_SCRIPTS = pre-inst-env
 
@@ -49,9 +45,7 @@ TEST_EXTENSIONS = .scm .sh
 AM_TESTS_ENVIRONMENT = \
   env GUILE_AUTO_COMPILE='0' \
   testsrcdir='$(abs_top_srcdir)/tests' \
-  testbuilddir='$(abs_top_builddir)/tests' \
-  GUILE_LOAD_PATH="$(local_load_path)$${GUILE_LOAD_PATH:+:}$$GUILE_LOAD_PATH" \
-  GUILE_LOAD_COMPILED_PATH="$(local_load_compiled_path)$${GUILE_LOAD_COMPILED_PATH:+:}$$GUILE_LOAD_COMPILED_PATH"
+  testbuilddir='$(abs_top_builddir)/tests'
 
 SCM_LOG_DRIVER = \
   $(builddir)/pre-inst-env $(GUILE) \
@@ -139,8 +133,8 @@ do_subst = ( $(SED) \
   -e 's,@datadir[@],$(datadir),g' \
   -e 's,@GUILE[@],$(GUILE),g' \
   -e 's,@localstatedir[@],$(localstatedir),g' \
-  -e 's,@PACKAGE_LOAD_COMPILED_PATH[@],$(local_load_compiled_path),g' \
-  -e 's,@PACKAGE_LOAD_PATH[@],$(local_load_path),g' \
+  -e 's,@PACKAGE_LOAD_COMPILED_PATH[@],$(guilesitedir),g' \
+  -e 's,@PACKAGE_LOAD_PATH[@],$(guilesitedir),g' \
   | $(SHELL) ./config.status --file=- )
 
 # Generic instructions to perform the substitution.  Generated files shouldn't
@@ -188,14 +182,10 @@ nobase_dist_pkgdata_DATA = \
 ## Installation.  ##
 ## -------------- ##
 
-# Relocate the script---i.e., have them refer to the installed module
-# directory.
+# Ensure that the scripts will find their module directories.
 install-exec-hook:
 	$(SED) \
-## XXX: Beware of the order of these two substitutions, because one is a
-## substring of the other.
-	  -e 's,$(local_load_path),$(guilesitedir),g' \
-	  -e 's,$(local_load_compiled_path),$(guilesitedir),g' \
+	  -e 's,^#GUILE_LOAD,GUILE_LOAD,g' \
 	  -i $(DESTDIR)$(bindir)/cuirass
 
 ## -------------- ##
