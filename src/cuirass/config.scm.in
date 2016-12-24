@@ -48,9 +48,11 @@
   "@PACKAGE_VERSION@")
 
 (define-public %datadir
-  ;; Define to DATADIR without reference to '${prefix}'.
+  ;; Define to 'PREFIX/share' which is a read-only architecture-independent
+  ;; data directory.
   "@datadir@")
 
 (define-public %localstatedir
-  ;; Define to LOCALSTATEDIR without reference to '${prefix}'.
+  ;; Define to 'PREFIX/var' which is a modifiable single-machine data
+  ;; directory.
   "@localstatedir@")
