@@ -82,7 +82,36 @@ TESTS = \
 	  --warn=format --warn=unbound-variable --warn=arity-mismatch \
 	  --target="$(host)" --output="$@" "$<" $(devnull_verbose)
 
+CLEANFILES = \
+  $(nodist_guilesite_DATA) \
+  $(dist_pkgmodule_DATA:%.scm=%.go) \
+  src/cuirass/config.go
+
+.PHONY:	sql-check
+sql-check: src/schema.sql
+	@echo "$<"
+	$(AM_V_at)sqlite3 tmp-$$$.db < $< ; \
+	rm tmp-$$$.db
+
+## -------------- ##
+## Distribution.  ##
+## -------------- ##
+
+EXTRA_DIST = \
+  .dir-locals.el \
+  .version \
+  bin/cuirass.in \
+  bin/evaluate.in \
+  bootstrap \
+  src/cuirass/config.scm.in \
+  $(TESTS)
+
+BUILT_SOURCES= .version
+.version:
+	$(AM_V_GEN)echo $(VERSION) > $@-t && mv $@-t $@
+
 dist-hook: gen-ChangeLog
+	$(AM_V_GEN)echo $(VERSION) > $(distdir)/.tarball-version
 
 .PHONY: gen-ChangeLog
 gen-ChangeLog:
@@ -96,26 +125,6 @@ gen-ChangeLog:
 	    { rm -f $(distdir)/ChangeLog && \
 	      mv $(distdir)/cl-t $(distdir)/ChangeLog; } \
 	fi
-
-.PHONY:	sql-check
-sql-check: src/schema.sql
-	@echo "$<"
-	$(AM_V_at)sqlite3 tmp-$$$.db < $< ; \
-	rm tmp-$$$.db
-
-EXTRA_DIST = \
-  .dir-locals.el \
-  bin/cuirass.in \
-  bin/evaluate.in \
-  bootstrap \
-  src/cuirass/config.scm.in \
-  $(TESTS)
-
-MOSTLYCLEANFILES = $(bin_SCRIPTS) src/cuirass/config.scm
-CLEANFILES = \
-  $(nodist_guilesite_DATA) \
-  $(dist_pkgmodule_DATA:%.scm=%.go) \
-  src/cuirass/config.go
 
 ## ----------------- ##
 ## Generated files.  ##
@@ -162,7 +171,9 @@ src/cuirass/config.scm: $(srcdir)/src/cuirass/config.scm.in Makefile
 
 # Guile modules require 'src/cuirass/config.scm' to exist before their
 # compilation.
-BUILT_SOURCES = src/cuirass/config.scm
+BUILT_SOURCES += src/cuirass/config.scm
+
+MOSTLYCLEANFILES = $(bin_SCRIPTS) src/cuirass/config.scm
 
 ## --------------- ##
 ## Documentation.  ##

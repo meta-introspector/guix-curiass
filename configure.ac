@@ -18,9 +18,12 @@
 # along with Cuirass.  If not, see <http://www.gnu.org/licenses/>.
 
 AC_PREREQ([2.61])
-AC_INIT([Cuirass], [0.0.1], [bug-guix@gnu.org])
+AC_INIT([Cuirass],
+  m4_esyscmd([build-aux/git-version-gen .tarball-version]),
+  [bug-guix@gnu.org])
 AC_CONFIG_SRCDIR([bin/cuirass.in])
 AC_CONFIG_AUX_DIR([build-aux])
+AC_REQUIRE_AUX_FILE([git-version-gen])
 AC_REQUIRE_AUX_FILE([guix-env])
 AC_REQUIRE_AUX_FILE([test-driver.scm])
 AM_INIT_AUTOMAKE([foreign subdir-objects -Wall])
