@@ -23,7 +23,7 @@ noinst_SCRIPTS = pre-inst-env
 
 guilesitedir=$(datarootdir)/guile/site/2.0
 dist_guilesite_DATA = src/cuirass.scm
-nodist_guilesite_DATA = $(dist_guilesite_DATA:%.scm=%.go)
+nodist_guilesite_DATA = $(dist_guilesite_DATA:.scm=.go)
 
 pkgmoduledir=$(guilesitedir)/$(PACKAGE)
 dist_pkgmodule_DATA = \
@@ -35,7 +35,7 @@ dist_pkgmodule_DATA = \
   src/cuirass/utils.scm
 
 nodist_pkgmodule_DATA = \
-  $(dist_pkgmodule_DATA:%.scm=%.go) \
+  $(dist_pkgmodule_DATA:.scm=.go) \
   src/cuirass/config.scm \
   src/cuirass/config.go
 
@@ -84,7 +84,7 @@ TESTS = \
 
 CLEANFILES = \
   $(nodist_guilesite_DATA) \
-  $(dist_pkgmodule_DATA:%.scm=%.go) \
+  $(dist_pkgmodule_DATA:.scm=.go) \
   src/cuirass/config.go
 
 .PHONY:	sql-check
