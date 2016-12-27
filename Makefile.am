@@ -148,7 +148,7 @@ do_subst = ( $(SED) \
 
 # Generic instructions to perform the substitution.  Generated files shouldn't
 # contain unexpanded '@substitutions@', and should be made read-only, to
-# prevent them from being edited by mistake instead of the file the are
+# prevent them from being edited by mistake instead of the file they are
 # generated from.
 generate_file = \
   $(AM_V_GEN)rm -f $@ $@-t; \
