@@ -103,6 +103,7 @@ EXTRA_DIST = \
   bin/cuirass.in \
   bin/evaluate.in \
   bootstrap \
+  build-aux/guix.scm \
   src/cuirass/config.scm.in \
   $(TESTS)
 

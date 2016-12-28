@@ -24,7 +24,6 @@ AC_INIT([Cuirass],
 AC_CONFIG_SRCDIR([bin/cuirass.in])
 AC_CONFIG_AUX_DIR([build-aux])
 AC_REQUIRE_AUX_FILE([git-version-gen])
-AC_REQUIRE_AUX_FILE([guix.scm])
 AC_REQUIRE_AUX_FILE([test-driver.scm])
 AM_INIT_AUTOMAKE([foreign subdir-objects -Wall])
 AM_SILENT_RULES([yes])		# enables silent rules by default
