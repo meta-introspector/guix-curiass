@@ -1,6 +1,6 @@
 ## Process this file with autoconf to produce a configure script.
 
-# Copyright © 2016 Mathieu Lirzin <mthl@gnu.org>
+# Copyright © 2016, 2017 Mathieu Lirzin <mthl@gnu.org>
 #
 # This file is part of Cuirass.
 #
@@ -20,7 +20,8 @@
 AC_PREREQ([2.61])
 AC_INIT([Cuirass],
   m4_esyscmd([build-aux/git-version-gen .tarball-version]),
-  [bug-guix@gnu.org])
+  [bug-cuirass@framalistes.org], [cuirass],
+  [https://notabug.org/mthl/cuirass/])
 AC_CONFIG_SRCDIR([bin/cuirass.in])
 AC_CONFIG_AUX_DIR([build-aux])
 AC_REQUIRE_AUX_FILE([git-version-gen])

@@ -1,5 +1,5 @@
 ;;; ui.scm -- user interface facilities for command-line tools
-;;; Copyright © 2016 Mathieu Lirzin <mthl@gnu.org>
+;;; Copyright © 2016, 2017 Mathieu Lirzin <mthl@gnu.org>
 ;;;
 ;;; This file is part of Cuirass.
 ;;;
@@ -48,5 +48,5 @@ There is NO WARRANTY, to the extent permitted by law.")
   (newline)
   (format #t "Report bugs to: ~a." %package-bugreport)
   (newline)
-  (display "General help using GNU software: <http://www.gnu.org/gethelp/>")
+  (format #t "~A home page: <~A>" %package-name %package-url)
   (newline))
