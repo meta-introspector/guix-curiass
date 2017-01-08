@@ -21,11 +21,11 @@
 bin_SCRIPTS = bin/cuirass bin/evaluate
 noinst_SCRIPTS = pre-inst-env
 
-guilesitedir=$(datarootdir)/guile/site/2.0
+guilesitedir = $(datarootdir)/guile/site/2.0
 dist_guilesite_DATA = src/cuirass.scm
 nodist_guilesite_DATA = $(dist_guilesite_DATA:.scm=.go)
 
-pkgmoduledir=$(guilesitedir)/$(PACKAGE)
+pkgmoduledir = $(guilesitedir)/$(PACKAGE)
 dist_pkgmodule_DATA = \
   src/cuirass/base.scm \
   src/cuirass/database.scm \
@@ -107,7 +107,7 @@ EXTRA_DIST = \
   src/cuirass/config.scm.in \
   $(TESTS)
 
-BUILT_SOURCES= .version
+BUILT_SOURCES = .version
 .version:
 	$(AM_V_GEN)echo $(VERSION) > $@-t && mv $@-t $@
 
