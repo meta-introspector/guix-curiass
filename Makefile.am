@@ -1,13 +1,13 @@
 ## Process this file with automake to produce Makefile.in.
 
 # Copyright © 1995-2016 Free Software Foundation, Inc.
-# Copyright © 2016 Mathieu Lirzin <mthl@gnu.org>
+# Copyright © 2016, 2017 Mathieu Lirzin <mthl@gnu.org>
 #
 # This file is part of Cuirass.
 #
 # Cuirass is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
-# the Free Software Foundation; either version 2, or (at your option)
+# the Free Software Foundation; either version 3, or (at your option)
 # any later version.
 #
 # Cuirass is distributed in the hope that it will be useful,
