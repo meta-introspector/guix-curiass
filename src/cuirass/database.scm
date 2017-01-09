@@ -1,5 +1,5 @@
 ;;; database.scm -- store evaluation and build results
-;;; Copyright © 2016 Mathieu Lirzin <mthl@gnu.org>
+;;; Copyright © 2016, 2017 Mathieu Lirzin <mthl@gnu.org>
 ;;;
 ;;; This file is part of Cuirass.
 ;;;
@@ -147,7 +147,7 @@ INSERT OR IGNORE INTO Specifications (repo_name, url, load_path, file, \
 (define (db-add-derivation db job)
   "Store a derivation result in database DB and return its ID."
   (sqlite-exec db "\
-INSERT INTO Derivations (derivation, job_name, evaluation)\
+INSERT OR IGNORE INTO Derivations (derivation, job_name, evaluation)\
   VALUES ('~A', '~A', '~A');"
                (assq-ref job #:derivation)
                (assq-ref job #:job-name)
