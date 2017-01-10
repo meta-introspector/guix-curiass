@@ -99,17 +99,12 @@ sql-check: src/schema.sql
 
 EXTRA_DIST = \
   .dir-locals.el \
-  .version \
   bin/cuirass.in \
   bin/evaluate.in \
   bootstrap \
   build-aux/guix.scm \
   src/cuirass/config.scm.in \
   $(TESTS)
-
-BUILT_SOURCES = .version
-.version:
-	$(AM_V_GEN)echo $(VERSION) > $@-t && mv $@-t $@
 
 dist-hook: gen-ChangeLog
 	$(AM_V_GEN)echo $(VERSION) > $(distdir)/.tarball-version
@@ -172,7 +167,7 @@ src/cuirass/config.scm: $(srcdir)/src/cuirass/config.scm.in Makefile
 
 # Guile modules require 'src/cuirass/config.scm' to exist before their
 # compilation.
-BUILT_SOURCES += src/cuirass/config.scm
+BUILT_SOURCES = src/cuirass/config.scm
 
 MOSTLYCLEANFILES = $(bin_SCRIPTS) src/cuirass/config.scm
 

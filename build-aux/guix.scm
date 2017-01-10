@@ -40,7 +40,7 @@
 
 (define (git-version-gen)
   ;; Return a string containing Cuirass version number.
-  (let* ((cmd  "git-version-gen .version")
+  (let* ((cmd  "git-version-gen .tarball-version")
          (port (open-input-pipe (string-append %srcdir "/" cmd)))
          (str  (read-line port)))
     (close-pipe port)
