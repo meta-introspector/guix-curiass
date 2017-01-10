@@ -10,7 +10,7 @@
 This manual is for Cuirass version @value{VERSION}, a build automation
 server.
 
-Copyright @copyright{} 2016 Mathieu Lirzin
+Copyright @copyright{} 2016, 2017 Mathieu Lirzin
 
 @quotation
 Permission is granted to copy, distribute and/or modify this document
@@ -195,9 +195,8 @@ Display an help message that summarize all the options provided.
 @node Contributing
 @chapter Contributing
 
-Everyone is welcome to contribute to Cuirass.  You can send patches and
-share your ideas at @email{guix-devel@@gnu.org} or contact directly the
-maintainer at @email{mthl@@gnu.org}.
+Everyone is welcome to contribute to Cuirass.  You can report bugs, send
+patches and share your ideas at @email{bug-cuirass@@framalistes.org}.
 
 @c *********************************************************************
 @node GNU Free Documentation License
