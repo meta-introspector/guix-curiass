@@ -35,13 +35,16 @@
                   "aclocal.m4" "bin/cuirass" "bin/evaluate" "config.cache"
                   "guix.scm")))))
 
+(define %aux-dir
+  (current-source-directory))
+
 (define %srcdir
-  (or (current-source-directory) "."))
+  (dirname %aux-dir))
 
 (define (git-version-gen)
   ;; Return a string containing Cuirass version number.
   (let* ((cmd  "git-version-gen .tarball-version")
-         (port (open-input-pipe (string-append %srcdir "/" cmd)))
+         (port (open-input-pipe (string-append %aux-dir "/" cmd)))
          (str  (read-line port)))
     (close-pipe port)
     str))
@@ -52,7 +55,7 @@
 (package
   (inherit (specification->package "cuirass"))
   (version (git-version-gen))
-  (source (local-file (dirname %srcdir) #:recursive? #t
+  (source (local-file %srcdir #:recursive? #t
                       #:select? keep-cuirass-file?))
   (arguments
    '(#:phases
