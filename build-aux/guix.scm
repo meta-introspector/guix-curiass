@@ -1,6 +1,6 @@
 ;;;; guix.scm -- Guix package definition
 ;;; Copyright © 2016 Jan Nieuwenhuizen <janneke@gnu.org>
-;;; Copyright © 2016 Mathieu Lirzin <mthl@gnu.org>
+;;; Copyright © 2016, 2017 Mathieu Lirzin <mthl@gnu.org>
 ;;;
 ;;; This file is part of Cuirass.
 ;;;
@@ -46,6 +46,9 @@
     (close-pipe port)
     str))
 
+(define (spec+package-list spec)
+  (list spec (specification->package spec)))
+
 (package
   (inherit (specification->package "cuirass"))
   (version (git-version-gen))
@@ -76,13 +79,15 @@
                `("GUILE_LOAD_PATH" ":" prefix (,mods))
                `("GUILE_LOAD_COMPILED_PATH" ":" prefix (,mods)))))))))
   (inputs
-   `(("guile" ,(specification->package "guile@2.0"))
-     ("guile-json" ,(specification->package "guile-json"))
-     ("guile-sqlite3" ,(specification->package "guile-sqlite3"))
-     ("guix" ,(specification->package "guix"))))
+   (map spec+package-list
+        '("guile@2.0"
+          "guile-json"
+          "guile-sqlite3"
+          "guix")))
   (native-inputs
-   `(("autoconf" ,(specification->package "autoconf"))
-     ("automake" ,(specification->package "automake"))
-     ("bash" ,(specification->package "bash"))
-     ("pkg-config" ,(specification->package "pkg-config"))
-     ("texinfo" ,(specification->package "texinfo")))))
+   (map spec+package-list
+        '("autoconf"
+          "automake"
+          "bash"
+          "pkg-config"
+          "texinfo"))))
