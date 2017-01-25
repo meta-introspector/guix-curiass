@@ -7,6 +7,7 @@ exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
 !#
 ;;;; cuirass -- continuous integration tool
 ;;; Copyright © 2016 Mathieu Lirzin <mthl@gnu.org>
+;;; Copyright © 2017 Mathieu Othacehe <m.othacehe@gmail.com>
 ;;;
 ;;; This file is part of Cuirass.
 ;;;
@@ -34,6 +35,7 @@ exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
 
       --one-shot            Evaluate and build jobs only once
       --cache-directory=DIR Use DIR for storing repository data
+  -L  --load-path=DIR       Prepend DIR to Guix package module search path.
   -S  --specifications=SPECFILE
                             Add specifications from SPECFILE to database.
   -D  --database=DB         Use DB to store build results.
@@ -48,6 +50,7 @@ exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
 (define %options
   '((one-shot                         (value #f))
     (cache-directory                  (value #t))
+    (load-path      (single-char #\L) (value #t))
     (specifications (single-char #\S) (value #t))
     (database       (single-char #\D) (value #t))
     (port           (single-char #\p) (value #t))
@@ -68,6 +71,8 @@ exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
          (%package-database (option-ref opts 'database (%package-database)))
          (%package-cachedir
           (option-ref opts 'cache-directory (%package-cachedir)))
+         (%guix-package-path
+          (option-ref opts 'load-path (%guix-package-path)))
          (%use-substitutes? (option-ref opts 'use-substitutes #f)))
       (cond
        ((option-ref opts 'help #f)

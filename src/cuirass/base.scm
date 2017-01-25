@@ -1,6 +1,7 @@
 ;;; base.scm -- Cuirass base module
 ;;; Copyright © 2016 Ludovic Courtès <ludo@gnu.org>
 ;;; Copyright © 2016 Mathieu Lirzin <mthl@gnu.org>
+;;; Copyright © 2017 Mathieu Othacehe <m.othacehe@gmail.com>
 ;;;
 ;;; This file is part of Cuirass.
 ;;;
@@ -20,6 +21,7 @@
 (define-module (cuirass base)
   #:use-module (cuirass database)
   #:use-module (cuirass utils)
+  #:use-module (gnu packages)
   #:use-module (guix derivations)
   #:use-module (guix store)
   #:use-module (ice-9 format)
@@ -33,7 +35,9 @@
             evaluate
             build-packages
             process-specs
+            set-guix-package-path!
             ;; Parameters.
+            %guix-package-path
             %package-cachedir
             %use-substitutes?))
 
@@ -114,6 +118,7 @@ if required."
                            (string-append (%package-cachedir) "/"
                                           (assq-ref spec #:name) "/"
                                           (assq-ref spec #:load-path))
+                           (%guix-package-path)
                            (%package-cachedir)
                            (object->string spec)
                            (%package-database)))
@@ -174,3 +179,20 @@ if required."
       (db-add-stamp db spec commit)))
 
   (for-each process jobspecs))
+
+
+;;;
+;;; Guix package path.
+;;;
+
+(define %guix-package-path
+  ;; Extension of package modules search path.
+  (make-parameter ""))
+
+(define (set-guix-package-path! path)
+  "Use PATH to find custom packages not defined in (gnu packages ...)
+namespace or not already present in current Guile load paths."
+  (%package-module-path (cons path (%package-module-path)))
+  (%patch-path (cons path (%patch-path)))
+  (set! %load-path (cons path %load-path))
+  (set! %load-compiled-path (cons path %load-compiled-path)))

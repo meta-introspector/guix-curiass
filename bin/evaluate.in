@@ -8,6 +8,7 @@ exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
 ;;;; evaluate -- convert a specification to a job list
 ;;; Copyright © 2016 Ludovic Courtès <ludo@gnu.org>
 ;;; Copyright © 2016 Mathieu Lirzin <mthl@gnu.org>
+;;; Copyright © 2017 Mathieu Othacehe <m.othacehe@gmail.com>
 ;;;
 ;;; This file is part of Cuirass.
 ;;;
@@ -32,7 +33,7 @@ exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
 
 (define* (main #:optional (args (command-line)))
   (match args
-    ((command load-path cachedir specstr database)
+    ((command load-path guix-package-path cachedir specstr database)
      ;; Load FILE, a Scheme file that defines Hydra jobs.
      (let ((%user-module (make-fresh-user-module))
            (spec         (with-input-from-string specstr read))
@@ -58,6 +59,8 @@ exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
                  (exit 1)))
          (parameterize ((%package-database database)
                         (%use-substitutes? (assoc-ref spec #:use-substitutes?)))
+           (unless (string-null? guix-package-path)
+             (set-guix-package-path! guix-package-path))
            ;; Call the entry point of FILE and print the resulting job sexp.
            (let* ((proc-name (assq-ref spec #:proc))
                   (proc    (module-ref %user-module proc-name))
