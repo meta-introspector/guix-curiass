@@ -196,7 +196,22 @@ Display an help message that summarize all the options provided.
 @chapter Contributing
 
 Everyone is welcome to contribute to Cuirass.  You can report bugs, send
-patches and share your ideas at @email{bug-cuirass@@framalistes.org}.
+patches and share your ideas with others by sending emails the
+@email{bug-cuirass@@framalistes.org, mailing list}.
+
+Development is done using the Git distributed version control system.
+Thus, access to the repository is not strictly necessary.  We welcome
+contributions in the form of patches as produced by @code{git
+format-patch}.  Please write commit logs in the ChangeLog format
+(@pxref{Change Logs,,, standards, GNU Coding Standards}); you can check
+the commit history for examples.
+
+When posting a patch to the mailing list, use @samp{[PATCH] @dots{}} as
+a subject.  You may use your email client or the @command{git
+send-email} command.  We prefer to get patches in plain text messages,
+either inline or as MIME attachments.  You are advised to pay attention
+if your email client changes anything like line breaks or indentation
+which could potentially break the patches.
 
 @c *********************************************************************
 @node GNU Free Documentation License
