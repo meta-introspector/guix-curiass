@@ -54,3 +54,10 @@ To resume the evaluation/build process you can execute the same command
 without the '--specifications' option:
 
   ./pre-inst-env cuirass --database=test.db
+
+Contributing
+============
+
+See the manual for useful hacking informations, by running
+
+  info -f doc/cuirass.info "Contributing"
