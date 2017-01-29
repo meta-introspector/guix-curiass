@@ -77,7 +77,7 @@ values."
 
 (define (fetch-repository spec)
   "Get the latest version of repository specified in SPEC.  Clone repository
-if required."
+if required.  Return the last commit ID on success, #f otherwise."
   (define (current-commit)
     (let* ((pipe   (open-input-pipe "git log -n1"))
            (log    (read-string pipe))
@@ -93,14 +93,15 @@ if required."
             (branch (assq-ref spec #:branch))
             (commit (assq-ref spec #:commit))
             (tag    (assq-ref spec #:tag)))
-        (or (file-exists? name) (system* "git" "clone" url name))
-        (with-directory-excursion name
-          (and (zero? (system* "git" "fetch"))
-               (zero? (system* "git" "reset" "--hard"
-                               (or tag
-                                   commit
-                                   (string-append "origin/" branch))))
-               (current-commit)))))))
+        (and (or (file-exists? name)
+                 (zero? (system* "git" "clone" url name)))
+             (with-directory-excursion name
+               (and (zero? (system* "git" "fetch"))
+                    (zero? (system* "git" "reset" "--hard"
+                                    (or tag
+                                        commit
+                                        (string-append "origin/" branch))))
+                    (current-commit))))))))
 
 (define (compile dir)
   ;; Required for fetching Guix bootstrap tarballs.
@@ -166,17 +167,18 @@ if required."
   (define (process spec)
     (let ((commit (fetch-repository spec))
           (stamp  (db-get-stamp db spec)))
-      (unless (string=? commit stamp)
-        (unless (assq-ref spec #:no-compile?)
-          (compile (string-append (%package-cachedir) "/"
-                                  (assq-ref spec #:name))))
-        (with-store store
-          (let* ((spec* (acons #:current-commit commit spec))
-                 (jobs  (evaluate store db spec*)))
-            (unless (%use-substitutes?)
-              (set-build-options store #:use-substitutes? #f))
-            (build-packages store db jobs))))
-      (db-add-stamp db spec commit)))
+      (when commit
+        (unless (string=? commit stamp)
+          (unless (assq-ref spec #:no-compile?)
+            (compile (string-append (%package-cachedir) "/"
+                                    (assq-ref spec #:name))))
+          (with-store store
+            (let* ((spec* (acons #:current-commit commit spec))
+                   (jobs  (evaluate store db spec*)))
+              (unless (%use-substitutes?)
+                (set-build-options store #:use-substitutes? #f))
+              (build-packages store db jobs))))
+        (db-add-stamp db spec commit))))
 
   (for-each process jobspecs))
 
