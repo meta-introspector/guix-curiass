@@ -193,8 +193,13 @@ if required.  Return the last commit ID on success, #f otherwise."
 
 (define (set-guix-package-path! path)
   "Use PATH to find custom packages not defined in (gnu packages ...)
-namespace or not already present in current Guile load paths."
-  (%package-module-path (cons path (%package-module-path)))
-  (%patch-path (cons path (%patch-path)))
-  (set! %load-path (cons path %load-path))
-  (set! %load-compiled-path (cons path %load-compiled-path)))
+namespace or not already present in current Guile load paths.  PATH is
+expected to be a colon-separated string of directories."
+  (define (set-paths! dir)
+    (%package-module-path (cons dir (%package-module-path)))
+    (%patch-path (cons dir (%patch-path)))
+    (set! %load-path (cons dir %load-path))
+    (set! %load-compiled-path (cons dir %load-compiled-path)))
+
+  (let ((dirs (parse-path path)))
+    (for-each set-paths! dirs)))
