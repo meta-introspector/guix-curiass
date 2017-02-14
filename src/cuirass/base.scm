@@ -86,7 +86,7 @@ if required.  Return the last commit ID on success, #f otherwise."
       commit))
 
   (let ((cachedir (%package-cachedir)))
-    (or (file-exists? cachedir) (mkdir-p cachedir))
+    (mkdir-p cachedir)
     (with-directory-excursion cachedir
       (let ((name   (assq-ref spec #:name))
             (url    (assq-ref spec #:url))
