@@ -42,7 +42,7 @@ CREATE TABLE Builds (
   evaluation    INTEGER NOT NULL,
   log           TEXT NOT NULL,
   output        TEXT,		-- NULL if build failed
-  PRIMARY KEY (derivation, evaluation),
+  PRIMARY KEY (derivation, evaluation, output),
   FOREIGN KEY (derivation) REFERENCES Derivations (derivation),
   FOREIGN KEY (evaluation) REFERENCES Evaluations (id)
 );

@@ -1,6 +1,6 @@
 ;;; base.scm -- Cuirass base module
 ;;; Copyright © 2016, 2017 Ludovic Courtès <ludo@gnu.org>
-;;; Copyright © 2016 Mathieu Lirzin <mthl@gnu.org>
+;;; Copyright © 2016, 2017 Mathieu Lirzin <mthl@gnu.org>
 ;;; Copyright © 2017 Mathieu Othacehe <m.othacehe@gmail.com>
 ;;;
 ;;; This file is part of Cuirass.
@@ -25,9 +25,11 @@
   #:use-module (guix derivations)
   #:use-module (guix store)
   #:use-module (ice-9 format)
+  #:use-module (ice-9 match)
   #:use-module (ice-9 popen)
   #:use-module (ice-9 rdelim)
   #:use-module (srfi srfi-19)
+  #:use-module (srfi srfi-34)
   #:export (;; Procedures.
             call-with-time-display
             fetch-repository
@@ -129,38 +131,39 @@ if required.  Return the last commit ID on success, #f otherwise."
 
 (define (build-packages store db jobs)
   "Build JOBS and return a list of Build results."
-  (define (build job)
+  (define (register job)
     (let* ((name     (assq-ref job #:job-name))
            (drv      (assq-ref job #:derivation))
            (eval-id  (assq-ref job #:eval-id))
-           (success? #t)
-           (error-log (string-append (%package-cachedir) "/"
-                                     name ".log")))
-      (simple-format #t "building ~A...\n" drv)
-      (let ((log (call-with-output-string
-                   (λ (port)
-                     (parameterize ((current-build-output-port port))
-                       (catch 'srfi-34
-                         (λ ()
-                           (build-derivations store (list drv)))
-                         (λ (key . args)
-                           (set! success? #f)
-                           (pk "kets key:" key "args:" args))))))))
-        (when (not success?)
-          (with-output-to-file error-log
-            (λ () (display log)))
-          (simple-format #t "build failed: ~a\n" error-log))
-        (let* ((output (and success? (derivation-path->output-path drv)))
-               (log    (if success? (log-file store output) error-log))
-               (build  `((#:derivation . ,drv)
-                         (#:eval-id . ,eval-id)
-                         (#:log . ,log)
-                         (#:output . ,output))))
-          (db-add-build db build)
-          (simple-format #t "~A\n" output)
-          build))))
+           ;; XXX: How to keep logs from several attempts?
+           (log      (log-file store drv))
+           (outputs  (match (derivation-path->output-paths drv)
+                       (((names . items) ...)
+                        (filter (λ (item)
+                                  (valid-path? store item))
+                                items)))))
+      (for-each (λ (output)
+                  (let ((build `((#:derivation . ,drv)
+                                 (#:eval-id . ,eval-id)
+                                 (#:log . ,log)
+                                 (#:output . ,output))))
+                    (db-add-build db build)))
+                outputs)
+      (format #t "~{~A ~}\n" outputs)
+      build))
 
-  (map build jobs))
+  ;; Pass all the jobs at once so we benefit from as much parallelism as
+  ;; possible (we must be using #:keep-going? #t).  Swallow build errors.
+  (guard (c ((nix-protocol-error? c) #t))
+    (format #t "building ~a derivations...~%" (length jobs))
+    (build-derivations store (map (λ (job)
+                                    (assq-ref job #:derivation))
+                                  jobs)))
+
+  ;; Register the results in the database.
+  ;; XXX: The 'build-derivations' call is blocking so we end updating the
+  ;; database potentially long after things have been built.
+  (map register jobs))
 
 (define (process-specs db jobspecs)
   "Evaluate and build JOBSPECS and store results in DB."
