@@ -1,5 +1,5 @@
 ;;; base.scm -- Cuirass base module
-;;; Copyright © 2016 Ludovic Courtès <ludo@gnu.org>
+;;; Copyright © 2016, 2017 Ludovic Courtès <ludo@gnu.org>
 ;;; Copyright © 2016 Mathieu Lirzin <mthl@gnu.org>
 ;;; Copyright © 2017 Mathieu Othacehe <m.othacehe@gmail.com>
 ;;;
@@ -173,10 +173,14 @@ if required.  Return the last commit ID on success, #f otherwise."
             (compile (string-append (%package-cachedir) "/"
                                     (assq-ref spec #:name))))
           (with-store store
+            ;; Always set #:keep-going? so we don't stop on the first build
+            ;; failure.
+            (set-build-options store
+                               #:use-substitutes? (%use-substitutes?)
+                               #:keep-going? #t)
+
             (let* ((spec* (acons #:current-commit commit spec))
                    (jobs  (evaluate store db spec*)))
-              (unless (%use-substitutes?)
-                (set-build-options store #:use-substitutes? #f))
               (build-packages store db jobs))))
         (db-add-stamp db spec commit))))
 
