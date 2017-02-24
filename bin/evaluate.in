@@ -7,7 +7,7 @@ exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
 !#
 ;;;; evaluate -- convert a specification to a job list
 ;;; Copyright © 2016 Ludovic Courtès <ludo@gnu.org>
-;;; Copyright © 2016 Mathieu Lirzin <mthl@gnu.org>
+;;; Copyright © 2016, 2017 Mathieu Lirzin <mthl@gnu.org>
 ;;; Copyright © 2017 Mathieu Othacehe <m.othacehe@gmail.com>
 ;;;
 ;;; This file is part of Cuirass.
@@ -67,7 +67,7 @@ exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
                   (thunks  (proc store (assq-ref spec #:arguments)))
                   (db      (db-open))
                   (commit  (assq-ref spec #:current-commit))
-                  (eval    `((#:specification . ,(assq-ref spec #:id))
+                  (eval    `((#:specification . ,(assq-ref spec #:name))
                              (#:revision . ,commit)))
                   (eval-id (db-add-evaluation db eval)))
              (pretty-print
