@@ -70,7 +70,7 @@ Reference sections:
 @dfn{Cuirass} is a general-purpose build automation server that checks
 out source files from @acronym{VCS, Version Control System}
 repositories, executes a @dfn{build job}, and notifies the results of
-that job.  A build job consists of a combinaison of tasks such as
+that job.  A build job consists of a combination of tasks such as
 compiling source code to binary code and running automated tests.
 Notification is achieved by using a database that stores the build
 results associated with an HTTP server that provides a convenient way to
@@ -102,8 +102,8 @@ basis of the @dfn{Continuous integration} practice.
 @command{cuirass} acts as a daemon polling @acronym{VCS, version control
 system} repositories for changes, and evaluating a derivation when
 something has changed (@pxref{Derivations, Derivations,, guix, Guix}).
-As a final step the derivation is realised and the result of that build
-allows you to know if the job succeed or not.
+As a final step the derivation is realized and the result of that build
+allows you to know if the job succeeded or not.
 
 What is actually done by @command{cuirass} is specified in a @dfn{job
 specification} which is represented as an association list which is a
