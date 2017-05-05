@@ -229,7 +229,7 @@ Cuirass cache directory.  This will usually be the current directory
 @code{"."}.
 
 @item file
-The full path of the Scheme file containing PROC.
+The absolute name of the Scheme file containing PROC.
 
 @item proc
 This text field holds the name of the procedure in the Scheme file FILE
@@ -298,13 +298,13 @@ repository specified in the related specification.
 @section Derivations
 @cindex derivations, database
 
-This table associates a tuple of derivation path and evaluation
-identifier with a job name.
+This table associates a tuple of the absolute derivation file name and
+evaluation identifier with a job name.
 
 @table @code
 @item derivation
-This column holds the path to the Guix derivation that is supposed to be
-evaluated for this job.
+This column holds the absolute file name of the Guix derivation that is
+supposed to be evaluated for this job.
 
 @item evaluation
 This field holds the @code{id} of an evaluation from the
@@ -323,8 +323,8 @@ order to keep track of non-deterministic compilations.
 
 @table @code
 @item derivation
-This text field holds the path to the derivation file that resulted in
-this build.
+This text field holds the absolute name of the derivation file that
+resulted in this build.
 
 @item evaluation
 This integer field references the evaluation identifier from the
@@ -332,11 +332,11 @@ This integer field references the evaluation identifier from the
 belongs.
 
 @item log
-This text field holds the path to the build log file.
+This text field holds the absolute file name of the build log file.
 
 @item output
-This text field holds the path to the build output or @code{NULL} if the
-build failed.
+This text field holds the absolute directory name of the build output or
+@code{NULL} if the build failed.
 @end table
 
 
