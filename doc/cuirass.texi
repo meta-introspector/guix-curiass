@@ -55,6 +55,7 @@ Tutorial sections:
 
 Reference sections:
 * Invocation::                  How to run Cuirass.
+* Database::                    About the database schema.
 
 * Contributing::                Your help needed!
 * GNU Free Documentation License::  The license of this manual.
@@ -190,6 +191,154 @@ Display the actual version of @code{cuirass}.
 @itemx -h
 Display an help message that summarize all the options provided.
 @end table
+
+@c *********************************************************************
+@node Database
+@chapter Database schema
+@cindex cuirass database
+@cindex sqlite database
+@cindex persistent configuration
+
+Cuirass uses a SQLite database to store information about jobs and past
+build results, but also to coordinate the execution of jobs.
+
+The database contains the following tables: @code{Specifications},
+@code{Stamps}, @code{Evaluations}, @code{Derivations}, and
+@code{Builds}.  The purpose of each of these tables is explained below.
+
+@section Specifications
+@cindex specifications, database
+
+This table stores specifications describing the repository from whence
+Cuirass fetches code and the environment in which it will be processed.
+Entries in this table must have values for the following text fields:
+
+@table @code
+@item repo_name
+This field holds the name of the repository.  This field is also the
+primary key of this table.
+
+@item url
+The URL of the repository.
+
+@item load_path
+This text field holds the name of the subdirectory in the checked out
+repository that is passed to the @code{evaluate} tool as the Guile load
+path.  This directory is interpreted relative to the repository in the
+Cuirass cache directory.  This will usually be the current directory
+@code{"."}.
+
+@item file
+The full path of the Scheme file containing PROC.
+
+@item proc
+This text field holds the name of the procedure in the Scheme file FILE
+that produces a list of jobs.
+
+@item arguments
+A list of arguments to be passed to PROC.  This can be used to produce a
+different set of jobs using the same PROC.
+@end table
+
+The following columns are optional:
+
+@table @code
+@item branch
+This text field determines which branch of the repository Cuirass should
+check out.
+
+@item tag
+This text field is an alternative to using BRANCH or REVISION.  It tells
+Cuirass to check out the repository at the specified tag.
+
+@item revision
+This text field is an alternative to using BRANCH or TAG.  It tells
+Cuirass to check out the repository at a particular revision.  In the
+case of a git repository this would be a commit hash.
+
+@item no_compile_p
+When this integer field holds the value @code{1} Cuirass will skip
+compilation for the specified repository.
+@end table
+
+@section Stamps
+@cindex stamps, database
+
+When a specification is processed, the repository must be downloaded at
+a certain revision as specified.  The @code{Stamps} table stores the
+current revision for every specification when it is being processed.
+
+The table only has two text columns: @code{specification}, which
+references a specification from the @code{Specifications} table via the
+field @code{repo_name}, and @code{stamp}, which holds the revision
+(e.g. a commit hash).
+
+@section Evaluations
+@cindex evaluations, database
+
+An evaluation relates a specification with the revision of the
+repository specified therein.  Derivations and builds (see below) each
+belong to a specific evaluation.
+
+The @code{Evaluations} table has the following columns:
+
+@table @code
+@item id
+This is an automatically incrementing numeric identifier.
+
+@item specification
+This field holds the @code{repo_name} of a specification from the
+@code{Specifications} table.
+
+@item revision
+This text field holds the revision string (e.g. a git commit) of the
+repository specified in the related specification.
+@end table
+
+@section Derivations
+@cindex derivations, database
+
+This table associates a tuple of derivation path and evaluation
+identifier with a job name.
+
+@table @code
+@item derivation
+This column holds the path to the Guix derivation that is supposed to be
+evaluated for this job.
+
+@item evaluation
+This field holds the @code{id} of an evaluation from the
+@code{Evaluations} table.
+
+@item job_name
+This text field holds the name of the job.
+@end table
+
+@section Builds
+@cindex builds, database
+
+This table holds records of completed or failed package builds.  Note
+that builds are not in a one to one relationship with derivations in
+order to keep track of non-deterministic compilations.
+
+@table @code
+@item derivation
+This text field holds the path to the derivation file that resulted in
+this build.
+
+@item evaluation
+This integer field references the evaluation identifier from the
+@code{Evaluations} table, indicating to which evaluation this build
+belongs.
+
+@item log
+This text field holds the path to the build log file.
+
+@item output
+This text field holds the path to the build output or @code{NULL} if the
+build failed.
+@end table
+
 
 @c *********************************************************************
 @node Contributing
