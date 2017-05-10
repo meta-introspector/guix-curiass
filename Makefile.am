@@ -38,9 +38,11 @@ dist_pkgmodule_DATA = \
   src/cuirass/ui.scm \
   src/cuirass/utils.scm
 
+nodist_pkgmodule_DATA = \
+  src/cuirass/config.scm
+
 nodist_pkgobject_DATA = \
   $(dist_pkgmodule_DATA:.scm=.go) \
-  src/cuirass/config.scm \
   src/cuirass/config.go
 
 dist_pkgdata_DATA = src/schema.sql
@@ -142,7 +144,7 @@ do_subst = ( $(SED) \
   -e 's,@datadir[@],$(datadir),g' \
   -e 's,@GUILE[@],$(GUILE),g' \
   -e 's,@localstatedir[@],$(localstatedir),g' \
-  -e 's,@PACKAGE_LOAD_COMPILED_PATH[@],$(guilesitedir),g' \
+  -e 's,@PACKAGE_LOAD_COMPILED_PATH[@],$(guileobjectdir),g' \
   -e 's,@PACKAGE_LOAD_PATH[@],$(guilesitedir),g' \
   | $(SHELL) ./config.status --file=- )
 
