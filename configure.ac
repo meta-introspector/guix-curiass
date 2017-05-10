@@ -1,6 +1,7 @@
 ## Process this file with autoconf to produce a configure script.
 
 # Copyright © 2016, 2017 Mathieu Lirzin <mthl@gnu.org>
+# Copyright © 2017 Ludovic Courtès <ludo@gnu.org>
 #
 # This file is part of Cuirass.
 #
@@ -33,7 +34,12 @@ AC_CANONICAL_HOST
 AC_PROG_MKDIR_P
 AC_PROG_SED
 
-PKG_CHECK_MODULES([GUILE], [guile-2.0 >= 2.0.7])
+GUILE_PKG([2.2 2.0])
+
+if test "x$GUILE_EFFECTIVE_VERSION" = "x2.0"; then
+  PKG_CHECK_MODULES([GUILE], [guile-2.0 >= 2.0.7])
+fi
+
 AC_PATH_PROG([GUILE], [guile])
 AC_PATH_PROG([GUILD], [guild])
 AS_IF([test -z "$ac_cv_path_GUILD"],

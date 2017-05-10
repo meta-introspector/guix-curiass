@@ -21,7 +21,7 @@
 bin_SCRIPTS = bin/cuirass bin/evaluate
 noinst_SCRIPTS = pre-inst-env
 
-guilesitedir = $(datarootdir)/guile/site/2.0
+guilesitedir = $(datarootdir)/guile/site/@GUILE_EFFECTIVE_VERSION@
 dist_guilesite_DATA = src/cuirass.scm
 nodist_guilesite_DATA = $(dist_guilesite_DATA:.scm=.go)
 
