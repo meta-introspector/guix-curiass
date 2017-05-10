@@ -22,10 +22,14 @@ bin_SCRIPTS = bin/cuirass bin/evaluate
 noinst_SCRIPTS = pre-inst-env
 
 guilesitedir = $(datarootdir)/guile/site/@GUILE_EFFECTIVE_VERSION@
+guileobjectdir = $(libdir)/guile/@GUILE_EFFECTIVE_VERSION@/site-ccache
+
 dist_guilesite_DATA = src/cuirass.scm
-nodist_guilesite_DATA = $(dist_guilesite_DATA:.scm=.go)
+nodist_guileobject_DATA = $(dist_guilesite_DATA:.scm=.go)
 
 pkgmoduledir = $(guilesitedir)/$(PACKAGE)
+pkgobjectdir = $(guileobjectdir)/$(PACKAGE)
+
 dist_pkgmodule_DATA = \
   src/cuirass/base.scm \
   src/cuirass/database.scm \
@@ -34,7 +38,7 @@ dist_pkgmodule_DATA = \
   src/cuirass/ui.scm \
   src/cuirass/utils.scm
 
-nodist_pkgmodule_DATA = \
+nodist_pkgobject_DATA = \
   $(dist_pkgmodule_DATA:.scm=.go) \
   src/cuirass/config.scm \
   src/cuirass/config.go
