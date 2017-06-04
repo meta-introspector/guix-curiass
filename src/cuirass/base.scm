@@ -153,12 +153,15 @@ if required.  Return the last commit ID on success, #f otherwise."
       build))
 
   ;; Pass all the jobs at once so we benefit from as much parallelism as
-  ;; possible (we must be using #:keep-going? #t).  Swallow build errors.
+  ;; possible (we must be using #:keep-going? #t).  Swallow build logs (the
+  ;; daemon keeps them anyway), and swallow build errors.
   (guard (c ((nix-protocol-error? c) #t))
     (format #t "building ~a derivations...~%" (length jobs))
-    (build-derivations store (map (λ (job)
-                                    (assq-ref job #:derivation))
-                                  jobs)))
+    (parameterize ((current-build-output-port (%make-void-port "w")))
+      (build-derivations store
+                         (map (λ (job)
+                                (assq-ref job #:derivation))
+                              jobs))))
 
   ;; Register the results in the database.
   ;; XXX: The 'build-derivations' call is blocking so we end updating the
