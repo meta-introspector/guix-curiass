@@ -30,8 +30,7 @@
             repo-snapshot
             repo-updater
             repo-update
-            file-repo
-            git-repo))
+            file-repo))
 
 (define-immutable-record-type <repo>
   ;; An Abstract repository.  Use "repo" as a shortname for "repository".
@@ -79,38 +78,3 @@
             #:location file-name
             #:snapshoter file-repo-snapshot
             #:updater file-repo-update))))
-
-(define git-repo
-  (let ((git       "git")
-        (hash-algo "sha256"))
-    (define (git-repo-snapshot this store)
-      "Add a snapshot of URL to STORE. "
-      (let ((dir (repo-location this))
-            (id  (repo-id this)))
-        (call-with-temporary-directory
-         (λ (tmpdir)
-           (let ((tmp-repo (string-append tmpdir "/" dir)))
-             (and (zero? (system* "cp" "-R" dir tmpdir))
-                  (with-directory-excursion tmp-repo
-                    (zero? (system* "rm" "-rf" ".git")))
-                  (add-to-store store id #t hash-algo tmp-repo)))))))
-
-    (define (git-repo-update this ref)
-      (let ((url (repo-url this))
-            (dir (repo-location this)))
-        (and
-         (or (file-exists? dir)
-             (zero? (system* git "clone" url dir))
-             (error "file not found"))
-         (with-directory-excursion dir
-           (and (zero? (system* git "pull"))
-                (zero? (system* git "reset" "--hard" ref)))))))
-
-    (λ* (#:key url dir)
-      "Create a Git repository.  URL is the location of the remote repository.
-REF is the identifier that is tracked."
-      (repo #:id dir
-            #:url url
-            #:location dir
-            #:snapshoter git-repo-snapshot
-            #:updater git-repo-update))))

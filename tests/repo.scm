@@ -76,38 +76,6 @@ name."
   ;; Cleanup.
   (delete-file file-name))
 
-;;;
-;;; Git repository.
-;;;
-
-(define (create-git-repository name)
-  (let ((git "git"))
-    (system* git "init" name)
-    (with-directory-excursion name
-      (create-file "foo")
-      (system* git "add" "foo")
-      (system* git "commit" "-m" "'foo'"))))
-
-(test-group-with-cleanup "git-repo"
-  (define rpt (git-repo #:url file-name
-                        #:dir "git-example"))
-
-  ;; Since repository doesn't exist yet, 'repo-update' should throw an error.
-  (test-error "git-repo-update: file not found"
-    'system-error
-    (repo-update rpt "master"))
-
-  (create-git-repository file-name)
-
-  (test-assert "git-repo-update"
-    (repo-update rpt "master"))
-
-  (test-assert "git-repo-snapshot"
-    (in-store? (repo-snapshot rpt store)))
-
-  ;; Cleanup.
-  (system* "rm" "-rf" file-name "git-example"))
-
 (close-connection store)
 
 (test-end)
