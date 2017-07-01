@@ -2,6 +2,7 @@
 
 # Copyright © 2016, 2017 Mathieu Lirzin <mthl@gnu.org>
 # Copyright © 2017 Ludovic Courtès <ludo@gnu.org>
+# Copyright © 2017 Mathieu Othacehe <m.othacehe@gmail.com>
 #
 # This file is part of Cuirass.
 #
@@ -21,8 +22,8 @@
 AC_PREREQ([2.61])
 AC_INIT([Cuirass],
   m4_esyscmd([build-aux/git-version-gen .tarball-version]),
-  [bug-cuirass@framalistes.org], [cuirass],
-  [https://notabug.org/mthl/cuirass/])
+  [bug-guix@gnu.org], [cuirass],
+  [https://www.gnu.org/software/guix/])
 AC_CONFIG_SRCDIR([bin/cuirass.in])
 AC_CONFIG_AUX_DIR([build-aux])
 AC_REQUIRE_AUX_FILE([git-version-gen])
