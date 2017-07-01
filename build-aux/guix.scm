@@ -60,12 +60,6 @@
   (arguments
    '(#:phases
      (modify-phases %standard-phases
-       (add-after 'unpack 'disable-repo-tests
-         ;; Disable tests that use a connection to the Guix daemon.
-         (λ _
-           (substitute* "Makefile.am"
-             (("tests/repo.scm \\\\") "\\"))
-           #t))
        (add-before 'configure 'bootstrap
          (λ _ (zero? (system* "sh" "bootstrap"))))
        (add-after 'install 'wrap-program
