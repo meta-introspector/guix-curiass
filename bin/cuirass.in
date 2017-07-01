@@ -26,7 +26,7 @@ exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
 
 (use-modules (cuirass)
              (cuirass ui)
-             (cuirass utils)
+             (guix ui)
              (ice-9 getopt-long))
 
 (define (show-help)
@@ -90,7 +90,7 @@ exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
             (and specfile
                  (let ((new-specs (save-module-excursion
                                    (λ ()
-                                     (set-current-module (make-user-module))
+                                     (set-current-module (make-user-module '()))
                                      (primitive-load specfile)))))
                    (for-each (λ (spec) (db-add-specification db spec))
                              new-specs)))

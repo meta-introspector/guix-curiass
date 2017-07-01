@@ -26,9 +26,9 @@ exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
 ;;; along with Cuirass.  If not, see <http://www.gnu.org/licenses/>.
 
 (use-modules (cuirass)
-             (cuirass utils)
              (ice-9 match)
              (ice-9 pretty-print)
+             (guix build utils)
              (guix store))
 
 (define* (main #:optional (args (command-line)))

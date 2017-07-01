@@ -35,19 +35,4 @@
        (not (alist? 'foo))
        (not (alist? #:bar))))
 
-(test-assert "with-directory-excursion"
-  (let ((old (getcwd))
-        (tmp (tmpnam)))
-    (dynamic-wind
-      (λ ()
-        (mkdir tmp))
-      (λ ()
-        (with-directory-excursion tmp
-          (dir-1 (getcwd)))
-        (dir-2 (getcwd))
-        (and (string=? (dir-1) tmp)
-             (string=? (dir-2) old)))
-      (λ ()
-        (rmdir tmp)))))
-
 (test-end)

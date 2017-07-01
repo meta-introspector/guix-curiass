@@ -20,8 +20,8 @@
 
 (define-module (cuirass base)
   #:use-module (cuirass database)
-  #:use-module (cuirass utils)
   #:use-module (gnu packages)
+  #:use-module (guix build utils)
   #:use-module (guix derivations)
   #:use-module (guix store)
   #:use-module (ice-9 format)
