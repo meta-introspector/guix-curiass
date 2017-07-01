@@ -24,10 +24,12 @@
   #:use-module (guix build utils)
   #:use-module (guix derivations)
   #:use-module (guix store)
+  #:use-module (guix git)
   #:use-module (ice-9 format)
   #:use-module (ice-9 match)
   #:use-module (ice-9 popen)
   #:use-module (ice-9 rdelim)
+  #:use-module (ice-9 receive)
   #:use-module (srfi srfi-19)
   #:use-module (srfi srfi-34)
   #:export (;; Procedures.
@@ -77,33 +79,42 @@ values."
                 duration)
         (acons #:duration duration result)))))
 
-(define (fetch-repository spec)
-  "Get the latest version of repository specified in SPEC.  Clone repository
-if required.  Return the last commit ID on success, #f otherwise."
-  (define (current-commit)
-    (let* ((pipe   (open-input-pipe "git log -n1"))
-           (log    (read-string pipe))
-           (commit (cadr (string-split log char-set:whitespace))))
-      (close-pipe pipe)
-      commit))
+(define (fetch-repository store spec)
+  "Get the latest version of repository specified in SPEC.  Return two
+values: the content of the git repository at URL copied into a store
+directory and the sha1 of the top level commit in this directory."
 
+  (define (add-origin branch)
+    "Prefix branch name with origin if no remote is specified."
+    (if (string-index branch #\/)
+        branch
+        (string-append "origin/" branch)))
+
+  (let ((name   (assq-ref spec #:name))
+        (url    (assq-ref spec #:url))
+        (branch (and=> (assq-ref spec #:branch)
+                       (lambda (b)
+                         `(branch . ,(add-origin b)))))
+        (commit (and=> (assq-ref spec #:commit)
+                       (lambda (c)
+                         `(commit . ,c))))
+        (tag    (and=> (assq-ref spec #:tag)
+                       (lambda (t)
+                         `(tag . ,t)))))
+    (latest-repository-commit store url
+                              #:cache-directory (%package-cachedir)
+                              #:ref (or branch commit tag))))
+
+(define (copy-repository-cache repo spec)
+  "Copy REPO directory in cache. The directory is named after NAME
+  field in SPEC."
   (let ((cachedir (%package-cachedir)))
     (mkdir-p cachedir)
     (with-directory-excursion cachedir
-      (let ((name   (assq-ref spec #:name))
-            (url    (assq-ref spec #:url))
-            (branch (assq-ref spec #:branch))
-            (commit (assq-ref spec #:commit))
-            (tag    (assq-ref spec #:tag)))
-        (and (or (file-exists? name)
-                 (zero? (system* "git" "clone" url name)))
-             (with-directory-excursion name
-               (and (zero? (system* "git" "fetch"))
-                    (zero? (system* "git" "reset" "--hard"
-                                    (or tag
-                                        commit
-                                        (string-append "origin/" branch))))
-                    (current-commit))))))))
+      (let ((name (assq-ref spec #:name)))
+        ;; Flush any directory with the same name.
+        (false-if-exception (delete-file-recursively name))
+        (copy-recursively repo name)))))
 
 (define (compile dir)
   ;; Required for fetching Guix bootstrap tarballs.
@@ -171,24 +182,27 @@ if required.  Return the last commit ID on success, #f otherwise."
 (define (process-specs db jobspecs)
   "Evaluate and build JOBSPECS and store results in DB."
   (define (process spec)
-    (let ((commit (fetch-repository spec))
-          (stamp  (db-get-stamp db spec)))
-      (when commit
-        (unless (string=? commit stamp)
-          (unless (assq-ref spec #:no-compile?)
-            (compile (string-append (%package-cachedir) "/"
-                                    (assq-ref spec #:name))))
-          (with-store store
-            ;; Always set #:keep-going? so we don't stop on the first build
-            ;; failure.
-            (set-build-options store
-                               #:use-substitutes? (%use-substitutes?)
-                               #:keep-going? #t)
+    (with-store store
+      (let ((stamp (db-get-stamp db spec)))
+        (receive (checkout commit)
+            (fetch-repository store spec)
+          (when commit
+            (unless (string=? commit stamp)
+              (copy-repository-cache checkout spec)
 
-            (let* ((spec* (acons #:current-commit commit spec))
-                   (jobs  (evaluate store db spec*)))
-              (build-packages store db jobs))))
-        (db-add-stamp db spec commit))))
+              (unless (assq-ref spec #:no-compile?)
+                (compile (string-append (%package-cachedir) "/"
+                                        (assq-ref spec #:name))))
+              ;; Always set #:keep-going? so we don't stop on the first build
+              ;; failure.
+              (set-build-options store
+                                 #:use-substitutes? (%use-substitutes?)
+                                 #:keep-going? #t)
+
+              (let* ((spec* (acons #:current-commit commit spec))
+                     (jobs  (evaluate store db spec*)))
+                (build-packages store db jobs)))
+            (db-add-stamp db spec commit))))))
 
   (for-each process jobspecs))
 

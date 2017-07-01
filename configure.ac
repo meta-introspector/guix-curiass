@@ -47,6 +47,7 @@ AS_IF([test -z "$ac_cv_path_GUILD"],
   [AC_MSG_ERROR(['guild' program cannot be found.])])
 
 GUILE_MODULE_REQUIRED([guix])
+GUILE_MODULE_REQUIRED([guix git])
 GUILE_MODULE_REQUIRED([json])
 GUILE_MODULE_REQUIRED([sqlite3])
 
