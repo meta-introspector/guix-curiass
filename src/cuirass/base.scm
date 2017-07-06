@@ -54,7 +54,7 @@
   (make-parameter (or (getenv "CUIRASS_CACHEDIR")
                       (string-append (or (getenv "HOME") ".")
                                      "/.cache/cuirass"))
-    (λ (val)
+    (lambda (val)
       (if (string? val)
           val
           (scm-error 'wrong-type-arg
@@ -71,7 +71,7 @@ values."
 (define (call-with-time-display thunk)
   "Call THUNK and write to the current output port its duration."
   (call-with-time thunk
-    (λ (time result)
+    (lambda (time result)
       (let ((duration (+ (time-second time)
                          (/ (time-nanosecond time) 1e9))))
         (format (current-error-port) "evaluate '~A': ~,3f seconds~%"
@@ -150,10 +150,10 @@ directory and the sha1 of the top level commit in this directory."
            (log      (log-file store drv))
            (outputs  (match (derivation-path->output-paths drv)
                        (((names . items) ...)
-                        (filter (λ (item)
+                        (filter (lambda (item)
                                   (valid-path? store item))
                                 items)))))
-      (for-each (λ (output)
+      (for-each (lambda (output)
                   (let ((build `((#:derivation . ,drv)
                                  (#:eval-id . ,eval-id)
                                  (#:log . ,log)
@@ -170,7 +170,7 @@ directory and the sha1 of the top level commit in this directory."
     (format #t "building ~a derivations...~%" (length jobs))
     (parameterize ((current-build-output-port (%make-void-port "w")))
       (build-derivations store
-                         (map (λ (job)
+                         (map (lambda (job)
                                 (assq-ref job #:derivation))
                               jobs))))
 

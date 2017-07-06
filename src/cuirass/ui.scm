@@ -27,11 +27,11 @@
 (define %program-name
   ;; Similar in spirit to Gnulib 'progname' module.
   (make-parameter ""
-    (λ (val)
+    (lambda (val)
       (cond ((not (string? val))
              (scm-error 'wrong-type-arg
                         "%program-name" "Not a string: ~S" (list #f) #f))
-            ((string-rindex val #\/) => (λ (idx) (substring val (1+ idx))))
+            ((string-rindex val #\/) => (lambda (idx) (substring val (1+ idx))))
             (else val)))))
 
 (define (show-version)

@@ -21,13 +21,7 @@
 (define-module (cuirass utils)
   #:use-module (ice-9 match)
   #:use-module (srfi srfi-1)
-  #:export (;; Procedures
-            alist?
-            ;; Macros.
-            λ*))
-
-(define-syntax-rule (λ* formals body ...)
-  (lambda* formals body ...))
+  #:export (alist?))
 
 (define (alist? obj)
   "Return #t if OBJ is an alist."

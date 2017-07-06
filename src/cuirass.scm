@@ -27,7 +27,7 @@
 ;;; Module usages and exports need to be done at expansion time.
 (eval-when (eval load expand)
   (let ((i (module-public-interface (current-module))))
-    (for-each (λ (m) (module-use! i (resolve-interface m)))
+    (for-each (lambda (m) (module-use! i (resolve-interface m)))
               ;; Public modules.
               '((cuirass base)
                 (cuirass database)

@@ -89,16 +89,16 @@ exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
           (with-database db
             (and specfile
                  (let ((new-specs (save-module-excursion
-                                   (λ ()
+                                   (lambda ()
                                      (set-current-module (make-user-module '()))
                                      (primitive-load specfile)))))
-                   (for-each (λ (spec) (db-add-specification db spec))
+                   (for-each (lambda (spec) (db-add-specification db spec))
                              new-specs)))
             (if one-shot?
                 (process-specs db (db-get-specifications db))
                 (begin
                   (call-with-new-thread
-                   (λ ()
+                   (lambda ()
                      (while #t
                        (process-specs db (db-get-specifications db))
                        (sleep interval))))

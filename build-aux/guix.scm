@@ -27,10 +27,10 @@
   ;; Return #t if FILE in Cuirass repository must be kept, #f otherwise. FILE
   ;; is an absolute file name and STAT is the result of 'lstat' applied to
   ;; FILE.
-  (not (or (any (λ (str) (string-contains file str))
+  (not (or (any (lambda (str) (string-contains file str))
                 '(".git" "autom4te" "Makefile.in" ".go" ".log"
                   "stamp-vti" ".dirstamp"))
-           (any (λ (str) (string-suffix? str file))
+           (any (lambda (str) (string-suffix? str file))
                 '("trs""configure" "Makefile" "config.status" "pre-inst-env"
                   "aclocal.m4" "bin/cuirass" "bin/evaluate" "config.cache"
                   "guix.scm")))))
@@ -61,7 +61,7 @@
    '(#:phases
      (modify-phases %standard-phases
        (add-before 'configure 'bootstrap
-         (λ _ (zero? (system* "sh" "bootstrap"))))
+         (lambda _ (zero? (system* "sh" "bootstrap"))))
        (add-after 'install 'wrap-program
          (lambda* (#:key inputs outputs #:allow-other-keys)
            ;; Wrap the 'cuirass' command to refer to the right modules.

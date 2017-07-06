@@ -69,7 +69,7 @@
 
 (define (package-job store job-name package system)
   "Return a job called JOB-NAME that builds PACKAGE on SYSTEM."
-  (λ ()
+  (lambda ()
     `((#:job-name . ,(string-append (symbol->string job-name) "." system))
       (#:derivation . ,(derivation-file-name
                         (parameterize ((%graft? #f))
@@ -80,7 +80,7 @@
 (define (package-cross-job store job-name package target system)
   "Return a job called TARGET.JOB-NAME that cross-builds PACKAGE
 for TARGET on SYSTEM."
-  (λ ()
+  (lambda ()
     `((#:job-name . ,(string-join (list target (symbol->string job-name) system)
                                   "."))
       (#:derivation . ,(derivation-file-name
@@ -114,7 +114,7 @@ for TARGET on SYSTEM."
 
 (define (tarball-job store system)
   "Return Hydra jobs to build the self-contained Guix binary tarball."
-  (λ ()
+  (lambda ()
     `((#:job-name . (string-append "binary-tarball." system))
       (#:derivation . ,(derivation-file-name
                         (parameterize ((%graft? #f))

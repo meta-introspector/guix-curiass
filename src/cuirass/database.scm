@@ -71,7 +71,7 @@ will be replaced by ARGS."
 (define (read-sql-file file-name)
   "Return a list of string containing SQL instructions from FILE-NAME."
   (call-with-input-file file-name
-    (λ (port)
+    (lambda (port)
       (let loop ((insts '()))
         (let ((inst (read-delimited ";" port 'concat)))
           (if (or (eof-object? inst)
@@ -89,7 +89,7 @@ database object."
     (delete-file db-name))
   (let ((db (sqlite-open db-name (logior SQLITE_OPEN_CREATE
                                          SQLITE_OPEN_READWRITE))))
-    (for-each (λ (sql) (sqlite-exec db sql))
+    (for-each (lambda (sql) (sqlite-exec db sql))
               (read-sql-file schema))
     db))
 
@@ -105,7 +105,7 @@ database object."
   (sqlite-close db))
 
 (define* (assq-refs alst keys #:optional default-value)
-  (map (λ (key) (or (assq-ref alst key) default-value))
+  (map (lambda (key) (or (assq-ref alst key) default-value))
        keys))
 
 (define (last-insert-rowid db)
@@ -169,8 +169,8 @@ INSERT INTO Evaluations (specification, revision) VALUES ('~A', '~A');"
   (let ((db (db-open)))
     (dynamic-wind
       (const #t)
-      (λ () body ...)
-      (λ () (db-close db)))))
+      (lambda () body ...)
+      (lambda () (db-close db)))))
 
 (define* (read-quoted-string #:optional (port (current-input-port)))
   "Read all of the characters out of PORT and return them as a SQL quoted

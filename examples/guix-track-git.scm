@@ -98,7 +98,7 @@
 
 (define (package-job store job-name package system)
   "Return a job called JOB-NAME that builds PACKAGE on SYSTEM."
-  (λ ()
+  (lambda ()
     `((#:job-name . ,(string-append (symbol->string job-name) "." system))
       (#:derivation . ,(derivation-file-name
                         (parameterize ((%graft? #f))

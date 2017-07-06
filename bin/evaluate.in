@@ -40,7 +40,7 @@ exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
            (stdout       (current-output-port))
            (stderr       (current-error-port)))
        (save-module-excursion
-        (λ ()
+        (lambda ()
           (set-current-module %user-module)
           (with-directory-excursion
               (string-append cachedir "/" (assq-ref spec #:name))
@@ -52,7 +52,7 @@ exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
          ;; Grafts can trigger early builds.  We do not want that to happen
          ;; during evaluation, so use a sledgehammer to catch such problems.
          (set! build-things
-               (λ (store . args)
+               (lambda (store . args)
                  (display "error: trying to build things during evaluation!~%"
                           stderr)
                  (simple-format stderr "'build-things' arguments: ~S~%" args)
@@ -71,7 +71,7 @@ exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
                              (#:revision . ,commit)))
                   (eval-id (db-add-evaluation db eval)))
              (pretty-print
-              (map (λ (thunk)
+              (map (lambda (thunk)
                      (let* ((job  (call-with-time-display thunk))
                             ;; Keep track of SPEC id in the returned jobs.
                             (job* (acons #:eval-id eval-id job)))
