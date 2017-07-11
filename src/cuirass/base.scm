@@ -43,7 +43,8 @@
             ;; Parameters.
             %guix-package-path
             %package-cachedir
-            %use-substitutes?))
+            %use-substitutes?
+            %fallback?))
 
 (cond-expand
   (guile-2.2
@@ -54,6 +55,10 @@
 
 (define %use-substitutes?
   ;; Define whether to use substitutes
+  (make-parameter #f))
+
+(define %fallback?
+  ;; Define whether to fall back to building when the substituter fails.
   (make-parameter #f))
 
 (define %package-cachedir
@@ -204,6 +209,7 @@ directory and the sha1 of the top level commit in this directory."
               ;; failure.
               (set-build-options store
                                  #:use-substitutes? (%use-substitutes?)
+                                 #:fallback? (%fallback?)
                                  #:keep-going? #t)
 
               (let* ((spec* (acons #:current-commit commit spec))
