@@ -32,6 +32,7 @@
   #:use-module (ice-9 receive)
   #:use-module (srfi srfi-19)
   #:use-module (srfi srfi-34)
+  #:use-module (srfi srfi-35)
   #:export (;; Procedures.
             call-with-time-display
             fetch-repository
@@ -137,6 +138,10 @@ directory and the sha1 of the top level commit in this directory."
         (system* "./configure" "--localstatedir=/var"))
     (zero? (system* "make" "-j" (number->string (current-processor-count))))))
 
+(define-condition-type &evaluation-error &error
+  evaluation-error?
+  (name evaluation-error-spec-name))
+
 (define (evaluate store db spec)
   "Evaluate and build package derivations.  Return a list of jobs."
   (let* ((port (open-pipe* OPEN_READ
@@ -148,7 +153,15 @@ directory and the sha1 of the top level commit in this directory."
                            (%package-cachedir)
                            (object->string spec)
                            (%package-database)))
-         (jobs (read port)))
+         (jobs (match (read port)
+                 ;; If an error occured during evaluation report it,
+                 ;; otherwise, suppose that data read from port are
+                 ;; correct and keep things going.
+                 ((? eof-object?)
+                  (raise (condition
+                          (&evaluation-error
+                           (name (assq-ref spec #:name))))))
+                 (data data))))
     (close-pipe port)
     jobs))
 
@@ -212,9 +225,13 @@ directory and the sha1 of the top level commit in this directory."
                                  #:fallback? (%fallback?)
                                  #:keep-going? #t)
 
-              (let* ((spec* (acons #:current-commit commit spec))
-                     (jobs  (evaluate store db spec*)))
-                (build-packages store db jobs)))
+              (guard (c ((evaluation-error? c)
+                         (format #t "Failed to evaluate ~s specification.~%"
+                                 (evaluation-error-spec-name c))
+                         #f))
+                (let* ((spec* (acons #:current-commit commit spec))
+                       (jobs  (evaluate store db spec*)))
+                  (build-packages store db jobs))))
             (db-add-stamp db spec commit))))))
 
   (for-each process jobspecs))
