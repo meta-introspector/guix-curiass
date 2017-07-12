@@ -195,7 +195,7 @@ INSERT INTO Builds (derivation, evaluation, log, output)\
 (define (db-get-stamp db spec)
   "Return a stamp corresponding to specification SPEC in database DB."
   (let ((res (sqlite-exec db "SELECT * FROM Stamps WHERE specification='~A';"
-                          (assq-ref spec #:id))))
+                          (assq-ref spec #:name))))
     (match res
       (() "")
       ((#(spec commit)) commit))))
@@ -205,9 +205,9 @@ INSERT INTO Builds (derivation, evaluation, log, output)\
   (if (string-null? (db-get-stamp db spec))
       (sqlite-exec db "\
 INSERT INTO Stamps (specification, stamp) VALUES ('~A', '~A');"
-                   (assq-ref spec #:id)
+                   (assq-ref spec #:name)
                    commit)
       (sqlite-exec db "\
 UPDATE Stamps SET stamp='~A' WHERE specification='~A';"
                    commit
-                   (assq-ref spec #:id))))
+                   (assq-ref spec #:name))))
