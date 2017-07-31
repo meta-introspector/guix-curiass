@@ -48,8 +48,12 @@ AS_IF([test -z "$ac_cv_path_GUILD"],
 
 GUILE_MODULE_REQUIRED([guix])
 GUILE_MODULE_REQUIRED([guix git])
+GUILE_MODULE_REQUIRED([git])
 GUILE_MODULE_REQUIRED([json])
 GUILE_MODULE_REQUIRED([sqlite3])
+
+# We depend on new Guile-Git errors.
+GUILE_MODULE_REQUIRED_EXPORT([(git)], git-error-message)
 
 AC_CONFIG_FILES([Makefile])
 AC_CONFIG_FILES([pre-inst-env:build-aux/pre-inst-env.in],

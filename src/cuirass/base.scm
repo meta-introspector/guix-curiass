@@ -25,6 +25,7 @@
   #:use-module (guix derivations)
   #:use-module (guix store)
   #:use-module (guix git)
+  #:use-module (git)
   #:use-module (ice-9 format)
   #:use-module (ice-9 match)
   #:use-module (ice-9 popen)
@@ -91,6 +92,18 @@ values."
                 (assq-ref result #:job-name)
                 duration)
         (acons #:duration duration result)))))
+
+(define (report-git-error error)
+  "Report the given Guile-Git error."
+  (format (current-error-port)
+          "Git error: ~a~%" (git-error-message error)))
+
+(define-syntax-rule (with-git-error-handling body ...)
+  (catch 'git-error
+    (lambda ()
+      body ...)
+    (lambda (key err)
+      (report-git-error err))))
 
 (define (fetch-repository store spec)
   "Get the latest version of repository specified in SPEC.  Return two
@@ -209,30 +222,32 @@ directory and the sha1 of the top level commit in this directory."
   (define (process spec)
     (with-store store
       (let ((stamp (db-get-stamp db spec)))
-        (receive (checkout commit)
-            (fetch-repository store spec)
-          (when commit
-            (unless (string=? commit stamp)
-              (copy-repository-cache checkout spec)
+        ;; Catch and report git errors.
+        (with-git-error-handling
+         (receive (checkout commit)
+             (fetch-repository store spec)
+           (when commit
+             (unless (string=? commit stamp)
+               (copy-repository-cache checkout spec)
 
-              (unless (assq-ref spec #:no-compile?)
-                (compile (string-append (%package-cachedir) "/"
-                                        (assq-ref spec #:name))))
-              ;; Always set #:keep-going? so we don't stop on the first build
-              ;; failure.
-              (set-build-options store
-                                 #:use-substitutes? (%use-substitutes?)
-                                 #:fallback? (%fallback?)
-                                 #:keep-going? #t)
+               (unless (assq-ref spec #:no-compile?)
+                 (compile (string-append (%package-cachedir) "/"
+                                         (assq-ref spec #:name))))
+               ;; Always set #:keep-going? so we don't stop on the first build
+               ;; failure.
+               (set-build-options store
+                                  #:use-substitutes? (%use-substitutes?)
+                                  #:fallback? (%fallback?)
+                                  #:keep-going? #t)
 
-              (guard (c ((evaluation-error? c)
-                         (format #t "Failed to evaluate ~s specification.~%"
-                                 (evaluation-error-spec-name c))
-                         #f))
-                (let* ((spec* (acons #:current-commit commit spec))
-                       (jobs  (evaluate store db spec*)))
-                  (build-packages store db jobs))))
-            (db-add-stamp db spec commit))))))
+               (guard (c ((evaluation-error? c)
+                          (format #t "Failed to evaluate ~s specification.~%"
+                                  (evaluation-error-spec-name c))
+                          #f))
+                 (let* ((spec* (acons #:current-commit commit spec))
+                        (jobs  (evaluate store db spec*)))
+                   (build-packages store db jobs))))
+             (db-add-stamp db spec commit)))))))
 
   (for-each process jobspecs))
 

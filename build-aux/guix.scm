@@ -80,6 +80,7 @@
         '("guile@2.2"
           "guile-json"
           "guile-sqlite3"
+          "guile-git"
           "guix")))
   (native-inputs
    (map spec+package-list
