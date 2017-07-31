@@ -82,7 +82,7 @@ INSERT INTO Evaluations (specification, revision) VALUES (3, 3);")
     (let ((build `((#:derivation . "/foo.drv")
                    (#:eval-id . 42)
                    (#:log . "log")
-                   (#:output . "/foo"))))
+                   (#:outputs . (("foo" . "/foo"))))))
       (db-add-build (%db) build)
 
       ;; This should be idempotent, see <https://bugs.gnu.org/28094>.
