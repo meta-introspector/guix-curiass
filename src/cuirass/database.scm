@@ -232,7 +232,7 @@ INSERT INTO Outputs (build, name, path) VALUES ('~A', '~A', '~A');"
                    outputs))))))
 
 (define db-build-request "\
-SELECT Builds.id, Builds.timestamp, Builds.starttime, Builds.stoptime, Builds.log, Builds.status,\
+SELECT Builds.id, Builds.timestamp, Builds.starttime, Builds.stoptime, Builds.log, Builds.status, Builds.derivation,\
 Derivations.job_name, Derivations.system, Derivations.nix_name,\
 Specifications.repo_name, Specifications.branch \
 FROM Builds \
@@ -242,20 +242,21 @@ INNER JOIN Specifications ON Evaluations.specification = Specifications.repo_nam
 
 (define (db-format-build db build)
   (match build
-    (#(id timestamp starttime stoptime log status job-name system
+    (#(id timestamp starttime stoptime log status derivation job-name system
           nix-name repo-name branch)
-       `((#:id        . ,id)
-         (#:timestamp . ,timestamp)
-         (#:starttime . ,starttime)
-         (#:stoptime  . ,stoptime)
-         (#:log       . ,log)
-         (#:status    . ,status)
-         (#:job-name  . ,job-name)
-         (#:system    . ,system)
-         (#:nix-name  . ,nix-name)
-         (#:repo-name . ,repo-name)
-         (#:outputs   . ,(db-get-outputs db id))
-         (#:branch    . ,branch)))))
+     `((#:id         . ,id)
+       (#:timestamp  . ,timestamp)
+       (#:starttime  . ,starttime)
+       (#:stoptime   . ,stoptime)
+       (#:log        . ,log)
+       (#:status     . ,status)
+       (#:derivation . ,derivation)
+       (#:job-name   . ,job-name)
+       (#:system     . ,system)
+       (#:nix-name   . ,nix-name)
+       (#:repo-name  . ,repo-name)
+       (#:outputs    . ,(db-get-outputs db id))
+       (#:branch     . ,branch)))))
 
 (define (db-get-build db id)
   "Retrieve a build in database DB which corresponds to ID."

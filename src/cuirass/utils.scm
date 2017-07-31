@@ -21,9 +21,29 @@
 (define-module (cuirass utils)
   #:use-module (ice-9 match)
   #:use-module (srfi srfi-1)
-  #:export (alist?))
+  #:use-module (json)
+  #:export (alist?
+            object->json-scm
+            object->json-string))
 
 (define (alist? obj)
   "Return #t if OBJ is an alist."
   (and (list? obj)
        (every pair? obj)))
+
+(define (object->json-scm obj)
+  "Prepare OBJ for JSON usage."
+  (cond ((string? obj)  obj)
+        ((number? obj)  obj)
+        ((boolean? obj) obj)
+        ((null? obj)    obj)
+        ((symbol? obj)  (symbol->string obj))
+        ((keyword? obj) (object->json-scm (keyword->symbol obj)))
+        ((alist? obj)   (map object->json-scm obj))
+        ((pair? obj)    (cons (object->json-scm (car obj))
+                              (object->json-scm (cdr obj))))
+        (else           (object->string obj))))
+
+(define* (object->json-string object #:key pretty)
+  "Return OBJECT as a JSON object."
+  (scm->json-string (object->json-scm object) #:pretty pretty))

@@ -1,6 +1,7 @@
 ;;; http.scm -- tests for (cuirass http) module
 ;;; Copyright © 2016 Mathieu Lirzin <mthl@gnu.org>
 ;;; Copyright © 2017 Ludovic Courtès <ludo@gnu.org>
+;;; Copyright © 2017 Mathieu Othacehe <m.othacehe@gmail.com>
 ;;;
 ;;; This file is part of Cuirass.
 ;;;
@@ -18,7 +19,14 @@
 ;;; along with Cuirass.  If not, see <http://www.gnu.org/licenses/>.
 
 (use-modules (cuirass http)
+             (cuirass database)
+             (cuirass utils)
+             (guix utils)
+             (guix build utils)
              (json)
+             (web client)
+             (web response)
+             (rnrs bytevectors)
              (srfi srfi-1)
              (srfi srfi-64))
 
@@ -42,30 +50,187 @@
                   #t
                   t1)))
 
-(test-begin "http")
+(define (http-get-body uri)
+  (call-with-values (lambda () (http-get uri))
+    (lambda (response body) body)))
 
-(test-assert "spec->json-string"
-  ;; Note: We cannot compare the strings directly because field ordering
-  ;; depends on the hash algorithm used in Guile's hash tables, and that
-  ;; algorithm changed in Guile 2.2.
-  (hash-table=?
-   (call-with-input-string
-       (string-append "{"
-                      "\"boolean\" : false,"
-                      "\"string\" : \"guix\","
-                      "\"alist\" : {\"subset\" : \"hello\"},"
-                      "\"list\" : [1, \"2\", \"three\"],"
-                      "\"symbol\" : \"hydra-jobs\","
-                      "\"number\" : 1"
-                      "}")
-     json->scm)
-   (call-with-input-string
-       (spec->json-string '((#:number . 1)
-                            (string . "guix")
-                            ("symbol" . hydra-jobs)
-                            (#:alist (subset . "hello"))
-                            (list 1 "2" #:three)
-                            ("boolean" . #f)))
-     json->scm)))
+(define (wait-until-ready port)
+  ;; Wait until the server is accepting connections.
+  (let ((conn (socket PF_INET SOCK_STREAM 0)))
+    (let loop ()
+      (unless (false-if-exception
+               (connect conn AF_INET (inet-pton AF_INET "127.0.0.1") port))
+        (loop)))))
 
-(test-end)
+(define (test-cuirass-uri route)
+  (string-append "http://localhost:6688" route))
+
+(define database-name
+  ;; Use an empty and temporary database for the tests.
+  (string-append (getcwd) "/" (number->string (getpid)) "-tmp.db"))
+
+(define %db
+  ;; Global Slot for a database object.
+  (make-parameter #t))
+
+(define build-query-result
+  '((#:id . 1)
+    (#:project . "guix")
+    (#:jobset . "master")
+    (#:job . "fake-job")
+    (#:timestamp . 1501347493)
+    (#:starttime . 1501347493)
+    (#:stoptime . 1501347493)
+    (#:buildoutputs . ((out ("path" . "/gnu/store/fake-1.0"))))
+    (#:system . "x86_64-linux")
+    (#:nixname . "fake-1.0")
+    (#:buildstatus . 0)
+    (#:busy . 0)
+    (#:priority . 0)
+    (#:finished . 1)
+    (#:buildproducts . #nil)
+    (#:releasename . #nil)
+    (#:buildinputs_builds . #nil)))
+
+(define log-file-name
+  ;; Use a fake temporary log file.
+  (string-append (getcwd) "/" (number->string (getpid)) "-log.txt"))
+
+(call-with-output-file log-file-name
+  ;; Write "build log" string compressed with bzip2 inside LOG-FILE-NAME.
+  (lambda (out)
+    (dump-port
+     (call-with-input-string "build log"
+       (lambda (port)
+         (compressed-port 'bzip2 port)))
+     out)))
+
+(test-group-with-cleanup "http"
+  (test-assert "object->json-string"
+    ;; Note: We cannot compare the strings directly because field ordering
+    ;; depends on the hash algorithm used in Guile's hash tables, and that
+    ;; algorithm changed in Guile 2.2.
+    (hash-table=?
+     (call-with-input-string
+         (string-append "{"
+                        "\"boolean\" : false,"
+                        "\"string\" : \"guix\","
+                        "\"alist\" : {\"subset\" : \"hello\"},"
+                        "\"list\" : [1, \"2\", \"three\"],"
+                        "\"symbol\" : \"hydra-jobs\","
+                        "\"number\" : 1"
+                        "}")
+       json->scm)
+     (call-with-input-string
+         (object->json-string '((#:number . 1)
+                                (string . "guix")
+                                ("symbol" . hydra-jobs)
+                                (#:alist (subset . "hello"))
+                                (list 1 "2" #:three)
+                                ("boolean" . #f)))
+       json->scm)))
+
+  (test-assert "db-init"
+    (%db (db-init database-name)))
+
+  (test-assert "cuirass-run"
+    (call-with-new-thread
+     (lambda ()
+       (run-cuirass-server (%db) #:port 6688))))
+
+  (test-assert "wait-server"
+    (wait-until-ready 6688))
+
+  (test-assert "fill-db"
+    (let ((build
+           `((#:derivation . "/gnu/store/fake.drv")
+             (#:eval-id . 1)
+             (#:log . ,log-file-name)
+             (#:status . 0)
+             (#:outputs . (("out" . "/gnu/store/fake-1.0")))
+             (#:timestamp . 1501347493)
+             (#:starttime . 1501347493)
+             (#:stoptime . 1501347493)))
+          (derivation
+           '((#:derivation . "/gnu/store/fake.drv")
+             (#:job-name . "fake-job")
+             (#:system . "x86_64-linux")
+             (#:nix-name . "fake-1.0")
+             (#:eval-id . 1)))
+          (specification
+           '((#:name . "guix")
+             (#:url . "git://git.savannah.gnu.org/guix.git")
+             (#:load-path . ".")
+             (#:file . "/tmp/gnu-system.scm")
+             (#:proc . hydra-jobs)
+             (#:arguments (subset . "hello"))
+             (#:branch . "master")
+             (#:tag . #f)
+             (#:commit . #f)
+             (#:no-compile? . #f)))
+          (evaluation
+           '((#:specification . "guix")
+             (#:revision . 1))))
+      (db-add-build (%db) build)
+      (db-add-derivation (%db) derivation)
+      (db-add-specification (%db) specification)
+      (db-add-evaluation (%db) evaluation)))
+
+  (test-assert "/build/1"
+    (hash-table=?
+     (call-with-input-string
+         (utf8->string
+          (http-get-body (test-cuirass-uri "/build/1")))
+       json->scm)
+     (call-with-input-string
+         (object->json-string build-query-result)
+       json->scm)))
+
+  (test-equal "/build/1/log/raw"
+    "build log"
+    (http-get-body
+     (test-cuirass-uri "/build/1/log/raw")))
+
+  (test-equal "/build/2"
+    404
+    (response-code (http-get (test-cuirass-uri "/build/2"))))
+
+  (test-equal "/build/2/log/raw"
+    404
+    (response-code (http-get (test-cuirass-uri "/build/2/log/raw"))))
+
+  (test-equal "/api/latestbuilds"
+    500
+    (response-code (http-get (test-cuirass-uri "/api/latestbuilds"))))
+
+  (test-assert "/api/latestbuilds?nr=1&project=guix&jobset=master"
+    (let ((hash-list
+           (call-with-input-string
+               (utf8->string
+                (http-get-body
+                 (test-cuirass-uri
+                  "/api/latestbuilds?nr=1&project=guix&jobset=master")))
+             json->scm)))
+      (and (= (length hash-list) 1)
+           (hash-table=?
+            (car hash-list)
+            (call-with-input-string
+                (object->json-string build-query-result)
+              json->scm)))))
+
+  (test-assert "/api/latestbuilds?nr=1&project=gnu"
+    ;; The result should be an empty JSON array.
+    (let ((hash-list
+           (call-with-input-string
+               (utf8->string
+                (http-get-body
+                 (test-cuirass-uri
+                  "/api/latestbuilds?nr=1&project=gnu")))
+             json->scm)))
+      (= (length hash-list) 0)))
+
+  (test-assert "db-close"
+    (db-close (%db)))
+
+  (delete-file database-name)
+  (delete-file log-file-name))

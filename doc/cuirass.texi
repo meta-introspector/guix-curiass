@@ -57,6 +57,7 @@ Tutorial sections:
 Reference sections:
 * Invocation::                  How to run Cuirass.
 * Database::                    About the database schema.
+* Web API::                     Description of the Web API.
 
 * Contributing::                Your help needed!
 * GNU Free Documentation License::  The license of this manual.
@@ -381,8 +382,198 @@ This text field holds the name of the output.
 This text field holds the path of the output.
 
 @end table
+
+@c *********************************************************************
+@node Web API
+@chapter Web API
+@cindex web api
+
+Cuirass web API is derived from Hydra one, see @url{https://github.com/NixOS/hydra/blob/master/doc/manual/api.xml, Hydra API description}.
+
+For now only a subset of this API is implemented.
+
+@section API description
+@cindex description, json
+
+@subsection Build information
+
+It is possible to query Cuirass web server for build informations. The
+dedicated API is "/build/@var{build-id}" where @var{build-id} is the
+unique id associated to the build in database.
+
+For instance, querying a local Cuirass web server can be done with
+@code{curl} and @code{jq} to format the JSON response :
+
+@example
+$ curl -s "http://localhost:8080/build/2" | jq
+
+@{
+  "id": 2,
+  "project": "guix",
+  "jobset": "master",
+  "job": "acpica-20150410-job",
+  "timestamp": 1501347493,
+  "starttime": 1501347493,
+  "stoptime": 1501347493,
+  "buildoutputs": @{
+    "out": @{
+      "path": "/gnu/store/6g3njhfzqpdm335s7qhvmwvs5l7gcbq1-acpica-20150410"
+    @}
+  @},
+  "system": "x86_64-linux",
+  "nixname": "acpica-20150410",
+  "buildstatus": 0,
+  "busy": 0,
+  "priority": 0,
+  "finished": 1,
+  "buildproducts": null,
+  "releasename": null,
+  "buildinputs_builds": null
+@}
+@end example
+
+If requested @var{build-id} is not known, the HTTP code 404 is
+answered with a JSON error message. For example :
+
+@example
+$ curl -s "http://localhost:8080/build/fff"
+
+@{"error" : "Build with ID fff doesn't exist."@}
+@end example
+
+The nominal output is a JSON object whose fields are described
+hereafter.
+
+@table @code
+@item id
+The unique build id.
+
+@item project
+The associated specification name, as a string.
+
+@item jobset
+The associated specification branch, as a string.
+
+@item job
+The associated job-name, as a string.
+
+@item timestamp
+Timestamp taken at build creation time.
+
+@item starttime
+Timestamp taken at build start time.
+
+@item stoptime
+Timestamp taken at build stop time.
+
+@item buildoutputs
+Build outputs as a JSON object. The keys names are referring to the
+eventual output names. The associated value is another JSON object which
+only key is @code{path}. @code{path} value is the output directory in
+store as a string.
+
+@item system
+System name of the build, as a string.
+
+@item nixname
+Derivation name, as a string.
+
+@item buildstatus
+Build status, as an integer. Possible values are :
+
+@example
+0 -> succeeded
+1 -> failed
+2 -> failed dependency
+3 -> failed other
+4 -> cancelled
+@end example
+
+@item busy
+Whether the build is pending, as an integer (not implemented yet).
+
+@item priority
+Build priority, as an integer (not implemented yet).
+
+@item finished
+Build finished, as an integer (not implemented yet : always 1).
+
+@item buildproducts
+Build products in store as a JSON object (not implemented yet).
+
+@item releasename
+Unknown, not implemented yet.
+
+@item buildinputs_builds
+Inputs used for the build, as a JSON object (not implemented yet).
+
 @end table
 
+@subsection Build raw log output
+
+It is possible to ask Cuirass for the raw build output log with the API
+"/build/@var{build-id}/log/raw" where @var{build-id} is the
+unique id associated to the build in database.
+
+The output is a raw text, for example :
+
+@example
+$ curl http://localhost:8080/build/2/log/raw
+
+starting phase `set-SOURCE-DATE-EPOCH'
+phase `set-SOURCE-DATE-EPOCH' succeeded after 0.0 seconds
+starting phase `set-paths'
+...
+@end example
+
+If requested @var{build-id} is not known, the HTTP code 404 is
+answered with a JSON error message. For example :
+
+@example
+$ curl -s "http://localhost:8080/build/fff/log/raw"
+
+@{"error" : "Build with ID fff doesn't exist."@}
+@end example
+
+@subsection Latest builds
+
+The list of latest builds can be obtained with the API
+"/api/latestbuilds".  The output is a JSON array of
+builds. Builds are represented as in "/build/@var{build-id} API.
+
+This request accepts a mandatory parameter and multiple optional ones.
+
+@table @code
+@item nr
+Limit query result to nr elements. This parameter is @emph{mandatory}.
+
+@item project
+Filter query result to builds with the given @code{project}.
+
+@item jobset
+Filter query result to builds with the given @code{jobset}.
+
+@item job
+Filter query result to builds with the given @code{job} name.
+
+@item system
+Filter query result to builds with the given @code{system}.
+
+@end table
+
+For example, to ask for the ten last builds :
+
+@example
+$ curl "http://localhost:8080/api/latestbuilds?nr=10"
+@end example
+
+or the five last builds which project is ``guix'' and jobset ``master' :
+
+@example
+$ curl "http://localhost:8080/api/latestbuilds?nr=5&project=guix&jobset=master"
+@end example
+
+If no builds matching given parameters are found and empty JSON array is returned.
 
 @c *********************************************************************
 @node Contributing
