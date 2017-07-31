@@ -33,6 +33,7 @@
   #:use-module (ice-9 rdelim)
   #:use-module (ice-9 receive)
   #:use-module (ice-9 threads)
+  #:use-module (srfi srfi-1)
   #:use-module (srfi srfi-19)
   #:use-module (srfi srfi-34)
   #:use-module (srfi srfi-35)
@@ -182,25 +183,41 @@ directory and the sha1 of the top level commit in this directory."
 
 (define (build-packages store db jobs)
   "Build JOBS and return a list of Build results."
+
+  (define hydra-build-status
+    ;; Build status as expected by hydra compatible API's.
+    '((succeeded         . 0)
+      (failed            . 1)
+      (failed-dependency . 2)
+      (failed-other      . 3)
+      (cancelled         . 4)))
+
   (define (register job)
     (let* ((name     (assq-ref job #:job-name))
            (drv      (assq-ref job #:derivation))
            (eval-id  (assq-ref job #:eval-id))
            ;; XXX: How to keep logs from several attempts?
            (log      (log-file store drv))
-           (outputs  (match (derivation-path->output-paths drv)
-                       (((names . items) ...)
-                        (filter (lambda (item)
-                                  (valid-path? store item))
-                                items)))))
-      (for-each (lambda (output)
-                  (let ((build `((#:derivation . ,drv)
-                                 (#:eval-id . ,eval-id)
-                                 (#:log . ,log)
-                                 (#:output . ,output))))
-                    (db-add-build db build)))
-                outputs)
-      (format #t "~{~A ~}\n" outputs)
+           (outputs  (filter-map (lambda (res)
+                                   (match res
+                                     ((name . path)
+                                      (and (valid-path? store path)
+                                           `(,name . ,path)))))
+                                 (derivation-path->output-paths drv)))
+           (cur-time (time-second (current-time time-utc))))
+      (let ((build `((#:derivation . ,drv)
+                     (#:eval-id . ,eval-id)
+                     (#:log . ,log)
+                     (#:status .
+                      ,(match (length outputs)
+                         (0 (assq-ref hydra-build-status 'failed))
+                         (_ (assq-ref hydra-build-status 'succeeded))))
+                     (#:outputs . ,outputs)
+                     ;;; XXX: For now, we do not know start/stop build time.
+                     (#:timestamp . ,cur-time)
+                     (#:starttime . ,cur-time)
+                     (#:stoptime . ,cur-time))))
+        (db-add-build db build))
       build))
 
   ;; Pass all the jobs at once so we benefit from as much parallelism as

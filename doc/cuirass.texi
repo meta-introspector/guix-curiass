@@ -10,7 +10,8 @@
 This manual is for Cuirass version @value{VERSION}, a build automation
 server.
 
-Copyright @copyright{} 2016, 2017 Mathieu Lirzin
+Copyright @copyright{} 2016, 2017 Mathieu Lirzin@*
+Copyright @copyright{} 2017 Mathieu Othacehe
 
 @quotation
 Permission is granted to copy, distribute and/or modify this document
@@ -312,6 +313,14 @@ This field holds the @code{id} of an evaluation from the
 
 @item job_name
 This text field holds the name of the job.
+
+@item system
+This text field holds the system name of the derivation.
+
+@item nix_name
+This text field holds the name of the derivation ---e.g.,
+@code{coreutils-8.24}.
+
 @end table
 
 @section Builds
@@ -322,6 +331,9 @@ that builds are not in a one to one relationship with derivations in
 order to keep track of non-deterministic compilations.
 
 @table @code
+@item id
+This is an automatically incrementing numeric identifier.
+
 @item derivation
 This text field holds the absolute name of the derivation file that
 resulted in this build.
@@ -334,9 +346,41 @@ belongs.
 @item log
 This text field holds the absolute file name of the build log file.
 
-@item output
-This text field holds the absolute directory name of the build output or
-@code{NULL} if the build failed.
+@item status
+This integer field holds the build status of the derivation.
+
+@item timestamp
+This integer field holds a timestamp taken at build creation time.
+
+@item starttime
+This integer field holds a timestamp taken at build start time.
+Currently, it has the same value as the @code{timestamp} above.
+
+@item stoptime
+This integer field holds a timestamp taken at build stop time.
+Currently, it has the same value as the @code{timestamp} above.
+
+@end table
+
+@section Outputs
+@cindex outputs, database
+
+This table keep tracks for every eventual build outputs. Each build
+stored in @code{Builds} table may have zero (if it has failed), one or
+multiple outputs.
+
+@table @code
+@item build
+This field holds the @code{id} of a build from the
+@code{Builds} table.
+
+@item name
+This text field holds the name of the output.
+
+@item path
+This text field holds the path of the output.
+
+@end table
 @end table
 
 

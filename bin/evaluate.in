@@ -28,8 +28,20 @@ exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
 (use-modules (cuirass)
              (ice-9 match)
              (ice-9 pretty-print)
+             (srfi srfi-26)
              (guix build utils)
+             (guix derivations)
              (guix store))
+
+(define (fill-job job eval-id)
+  "Augment the JOB alist with EVAL-ID and additional information
+  gathered from JOB’s #:derivation."
+  (let ((drv (read-derivation-from-file
+              (assq-ref job #:derivation))))
+    `((#:eval-id . ,eval-id)
+      (#:nix-name . ,(derivation-name drv))
+      (#:system . ,(derivation-system drv))
+      ,@job)))
 
 (define* (main #:optional (args (command-line)))
   (match args
@@ -73,8 +85,9 @@ exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
              (pretty-print
               (map (lambda (thunk)
                      (let* ((job  (call-with-time-display thunk))
-                            ;; Keep track of SPEC id in the returned jobs.
-                            (job* (acons #:eval-id eval-id job)))
+                            ;; Fill job with informations that will later be
+                            ;; added to database.
+                            (job* (fill-job job eval-id)))
                        (db-add-derivation db job*)
                        job*))
                    thunks)

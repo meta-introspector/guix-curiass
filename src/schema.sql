@@ -31,18 +31,31 @@ CREATE TABLE Derivations (
   derivation    TEXT NOT NULL,
   evaluation    INTEGER NOT NULL,
   job_name      TEXT NOT NULL,
+  system        TEXT NOT NULL,
+  nix_name      TEXT NOT NULL,
   PRIMARY KEY (derivation, evaluation),
   FOREIGN KEY (evaluation) REFERENCES Evaluations (id)
+);
+
+CREATE TABLE Outputs (
+  build INTEGER NOT NULL,
+  name TEXT NOT NULL,
+  path TEXT NOT NULL,
+  PRIMARY KEY (build, name),
+  FOREIGN KEY (build) REFERENCES Builds (id)
 );
 
 -- Builds are not in a one to one relationship with derivations in order to
 -- keep track of non deterministic compilations.
 CREATE TABLE Builds (
+  id            INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
   derivation    TEXT NOT NULL,
   evaluation    INTEGER NOT NULL,
   log           TEXT NOT NULL,
-  output        TEXT,		-- NULL if build failed
-  PRIMARY KEY (derivation, evaluation, output),
+  status        INTEGER NOT NULL,
+  timestamp     INTEGER NOT NULL,
+  starttime     INTEGER NOT NULL,
+  stoptime      INTEGER NOT NULL,
   FOREIGN KEY (derivation) REFERENCES Derivations (derivation),
   FOREIGN KEY (evaluation) REFERENCES Evaluations (id)
 );

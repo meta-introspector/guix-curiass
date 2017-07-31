@@ -1,5 +1,6 @@
 ;;; database.scm -- store evaluation and build results
 ;;; Copyright © 2016, 2017 Mathieu Lirzin <mthl@gnu.org>
+;;; Copyright © 2017 Mathieu Othacehe <m.othacehe@gmail.com>
 ;;;
 ;;; This file is part of Cuirass.
 ;;;
@@ -21,6 +22,7 @@
   #:use-module (cuirass utils)
   #:use-module (ice-9 match)
   #:use-module (ice-9 rdelim)
+  #:use-module (srfi srfi-1)
   #:use-module (sqlite3)
   #:export (;; Procedures.
             assq-refs
@@ -35,6 +37,8 @@
             db-add-derivation
             db-get-derivation
             db-add-build
+            db-get-build
+            db-get-builds
             read-sql-file
             read-quoted-string
             sqlite-exec
@@ -147,10 +151,12 @@ INSERT OR IGNORE INTO Specifications (repo_name, url, load_path, file, \
 (define (db-add-derivation db job)
   "Store a derivation result in database DB and return its ID."
   (sqlite-exec db "\
-INSERT OR IGNORE INTO Derivations (derivation, job_name, evaluation)\
-  VALUES ('~A', '~A', '~A');"
+INSERT OR IGNORE INTO Derivations (derivation, job_name, system, nix_name, evaluation)\
+  VALUES ('~A', '~A', '~A', '~A', '~A');"
                (assq-ref job #:derivation)
                (assq-ref job #:job-name)
+               (assq-ref job #:system)
+               (assq-ref job #:nix-name)
                (assq-ref job #:eval-id)))
 
 (define (db-get-derivation db id)
@@ -188,29 +194,126 @@ string."
   (logior SQLITE_CONSTRAINT (ash 6 8)))
 
 (define (db-add-build db build)
-  "Store BUILD in database DB.  This is idempotent."
-  (let ((derivation (assq-ref build #:derivation))
-        (eval-id    (assq-ref build #:eval-id))
-        (log        (assq-ref build #:log))
-        (output     (assq-ref build #:output)))
-   (catch 'sqlite-error
-     (lambda ()
-       (sqlite-exec db "\
-INSERT INTO Builds (derivation, evaluation, log, output)\
-  VALUES ('~A', '~A', '~A', '~A');"
-                    derivation eval-id log output))
-     (lambda (key who code message . rest)
-       ;; If we get a primary-key-constraint-violated error, that means we have
-       ;; already inserted the same (derivation,eval-id,log) tuple, which we
-       ;; can safely ignore.
-       (unless (= code SQLITE_CONSTRAINT_PRIMARYKEY)
-         (format (current-error-port)
-                 "error: failed to add build (~s, ~s, ~s, ~s) to database: ~a~%"
-                 derivation eval-id log output
-                 message)
-         (apply throw key who code rest)))))
+  "Store BUILD in database DB. BUILD eventual outputs are stored
+in the OUTPUTS table."
+  (let* ((build-exec
+          (sqlite-exec db "\
+INSERT INTO Builds (derivation, evaluation, log, status, timestamp, starttime, stoptime)\
+  VALUES ('~A', '~A', '~A', '~A', '~A', '~A', '~A');"
+                       (assq-ref build #:derivation)
+                       (assq-ref build #:eval-id)
+                       (assq-ref build #:log)
+                       (assq-ref build #:status)
+                       (assq-ref build #:timestamp)
+                       (assq-ref build #:starttime)
+                       (assq-ref build #:stoptime)))
+         (build-id (last-insert-rowid db)))
+    (for-each (lambda (output)
+                (match output
+                  ((name . path)
+                   (sqlite-exec db "\
+INSERT INTO Outputs (build, name, path) VALUES ('~A', '~A', '~A');"
+                                build-id name path))))
+              (assq-ref build #:outputs))
+    build-id))
 
-  (last-insert-rowid db))
+(define (db-get-outputs db build-id)
+  "Retrieve the OUTPUTS of the build identified by BUILD-ID in DB database."
+  (let loop ((rows
+              (sqlite-exec db "SELECT name, path FROM Outputs WHERE build='~A';"
+                           build-id))
+             (outputs '()))
+    (match rows
+      (() outputs)
+      ((#(name path)
+        . rest)
+       (loop rest
+             (cons `(,name . ((#:path . ,path)))
+                   outputs))))))
+
+(define db-build-request "\
+SELECT Builds.id, Builds.timestamp, Builds.starttime, Builds.stoptime, Builds.log, Builds.status,\
+Derivations.job_name, Derivations.system, Derivations.nix_name,\
+Specifications.repo_name, Specifications.branch \
+FROM Builds \
+INNER JOIN Derivations ON Builds.derivation = Derivations.derivation and Builds.evaluation = Derivations.evaluation \
+INNER JOIN Evaluations ON Derivations.evaluation = Evaluations.id \
+INNER JOIN Specifications ON Evaluations.specification = Specifications.repo_name")
+
+(define (db-format-build db build)
+  (match build
+    (#(id timestamp starttime stoptime log status job-name system
+          nix-name repo-name branch)
+       `((#:id        . ,id)
+         (#:timestamp . ,timestamp)
+         (#:starttime . ,starttime)
+         (#:stoptime  . ,stoptime)
+         (#:log       . ,log)
+         (#:status    . ,status)
+         (#:job-name  . ,job-name)
+         (#:system    . ,system)
+         (#:nix-name  . ,nix-name)
+         (#:repo-name . ,repo-name)
+         (#:outputs   . ,(db-get-outputs db id))
+         (#:branch    . ,branch)))))
+
+(define (db-get-build db id)
+  "Retrieve a build in database DB which corresponds to ID."
+  (let ((res (sqlite-exec db (string-append db-build-request
+                                            " WHERE Builds.id='~A';") id)))
+    (match res
+      ((build)
+       (db-format-build db build))
+      (() #f))))
+
+(define (db-get-builds db filters)
+  "Retrieve all builds in database DB which are matched by given FILTERS.
+FILTERS is an assoc list which possible keys are 'project | 'jobset | 'job |
+'system | 'nr."
+
+  (define (format-where-clause filters)
+    (let ((where-clause
+           (filter-map
+            (lambda (param)
+              (match param
+                (('project project)
+                 (format #f "Specifications.repo_name='~A'" project))
+                (('jobset jobset)
+                 (format #f "Specifications.branch='~A'" jobset))
+                (('job job)
+                 (format #f "Derivations.job_name='~A'" job))
+                (('system system)
+                 (format #f "Derivations.system='~A'" system))
+                (_ #f)))
+            filters)))
+      (if (> (length where-clause) 0)
+          (string-append
+           "WHERE "
+           (string-join where-clause " AND "))
+          "")))
+
+  (define (format-order-clause filters)
+    (any
+     (lambda (param)
+       (match param
+         (('nr number)
+          (format #f "ORDER BY Builds.id DESC LIMIT '~A';" number))
+         (_ #f)))
+     filters))
+
+  (let loop ((rows
+              (sqlite-exec db (string-append
+                               db-build-request
+                               " "
+                               (format-where-clause filters)
+                               " "
+                               (format-order-clause filters))))
+             (outputs '()))
+    (match rows
+      (() outputs)
+      ((row . rest)
+       (loop rest
+             (cons (db-format-build db row) outputs))))))
 
 (define (db-get-stamp db spec)
   "Return a stamp corresponding to specification SPEC in database DB."
