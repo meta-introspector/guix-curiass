@@ -346,7 +346,7 @@ This text field holds the absolute directory name of the build output or
 
 Everyone is welcome to contribute to Cuirass.  You can report bugs, send
 patches and share your ideas with others by sending emails the
-@email{bug-cuirass@@framalistes.org, mailing list}.
+@email{guix-devel@@gnu.org, mailing list}.
 
 Development is done using the Git distributed version control system.
 Thus, access to the repository is not strictly necessary.  We welcome
