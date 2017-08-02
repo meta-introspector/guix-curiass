@@ -31,6 +31,7 @@
   #:use-module (ice-9 popen)
   #:use-module (ice-9 rdelim)
   #:use-module (ice-9 receive)
+  #:use-module (ice-9 threads)
   #:use-module (srfi srfi-19)
   #:use-module (srfi srfi-34)
   #:use-module (srfi srfi-35)
