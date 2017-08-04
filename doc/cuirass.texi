@@ -231,7 +231,9 @@ Entries in this table must have values for the following text fields:
 @table @code
 @item repo_name
 This field holds the name of the repository.  This field is also the
-primary key of this table.
+primary key of this table.  Although this field is called
+@code{repo_name} in the database, it's called @code{name} in the
+specification itself.
 
 @item url
 The URL of the repository.
