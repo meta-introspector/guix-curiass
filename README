@@ -11,7 +11,7 @@ Cuirass currently depends on the following packages:
   - GNU Make
   - Guile-JSON
   - Guile-SQLite3
-  - Git
+  - Guile-Git
 
 A convenient way to install those dependencies is to install Guix and execute
 the following command:
