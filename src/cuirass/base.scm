@@ -2,6 +2,7 @@
 ;;; Copyright © 2016, 2017 Ludovic Courtès <ludo@gnu.org>
 ;;; Copyright © 2016, 2017 Mathieu Lirzin <mthl@gnu.org>
 ;;; Copyright © 2017 Mathieu Othacehe <m.othacehe@gmail.com>
+;;; Copyright © 2017 Ricardo Wurmus <rekado@elephly.net>
 ;;;
 ;;; This file is part of Cuirass.
 ;;;
@@ -225,6 +226,10 @@ directory and the sha1 of the top level commit in this directory."
       (let ((stamp (db-get-stamp db spec)))
         ;; Catch and report git errors.
         (with-git-error-handling
+         (let ((certs (or (getenv "GIT_SSL_CAINFO")
+                          (getenv "SSL_CERT_DIR"))))
+           (when certs
+             (set-tls-certificate-locations! certs)))
          (receive (checkout commit)
              (fetch-repository store spec)
            (when commit
