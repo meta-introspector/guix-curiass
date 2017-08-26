@@ -181,15 +181,35 @@ string."
             ((char=? char #\')  (loop (cons* char char chars)))
             (else (loop (cons char chars)))))))
 
+;; Extended error codes (see <sqlite3.h>).
+;; XXX: This should be defined by (sqlite3).
+(define SQLITE_CONSTRAINT 19)
+(define SQLITE_CONSTRAINT_PRIMARYKEY
+  (logior SQLITE_CONSTRAINT (ash 6 8)))
+
 (define (db-add-build db build)
-  "Store BUILD in database DB."
-  (sqlite-exec db "\
+  "Store BUILD in database DB.  This is idempotent."
+  (let ((derivation (assq-ref build #:derivation))
+        (eval-id    (assq-ref build #:eval-id))
+        (log        (assq-ref build #:log))
+        (output     (assq-ref build #:output)))
+   (catch 'sqlite-error
+     (lambda ()
+       (sqlite-exec db "\
 INSERT INTO Builds (derivation, evaluation, log, output)\
   VALUES ('~A', '~A', '~A', '~A');"
-               (assq-ref build #:derivation)
-               (assq-ref build #:eval-id)
-               (assq-ref build #:log)
-               (assq-ref build #:output))
+                    derivation eval-id log output))
+     (lambda (key who code message . rest)
+       ;; If we get a primary-key-constraint-violated error, that means we have
+       ;; already inserted the same (derivation,eval-id,log) tuple, which we
+       ;; can safely ignore.
+       (unless (= code SQLITE_CONSTRAINT_PRIMARYKEY)
+         (format (current-error-port)
+                 "error: failed to add build (~s, ~s, ~s, ~s) to database: ~a~%"
+                 derivation eval-id log output
+                 message)
+         (apply throw key who code rest)))))
+
   (last-insert-rowid db))
 
 (define (db-get-stamp db spec)

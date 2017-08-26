@@ -78,6 +78,16 @@ INSERT INTO Evaluations (specification, revision) VALUES (3, 3);")
   (test-assert "db-get-derivation"
     (db-get-derivation (%db) (%id)))
 
+  (test-assert "db-add-build"
+    (let ((build `((#:derivation . "/foo.drv")
+                   (#:eval-id . 42)
+                   (#:log . "log")
+                   (#:output . "/foo"))))
+      (db-add-build (%db) build)
+
+      ;; This should be idempotent, see <https://bugs.gnu.org/28094>.
+      (db-add-build (%db) build)))
+
   (test-assert "db-close"
     (db-close (%db)))
 
