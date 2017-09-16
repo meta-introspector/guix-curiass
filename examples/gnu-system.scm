@@ -2,6 +2,7 @@
 ;;;
 ;;; Copyright © 2012, 2013, 2014, 2015, 2016 Ludovic Courtès <ludo@gnu.org>
 ;;; Copyright © 2016 Mathieu Lirzin <mthl@gnu.org>
+;;; Copyright © 2017 Jan Nieuwenhuizen <janneke@gnu.org>
 ;;;
 ;;; This file is part of Cuirass.
 ;;;
@@ -163,9 +164,10 @@ valid."
   "Return Hydra jobs."
   (define subset
     (match (assoc-ref arguments 'subset)
-      ("core" 'core)                    ; only build core packages
-      ("hello" 'hello)                  ; only build hello
-      (_ 'all)))                        ; build everything
+      ("core" 'core)                        ; only build core packages
+      ("hello" 'hello)                      ; only build hello
+      (((? string?) (? string?) ...) 'list) ; only build selected list of packages
+      (_ 'all)))                            ; build everything
 
   (define (cross-jobs system)
     (define (from-32-to-64? target)
@@ -225,6 +227,16 @@ valid."
                      (if (string=? system (%current-system))
                          (let ((hello (specification->package "hello")))
                            (list (package-job store (%job-name hello) hello system)))
+                         '()))
+                    ((list)
+                     ;; Build selected list of packages only.
+                     (if (string=? system (%current-system))
+                         (let* ((names (assoc-ref arguments 'subset))
+                                (packages (map specification->package names)))
+                           (map (lambda (package)
+                                    (package-job store (%job-name package)
+                                                 package system))
+                                  packages))
                          '()))
                     (else
                      (error "unknown subset" subset))))
