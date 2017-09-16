@@ -143,7 +143,8 @@ directory and the sha1 of the top level commit in this directory."
       (let ((name (assq-ref spec #:name)))
         ;; Flush any directory with the same name.
         (false-if-exception (delete-file-recursively name))
-        (copy-recursively repo name)))))
+        (copy-recursively repo name)
+        (system* "chmod" "-R" "+w" name)))))
 
 (define (compile dir)
   ;; Required for fetching Guix bootstrap tarballs.
