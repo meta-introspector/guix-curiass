@@ -35,6 +35,7 @@
   #:use-module (ice-9 threads)
   #:use-module (srfi srfi-1)
   #:use-module (srfi srfi-19)
+  #:use-module (srfi srfi-26)
   #:use-module (srfi srfi-34)
   #:use-module (srfi srfi-35)
   #:export (;; Procedures.
@@ -218,13 +219,15 @@ directory and the sha1 of the top level commit in this directory."
                      (#:timestamp . ,cur-time)
                      (#:starttime . ,cur-time)
                      (#:stoptime . ,cur-time))))
-        (db-add-build db build))
-      build))
+        (db-add-build db build)
+        build)))
 
   ;; Pass all the jobs at once so we benefit from as much parallelism as
   ;; possible (we must be using #:keep-going? #t).  Swallow build logs (the
   ;; daemon keeps them anyway), and swallow build errors.
   (guard (c ((nix-protocol-error? c) #t))
+    (format #t "load-path=~s\n" %load-path)
+    (format #t "load-compiled-path=~s\n" %load-compiled-path)
     (format #t "building ~a derivations...~%" (length jobs))
     (parameterize ((current-build-output-port (%make-void-port "w")))
       (build-derivations store
@@ -235,7 +238,15 @@ directory and the sha1 of the top level commit in this directory."
   ;; Register the results in the database.
   ;; XXX: The 'build-derivations' call is blocking so we end updating the
   ;; database potentially long after things have been built.
-  (map register jobs))
+  (let* ((results (map register jobs))
+         (status (map (cut assq-ref <> #:status) results))
+         (success (length (filter zero? status)))
+         (outputs (map (cut assq-ref <> #:outputs) results))
+         (outs (filter-map (cut assoc-ref <> "out") outputs))
+         (fail (- (length jobs) success)))
+    (format #t "outputs:\n~a\n" (string-join outs "\n"))
+    (format #t "success: ~a, fail: ~a\n" success fail)
+    results))
 
 (define (process-specs db jobspecs)
   "Evaluate and build JOBSPECS and store results in DB."
