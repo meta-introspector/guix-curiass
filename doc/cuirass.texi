@@ -128,6 +128,15 @@ In this specification the keys are Scheme keywords which have the nice
 property of being self evaluating.  This means that they can't refer to
 another value like symbols do.
 
+@quotation Note
+@c This refers to
+@c <https://github.com/libgit2/libgit2sharp/issues/1094#issuecomment-112306072>.
+Currently Cuirass only supports Git repositories, and only over the
+@code{git} and ``smart'' HTTP(S) transports (Git's so-called ``dumb
+HTTP'' transport, where the HTTP server does not know about Git, is not
+supported.)
+@end quotation
+
 Currently the only way to add those specifications to cuirass is to put
 a list of them in a file and set the @code{--specifications} command
 line option argument with the file name when launching the daemon
