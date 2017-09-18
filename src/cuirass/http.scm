@@ -166,9 +166,12 @@
               #:body (string-append "Resource not found: "
                                     (uri->string (request-uri request)))))))
 
-(define* (run-cuirass-server db #:key (port 8080))
-  (format (current-error-port) "listening on port ~A~%" port)
-  (run-server url-handler
-              'http
-              `(#:port ,port)
-              db))
+(define* (run-cuirass-server db #:key (host "localhost") (port 8080))
+  (let* ((host-info (gethostbyname host))
+         (address (inet-ntop (hostent:addrtype host-info)
+                             (car (hostent:addr-list host-info)))))
+    (format (current-error-port) "listening on ~A:~A~%" address port)
+    (run-server url-handler
+                'http
+                `(#:host ,address #:port ,port)
+                db)))

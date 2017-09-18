@@ -186,6 +186,10 @@ be created.
 Make the HTTP interface listen on port @var{num}.  Use port 8080 by
 default.
 
+@item --listen=@var{host}
+Make the HTTP interface listen on network interface for @var{host}.  Use
+localhost by default.
+
 @item --interval=@var{n}
 @itemx -I @var{n}
 Wait @var{n} seconds between each poll.
