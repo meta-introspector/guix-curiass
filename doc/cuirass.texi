@@ -446,7 +446,7 @@ $ curl -s "http://localhost:8080/build/2" | jq
 @end example
 
 If requested @var{build-id} is not known, the HTTP code 404 is
-answered with a JSON error message. For example :
+answered with a JSON error message. For example:
 
 @example
 $ curl -s "http://localhost:8080/build/fff"
@@ -528,7 +528,7 @@ It is possible to ask Cuirass for the raw build output log with the API
 "/build/@var{build-id}/log/raw" where @var{build-id} is the
 unique id associated to the build in database.
 
-The output is a raw text, for example :
+The output is a raw text, for example:
 
 @example
 $ curl http://localhost:8080/build/2/log/raw
@@ -540,7 +540,7 @@ starting phase `set-paths'
 @end example
 
 If requested @var{build-id} is not known, the HTTP code 404 is
-answered with a JSON error message. For example :
+answered with a JSON error message. For example:
 
 @example
 $ curl -s "http://localhost:8080/build/fff/log/raw"
@@ -574,19 +574,20 @@ Filter query result to builds with the given @code{system}.
 
 @end table
 
-For example, to ask for the ten last builds :
+For example, to ask for the ten last builds:
 
 @example
 $ curl "http://localhost:8080/api/latestbuilds?nr=10"
 @end example
 
-or the five last builds which project is ``guix'' and jobset ``master' :
+or the five last builds where project is ``guix'' and jobset ``master'':
 
 @example
 $ curl "http://localhost:8080/api/latestbuilds?nr=5&project=guix&jobset=master"
 @end example
 
-If no builds matching given parameters are found and empty JSON array is returned.
+If no builds matching given parameters are found, an empty JSON array is
+returned.
 
 @c *********************************************************************
 @node Contributing
