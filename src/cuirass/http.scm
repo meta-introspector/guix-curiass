@@ -1,6 +1,7 @@
 ;;;; http.scm -- HTTP API
 ;;; Copyright © 2016 Mathieu Lirzin <mthl@gnu.org>
 ;;; Copyright © 2017 Mathieu Othacehe <m.othacehe@gmail.com>
+;;; Copyright © 2018 Ludovic Courtès <ludo@gnu.org>
 ;;;
 ;;; This file is part of Cuirass.
 ;;;
@@ -20,11 +21,7 @@
 (define-module (cuirass http)
   #:use-module (cuirass database)
   #:use-module (cuirass utils)
-  #:use-module (guix config)
-  #:use-module (guix build utils)
-  #:use-module (guix utils)
   #:use-module (ice-9 match)
-  #:use-module (ice-9 popen)
   #:use-module (json)
   #:use-module (web request)
   #:use-module (web response)
@@ -65,21 +62,6 @@
   format."
   (let ((builds (db-get-builds db filters)))
     (map build->hydra-build builds)))
-
-(define (handle-log-request db build)
-  "Retrieve the log file of BUILD. Return a lambda which PORT argument is an
-  input port from which the content of the log file can be read or #f if the
-  log file is not readable."
-  (let* ((log (assq-ref build #:log))
-         (access (and (string? log)
-                      (access? log R_OK))))
-    (and access
-         (lambda (out-port)
-           (let ((in-pipe-port
-                  (open-input-pipe
-                   (format #f "~a -dc ~a" %bzip2 log))))
-             (dump-port in-pipe-port out-port)
-             (close-pipe in-pipe-port))))))
 
 (define (request-parameters request)
   "Parse the REQUEST query parameters and return them under the form
@@ -148,10 +130,18 @@
     (("build" build-id "log" "raw")
      (let ((build (db-get-build db build-id)))
        (if build
-           (let ((log-response (handle-log-request db build)))
-             (if log-response
-                 (respond-text log-response)
-                 (respond-build-log-not-found build)))
+           (match (assq-ref build #:outputs)
+             (((_ (#:path . (? string? output))) _ ...)
+              ;; Redirect to a /log URL, which is assumed to be served
+              ;; by 'guix publish'.
+              (let ((uri (string->uri-reference
+                          (string-append "/log/"
+                                         (basename output)))))
+                (respond (build-response #:code 302
+                                         #:headers `((location . ,uri)))
+                         #:body "")))
+             (#f
+              (respond-build-not-found build-id)))
            (respond-build-not-found build-id))))
     (("api" "latestbuilds")
      (let* ((params (request-parameters request))

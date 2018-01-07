@@ -1,6 +1,6 @@
 ;;; http.scm -- tests for (cuirass http) module
 ;;; Copyright © 2016 Mathieu Lirzin <mthl@gnu.org>
-;;; Copyright © 2017 Ludovic Courtès <ludo@gnu.org>
+;;; Copyright © 2017, 2018 Ludovic Courtès <ludo@gnu.org>
 ;;; Copyright © 2017 Mathieu Othacehe <m.othacehe@gmail.com>
 ;;;
 ;;; This file is part of Cuirass.
@@ -21,9 +21,8 @@
 (use-modules (cuirass http)
              (cuirass database)
              (cuirass utils)
-             (guix utils)
-             (guix build utils)
              (json)
+             (web uri)
              (web client)
              (web response)
              (rnrs bytevectors)
@@ -92,19 +91,6 @@
     (#:releasename . #nil)
     (#:buildinputs_builds . #nil)))
 
-(define log-file-name
-  ;; Use a fake temporary log file.
-  (string-append (getcwd) "/" (number->string (getpid)) "-log.txt"))
-
-(call-with-output-file log-file-name
-  ;; Write "build log" string compressed with bzip2 inside LOG-FILE-NAME.
-  (lambda (out)
-    (dump-port
-     (call-with-input-string "build log"
-       (lambda (port)
-         (compressed-port 'bzip2 port)))
-     out)))
-
 (test-group-with-cleanup "http"
   (test-assert "object->json-string"
     ;; Note: We cannot compare the strings directly because field ordering
@@ -145,7 +131,7 @@
     (let ((build
            `((#:derivation . "/gnu/store/fake.drv")
              (#:eval-id . 1)
-             (#:log . ,log-file-name)
+             (#:log . "unused so far")
              (#:status . 0)
              (#:outputs . (("out" . "/gnu/store/fake-1.0")))
              (#:timestamp . 1501347493)
@@ -187,9 +173,10 @@
        json->scm)))
 
   (test-equal "/build/1/log/raw"
-    "build log"
-    (http-get-body
-     (test-cuirass-uri "/build/1/log/raw")))
+    `(302 ,(string->uri-reference "/log/fake-1.0"))
+    (let ((response (http-get (test-cuirass-uri "/build/1/log/raw"))))
+      (list (response-code response)
+            (response-location response))))
 
   (test-equal "/build/2"
     404
@@ -232,5 +219,4 @@
   (test-assert "db-close"
     (db-close (%db)))
 
-  (delete-file database-name)
-  (delete-file log-file-name))
+  (delete-file database-name))
