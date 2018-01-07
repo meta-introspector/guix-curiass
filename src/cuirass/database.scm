@@ -1,6 +1,7 @@
 ;;; database.scm -- store evaluation and build results
 ;;; Copyright © 2016, 2017 Mathieu Lirzin <mthl@gnu.org>
 ;;; Copyright © 2017 Mathieu Othacehe <m.othacehe@gmail.com>
+;;; Copyright © 2018 Ludovic Courtès <ludo@gnu.org>
 ;;;
 ;;; This file is part of Cuirass.
 ;;;
@@ -270,7 +271,7 @@ INNER JOIN Specifications ON Evaluations.specification = Specifications.repo_nam
 (define (db-get-builds db filters)
   "Retrieve all builds in database DB which are matched by given FILTERS.
 FILTERS is an assoc list which possible keys are 'project | 'jobset | 'job |
-'system | 'nr."
+'system | 'nr | 'order."
 
   (define (format-where-clause filters)
     (let ((where-clause
@@ -294,13 +295,22 @@ FILTERS is an assoc list which possible keys are 'project | 'jobset | 'job |
           "")))
 
   (define (format-order-clause filters)
-    (any
-     (lambda (param)
-       (match param
-         (('nr number)
-          (format #f "ORDER BY Builds.id DESC LIMIT '~A';" number))
-         (_ #f)))
-     filters))
+    (or (any (match-lambda
+               (('order 'build-id)
+                "ORDER BY Builds.id ASC")
+               (('order 'decreasing-build-id)
+                "ORDER BY Builds.id DESC")
+               (_ #f))
+             filters)
+        "ORDER BY Builds.id DESC"))               ;default order
+
+  (define (format-limit-clause filters)
+    (or (any (match-lambda
+               (('nr number)
+                (format #f "LIMIT '~A'" number))
+               (_ #f))
+             filters)
+        ""))
 
   (let loop ((rows
               (sqlite-exec db (string-append
@@ -308,10 +318,14 @@ FILTERS is an assoc list which possible keys are 'project | 'jobset | 'job |
                                " "
                                (format-where-clause filters)
                                " "
-                               (format-order-clause filters))))
+                               (format-order-clause filters)
+                               " "
+                               (format-limit-clause filters)
+                               ";")))
              (outputs '()))
     (match rows
-      (() outputs)
+      (()
+       (reverse outputs))
       ((row . rest)
        (loop rest
              (cons (db-format-build db row) outputs))))))

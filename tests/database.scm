@@ -1,6 +1,7 @@
 ;;;; database.scm - tests for (cuirass database) module
 ;;;
 ;;; Copyright © 2016 Mathieu Lirzin <mthl@gnu.org>
+;;; Copyright © 2018 Ludovic Courtès <ludo@gnu.org>
 ;;;
 ;;; This file is part of Cuirass.
 ;;;
@@ -18,6 +19,7 @@
 ;;; along with Cuirass.  If not, see <http://www.gnu.org/licenses/>.
 
 (use-modules (cuirass database)
+             ((guix utils) #:select (call-with-temporary-output-file))
              (srfi srfi-64))
 
 (define example-spec
@@ -32,10 +34,37 @@
     (#:commit . #f)
     (#:no-compile? . #f)))
 
+(define* (make-dummy-eval #:optional (revision "cabba3e"))
+  `((#:specification . "guix")
+    (#:revision . ,revision)))
+
 (define* (make-dummy-job #:optional (name "foo"))
   `((#:name . ,name)
     (#:derivation . ,(string-append name ".drv"))
     (#:specification 0)))
+
+(define* (make-dummy-derivation drv #:optional (eval-id 0))
+  `((#:derivation . ,drv)
+    (#:job-name . "job")
+    (#:system . "x86_64-linux")
+    (#:nix-name . ,(basename drv ".drv"))
+    (#:eval-id . ,eval-id)))
+
+(define* (make-dummy-build #:optional (eval-id 42)
+                           #:key (drv "/foo.drv")
+                           (outputs '(("foo" . "/foo"))))
+  `((#:derivation . ,drv)
+    (#:eval-id . ,eval-id)
+    (#:log . "log")
+    (#:outputs . (("foo" . "/foo")))))
+
+(define-syntax-rule (with-temporary-database db body ...)
+  (call-with-temporary-output-file
+   (lambda (file port)
+     (parameterize ((%package-database file))
+       (db-init file)
+       (with-database db
+         body ...)))))
 
 (define %db
   ;; Global Slot for a database object.
@@ -79,16 +108,46 @@ INSERT INTO Evaluations (specification, revision) VALUES (3, 3);")
     (db-get-derivation (%db) (%id)))
 
   (test-assert "db-add-build"
-    (let ((build `((#:derivation . "/foo.drv")
-                   (#:eval-id . 42)
-                   (#:log . "log")
-                   (#:outputs . (("foo" . "/foo"))))))
+    (let ((build (make-dummy-build)))
       (db-add-build (%db) build)
 
       ;; This should be idempotent, see <https://bugs.gnu.org/28094>.
       (db-add-build (%db) build)))
 
+  (test-equal "db-get-builds"
+    #(((1 "/foo.drv") (2 "/bar.drv") (3 "/baz.drv")) ;ascending order
+      ((3 "/baz.drv") (2 "/bar.drv") (1 "/foo.drv")) ;descending order
+      ((3 "/baz.drv")))                              ;nr = 1
+    (with-temporary-database db
+      ;; Populate the 'Builds', 'Derivations', 'Evaluations', and
+      ;; 'Specifications' tables in a consistent way, as expected by the
+      ;; 'db-get-builds' query.
+      (db-add-build db (make-dummy-build 1 #:drv "/foo.drv"
+                                         #:outputs `(("out" . "/foo"))))
+      (db-add-build db (make-dummy-build 2 #:drv "/bar.drv"
+                                         #:outputs `(("out" . "/bar"))))
+      (db-add-build db (make-dummy-build 3 #:drv "/baz.drv"
+                                         #:outputs `(("out" . "/baz"))))
+      (db-add-derivation db (make-dummy-derivation "/foo.drv" 1))
+      (db-add-derivation db (make-dummy-derivation "/bar.drv" 2))
+      (db-add-derivation db (make-dummy-derivation "/baz.drv" 3))
+      (db-add-evaluation db (make-dummy-eval))
+      (db-add-evaluation db (make-dummy-eval))
+      (db-add-evaluation db (make-dummy-eval))
+      (db-add-specification db example-spec)
+
+      (let ((summarize (lambda (alist)
+                         (list (assq-ref alist #:id)
+                               (assq-ref alist #:derivation)))))
+        (vector (map summarize (db-get-builds db '((nr 3) (order build-id))))
+                (map summarize (db-get-builds db '()))
+                (map summarize (db-get-builds db '((nr 1))))))))
+
   (test-assert "db-close"
     (db-close (%db)))
 
   (delete-file database-name))
+
+;;; Local Variables:
+;;; (put 'with-temporary-database 'scheme-indent-function 1)
+;;; End:
