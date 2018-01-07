@@ -52,9 +52,10 @@ AM_TESTS_ENVIRONMENT = \
   testsrcdir='$(abs_top_srcdir)/tests' \
   testbuilddir='$(abs_top_builddir)/tests'
 
-SCM_LOG_DRIVER = \
-  $(builddir)/pre-inst-env $(GUILE) \
-  $(srcdir)/build-aux/test-driver.scm
+SCM_LOG_DRIVER =				\
+  $(top_builddir)/pre-inst-env $(GUILE)		\
+  -L "$(abs_top_srcdir)" -e main		\
+  $(top_srcdir)/build-aux/test-driver.scm
 
 SH_LOG_COMPILER = $(top_builddir)/pre-inst-env $(SHELL)
 AM_SH_LOG_FLAGS = -x -e
