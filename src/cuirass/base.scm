@@ -347,9 +347,14 @@ and so on. "
   "Evaluate and build JOBSPECS and store results in DB."
   (define (process spec)
     (with-store store
-      (let ((stamp (db-get-stamp db spec)))
+      (let ((stamp (db-get-stamp db spec))
+            (name  (assoc-ref spec #:name)))
+         (log-message "considering spec '~a', URL '~a'"
+                      name (assoc-ref spec #:url))
          (receive (checkout commit)
              (fetch-repository store spec)
+           (log-message "spec '~a': fetched commit ~s (stamp was ~s)"
+                        name commit stamp)
            (when commit
              (unless (string=? commit stamp)
                (copy-repository-cache checkout spec)
@@ -368,8 +373,12 @@ and so on. "
                           (format #t "Failed to evaluate ~s specification.~%"
                                   (evaluation-error-spec-name c))
                           #f))
+                 (log-message "evaluating '~a' with commit ~s"
+                              name commit)
                  (let* ((spec* (acons #:current-commit commit spec))
                         (jobs  (evaluate store db spec*)))
+                   (log-message "building ~a jobs for '~a'"
+                                (length jobs) name)
                    (build-packages store db jobs))))
              (db-add-stamp db spec commit))))))
 
