@@ -92,6 +92,7 @@ exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
               (host      (option-ref opts 'listen "localhost"))
               (interval  (string->number (option-ref opts 'interval "10")))
               (specfile  (option-ref opts 'specifications #f)))
+          (prepare-git)
           (with-database db
             (and specfile
                  (let ((new-specs (save-module-excursion

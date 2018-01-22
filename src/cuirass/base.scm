@@ -46,6 +46,7 @@
             compile
             evaluate
             build-packages
+            prepare-git
             process-specs
             set-guix-package-path!
             ;; Parameters.
@@ -339,21 +340,23 @@ and so on. "
     (format #t "success: ~a, fail: ~a\n" success fail)
     results))
 
+(define (prepare-git)
+  "Prepare Guile-Git's TLS support and all."
+  ;; Catch and report git errors.
+  (with-git-error-handling
+   ;; Try the 'GIT_SSL_CAINFO' or 'SSL_CERT_FILE' file first, then search the
+   ;; 'SSL_CERT_DIR' directory.
+   (let ((directory (getenv "SSL_CERT_DIR"))
+         (file      (or (getenv "GIT_SSL_CAINFO")
+                        (getenv "SSL_CERT_FILE"))))
+     (when (or directory file)
+       (set-tls-certificate-locations! directory file)))))
+
 (define (process-specs db jobspecs)
   "Evaluate and build JOBSPECS and store results in DB."
   (define (process spec)
     (with-store store
       (let ((stamp (db-get-stamp db spec)))
-        ;; Catch and report git errors.
-        (with-git-error-handling
-         ;; Try the 'GIT_SSL_CAINFO' or 'SSL_CERT_FILE' file first, then
-         ;; search the 'SSL_CERT_DIR' directory.
-         (let ((directory (getenv "SSL_CERT_DIR"))
-               (file      (or (getenv "GIT_SSL_CAINFO")
-                              (getenv "SSL_CERT_FILE"))))
-           (when (or directory file)
-             (set-tls-certificate-locations! directory file)))
-
          (receive (checkout commit)
              (fetch-repository store spec)
            (when commit
@@ -377,7 +380,7 @@ and so on. "
                  (let* ((spec* (acons #:current-commit commit spec))
                         (jobs  (evaluate store db spec*)))
                    (build-packages store db jobs))))
-             (db-add-stamp db spec commit)))))))
+             (db-add-stamp db spec commit))))))
 
   (for-each process jobspecs))
 
