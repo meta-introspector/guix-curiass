@@ -65,7 +65,8 @@ will be replaced by ARGS."
 
 (define %package-database
   ;; Define to the database file name of this package.
-  (make-parameter (string-append %localstatedir "/" %package ".db")))
+  (make-parameter (string-append %localstatedir "/run/" %package
+                                 "/" %package ".db")))
 
 (define %package-schema-file
   ;; Define to the database schema file of this package.
