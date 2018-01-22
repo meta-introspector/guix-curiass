@@ -2,6 +2,7 @@
 
 # Copyright © 1995-2016 Free Software Foundation, Inc.
 # Copyright © 2016, 2017 Mathieu Lirzin <mthl@gnu.org>
+# Copyright © 2018 Ludovic Courtès <ludo@gnu.org>
 #
 # This file is part of Cuirass.
 #
@@ -30,11 +31,12 @@ nodist_guileobject_DATA = $(dist_guilesite_DATA:.scm=.go)
 pkgmoduledir = $(guilesitedir)/$(PACKAGE)
 pkgobjectdir = $(guileobjectdir)/$(PACKAGE)
 
-dist_pkgmodule_DATA = \
-  src/cuirass/base.scm \
-  src/cuirass/database.scm \
-  src/cuirass/http.scm \
-  src/cuirass/ui.scm \
+dist_pkgmodule_DATA =				\
+  src/cuirass/base.scm				\
+  src/cuirass/database.scm			\
+  src/cuirass/http.scm				\
+  src/cuirass/logging.scm			\
+  src/cuirass/ui.scm				\
   src/cuirass/utils.scm
 
 nodist_pkgmodule_DATA = \

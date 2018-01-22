@@ -20,6 +20,7 @@
 ;;; along with Cuirass.  If not, see <http://www.gnu.org/licenses/>.
 
 (define-module (cuirass base)
+  #:use-module (cuirass logging)
   #:use-module (cuirass database)
   #:use-module (gnu packages)
   #:use-module (guix build utils)
@@ -247,30 +248,20 @@ and so on. "
 (define* (handle-build-event db event
                              #:key (log-port (current-error-port)))
   "Handle EVENT, a build event sexp as produced by 'build-event-output-port'."
-  (define now
-    (current-time time-utc))
-
-  (define date
-    (date->string (time-utc->date now) "~5"))
-
-  (define (log fmt . args)
-    (apply format log-port (string-append date " " fmt "\n")
-           args))
-
   ;; TODO: Update DB according to EVENT.
   (match event
     (('build-started drv _ ...)
-     (log "build started: '~a'" drv))
+     (log-message "build started: '~a'" drv))
     (('build-remote drv host _ ...)
-     (log "build of '~a' offloaded to '~a'" drv host))
+     (log-message "build of '~a' offloaded to '~a'" drv host))
     (('build-succeeded drv _ ...)
-     (log "build succeeded: '~a'" drv))
+     (log-message "build succeeded: '~a'" drv))
     (('substituter-started item _ ...)
-     (log "substituter started: '~a'" item))
+     (log-message "substituter started: '~a'" item))
     (('substituter-succeeded item _ ...)
-     (log "substituter succeeded: '~a'" item))
+     (log-message "substituter succeeded: '~a'" item))
     (_
-     (log "build event: ~s" event))))
+     (log-message "build event: ~s" event))))
 
 (define (build-packages store db jobs)
   "Build JOBS and return a list of Build results."
