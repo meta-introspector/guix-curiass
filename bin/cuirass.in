@@ -26,7 +26,9 @@ exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
 
 (use-modules (cuirass)
              (cuirass ui)
+             (cuirass logging)
              (guix ui)
+             (fibers)
              (ice-9 getopt-long))
 
 (define (show-help)
@@ -90,23 +92,35 @@ exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
         (let ((one-shot? (option-ref opts 'one-shot #f))
               (port      (string->number (option-ref opts 'port "8080")))
               (host      (option-ref opts 'listen "localhost"))
-              (interval  (string->number (option-ref opts 'interval "10")))
+              (interval  (string->number (option-ref opts 'interval "300")))
               (specfile  (option-ref opts 'specifications #f)))
           (prepare-git)
-          (with-database db
-            (and specfile
-                 (let ((new-specs (save-module-excursion
-                                   (lambda ()
-                                     (set-current-module (make-user-module '()))
-                                     (primitive-load specfile)))))
-                   (for-each (lambda (spec) (db-add-specification db spec))
-                             new-specs)))
-            (if one-shot?
-                (process-specs db (db-get-specifications db))
-                (begin
-                  (call-with-new-thread
-                   (lambda ()
-                     (while #t
-                       (process-specs db (db-get-specifications db))
-                       (sleep interval))))
-                  (run-cuirass-server db #:host host #:port port))))))))))
+          (run-fibers
+           (lambda ()
+             (with-database db
+               (and specfile
+                    (let ((new-specs (save-module-excursion
+                                      (lambda ()
+                                        (set-current-module (make-user-module '()))
+                                        (primitive-load specfile)))))
+                      (for-each (lambda (spec) (db-add-specification db spec))
+                                new-specs)))
+               (if one-shot?
+                   (process-specs db (db-get-specifications db))
+                   (begin
+                     (spawn-fiber
+                      (lambda ()
+                        (with-database db
+                          (while #t
+                            (process-specs db (db-get-specifications db))
+                            (log-message "sleeping for ~a seconds" interval)
+                            (sleep interval)))))
+                     (spawn-fiber
+                      (lambda ()
+                        (with-database db
+                          (run-cuirass-server db
+                                              #:host host
+                                              #:port port))))
+                     *unspecified*))))
+
+           #:drain? #t)))))))

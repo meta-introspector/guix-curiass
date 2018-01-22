@@ -1,7 +1,7 @@
 ## Process this file with autoconf to produce a configure script.
 
 # Copyright © 2016, 2017 Mathieu Lirzin <mthl@gnu.org>
-# Copyright © 2017 Ludovic Courtès <ludo@gnu.org>
+# Copyright © 2017, 2018 Ludovic Courtès <ludo@gnu.org>
 # Copyright © 2017 Mathieu Othacehe <m.othacehe@gmail.com>
 #
 # This file is part of Cuirass.
@@ -35,11 +35,8 @@ AC_CANONICAL_HOST
 AC_PROG_MKDIR_P
 AC_PROG_SED
 
-GUILE_PKG([2.2 2.0])
-
-if test "x$GUILE_EFFECTIVE_VERSION" = "x2.0"; then
-  PKG_CHECK_MODULES([GUILE], [guile-2.0 >= 2.0.7])
-fi
+# We need Fibers, which requires 2.2+.
+GUILE_PKG([2.2])
 
 AC_PATH_PROG([GUILE], [guile])
 AC_PATH_PROG([GUILD], [guild])
@@ -51,6 +48,7 @@ GUILE_MODULE_REQUIRED([guix git])
 GUILE_MODULE_REQUIRED([git])
 GUILE_MODULE_REQUIRED([json])
 GUILE_MODULE_REQUIRED([sqlite3])
+GUILE_MODULE_REQUIRED([fibers])
 
 # We depend on new Guile-Git errors.
 GUILE_MODULE_REQUIRED_EXPORT([(git)], git-error-message)

@@ -21,6 +21,7 @@
 (define-module (cuirass http)
   #:use-module (cuirass database)
   #:use-module (cuirass utils)
+  #:use-module (cuirass logging)
   #:use-module (ice-9 match)
   #:use-module (json)
   #:use-module (web request)
@@ -160,8 +161,8 @@
   (let* ((host-info (gethostbyname host))
          (address (inet-ntop (hostent:addrtype host-info)
                              (car (hostent:addr-list host-info)))))
-    (format (current-error-port) "listening on ~A:~A~%" address port)
+    (log-message "listening on ~A:~A" address port)
     (run-server url-handler
-                'http
+                'fibers                           ;the fibers web backend
                 `(#:host ,address #:port ,port)
                 db)))

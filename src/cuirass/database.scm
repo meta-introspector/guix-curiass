@@ -174,11 +174,13 @@ INSERT INTO Evaluations (specification, revision) VALUES ('~A', '~A');"
 
 (define-syntax-rule (with-database db body ...)
   "Run BODY with a connection to the database which is bound to DB in BODY."
-  (let ((db (db-open)))
-    (dynamic-wind
-      (const #t)
-      (lambda () body ...)
-      (lambda () (db-close db)))))
+  ;; XXX: We don't install an unwind handler to play well with delimited
+  ;; continuations and fibers.  But as a consequence, we leak DB when BODY
+  ;; raises an exception.
+  (let* ((db (db-open))
+         (result (begin body ...)))
+    (db-close db)
+    result))
 
 (define* (read-quoted-string #:optional (port (current-input-port)))
   "Read all of the characters out of PORT and return them as a SQL quoted

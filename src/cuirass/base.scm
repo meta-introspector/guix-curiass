@@ -20,6 +20,7 @@
 ;;; along with Cuirass.  If not, see <http://www.gnu.org/licenses/>.
 
 (define-module (cuirass base)
+  #:use-module (fibers)
   #:use-module (cuirass logging)
   #:use-module (cuirass database)
   #:use-module (gnu packages)
@@ -55,6 +56,17 @@
             %package-cachedir
             %use-substitutes?
             %fallback?))
+
+(define-syntax-rule (with-store store exp ...)
+  ;; XXX: This is a 'with-store' variant that plays well with delimited
+  ;; continuations and fibers.  The 'with-store' macro in (guix store)
+  ;; currently closes in a 'dynamic-wind' handler, which means it would close
+  ;; the store at each context switch.  Remove this when the real 'with-store'
+  ;; has been fixed.
+  (let* ((store (open-connection))
+         (result (begin exp ...)))
+    (close-connection store)
+    result))
 
 (cond-expand
   (guile-2.2
@@ -164,18 +176,27 @@ directory and the sha1 of the top level commit in this directory."
   evaluation-error?
   (name evaluation-error-spec-name))
 
+(define (non-blocking-port port)
+  "Make PORT non-blocking and return it."
+  (let ((flags (fcntl port F_GETFL)))
+    (fcntl port F_SETFL (logior O_NONBLOCK flags))
+    port))
+
 (define (evaluate store db spec)
   "Evaluate and build package derivations.  Return a list of jobs."
-  (let* ((port (open-pipe* OPEN_READ
-                           "evaluate"
-                           (string-append (%package-cachedir) "/"
-                                          (assq-ref spec #:name) "/"
-                                          (assq-ref spec #:load-path))
-                           (%guix-package-path)
-                           (%package-cachedir)
-                           (object->string spec)
-                           (%package-database)))
-         (jobs (match (read port)
+  (let* ((port (non-blocking-port
+                (open-pipe* OPEN_READ
+                            "evaluate"
+                            (string-append (%package-cachedir) "/"
+                                           (assq-ref spec #:name) "/"
+                                           (assq-ref spec #:load-path))
+                            (%guix-package-path)
+                            (%package-cachedir)
+                            (object->string spec)
+                            (%package-database))))
+         ;; XXX: Since 'read' is not suspendable as of Guile 2.2.3, we use
+         ;; 'read-string' (which is suspendable) and then 'read'.
+         (jobs (match (read-string port)
                  ;; If an error occured during evaluation report it,
                  ;; otherwise, suppose that data read from port are
                  ;; correct and keep things going.
@@ -183,9 +204,11 @@ directory and the sha1 of the top level commit in this directory."
                   (raise (condition
                           (&evaluation-error
                            (name (assq-ref spec #:name))))))
-                 (data data))))
+                 ((? string? data)
+                  (call-with-input-string data read)))))
     (close-pipe port)
     jobs))
+
 
 ;;;
 ;;; Build status.
@@ -359,6 +382,10 @@ and so on. "
                         name commit stamp)
            (when commit
              (unless (string=? commit stamp)
+               ;; Immediately mark COMMIT as being processed so we don't spawn
+               ;; a concurrent evaluation of that same commit.
+               (db-add-stamp db spec commit)
+
                (copy-repository-cache checkout spec)
 
                (unless (assq-ref spec #:no-compile?)
@@ -371,18 +398,23 @@ and so on. "
                                   #:fallback? (%fallback?)
                                   #:keep-going? #t)
 
-               (guard (c ((evaluation-error? c)
-                          (format #t "Failed to evaluate ~s specification.~%"
-                                  (evaluation-error-spec-name c))
-                          #f))
-                 (log-message "evaluating '~a' with commit ~s"
-                              name commit)
-                 (let* ((spec* (acons #:current-commit commit spec))
-                        (jobs  (evaluate store db spec*)))
-                   (log-message "building ~a jobs for '~a'"
-                                (length jobs) name)
-                   (build-packages store db jobs))))
-             (db-add-stamp db spec commit))))))
+               (spawn-fiber
+                (lambda ()
+                  (guard (c ((evaluation-error? c)
+                             (log-message "failed to evaluate spec '~s'"
+                                          (evaluation-error-spec-name c))
+                             #f))
+                    (log-message "evaluating '~a' with commit ~s"
+                                 name commit)
+                    (with-store store
+                      (let* ((spec* (acons #:current-commit commit spec))
+                             (jobs  (evaluate store db spec*)))
+                        (log-message "building ~a jobs for '~a'"
+                                     (length jobs) name)
+                        (build-packages store db jobs))))))
+
+               ;; 'spawn-fiber' returns zero values but we need one.
+               *unspecified*))))))
 
   (for-each process jobspecs))
 
