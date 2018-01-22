@@ -2,6 +2,8 @@
 *.info
 *.log
 *.trs
+*~
+,*
 .dirstamp
 /*.status
 /INSTALL
