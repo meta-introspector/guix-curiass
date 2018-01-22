@@ -1,5 +1,5 @@
 ;;; base.scm -- Cuirass base module
-;;; Copyright © 2016, 2017 Ludovic Courtès <ludo@gnu.org>
+;;; Copyright © 2016, 2017, 2018 Ludovic Courtès <ludo@gnu.org>
 ;;; Copyright © 2016, 2017 Mathieu Lirzin <mthl@gnu.org>
 ;;; Copyright © 2017 Mathieu Othacehe <m.othacehe@gmail.com>
 ;;; Copyright © 2017 Ricardo Wurmus <rekado@elephly.net>
@@ -27,6 +27,7 @@
   #:use-module (guix store)
   #:use-module (guix git)
   #:use-module (git)
+  #:use-module (ice-9 binary-ports)
   #:use-module (ice-9 format)
   #:use-module (ice-9 match)
   #:use-module (ice-9 popen)
@@ -38,6 +39,7 @@
   #:use-module (srfi srfi-26)
   #:use-module (srfi srfi-34)
   #:use-module (srfi srfi-35)
+  #:use-module (rnrs bytevectors)
   #:export (;; Procedures.
             call-with-time-display
             fetch-repository
@@ -182,6 +184,92 @@ directory and the sha1 of the top level commit in this directory."
                  (data data))))
     (close-pipe port)
     jobs))
+
+;;;
+;;; Build status.
+;;;
+
+;; TODO: Remove this code once it has been integrated in Guix proper as (guix
+;; status).
+
+(define %newline
+  (char-set #\return #\newline))
+
+(define (build-event-output-port proc seed)
+  "Return an output port for use as 'current-build-output-port' that calls
+PROC with its current state value, initialized with SEED, on every build
+event.  Build events passed to PROC are tuples corresponding to the \"build
+traces\" produced by the daemon:
+
+  (build-started \"/gnu/store/...-foo.drv\" ...)
+  (substituter-started \"/gnu/store/...-foo\" ...)
+
+and so on. "
+  (define %fragments
+    ;; Line fragments received so far.
+    '())
+
+  (define %state
+    ;; Current state for PROC.
+    seed)
+
+  (define (process-line line)
+    (when (string-prefix? "@ " line)
+      (match (string-tokenize (string-drop line 2))
+        (((= string->symbol event-name) args ...)
+         (set! %state
+           (proc (cons event-name args)
+                 %state))))))
+
+  (define (write! bv offset count)
+    (let loop ((str (utf8->string bv)))
+      (match (string-index str %newline)
+        ((? integer? cr)
+         (let ((tail (string-take str cr)))
+           (process-line (string-concatenate-reverse
+                          (cons tail %fragments)))
+           (set! %fragments '())
+           (loop (string-drop str (+ 1 cr)))))
+        (#f
+         (set! %fragments (cons str %fragments))
+         count))))
+
+  (make-custom-binary-output-port "filtering-input-port"
+                                  write!
+                                  #f #f #f))
+
+
+;;;
+;;; Building packages.
+;;;
+
+(define* (handle-build-event db event
+                             #:key (log-port (current-error-port)))
+  "Handle EVENT, a build event sexp as produced by 'build-event-output-port'."
+  (define now
+    (current-time time-utc))
+
+  (define date
+    (date->string (time-utc->date now) "~5"))
+
+  (define (log fmt . args)
+    (apply format log-port (string-append date " " fmt "\n")
+           args))
+
+  ;; TODO: Update DB according to EVENT.
+  (match event
+    (('build-started drv _ ...)
+     (log "build started: '~a'" drv))
+    (('build-remote drv host _ ...)
+     (log "build of '~a' offloaded to '~a'" drv host))
+    (('build-succeeded drv _ ...)
+     (log "build succeeded: '~a'" drv))
+    (('substituter-started item _ ...)
+     (log "substituter started: '~a'" item))
+    (('substituter-succeeded item _ ...)
+     (log "substituter succeeded: '~a'" item))
+    (_
+     (log "build event: ~s" event))))
 
 (define (build-packages store db jobs)
   "Build JOBS and return a list of Build results."
@@ -229,7 +317,10 @@ directory and the sha1 of the top level commit in this directory."
     (format #t "load-path=~s\n" %load-path)
     (format #t "load-compiled-path=~s\n" %load-compiled-path)
     (format #t "building ~a derivations...~%" (length jobs))
-    (parameterize ((current-build-output-port (%make-void-port "w")))
+    (parameterize ((current-build-output-port
+                    (build-event-output-port (lambda (event status)
+                                               (handle-build-event db event))
+                                             #t)))
       (build-derivations store
                          (map (lambda (job)
                                 (assq-ref job #:derivation))
