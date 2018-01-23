@@ -1,5 +1,5 @@
 ;;; utils.scm -- helper procedures
-;;; Copyright © 2012, 2013, 2016 Ludovic Courtès <ludo@gnu.org>
+;;; Copyright © 2012, 2013, 2016, 2018 Ludovic Courtès <ludo@gnu.org>
 ;;; Copyright © 2015 David Thompson <davet@gnu.org>
 ;;; Copyright © 2016 Mathieu Lirzin <mthl@gnu.org>
 ;;;
@@ -24,7 +24,8 @@
   #:use-module (json)
   #:export (alist?
             object->json-scm
-            object->json-string))
+            object->json-string
+            define-enumeration))
 
 (define (alist? obj)
   "Return #t if OBJ is an alist."
@@ -47,3 +48,12 @@
 (define* (object->json-string object #:key pretty)
   "Return OBJECT as a JSON object."
   (scm->json-string (object->json-scm object) #:pretty pretty))
+
+(define-syntax-rule (define-enumeration name (symbol value) ...)
+  "Define an 'enum' type with the given SYMBOL/VALUE pairs.  NAME is defined a
+macro that accepts one of these symbols and expands to the corresponding
+value."
+  (define-syntax name
+    (syntax-rules (symbol ...)
+      ((_ symbol) value)
+      ...)))

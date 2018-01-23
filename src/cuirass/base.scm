@@ -290,15 +290,6 @@ and so on. "
 
 (define (build-packages store db jobs)
   "Build JOBS and return a list of Build results."
-
-  (define hydra-build-status
-    ;; Build status as expected by hydra compatible API's.
-    '((succeeded         . 0)
-      (failed            . 1)
-      (failed-dependency . 2)
-      (failed-other      . 3)
-      (cancelled         . 4)))
-
   (define (register job)
     (let* ((name     (assq-ref job #:job-name))
            (drv      (assq-ref job #:derivation))
@@ -317,8 +308,8 @@ and so on. "
                      (#:log . ,log)
                      (#:status .
                       ,(match (length outputs)
-                         (0 (assq-ref hydra-build-status 'failed))
-                         (_ (assq-ref hydra-build-status 'succeeded))))
+                         (0 (build-status failed))
+                         (_ (build-status succeeded))))
                      (#:outputs . ,outputs)
                      ;;; XXX: For now, we do not know start/stop build time.
                      (#:timestamp . ,cur-time)

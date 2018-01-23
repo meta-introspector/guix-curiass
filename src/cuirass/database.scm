@@ -37,6 +37,7 @@
             db-add-evaluation
             db-add-derivation
             db-get-derivation
+            build-status
             db-add-build
             db-get-build
             db-get-builds
@@ -196,6 +197,14 @@ string."
 (define SQLITE_CONSTRAINT 19)
 (define SQLITE_CONSTRAINT_PRIMARYKEY
   (logior SQLITE_CONSTRAINT (ash 6 8)))
+
+(define-enumeration build-status
+  ;; Build status as expected by Hydra's API.
+  (succeeded         0)
+  (failed            1)
+  (failed-dependency 2)
+  (failed-other      3)
+  (cancelled         4))
 
 (define (db-add-build db build)
   "Store BUILD in database DB. BUILD eventual outputs are stored
