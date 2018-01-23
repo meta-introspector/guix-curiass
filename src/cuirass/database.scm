@@ -209,7 +209,7 @@ string."
   (failed            1)
   (failed-dependency 2)
   (failed-other      3)
-  (cancelled         4))
+  (canceled          4))
 
 (define (db-add-build db build)
   "Store BUILD in database DB. BUILD eventual outputs are stored
