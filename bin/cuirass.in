@@ -28,6 +28,7 @@ exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
              (cuirass ui)
              (cuirass logging)
              (guix ui)
+             (guix store)
              (fibers)
              (ice-9 getopt-long))
 
