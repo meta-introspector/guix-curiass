@@ -270,17 +270,20 @@ and so on. "
 
 (define* (handle-build-event db event
                              #:key (log-port (current-error-port)))
-  "Handle EVENT, a build event sexp as produced by 'build-event-output-port'."
-  ;; TODO: Update DB according to EVENT.
+  "Handle EVENT, a build event sexp as produced by 'build-event-output-port',
+updating DB accordingly."
   (match event
     (('build-started drv _ ...)
-     (log-message "build started: '~a'" drv))
+     (log-message "build started: '~a'" drv)
+     (db-update-build-status! db drv (build-status started)))
     (('build-remote drv host _ ...)
      (log-message "'~a' offloaded to '~a'" drv host))
     (('build-succeeded drv _ ...)
-     (log-message "build succeeded: '~a'" drv))
+     (log-message "build succeeded: '~a'" drv)
+     (db-update-build-status! db drv (build-status succeeded)))
     (('build-failed drv _ ...)
-     (log-message "build failed: '~a'" drv))
+     (log-message "build failed: '~a'" drv)
+     (db-update-build-status! db drv (build-status failed)))
     (('substituter-started item _ ...)
      (log-message "substituter started: '~a'" item))
     (('substituter-succeeded item _ ...)
@@ -306,17 +309,16 @@ and so on. "
       (let ((build `((#:derivation . ,drv)
                      (#:eval-id . ,eval-id)
                      (#:log . ,log)
-                     (#:status .
-                      ,(match (length outputs)
-                         (0 (build-status failed))
-                         (_ (build-status succeeded))))
+                     (#:status . ,(build-status scheduled))
                      (#:outputs . ,outputs)
-                     ;;; XXX: For now, we do not know start/stop build time.
                      (#:timestamp . ,cur-time)
-                     (#:starttime . ,cur-time)
-                     (#:stoptime . ,cur-time))))
+                     (#:starttime . 0)
+                     (#:stoptime . 0))))
         (db-add-build db build)
         build)))
+
+  (define build-ids
+    (map register jobs))
 
   ;; Pass all the jobs at once so we benefit from as much parallelism as
   ;; possible (we must be using #:keep-going? #t).  Swallow build logs (the
@@ -334,12 +336,11 @@ and so on. "
                                 (assq-ref job #:derivation))
                               jobs))))
 
-  ;; Register the results in the database.
-  ;; XXX: The 'build-derivations' call is blocking so we end updating the
-  ;; database potentially long after things have been built.
-  (let* ((results (map register jobs))
+  (let* ((results (filter-map db-get-build build-ids))
          (status (map (cut assq-ref <> #:status) results))
-         (success (length (filter zero? status)))
+         (success (count (lambda (status)
+                           (= status (build-status succeeded)))
+                         status))
          (outputs (map (cut assq-ref <> #:outputs) results))
          (outs (filter-map (cut assoc-ref <> "out") outputs))
          (fail (- (length jobs) success)))
