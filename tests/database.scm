@@ -149,5 +149,5 @@ INSERT INTO Evaluations (specification, revision) VALUES (3, 3);")
   (delete-file database-name))
 
 ;;; Local Variables:
-;;; (put 'with-temporary-database 'scheme-indent-function 1)
+;;; eval: (put 'with-temporary-database 'scheme-indent-function 1)
 ;;; End:
