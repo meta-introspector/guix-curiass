@@ -336,7 +336,7 @@ updating DB accordingly."
                                 (assq-ref job #:derivation))
                               jobs))))
 
-  (let* ((results (filter-map db-get-build build-ids))
+  (let* ((results (filter-map (cut db-get-build db <>) build-ids))
          (status (map (cut assq-ref <> #:status) results))
          (success (count (lambda (status)
                            (= status (build-status succeeded)))
