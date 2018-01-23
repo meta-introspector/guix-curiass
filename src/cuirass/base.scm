@@ -407,11 +407,12 @@ and so on. "
                     (log-message "evaluating '~a' with commit ~s"
                                  name commit)
                     (with-store store
-                      (let* ((spec* (acons #:current-commit commit spec))
-                             (jobs  (evaluate store db spec*)))
-                        (log-message "building ~a jobs for '~a'"
-                                     (length jobs) name)
-                        (build-packages store db jobs))))))
+                      (with-database db
+                        (let* ((spec* (acons #:current-commit commit spec))
+                               (jobs  (evaluate store db spec*)))
+                          (log-message "building ~a jobs for '~a'"
+                                       (length jobs) name)
+                          (build-packages store db jobs)))))))
 
                ;; 'spawn-fiber' returns zero values but we need one.
                *unspecified*))))))
