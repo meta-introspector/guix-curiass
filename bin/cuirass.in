@@ -115,12 +115,10 @@ exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
                             (process-specs db (db-get-specifications db))
                             (log-message "sleeping for ~a seconds" interval)
                             (sleep interval)))))
-                     (spawn-fiber
-                      (lambda ()
-                        (with-database db
-                          (run-cuirass-server db
-                                              #:host host
-                                              #:port port))))
+                     (with-database db
+                       (run-cuirass-server db
+                                           #:host host
+                                           #:port port))
                      *unspecified*))))
 
            #:drain? #t)))))))
