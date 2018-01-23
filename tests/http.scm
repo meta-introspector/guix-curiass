@@ -27,7 +27,8 @@
              (web response)
              (rnrs bytevectors)
              (srfi srfi-1)
-             (srfi srfi-64))
+             (srfi srfi-64)
+             (ice-9 match))
 
 (define (hash-table-keys table)
   (hash-fold (lambda (key value rest)
@@ -128,37 +129,54 @@
     (wait-until-ready 6688))
 
   (test-assert "fill-db"
-    (let ((build
-           `((#:derivation . "/gnu/store/fake.drv")
-             (#:eval-id . 1)
-             (#:log . "unused so far")
-             (#:status . 0)
-             (#:outputs . (("out" . "/gnu/store/fake-1.0")))
-             (#:timestamp . 1501347493)
-             (#:starttime . 1501347493)
-             (#:stoptime . 1501347493)))
-          (derivation
-           '((#:derivation . "/gnu/store/fake.drv")
-             (#:job-name . "fake-job")
-             (#:system . "x86_64-linux")
-             (#:nix-name . "fake-1.0")
-             (#:eval-id . 1)))
-          (specification
-           '((#:name . "guix")
-             (#:url . "git://git.savannah.gnu.org/guix.git")
-             (#:load-path . ".")
-             (#:file . "/tmp/gnu-system.scm")
-             (#:proc . hydra-jobs)
-             (#:arguments (subset . "hello"))
-             (#:branch . "master")
-             (#:tag . #f)
-             (#:commit . #f)
-             (#:no-compile? . #f)))
-          (evaluation
-           '((#:specification . "guix")
-             (#:revision . 1))))
-      (db-add-build (%db) build)
-      (db-add-derivation (%db) derivation)
+    (let* ((build1
+            `((#:derivation . "/gnu/store/fake.drv")
+              (#:eval-id . 1)
+              (#:log . "unused so far")
+              (#:status . ,(build-status succeeded))
+              (#:outputs . (("out" . "/gnu/store/fake-1.0")))
+              (#:timestamp . 1501347493)
+              (#:starttime . 1501347493)
+              (#:stoptime . 1501347493)))
+           (build2
+            `((#:derivation . "/gnu/store/fake2.drv")
+              (#:eval-id . 1)
+              (#:log . "unused so far")
+              (#:status . ,(build-status scheduled))
+              (#:outputs . (("out" . "/gnu/store/fake-2.0")))
+              (#:timestamp . 1501347493)
+              (#:starttime . 0)
+              (#:stoptime . 0)))
+           (derivation1
+            '((#:derivation . "/gnu/store/fake.drv")
+              (#:job-name . "fake-job")
+              (#:system . "x86_64-linux")
+              (#:nix-name . "fake-1.0")
+              (#:eval-id . 1)))
+           (derivation2
+            '((#:derivation . "/gnu/store/fake2.drv")
+              (#:job-name . "fake-job")
+              (#:system . "x86_64-linux")
+              (#:nix-name . "fake-2.0")
+              (#:eval-id . 1)))
+           (specification
+            '((#:name . "guix")
+              (#:url . "git://git.savannah.gnu.org/guix.git")
+              (#:load-path . ".")
+              (#:file . "/tmp/gnu-system.scm")
+              (#:proc . hydra-jobs)
+              (#:arguments (subset . "hello"))
+              (#:branch . "master")
+              (#:tag . #f)
+              (#:commit . #f)
+              (#:no-compile? . #f)))
+           (evaluation
+            '((#:specification . "guix")
+              (#:revision . 1))))
+      (db-add-build (%db) build1)
+      (db-add-build (%db) build2)
+      (db-add-derivation (%db) derivation1)
+      (db-add-derivation (%db) derivation2)
       (db-add-specification (%db) specification)
       (db-add-evaluation (%db) evaluation)))
 
@@ -178,13 +196,13 @@
       (list (response-code response)
             (response-location response))))
 
-  (test-equal "/build/2"
+  (test-equal "/build/42"
     404
-    (response-code (http-get (test-cuirass-uri "/build/2"))))
+    (response-code (http-get (test-cuirass-uri "/build/42"))))
 
-  (test-equal "/build/2/log/raw"
+  (test-equal "/build/42/log/raw"
     404
-    (response-code (http-get (test-cuirass-uri "/build/2/log/raw"))))
+    (response-code (http-get (test-cuirass-uri "/build/42/log/raw"))))
 
   (test-equal "/api/latestbuilds"
     500
@@ -215,6 +233,17 @@
                   "/api/latestbuilds?nr=1&project=gnu")))
              json->scm)))
       (= (length hash-list) 0)))
+
+  (test-equal "/api/queue?nr=100"
+    `("fake-2.0" ,(build-status scheduled))
+    (match (call-with-input-string
+               (utf8->string
+                (http-get-body
+                 (test-cuirass-uri "/api/queue?nr=100")))
+             json->scm)
+      ((dictionary)
+       (list (hash-ref dictionary "nixname")
+             (hash-ref dictionary "buildstatus")))))
 
   (test-assert "db-close"
     (db-close (%db)))

@@ -155,6 +155,16 @@
                                                  `((status done)
                                                    ,@params))))
            (respond-json-with-error 500 "Parameter not defined!"))))
+    (("api" "queue")
+     (let* ((params (request-parameters request))
+            ;; 'nr parameter is mandatory to limit query size.
+            (valid-params? (assq-ref params 'nr)))
+       (if valid-params?
+           (respond-json (object->json-string
+                          (handle-builds-request db
+                                                 `((status pending)
+                                                   ,@params))))
+           (respond-json-with-error 500 "Parameter not defined!"))))
     (_
      (respond (build-response #:code 404)
               #:body (string-append "Resource not found: "
