@@ -28,7 +28,6 @@ exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
              (cuirass ui)
              (cuirass logging)
              (guix ui)
-             (guix store)
              (fibers)
              (ice-9 getopt-long))
 
@@ -113,9 +112,8 @@ exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
                      ;; were not even started on a previous run.
                      (spawn-fiber
                       (lambda ()
-                        (with-store store
-                          (with-database db
-                            (restart-builds store db pending)))))
+                        (with-database db
+                          (restart-builds db pending))))
 
                      (spawn-fiber
                       (lambda ()

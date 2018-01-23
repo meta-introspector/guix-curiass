@@ -293,30 +293,31 @@ updating DB accordingly."
     (_
      (log-message "build event: ~s" event))))
 
-(define (restart-builds store db builds)
+(define (restart-builds db builds)
   "Restart builds whose status in DB is \"pending\" (scheduled or started)."
-  (let-values (((valid stale)
-                (partition (lambda (build)
-                             (let ((drv (assq-ref build #:derivation)))
-                               (valid-path? store drv)))
-                           builds)))
-    ;; We cannot restart builds listed in STALE, so mark them as canceled.
-    (log-message "canceling ~a pending builds" (length stale))
-    (for-each (lambda (build)
-                (db-update-build-status! db (assq-ref build #:derivation)
-                                         (build-status canceled)))
-              stale)
+  (with-store store
+    (let-values (((valid stale)
+                  (partition (lambda (build)
+                               (let ((drv (assq-ref build #:derivation)))
+                                 (valid-path? store drv)))
+                             builds)))
+      ;; We cannot restart builds listed in STALE, so mark them as canceled.
+      (log-message "canceling ~a pending builds" (length stale))
+      (for-each (lambda (build)
+                  (db-update-build-status! db (assq-ref build #:derivation)
+                                           (build-status canceled)))
+                stale)
 
-    ;; Those in VALID can be restarted.
-    (log-message "restarting ~a pending builds" (length valid))
-    (parameterize ((current-build-output-port
-                    (build-event-output-port (lambda (event status)
-                                               (handle-build-event db event))
-                                             #t)))
-      (build-derivations store
-                         (map (lambda (build)
-                                (assq-ref build #:derivation))
-                              valid)))))
+      ;; Those in VALID can be restarted.
+      (log-message "restarting ~a pending builds" (length valid))
+      (parameterize ((current-build-output-port
+                      (build-event-output-port (lambda (event status)
+                                                 (handle-build-event db event))
+                                               #t)))
+        (build-derivations store
+                           (map (lambda (build)
+                                  (assq-ref build #:derivation))
+                                valid))))))
 
 (define (build-packages store db jobs)
   "Build JOBS and return a list of Build results."
