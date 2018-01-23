@@ -66,7 +66,14 @@
   ;; the store at each context switch.  Remove this when the real 'with-store'
   ;; has been fixed.
   (let* ((store (open-connection))
-         (result (begin exp ...)))
+         (result (begin
+                   ;; Always set #:keep-going? so we don't stop on the first
+                   ;; build failure.
+                   (set-build-options store
+                                      #:use-substitutes? (%use-substitutes?)
+                                      #:fallback? (%fallback?)
+                                      #:keep-going? #t)
+                   exp ...)))
     (close-connection store)
     result))
 
@@ -411,12 +418,6 @@ updating DB accordingly."
                (unless (assq-ref spec #:no-compile?)
                  (compile (string-append (%package-cachedir) "/"
                                          (assq-ref spec #:name))))
-               ;; Always set #:keep-going? so we don't stop on the first build
-               ;; failure.
-               (set-build-options store
-                                  #:use-substitutes? (%use-substitutes?)
-                                  #:fallback? (%fallback?)
-                                  #:keep-going? #t)
 
                (spawn-fiber
                 (lambda ()
