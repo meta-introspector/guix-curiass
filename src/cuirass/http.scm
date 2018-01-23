@@ -149,8 +149,11 @@
             ;; 'nr parameter is mandatory to limit query size.
             (valid-params? (assq-ref params 'nr)))
        (if valid-params?
+           ;; Limit results to builds that are "done".
            (respond-json (object->json-string
-                          (handle-builds-request db params)))
+                          (handle-builds-request db
+                                                 `((status done)
+                                                   ,@params))))
            (respond-json-with-error 500 "Parameter not defined!"))))
     (_
      (respond (build-response #:code 404)

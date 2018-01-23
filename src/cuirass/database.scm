@@ -303,7 +303,7 @@ INNER JOIN Specifications ON Evaluations.specification = Specifications.repo_nam
 (define (db-get-builds db filters)
   "Retrieve all builds in database DB which are matched by given FILTERS.
 FILTERS is an assoc list which possible keys are 'project | 'jobset | 'job |
-'system | 'nr | 'order."
+'system | 'nr | 'order | 'status."
 
   (define (format-where-clause filters)
     (let ((where-clause
@@ -318,6 +318,8 @@ FILTERS is an assoc list which possible keys are 'project | 'jobset | 'job |
                  (format #f "Derivations.job_name='~A'" job))
                 (('system system)
                  (format #f "Derivations.system='~A'" system))
+                (('status 'done)
+                 "Builds.status >= 0")
                 (_ #f)))
             filters)))
       (if (> (length where-clause) 0)
