@@ -324,9 +324,9 @@ updating DB accordingly."
   ;; possible (we must be using #:keep-going? #t).  Swallow build logs (the
   ;; daemon keeps them anyway), and swallow build errors.
   (guard (c ((nix-protocol-error? c) #t))
-    (format #t "load-path=~s\n" %load-path)
-    (format #t "load-compiled-path=~s\n" %load-compiled-path)
-    (format #t "building ~a derivations...~%" (length jobs))
+    (log-message "load-path=~s" %load-path)
+    (log-message "load-compiled-path=~s" %load-compiled-path)
+    (log-message "building ~a derivations" (length jobs))
     (parameterize ((current-build-output-port
                     (build-event-output-port (lambda (event status)
                                                (handle-build-event db event))
@@ -344,8 +344,8 @@ updating DB accordingly."
          (outputs (map (cut assq-ref <> #:outputs) results))
          (outs (filter-map (cut assoc-ref <> "out") outputs))
          (fail (- (length jobs) success)))
-    (format #t "outputs:\n~a\n" (string-join outs "\n"))
-    (format #t "success: ~a, fail: ~a\n" success fail)
+    (log-message "outputs:\n~a" (string-join outs "\n"))
+    (log-message "success: ~a, fail: ~a" success fail)
     results))
 
 (define (prepare-git)
