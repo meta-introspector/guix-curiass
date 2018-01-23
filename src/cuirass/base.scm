@@ -37,6 +37,7 @@
   #:use-module (ice-9 receive)
   #:use-module (ice-9 threads)
   #:use-module (srfi srfi-1)
+  #:use-module (srfi srfi-11)
   #:use-module (srfi srfi-19)
   #:use-module (srfi srfi-26)
   #:use-module (srfi srfi-34)
@@ -47,6 +48,7 @@
             fetch-repository
             compile
             evaluate
+            restart-builds
             build-packages
             prepare-git
             process-specs
@@ -290,6 +292,31 @@ updating DB accordingly."
      (log-message "substituter succeeded: '~a'" item))
     (_
      (log-message "build event: ~s" event))))
+
+(define (restart-builds store db builds)
+  "Restart builds whose status in DB is \"pending\" (scheduled or started)."
+  (let-values (((valid stale)
+                (partition (lambda (build)
+                             (let ((drv (assq-ref build #:derivation)))
+                               (valid-path? store drv)))
+                           builds)))
+    ;; We cannot restart builds listed in STALE, so mark them as canceled.
+    (log-message "canceling ~a pending builds" (length stale))
+    (for-each (lambda (build)
+                (db-update-build-status! db (assq-ref build #:derivation)
+                                         (build-status canceled)))
+              stale)
+
+    ;; Those in VALID can be restarted.
+    (log-message "restarting ~a pending builds" (length valid))
+    (parameterize ((current-build-output-port
+                    (build-event-output-port (lambda (event status)
+                                               (handle-build-event db event))
+                                             #t)))
+      (build-derivations store
+                         (map (lambda (build)
+                                (assq-ref build #:derivation))
+                              valid)))))
 
 (define (build-packages store db jobs)
   "Build JOBS and return a list of Build results."

@@ -320,6 +320,8 @@ FILTERS is an assoc list which possible keys are 'project | 'jobset | 'job |
                  (format #f "Derivations.system='~A'" system))
                 (('status 'done)
                  "Builds.status >= 0")
+                (('status 'pending)
+                 "Builds.status < 0")
                 (_ #f)))
             filters)))
       (if (> (length where-clause) 0)
