@@ -143,6 +143,31 @@ INSERT INTO Evaluations (specification, revision) VALUES (3, 3);")
                 (map summarize (db-get-builds db '()))
                 (map summarize (db-get-builds db '((nr 1))))))))
 
+  (test-equal "db-update-build-status!"
+    (list (build-status scheduled)
+          (build-status started)
+          (build-status succeeded))
+    (with-temporary-database db
+      (let* ((id (db-add-build
+                  db
+                  (make-dummy-build 1 #:drv "/foo.drv"
+                                    #:outputs '(("out" . "/foo")))))
+             (get-status (lambda* (#:optional (key #:status))
+                           (assq-ref (db-get-build db id) key))))
+        (db-add-derivation db (make-dummy-derivation "/foo.drv" 1))
+        (db-add-evaluation db (make-dummy-eval))
+        (db-add-specification db example-spec)
+
+        (let ((status0 (get-status)))
+          (db-update-build-status! db "/foo.drv" (build-status started))
+          (let ((status1 (get-status)))
+            (db-update-build-status! db "/foo.drv" (build-status succeeded))
+            (let ((status2 (get-status))
+                  (start   (get-status #:starttime))
+                  (end     (get-status #:stoptime)))
+              (and (> start 0) (>= end start)
+                   (list status0 status1 status2))))))))
+
   (test-assert "db-close"
     (db-close (%db)))
 

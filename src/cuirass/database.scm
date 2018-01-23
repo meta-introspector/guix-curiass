@@ -24,6 +24,7 @@
   #:use-module (ice-9 match)
   #:use-module (ice-9 rdelim)
   #:use-module (srfi srfi-1)
+  #:use-module (srfi srfi-19)
   #:use-module (sqlite3)
   #:export (;; Procedures.
             assq-refs
@@ -39,6 +40,7 @@
             db-get-derivation
             build-status
             db-add-build
+            db-update-build-status!
             db-get-build
             db-get-builds
             read-sql-file
@@ -199,7 +201,10 @@ string."
   (logior SQLITE_CONSTRAINT (ash 6 8)))
 
 (define-enumeration build-status
-  ;; Build status as expected by Hydra's API.
+  ;; Build status as expected by Hydra's API.  Note: the negative values are
+  ;; Cuirass' own extensions.
+  (scheduled        -2)
+  (started          -1)
   (succeeded         0)
   (failed            1)
   (failed-dependency 2)
@@ -216,10 +221,11 @@ INSERT INTO Builds (derivation, evaluation, log, status, timestamp, starttime, s
                        (assq-ref build #:derivation)
                        (assq-ref build #:eval-id)
                        (assq-ref build #:log)
-                       (assq-ref build #:status)
-                       (assq-ref build #:timestamp)
-                       (assq-ref build #:starttime)
-                       (assq-ref build #:stoptime)))
+                       (or (assq-ref build #:status)
+                           (build-status scheduled))
+                       (or (assq-ref build #:timestamp) 0)
+                       (or (assq-ref build #:starttime) 0)
+                       (or (assq-ref build #:stoptime) 0)))
          (build-id (last-insert-rowid db)))
     (for-each (lambda (output)
                 (match output
@@ -229,6 +235,20 @@ INSERT INTO Outputs (build, name, path) VALUES ('~A', '~A', '~A');"
                                 build-id name path))))
               (assq-ref build #:outputs))
     build-id))
+
+(define (db-update-build-status! db drv status)
+  "Update DB so that DRV's status is STATUS.  This also updates the
+'starttime' or 'stoptime' fields."
+  (define now
+    (time-second (current-time time-utc)))
+
+  (if (= status (build-status started))
+      (sqlite-exec db "UPDATE Builds SET starttime='~A', status='~A' \
+WHERE derivation='~A';"
+                   now status drv)
+      (sqlite-exec db "UPDATE Builds SET stoptime='~A', status='~A' \
+WHERE derivation='~A';"
+                   now status drv)))
 
 (define (db-get-outputs db build-id)
   "Retrieve the OUTPUTS of the build identified by BUILD-ID in DB database."
