@@ -22,6 +22,7 @@
   #:use-module (cuirass config)
   #:use-module (cuirass utils)
   #:use-module (ice-9 match)
+  #:use-module (ice-9 format)
   #:use-module (ice-9 rdelim)
   #:use-module (srfi srfi-1)
   #:use-module (srfi srfi-19)
@@ -54,9 +55,8 @@
 
 (define (sqlite-exec db msg . args)
   "Wrap 'sqlite-prepare', 'sqlite-step', and 'sqlite-finalize'. Send message
-MSG to database DB.  MSG can contain '~A' and '~S' escape characters which
-will be replaced by ARGS."
-  (let* ((sql  (apply simple-format #f msg args))
+MSG to database DB.  MSG and ARGS are passed to 'format'."
+  (let* ((sql  (apply format #f msg args))
          (stmt (sqlite-prepare db sql))
          (res  (let loop ((res '()))
                  (let ((row (sqlite-step stmt)))
@@ -236,9 +236,10 @@ INSERT INTO Outputs (build, name, path) VALUES ('~A', '~A', '~A');"
               (assq-ref build #:outputs))
     build-id))
 
-(define (db-update-build-status! db drv status)
+(define* (db-update-build-status! db drv status #:key log-file)
   "Update DB so that DRV's status is STATUS.  This also updates the
-'starttime' or 'stoptime' fields."
+'starttime' or 'stoptime' fields.  If LOG-FILE is true, record it as the build
+log file for DRV."
   (define now
     (time-second (current-time time-utc)))
 
@@ -246,9 +247,9 @@ INSERT INTO Outputs (build, name, path) VALUES ('~A', '~A', '~A');"
       (sqlite-exec db "UPDATE Builds SET starttime='~A', status='~A' \
 WHERE derivation='~A';"
                    now status drv)
-      (sqlite-exec db "UPDATE Builds SET stoptime='~A', status='~A' \
-WHERE derivation='~A';"
-                   now status drv)))
+      (sqlite-exec db "UPDATE Builds SET stoptime='~A', \
+status='~A'~@[, log='~A'~] WHERE derivation='~A';"
+                   now status log-file drv)))
 
 (define (db-get-outputs db build-id)
   "Retrieve the OUTPUTS of the build identified by BUILD-ID in DB database."

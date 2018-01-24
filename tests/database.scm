@@ -146,7 +146,8 @@ INSERT INTO Evaluations (specification, revision) VALUES (3, 3);")
   (test-equal "db-update-build-status!"
     (list (build-status scheduled)
           (build-status started)
-          (build-status succeeded))
+          (build-status succeeded)
+          "/foo.drv.log")
     (with-temporary-database db
       (let* ((id (db-add-build
                   db
@@ -161,12 +162,14 @@ INSERT INTO Evaluations (specification, revision) VALUES (3, 3);")
         (let ((status0 (get-status)))
           (db-update-build-status! db "/foo.drv" (build-status started))
           (let ((status1 (get-status)))
-            (db-update-build-status! db "/foo.drv" (build-status succeeded))
+            (db-update-build-status! db "/foo.drv" (build-status succeeded)
+                                     #:log-file "/foo.drv.log")
             (let ((status2 (get-status))
                   (start   (get-status #:starttime))
-                  (end     (get-status #:stoptime)))
+                  (end     (get-status #:stoptime))
+                  (log     (get-status #:log)))
               (and (> start 0) (>= end start)
-                   (list status0 status1 status2))))))))
+                   (list status0 status1 status2 log))))))))
 
   (test-assert "db-close"
     (db-close (%db)))
