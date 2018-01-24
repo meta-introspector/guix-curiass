@@ -141,6 +141,11 @@
                 (respond (build-response #:code 302
                                          #:headers `((location . ,uri)))
                          #:body "")))
+             (()
+              ;; Not entry for BUILD-ID in the 'Outputs' table.
+              (respond-json-with-error
+               500
+               (format #f "Outputs of build ~a are unknown." build-id)))
              (#f
               (respond-build-not-found build-id)))
            (respond-build-not-found build-id))))
