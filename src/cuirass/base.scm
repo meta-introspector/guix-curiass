@@ -337,8 +337,7 @@ updating DB accordingly."
            (outputs  (filter-map (lambda (res)
                                    (match res
                                      ((name . path)
-                                      (and (valid-path? store path)
-                                           `(,name . ,path)))))
+                                      `(,name . ,path))))
                                  (derivation-path->output-paths drv)))
            (cur-time (time-second (current-time time-utc))))
       (let ((build `((#:derivation . ,drv)
