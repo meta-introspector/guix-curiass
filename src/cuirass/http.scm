@@ -39,6 +39,7 @@
     (#:timestamp . ,(assq-ref build #:timestamp))
     (#:starttime . ,(assq-ref build #:starttime))
     (#:stoptime . ,(assq-ref build #:stoptime))
+    (#:derivation . ,(assq-ref build #:derivation))
     (#:buildoutputs . ,(assq-ref build #:outputs))
     (#:system . ,(assq-ref build #:system))
     (#:nixname . ,(assq-ref build #:nix-name))
