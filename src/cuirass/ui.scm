@@ -38,7 +38,7 @@
   "Display version information for COMMAND."
   (simple-format #t "~a (~a) ~a~%"
                  (%program-name) %package-name %package-version)
-  (display "Copyright (C) 2016 the Cuirass authors
+  (display "Copyright (C) 2018 the Cuirass authors
 License GPLv3+: GNU GPL version 3 or later <http://gnu.org/licenses/gpl.html>
 This is free software: you are free to change and redistribute it.
 There is NO WARRANTY, to the extent permitted by law.")
