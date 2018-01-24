@@ -277,8 +277,7 @@ and so on. "
 ;;; Building packages.
 ;;;
 
-(define* (handle-build-event db event
-                             #:key (log-port (current-error-port)))
+(define* (handle-build-event db event)
   "Handle EVENT, a build event sexp as produced by 'build-event-output-port',
 updating DB accordingly."
   (match event
@@ -317,14 +316,20 @@ updating DB accordingly."
 
       ;; Those in VALID can be restarted.
       (log-message "restarting ~a pending builds" (length valid))
-      (parameterize ((current-build-output-port
-                      (build-event-output-port (lambda (event status)
-                                                 (handle-build-event db event))
-                                               #t)))
-        (build-derivations store
-                           (map (lambda (build)
-                                  (assq-ref build #:derivation))
-                                valid))))))
+
+      (guard (c ((nix-protocol-error? c)
+                 (log-message "restarted builds (partially) failed: ~a (status: ~a)"
+                              (nix-protocol-error-message c)
+                              (nix-protocol-error-status c))))
+        (parameterize ((current-build-output-port
+                        (build-event-output-port (lambda (event status)
+                                                   (handle-build-event db event))
+                                                 #t)))
+          (build-derivations store
+                             (map (lambda (build)
+                                    (assq-ref build #:derivation))
+                                  valid))
+          (log-message "done with restarted builds"))))))
 
 (define (build-packages store db jobs)
   "Build JOBS and return a list of Build results."
