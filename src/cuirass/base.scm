@@ -356,14 +356,21 @@ updating DB accordingly."
     (_
      (log-message "build event: ~s" event))))
 
+(define (build-derivation=? build1 build2)
+  "Return true if BUILD1 and BUILD2 correspond to the same derivation."
+  (string=? (assq-ref build1 #:derivation)
+            (assq-ref build2 #:derivation)))
+
 (define (restart-builds db builds)
   "Restart builds whose status in DB is \"pending\" (scheduled or started)."
   (with-store store
-    (let-values (((valid stale)
-                  (partition (lambda (build)
-                               (let ((drv (assq-ref build #:derivation)))
-                                 (valid-path? store drv)))
-                             builds)))
+    (let*-values (((builds)
+                   (delete-duplicates builds build-derivation=?))
+                  ((valid stale)
+                   (partition (lambda (build)
+                                (let ((drv (assq-ref build #:derivation)))
+                                  (valid-path? store drv)))
+                              builds)))
       ;; We cannot restart builds listed in STALE, so mark them as canceled.
       (log-message "canceling ~a pending builds" (length stale))
       (for-each (lambda (build)
