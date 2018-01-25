@@ -159,7 +159,8 @@
            (respond-json (object->json-string
                           (handle-builds-request db
                                                  `((status done)
-                                                   ,@params))))
+                                                   ,@params
+                                                   (order finish-time)))))
            (respond-json-with-error 500 "Parameter not defined!"))))
     (("api" "queue")
      (let* ((params (request-parameters request))
@@ -169,7 +170,8 @@
            (respond-json (object->json-string
                           (handle-builds-request db
                                                  `((status pending)
-                                                   ,@params))))
+                                                   ,@params
+                                                   (order submission-time)))))
            (respond-json-with-error 500 "Parameter not defined!"))))
     (_
      (respond (build-response #:code 404)

@@ -347,6 +347,12 @@ FILTERS is an assoc list which possible keys are 'project | 'jobset | 'job |
                 "ORDER BY Builds.id ASC")
                (('order 'decreasing-build-id)
                 "ORDER BY Builds.id DESC")
+               (('order 'finish-time)
+                "ORDER BY Builds.stoptime DESC")
+               (('order 'start-time)
+                "ORDER BY Builds.start DESC")
+               (('order 'submission-time)
+                "ORDER BY Builds.timestamp DESC")
                (_ #f))
              filters)
         "ORDER BY Builds.id DESC"))               ;default order
