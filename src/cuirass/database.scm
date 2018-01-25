@@ -53,11 +53,8 @@
             ;; Macros.
             with-database))
 
-(define (sqlite-exec db msg . args)
-  "Wrap 'sqlite-prepare', 'sqlite-step', and 'sqlite-finalize'. Send message
-MSG to database DB.  MSG and ARGS are passed to 'format'."
-  (let* ((sql  (apply format #f msg args))
-         (stmt (sqlite-prepare db sql))
+(define (%sqlite-exec db sql)
+  (let* ((stmt (sqlite-prepare db sql))
          (res  (let loop ((res '()))
                  (let ((row (sqlite-step stmt)))
                    (if (not row)
@@ -65,6 +62,19 @@ MSG to database DB.  MSG and ARGS are passed to 'format'."
                        (loop (cons row res)))))))
     (sqlite-finalize stmt)
     res))
+
+(define-syntax sqlite-exec
+  ;; Note: Making it a macro so -Wformat can do its job.
+  (lambda (s)
+    "Wrap 'sqlite-prepare', 'sqlite-step', and 'sqlite-finalize'.  Send to given
+SQL statement to DB.  FMT and ARGS are passed to 'format'."
+    (syntax-case s ()
+      ((_ db fmt args ...)
+       #'(%sqlite-exec db (format #f fmt args ...)))
+      (id
+       (identifier? #'id)
+       #'(lambda (db fmt . args)
+           (%sqlite-exec db (apply format #f fmt args)))))))
 
 (define %package-database
   ;; Define to the database file name of this package.
