@@ -191,6 +191,17 @@ directory and the sha1 of the top level commit in this directory."
     (fcntl port F_SETFL (logior O_NONBLOCK flags))
     port))
 
+(define (read/non-blocking port)
+  "Like 'read', but uses primitives that don't block and thus play well with
+fibers."
+  ;; XXX: Since 'read' is not suspendable as of Guile 2.2.3, we use
+  ;; 'read-string' (which is suspendable) and then 'read'.
+  (match (read-string port)
+    ((? eof-object? eof)
+     eof)
+    ((? string? data)
+     (call-with-input-string data read))))
+
 (define (evaluate store db spec)
   "Evaluate and build package derivations.  Return a list of jobs."
   (let* ((port (non-blocking-port
@@ -203,9 +214,7 @@ directory and the sha1 of the top level commit in this directory."
                             (%package-cachedir)
                             (object->string spec)
                             (%package-database))))
-         ;; XXX: Since 'read' is not suspendable as of Guile 2.2.3, we use
-         ;; 'read-string' (which is suspendable) and then 'read'.
-         (jobs (match (read-string port)
+         (jobs (match (read/non-blocking port)
                  ;; If an error occured during evaluation report it,
                  ;; otherwise, suppose that data read from port are
                  ;; correct and keep things going.
@@ -213,8 +222,7 @@ directory and the sha1 of the top level commit in this directory."
                   (raise (condition
                           (&evaluation-error
                            (name (assq-ref spec #:name))))))
-                 ((? string? data)
-                  (call-with-input-string data read)))))
+                 (data data))))
     (close-pipe port)
     jobs))
 
