@@ -37,7 +37,8 @@ dist_pkgmodule_DATA =				\
   src/cuirass/http.scm				\
   src/cuirass/logging.scm			\
   src/cuirass/ui.scm				\
-  src/cuirass/utils.scm
+  src/cuirass/utils.scm				\
+  src/web/server/fiberized.scm
 
 nodist_pkgmodule_DATA = \
   src/cuirass/config.scm

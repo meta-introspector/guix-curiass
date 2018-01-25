@@ -183,7 +183,12 @@
          (address (inet-ntop (hostent:addrtype host-info)
                              (car (hostent:addr-list host-info)))))
     (log-message "listening on ~A:~A" address port)
+
+    ;; Here we use our own web backend, call 'fiberized'.  We cannot use the
+    ;; 'fibers' backend that comes with Fibers 1.0.0 because it does its own
+    ;; thread creations and calls 'run-fibers' by itself, which isn't
+    ;; necessary here (and harmful).
     (run-server url-handler
-                'fibers                           ;the fibers web backend
+                'fiberized
                 `(#:host ,address #:port ,port)
                 db)))
