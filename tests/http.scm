@@ -81,6 +81,7 @@
     (#:timestamp . 1501347493)
     (#:starttime . 1501347493)
     (#:stoptime . 1501347493)
+    (#:derivation . "/gnu/store/fake.drv")
     (#:buildoutputs . ((out ("path" . "/gnu/store/fake-1.0"))))
     (#:system . "x86_64-linux")
     (#:nixname . "fake-1.0")
