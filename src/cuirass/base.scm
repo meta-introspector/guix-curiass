@@ -196,6 +196,7 @@ directory and the sha1 of the top level commit in this directory."
 fibers."
   ;; XXX: Since 'read' is not suspendable as of Guile 2.2.3, we use
   ;; 'read-string' (which is suspendable) and then 'read'.
+  (setvbuf port 'block 4096)                   ;'read-string' uses 'read-char'
   (match (read-string port)
     ((? eof-object? eof)
      eof)
