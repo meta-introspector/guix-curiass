@@ -286,6 +286,55 @@ and so on. "
 ;;; Building packages.
 ;;;
 
+(define* (spawn-builds store db jobs
+                       #:key (max-batch-size 200))
+  "Build the derivations associated with JOBS, a list of job alists, updating
+DB as builds complete.  Derivations are submitted in batches of at most
+MAX-BATCH-SIZE items."
+  ;; XXX: We want to pass 'build-derivations' as many derivations at once so
+  ;; we benefit from as much parallelism as possible (we must be using
+  ;; #:keep-going? #t).
+  ;;
+  ;; However, 'guix-daemon' currently doesn't scale well when doing a
+  ;; 'build-derivations' RPC with a lot of derivations: first it parses each
+  ;; .drv from disk (in LocalStore::buildPaths), then it locks each derivation
+  ;; and tries to run it (in Worker::run), and *only then* does it start
+  ;; listening the stdout/stderr of those builds.  As a consequence, we can
+  ;; end up starting, say, 30 builds, and only start listening to their
+  ;; stdout/stderr *minutes* later.  In the meantime, the build processes are
+  ;; mostly likely stuck in write(1, …) or similar and we can reach build
+  ;; timeouts of all sorts.
+  ;;
+  ;; This code works around it by submitting derivations in batches of at most
+  ;; MAX-BATCH-SIZE.
+
+  (define total (length jobs))
+
+  (log-message "building ~a derivations in batches of ~a"
+               (length jobs) max-batch-size)
+  (parameterize ((current-build-output-port
+                  (build-event-output-port (lambda (event status)
+                                             (handle-build-event db event))
+                                           #t)))
+    (let loop ((jobs  jobs)
+               (count total))
+      (if (zero? count)
+          (log-message "done with ~a derivations" total)
+          (let-values (((batch rest)
+                        (if (> total max-batch-size)
+                            (split-at jobs max-batch-size)
+                            (values jobs '()))))
+            (guard (c ((nix-protocol-error? c)
+                       (log-message "batch of builds (partially) failed:\
+~a (status: ~a)"
+                                    (nix-protocol-error-message c)
+                                    (nix-protocol-error-status c))))
+              (build-derivations store
+                                 (map (lambda (job)
+                                        (assq-ref job #:derivation))
+                                      batch)))
+            (loop rest (max (- total max-batch-size) 0)))))))
+
 (define* (handle-build-event db event)
   "Handle EVENT, a build event sexp as produced by 'build-event-output-port',
 updating DB accordingly."
@@ -325,20 +374,8 @@ updating DB accordingly."
 
       ;; Those in VALID can be restarted.
       (log-message "restarting ~a pending builds" (length valid))
-
-      (guard (c ((nix-protocol-error? c)
-                 (log-message "restarted builds (partially) failed: ~a (status: ~a)"
-                              (nix-protocol-error-message c)
-                              (nix-protocol-error-status c))))
-        (parameterize ((current-build-output-port
-                        (build-event-output-port (lambda (event status)
-                                                   (handle-build-event db event))
-                                                 #t)))
-          (build-derivations store
-                             (map (lambda (build)
-                                    (assq-ref build #:derivation))
-                                  valid))
-          (log-message "done with restarted builds"))))))
+      (spawn-builds store db valid)
+      (log-message "done with restarted builds"))))
 
 (define (build-packages store db jobs)
   "Build JOBS and return a list of Build results."
@@ -368,21 +405,9 @@ updating DB accordingly."
   (define build-ids
     (map register jobs))
 
-  ;; Pass all the jobs at once so we benefit from as much parallelism as
-  ;; possible (we must be using #:keep-going? #t).  Swallow build logs (the
-  ;; daemon keeps them anyway), and swallow build errors.
-  (guard (c ((nix-protocol-error? c) #t))
-    (log-message "load-path=~s" %load-path)
-    (log-message "load-compiled-path=~s" %load-compiled-path)
-    (log-message "building ~a derivations" (length jobs))
-    (parameterize ((current-build-output-port
-                    (build-event-output-port (lambda (event status)
-                                               (handle-build-event db event))
-                                             #t)))
-      (build-derivations store
-                         (map (lambda (job)
-                                (assq-ref job #:derivation))
-                              jobs))))
+  (log-message "load-path=~s" %load-path)
+  (log-message "load-compiled-path=~s" %load-compiled-path)
+  (spawn-builds store db jobs)
 
   (let* ((results (filter-map (cut db-get-build db <>) build-ids))
          (status (map (cut assq-ref <> #:status) results))
