@@ -195,6 +195,10 @@
          (object->json-string build-query-result)
        json->scm)))
 
+  (test-equal "POST /build/1"
+    405                                           ;Method Not Allowed
+    (response-code (http-post (test-cuirass-uri "/build/1"))))
+
   (test-equal "/build/1/log/raw"
     `(302 ,(string->uri-reference "/log/fake-1.0"))
     (let ((response (http-get (test-cuirass-uri "/build/1/log/raw"))))

@@ -130,7 +130,10 @@
   (log-message "~a ~a" (request-method request)
                (uri-path (request-uri request)))
 
-  (match (request-path-components request)
+  ;; Reject OPTIONS, POST, etc.
+  (match (if (eq? 'GET (request-method request))
+             (request-path-components request)
+             'method-not-allowed)
     (((or "jobsets" "specifications") . rest)
      (respond-json (object->json-string (car (db-get-specifications db)))))
     (("build" build-id)
@@ -182,6 +185,9 @@
                                                    ,@params
                                                    (order submission-time)))))
            (respond-json-with-error 500 "Parameter not defined!"))))
+    ('method-not-allowed
+     ;; 405 "Method Not Allowed"
+     (values (build-response #:code 405) #f db))
     (_
      (respond (build-response #:code 404)
               #:body (string-append "Resource not found: "
