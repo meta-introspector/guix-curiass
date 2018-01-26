@@ -29,6 +29,7 @@ exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
              (cuirass logging)
              (guix ui)
              (fibers)
+             (fibers channels)
              (ice-9 getopt-long))
 
 (define (show-help)
@@ -107,7 +108,8 @@ exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
                                 new-specs)))
                (if one-shot?
                    (process-specs db (db-get-specifications db))
-                   (let ((pending
+                   (let ((exit-channel (make-channel))
+                         (pending
                           (begin
                             (log-message "retrieving list of pending builds...")
                             (db-get-builds db '((status pending))))))
@@ -121,16 +123,33 @@ exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
 
                      (spawn-fiber
                       (lambda ()
-                        (with-database db
-                          (while #t
-                            (process-specs db (db-get-specifications db))
-                            (log-message "sleeping for ~a seconds" interval)
-                            (sleep interval)))))
+                        (catch #t
+                          (lambda ()
+                            (with-database db
+                              (while #t
+                                (process-specs db (db-get-specifications db))
+                                (log-message "sleeping for ~a seconds" interval)
+                                (sleep interval))))
+                          (lambda (key . args)
+                            ;; If something goes wrong in this fiber, we have
+                            ;; a problem, so stop everything.
+                            (log-message "uncaught exception in main fiber!")
 
-                     (with-database db
-                       (run-cuirass-server db
-                                           #:host host
-                                           #:port port))
-                     *unspecified*))))
+                            (false-if-exception
+                             (let ((stack (make-stack #t)))
+                               (display-backtrace stack (current-error-port))
+                               (print-exception (current-error-port)
+                                                (stack-ref stack 0)
+                                                key args)))
+                            (put-message exit-channel 1)))))
+
+                     (spawn-fiber
+                      (lambda ()
+                        (with-database db
+                          (run-cuirass-server db
+                                              #:host host
+                                              #:port port))))
+
+                     (primitive-exit (get-message exit-channel))))))
 
            #:drain? #t)))))))
