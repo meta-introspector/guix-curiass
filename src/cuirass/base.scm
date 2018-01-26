@@ -337,18 +337,34 @@ MAX-BATCH-SIZE items."
 (define* (handle-build-event db event)
   "Handle EVENT, a build event sexp as produced by 'build-event-output-port',
 updating DB accordingly."
+  (define (valid? file)
+    ;; FIXME: Sometimes we might get bogus events due to the interleaving of
+    ;; build messages.  This procedure prevents us from propagating the bogus
+    ;; file name to the database.
+    (and (store-path? file)
+         (string-suffix? ".drv" file)))
+
   (match event
     (('build-started drv _ ...)
-     (log-message "build started: '~a'" drv)
-     (db-update-build-status! db drv (build-status started)))
+     (if (valid? drv)
+         (begin
+           (log-message "build started: '~a'" drv)
+           (db-update-build-status! db drv (build-status started)))
+         (log-message "bogus build-started event for '~a'" drv)))
     (('build-remote drv host _ ...)
      (log-message "'~a' offloaded to '~a'" drv host))
     (('build-succeeded drv _ ...)
-     (log-message "build succeeded: '~a'" drv)
-     (db-update-build-status! db drv (build-status succeeded)))
+     (if (valid? drv)
+         (begin
+           (log-message "build succeeded: '~a'" drv)
+           (db-update-build-status! db drv (build-status succeeded)))
+         (log-message "bogus build-succeeded event for '~a'" drv)))
     (('build-failed drv _ ...)
-     (log-message "build failed: '~a'" drv)
-     (db-update-build-status! db drv (build-status failed)))
+     (if (valid? drv)
+         (begin
+           (log-message "build failed: '~a'" drv)
+           (db-update-build-status! db drv (build-status failed)))
+         (log-message "bogus build-failed event for '~a'" drv)))
     (('substituter-started item _ ...)
      (log-message "substituter started: '~a'" item))
     (('substituter-succeeded item _ ...)
