@@ -388,16 +388,32 @@ updating DB accordingly."
                                   (valid-path? store drv)))
                               builds)))
       ;; We cannot restart builds listed in STALE, so mark them as canceled.
-      (log-message "canceling ~a pending builds" (length stale))
+      (log-message "canceling ~a stale builds" (length stale))
       (for-each (lambda (build)
                   (db-update-build-status! db (assq-ref build #:derivation)
                                            (build-status canceled)))
                 stale)
 
-      ;; Those in VALID can be restarted.
-      (log-message "restarting ~a pending builds" (length valid))
-      (spawn-builds store db valid)
-      (log-message "done with restarted builds"))))
+      ;; Those in VALID can be restarted, but some of them may actually be
+      ;; done already--either because our database is outdated, or because it
+      ;; was not built by Cuirass.
+      (let-values (((done remaining)
+                    (partition (lambda (build)
+                                 (match (assq-ref build #:outputs)
+                                   (((name ((#:path . item))) _ ...)
+                                    (valid-path? store item))
+                                   (_ #f)))
+                               valid)))
+        (log-message "~a of the pending builds had actually completed"
+                     (length done))
+        (for-each (lambda (build)
+                    (db-update-build-status! db (assq-ref build #:derivation)
+                                             (build-status succeeded)))
+                  done)
+
+        (log-message "restarting ~a pending builds" (length remaining))
+        (spawn-builds store db remaining)
+        (log-message "done with restarted builds")))))
 
 (define (build-packages store db jobs)
   "Build JOBS and return a list of Build results."
