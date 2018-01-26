@@ -32,6 +32,9 @@
 
 (define (build->hydra-build build)
   "Convert BUILD to an assoc list matching hydra API format."
+  (define (bool->int bool)
+    (if bool 1 0))
+
   `((#:id . ,(assq-ref build #:id))
     (#:project . ,(assq-ref build #:repo-name))
     (#:jobset . ,(assq-ref build #:branch))
@@ -44,11 +47,13 @@
     (#:system . ,(assq-ref build #:system))
     (#:nixname . ,(assq-ref build #:nix-name))
     (#:buildstatus . ,(assq-ref build #:status))
-
-    ;; TODO: Fill the fields above with correct values.
-    (#:busy . 0)
+    (#:busy . ,(bool->int (eqv? (build-status started)
+                                (assq-ref build #:status))))
     (#:priority . 0)
-    (#:finished . 1)
+    (#:finished . ,(bool->int
+                    (not (memv (assq-ref build #:status)
+                               (list (build-status scheduled)
+                                     (build-status started))))))
     (#:buildproducts . #nil)
     (#:releasename . #nil)
     (#:buildinputs_builds . #nil)))
