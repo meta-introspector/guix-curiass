@@ -20,12 +20,16 @@
 
 (define-module (cuirass utils)
   #:use-module (ice-9 match)
+  #:use-module (ice-9 threads)
   #:use-module (srfi srfi-1)
   #:use-module (json)
+  #:use-module (fibers)
+  #:use-module (fibers channels)
   #:export (alist?
             object->json-scm
             object->json-string
-            define-enumeration))
+            define-enumeration
+            non-blocking))
 
 (define (alist? obj)
   "Return #t if OBJ is an alist."
@@ -57,3 +61,20 @@ value."
     (syntax-rules (symbol ...)
       ((_ symbol) value)
       ...)))
+
+(define (%non-blocking thunk)
+  (let ((channel (make-channel)))
+    (call-with-new-thread
+     (lambda ()
+       (call-with-values thunk
+         (lambda values
+           (put-message channel values)))))
+    (apply values (get-message channel))))
+
+(define-syntax-rule (non-blocking exp ...)
+  "Evalaute EXP... in a separate thread so that it doesn't block the execution
+of fibers.
+
+This is useful when passing control to non-cooperative and non-resumable code
+such as a 'clone' call in Guile-Git."
+  (%non-blocking (lambda () exp ...)))
