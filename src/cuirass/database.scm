@@ -99,6 +99,11 @@ SQL statement to DB.  FMT and ARGS are passed to 'format'."
               (reverse! insts)
               (loop (cons inst insts))))))))
 
+(define (wal-mode db)
+  "Turn DB in \"write-ahead log\" mode and return it."
+  (sqlite-exec db "PRAGMA journal_mode=WAL;")
+  db)
+
 (define* (db-init #:optional (db-name (%package-database))
                   #:key (schema (%package-schema-file)))
   "Open the database to store and read jobs and builds informations.  Return a
@@ -115,9 +120,12 @@ database object."
 (define* (db-open #:optional (db (%package-database)))
   "Open database to store or read jobs and builds informations.  Return a
 database object."
-  (if (file-exists? db)
-      (sqlite-open db SQLITE_OPEN_READWRITE)
-      (db-init db)))
+  ;; Use "write-ahead log" mode because it improves concurrency and should
+  ;; avoid SQLITE_LOCKED errors when we have several readers:
+  ;; <https://www.sqlite.org/wal.html>.
+  (wal-mode (if (file-exists? db)
+                (sqlite-open db SQLITE_OPEN_READWRITE)
+                (db-init db))))
 
 (define (db-close db)
   "Close database object DB."
