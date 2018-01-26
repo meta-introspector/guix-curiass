@@ -40,7 +40,8 @@
   #:use-module (ice-9 binary-ports)
   #:use-module (ice-9 match)
   #:use-module (fibers)
-  #:use-module (fibers channels))
+  #:use-module (fibers channels)
+  #:use-module (cuirass logging))
 
 (define (make-default-socket family addr port)
   (let ((sock (socket PF_INET SOCK_STREAM 0)))
@@ -142,6 +143,9 @@
   (let loop ()
     (match (accept socket (logior SOCK_NONBLOCK SOCK_CLOEXEC))
       ((client . sockaddr)
+       (log-message "HTTP connection from ~a"
+                    (inet-ntop (sockaddr:fam sockaddr)
+                               (sockaddr:addr sockaddr)))
        (spawn-fiber (lambda () (client-loop client have-request))
                     #:parallel? #t)
        (loop)))))

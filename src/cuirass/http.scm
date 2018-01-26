@@ -121,6 +121,9 @@
        404
        (format #f "The build log of derivation ~a is not available." drv))))
 
+  (log-message "~a ~a" (request-method request)
+               (uri-path (request-uri request)))
+
   (match (request-path-components request)
     (((or "jobsets" "specifications") . rest)
      (respond-json (object->json-string (car (db-get-specifications db)))))
