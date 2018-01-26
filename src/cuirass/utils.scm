@@ -21,6 +21,8 @@
 (define-module (cuirass utils)
   #:use-module (ice-9 match)
   #:use-module (ice-9 threads)
+  #:use-module (rnrs bytevectors)
+  #:use-module (system foreign)
   #:use-module (srfi srfi-1)
   #:use-module (json)
   #:use-module (fibers)
@@ -29,7 +31,8 @@
             object->json-scm
             object->json-string
             define-enumeration
-            non-blocking))
+            non-blocking
+            bytevector-range))
 
 (define (alist? obj)
   "Return #t if OBJ is an alist."
@@ -78,3 +81,21 @@ of fibers.
 This is useful when passing control to non-cooperative and non-resumable code
 such as a 'clone' call in Guile-Git."
   (%non-blocking (lambda () exp ...)))
+
+(define %weak-references
+  (make-weak-key-hash-table))
+
+(define (bytevector-range bv offset count)
+  "Return a bytevector that aliases the COUNT bytes of BV starting at OFFSET."
+  (cond ((and (zero? offset) (= count (bytevector-length bv)))
+         bv)
+        ((or (> (+ offset count) (bytevector-length bv))
+             (< offset 0))
+         (throw 'out-of-range "bytevector-range"
+                "Bytevector range is invalid: ~S ~S"
+                (list offset count) (list offset count)))
+        (else
+         (let* ((pointer (bytevector->pointer bv offset))
+                (range   (pointer->bytevector pointer count)))
+           (hashq-set! %weak-references range bv)
+           range))))
