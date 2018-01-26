@@ -22,6 +22,7 @@
              (cuirass database)
              (cuirass utils)
              (json)
+             (fibers)
              (web uri)
              (web client)
              (web response)
@@ -124,7 +125,10 @@
   (test-assert "cuirass-run"
     (call-with-new-thread
      (lambda ()
-       (run-cuirass-server (%db) #:port 6688))))
+       (run-fibers
+        (lambda ()
+          (run-cuirass-server (%db) #:port 6688))
+        #:drain? #t))))
 
   (test-assert "wait-server"
     (wait-until-ready 6688))
