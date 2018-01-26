@@ -265,7 +265,7 @@ and so on. "
                  %state))))))
 
   (define (write! bv offset count)
-    (let loop ((str (utf8->string bv)))
+    (let loop ((str (utf8->string (bytevector-range bv offset count))))
       (match (string-index str %newline)
         ((? integer? cr)
          (let ((tail (string-take str cr)))
