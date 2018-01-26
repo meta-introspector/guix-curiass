@@ -107,7 +107,11 @@ exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
                                 new-specs)))
                (if one-shot?
                    (process-specs db (db-get-specifications db))
-                   (let ((pending (db-get-builds db '((status pending)))))
+                   (let ((pending
+                          (begin
+                            (log-message "retrieving list of pending builds...")
+                            (db-get-builds db '((status pending))))))
+
                      ;; First off, restart builds that had not completed or
                      ;; were not even started on a previous run.
                      (spawn-fiber
