@@ -21,7 +21,8 @@
   #:use-module (ice-9 format)
   #:export (current-logging-port
             current-logging-procedure
-            log-message))
+            log-message
+            with-time-logging))
 
 (define current-logging-port
   (make-parameter (current-error-port)))
@@ -46,3 +47,17 @@
   ;; Note: Use '@' to make sure -Wformat detects this use of 'format'.
   ((current-logging-procedure)
    ((@ (ice-9 format) format) #f fmt args ...)))
+
+(define (call-with-time-logging name thunk)
+  (let* ((start   (current-time time-utc))
+         (result  (thunk))
+         (end     (current-time time-utc))
+         (elapsed (time-difference end start)))
+    (log-message "~a took ~a seconds" name
+                 (+ (time-second elapsed)
+                    (/ (time-nanosecond elapsed) 1e9)))
+    result))
+
+(define-syntax-rule (with-time-logging name exp ...)
+  "Log under NAME the time taken to evaluate EXP."
+  (call-with-time-logging name (lambda () exp ...)))

@@ -62,7 +62,8 @@
 (define (handle-builds-request db filters)
   "Retrieve all builds matched by FILTERS in DB and convert them to hydra
   format."
-  (let ((builds (db-get-builds db filters)))
+  (let ((builds (with-time-logging "builds request"
+                                   (db-get-builds db filters))))
     (map build->hydra-build builds)))
 
 (define (request-parameters request)
