@@ -23,6 +23,7 @@
   #:use-module (fibers)
   #:use-module (cuirass logging)
   #:use-module (cuirass database)
+  #:use-module (cuirass utils)
   #:use-module (gnu packages)
   #:use-module (guix build utils)
   #:use-module (guix derivations)
@@ -480,7 +481,7 @@ updating DB accordingly."
          (log-message "considering spec '~a', URL '~a'"
                       name (assoc-ref spec #:url))
          (receive (checkout commit)
-             (fetch-repository store spec)
+             (non-blocking (fetch-repository store spec))
            (log-message "spec '~a': fetched commit ~s (stamp was ~s)"
                         name commit stamp)
            (when commit
@@ -492,8 +493,9 @@ updating DB accordingly."
                (copy-repository-cache checkout spec)
 
                (unless (assq-ref spec #:no-compile?)
-                 (compile (string-append (%package-cachedir) "/"
-                                         (assq-ref spec #:name))))
+                 (non-blocking
+                  (compile (string-append (%package-cachedir) "/"
+                                          (assq-ref spec #:name)))))
 
                (spawn-fiber
                 (lambda ()
