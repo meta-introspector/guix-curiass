@@ -19,6 +19,7 @@
 ;;; along with Cuirass.  If not, see <http://www.gnu.org/licenses/>.
 
 (define-module (cuirass utils)
+  #:use-module (cuirass logging)
   #:use-module (ice-9 match)
   #:use-module (ice-9 threads)
   #:use-module (rnrs bytevectors)
@@ -32,6 +33,7 @@
             object->json-string
             define-enumeration
             non-blocking
+            essential-task
             bytevector-range))
 
 (define (alist? obj)
@@ -81,6 +83,35 @@ of fibers.
 This is useful when passing control to non-cooperative and non-resumable code
 such as a 'clone' call in Guile-Git."
   (%non-blocking (lambda () exp ...)))
+
+(define (essential-task name exit-channel thunk)
+  "Return a thunk that wraps THUNK, catching exceptions and writing an exit
+code to EXIT-CHANNEL when an exception occurs.  The idea is that the other end
+of the EXIT-CHANNEL will exit altogether when that occurs.
+
+This is often necessary because an uncaught exception in a fiber causes it to
+die silently while the rest of the program keeps going."
+  (lambda ()
+    (catch #t
+      thunk
+      (lambda _
+        (put-message exit-channel 1))             ;to be sure...
+      (lambda (key . args)
+        ;; If something goes wrong in this fiber, we have a problem, so stop
+        ;; everything.
+        (log-message "fatal: uncaught exception '~a' in '~a' fiber!"
+                     key name)
+        (log-message "exception arguments: ~s" args)
+
+        (false-if-exception
+         (let ((stack (make-stack #t)))
+           (display-backtrace stack (current-error-port))
+           (print-exception (current-error-port)
+                            (stack-ref stack 0)
+                            key args)))
+
+        ;; Tell the other end to exit with a non-zero code.
+        (put-message exit-channel 1)))))
 
 (define %weak-references
   (make-weak-key-hash-table))

@@ -27,6 +27,7 @@ exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
 (use-modules (cuirass)
              (cuirass ui)
              (cuirass logging)
+             (cuirass utils)
              (guix ui)
              (fibers)
              (fibers channels)
@@ -117,38 +118,28 @@ exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
                      ;; First off, restart builds that had not completed or
                      ;; were not even started on a previous run.
                      (spawn-fiber
-                      (lambda ()
-                        (with-database db
-                          (restart-builds db pending))))
+                      (essential-task
+                       'restart-builds exit-channel
+                       (lambda ()
+                         (with-database db
+                           (restart-builds db pending)))))
 
                      (spawn-fiber
-                      (lambda ()
-                        (catch #t
-                          (lambda ()
-                            (with-database db
-                              (while #t
-                                (process-specs db (db-get-specifications db))
-                                (log-message "sleeping for ~a seconds" interval)
-                                (sleep interval))))
-                          (lambda (key . args)
-                            ;; If something goes wrong in this fiber, we have
-                            ;; a problem, so stop everything.
-                            (log-message "uncaught exception in main fiber!")
-
-                            (false-if-exception
-                             (let ((stack (make-stack #t)))
-                               (display-backtrace stack (current-error-port))
-                               (print-exception (current-error-port)
-                                                (stack-ref stack 0)
-                                                key args)))
-                            (put-message exit-channel 1)))))
+                      (essential-task
+                       'build exit-channel
+                       (lambda ()
+                         (with-database db
+                           (while #t
+                             (process-specs db (db-get-specifications db))
+                             (log-message "next evaluation in ~a seconds" interval)
+                             (sleep interval))))))
 
                      (spawn-fiber
-                      (lambda ()
-                        (with-database db
-                          (run-cuirass-server db
-                                              #:host host
-                                              #:port port))))
+                      (essential-task
+                       'web-server exit-channel
+                       (lambda ()
+                         (with-database db
+                           (run-cuirass-server db #:host host #:port port)))))
 
                      (primitive-exit (get-message exit-channel))))))
 
