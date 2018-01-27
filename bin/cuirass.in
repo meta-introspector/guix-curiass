@@ -139,7 +139,8 @@ exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
                        'web-server exit-channel
                        (lambda ()
                          (with-database db
-                           (run-cuirass-server db #:host host #:port port)))))
+                           (run-cuirass-server db #:host host #:port port))))
+                      #:parallel? #t)
 
                      (primitive-exit (get-message exit-channel))))))
 
