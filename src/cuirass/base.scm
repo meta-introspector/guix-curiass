@@ -329,6 +329,8 @@ MAX-BATCH-SIZE items."
 ~a (status: ~a)"
                                     (nix-protocol-error-message c)
                                     (nix-protocol-error-status c))))
+              (log-message "building batch of ~a jobs (~a/~a)"
+                           max-batch-size count total)
               (build-derivations store
                                  (map (lambda (job)
                                         (assq-ref job #:derivation))
