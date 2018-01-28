@@ -286,6 +286,16 @@ and so on. "
 ;;; Building packages.
 ;;;
 
+(define (shuffle-jobs jobs)
+  "Shuffle JOBS, a list of job alists."
+  ;; Our shuffling algorithm is simple: we sort by .drv file name.  :-)
+  (define (job<? job1 job2)
+    (let ((drv1 (assq-ref job1 #:derivation))
+          (drv2 (assq-ref job2 #:derivation)))
+      (string<? drv1 drv2)))
+
+  (sort jobs job<?))
+
 (define* (spawn-builds store db jobs
                        #:key (max-batch-size 200))
   "Build the derivations associated with JOBS, a list of job alists, updating
@@ -316,7 +326,9 @@ MAX-BATCH-SIZE items."
                   (build-event-output-port (lambda (event status)
                                              (handle-build-event db event))
                                            #t)))
-    (let loop ((jobs  jobs)
+    ;; Shuffle jobs so that we don't build sequentially i686/x86_64/aarch64,
+    ;; master/core-updates, etc., which would be suboptimal.
+    (let loop ((jobs  (shuffle-jobs jobs))
                (count total))
       (if (zero? count)
           (log-message "done with ~a derivations" total)
