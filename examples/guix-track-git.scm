@@ -190,20 +190,22 @@ valid."
       (move->fdes port fdes)
       result)))
 
-(define* (package->git-tracked pkg #:key (branch "master") commit url)
+(define* (package->git-tracked store pkg #:key (branch "master") commit url)
   (let* ((source (package-source pkg))
          (uri (origin-uri source)))
-    (if (not branch) pkg
-        (let* ((spec (package->spec pkg #:branch branch #:commit commit #:url url))
-               (commit (call-with-output-fdes 1 "/dev/null"
-                                              (lambda () (fetch-repository spec))))
-               (url (or url (git-reference-url uri)))
-               (git-dir (string-append (%package-cachedir) "/" (url->file-name url)))
-               (hash (bytevector->nix-base32-string (file-hash git-dir)))
-               (source (origin (uri (git-reference (url url) (commit commit)))
-                              (method git-fetch)
-                              (sha256 (base32 hash)))))
-          (set-fields pkg ((package-source) source))))))
+    (if (not branch)
+        pkg
+        (let* ((spec (package->spec pkg #:branch branch #:commit commit #:url url)))
+          (let-values (((checkout commit)
+                        (fetch-repository store spec)))
+            (let* ((url (or url (git-reference-url uri)))
+                   ; maybe (string-append (%package-cachedir) "/" (url->file-name url))
+                   (git-dir checkout)
+                   (hash (bytevector->nix-base32-string (file-hash git-dir)))
+                   (source (origin (uri (git-reference (url url) (commit commit)))
+                                   (method git-fetch)
+                                   (sha256 (base32 hash)))))
+              (set-fields pkg ((package-source) source))))))))
 
 
 ;;;
@@ -215,7 +217,7 @@ valid."
          (pkg (specification->package name))
          (branch (or (assoc-ref arguments 'branch) "master"))
          (url (assoc-ref arguments 'url))
-         (pkg.git (package->git-tracked pkg #:branch branch #:url url))
+         (pkg.git (package->git-tracked store pkg #:branch branch #:url url))
          (system (or (assoc-ref arguments 'system) "x86_64-linux")))
     (parameterize ((%graft? #f))
       (list (package-job store (job-name pkg) pkg.git system)))))
