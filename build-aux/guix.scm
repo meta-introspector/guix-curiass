@@ -78,6 +78,7 @@
   (inputs
    (map spec+package-list
         '("guile@2.2"
+          "guile-fibers"
           "guile-json"
           "guile-sqlite3"
           "guile-git"
