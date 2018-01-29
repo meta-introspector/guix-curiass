@@ -36,6 +36,7 @@
   #:use-module (ice-9 popen)
   #:use-module (ice-9 rdelim)
   #:use-module (ice-9 receive)
+  #:use-module (ice-9 atomic)
   #:use-module (srfi srfi-1)
   #:use-module (srfi srfi-11)
   #:use-module (srfi srfi-19)
@@ -235,51 +236,71 @@ fibers."
 ;; TODO: Remove this code once it has been integrated in Guix proper as (guix
 ;; status).
 
-(define %newline
-  (char-set #\return #\newline))
+(define (read-line/non-blocking port)
+  "Like 'read-line', but unlike 'read-line', use I/O primitives that can be
+suspended when PORT is O_NONBLOCK in a fiber context."
+  (let loop ((chars '()))
+    (match (read-char port)                       ;can suspend
+      ((? eof-object? eof)
+       (if (null? chars)
+           eof
+           (list->string (reverse chars))))
+      (#\newline
+       (list->string (reverse chars)))
+      (chr
+       (loop (cons chr chars))))))
 
-(define (build-event-output-port proc seed)
-  "Return an output port for use as 'current-build-output-port' that calls
-PROC with its current state value, initialized with SEED, on every build
-event.  Build events passed to PROC are tuples corresponding to the \"build
-traces\" produced by the daemon:
-
-  (build-started \"/gnu/store/...-foo.drv\" ...)
-  (substituter-started \"/gnu/store/...-foo\" ...)
-
-and so on. "
-  (define %fragments
-    ;; Line fragments received so far.
-    '())
-
-  (define %state
-    ;; Current state for PROC.
-    seed)
-
-  (define (process-line line)
+(define (process-build-log port proc seed)
+  "Read from PORT the build log, calling PROC for each build event like 'fold'
+does.  Return the result of the last call to PROC."
+  (define (process-line line state)
     (when (string-prefix? "@ " line)
       (match (string-tokenize (string-drop line 2))
         (((= string->symbol event-name) args ...)
-         (set! %state
-           (proc (cons event-name args)
-                 %state))))))
+         (proc (cons event-name args) state)))))
 
-  (define (write! bv offset count)
-    (let loop ((str (utf8->string (bytevector-range bv offset count))))
-      (match (string-index str %newline)
-        ((? integer? cr)
-         (let ((tail (string-take str cr)))
-           (process-line (string-concatenate-reverse
-                          (cons tail %fragments)))
-           (set! %fragments '())
-           (loop (string-drop str (+ 1 cr)))))
-        (#f
-         (set! %fragments (cons str %fragments))
-         count))))
+  (let loop ((state seed))
+    (match (read-line/non-blocking port)
+      ((? eof-object?)
+       state)
+      ((? string? line)
+       (loop (process-line line state))))))
 
-  (make-custom-binary-output-port "filtering-input-port"
-                                  write!
-                                  #f #f #f))
+(define (build-derivations& store lst)
+  "Like 'build-derivations' but return two values: a file port from which to
+read the build log, and a thunk to call after EOF has been read.  The thunk
+returns the value of the underlying 'build-derivations' call, or raises the
+exception that 'build-derivations' raised.
+
+Essentially this procedure inverts the inversion-of-control that
+'build-derivations' imposes, whereby 'build-derivations' writes to
+'current-build-output-port'."
+  ;; XXX: Make this part of (guix store)?
+  (define result
+    (make-atomic-box #f))
+
+  (match (pipe)
+    ((input . output)
+     (call-with-new-thread
+      (lambda ()
+        (catch #t
+          (lambda ()
+            (guard (c ((nix-error? c)
+                       (close-port output)
+                       (atomic-box-set! result c)))
+              (parameterize ((current-build-output-port output))
+                (let ((x (build-derivations store lst)))
+                  (atomic-box-set! result x))))
+            (close-port output))
+          (lambda _
+            (close-port output)))))
+
+     (values (non-blocking-port input)
+             (lambda ()
+               (match (atomic-box-ref result)
+                 ((? condition? c)
+                  (raise c))
+                 (x x)))))))
 
 
 ;;;
@@ -322,32 +343,36 @@ MAX-BATCH-SIZE items."
 
   (log-message "building ~a derivations in batches of ~a"
                (length jobs) max-batch-size)
-  (parameterize ((current-build-output-port
-                  (build-event-output-port (lambda (event status)
-                                             (handle-build-event db event))
-                                           #t)))
-    ;; Shuffle jobs so that we don't build sequentially i686/x86_64/aarch64,
-    ;; master/core-updates, etc., which would be suboptimal.
-    (let loop ((jobs  (shuffle-jobs jobs))
-               (count total))
-      (if (zero? count)
-          (log-message "done with ~a derivations" total)
-          (let-values (((batch rest)
-                        (if (> total max-batch-size)
-                            (split-at jobs max-batch-size)
-                            (values jobs '()))))
-            (guard (c ((nix-protocol-error? c)
-                       (log-message "batch of builds (partially) failed:\
+
+  ;; Shuffle jobs so that we don't build sequentially i686/x86_64/aarch64,
+  ;; master/core-updates, etc., which would be suboptimal.
+  (let loop ((jobs  (shuffle-jobs jobs))
+             (count total))
+    (if (zero? count)
+        (log-message "done with ~a derivations" total)
+        (let-values (((batch rest)
+                      (if (> total max-batch-size)
+                          (split-at jobs max-batch-size)
+                          (values jobs '()))))
+          (guard (c ((nix-protocol-error? c)
+                     (log-message "batch of builds (partially) failed:\
 ~a (status: ~a)"
-                                    (nix-protocol-error-message c)
-                                    (nix-protocol-error-status c))))
-              (log-message "building batch of ~a jobs (~a/~a)"
-                           max-batch-size count total)
-              (build-derivations store
-                                 (map (lambda (job)
-                                        (assq-ref job #:derivation))
-                                      batch)))
-            (loop rest (max (- total max-batch-size) 0)))))))
+                                  (nix-protocol-error-message c)
+                                  (nix-protocol-error-status c))))
+            (log-message "building batch of ~a jobs (~a/~a)"
+                         max-batch-size count total)
+            (let-values (((port finish)
+                          (build-derivations& store
+                                              (map (lambda (job)
+                                                     (assq-ref job #:derivation))
+                                                   batch))))
+              (process-build-log port
+                                 (lambda (event state)
+                                   (handle-build-event db event))
+                                 #t)
+              (close-port port)
+              (finish)))
+          (loop rest (max (- total max-batch-size) 0))))))
 
 (define* (handle-build-event db event)
   "Handle EVENT, a build event sexp as produced by 'build-event-output-port',
