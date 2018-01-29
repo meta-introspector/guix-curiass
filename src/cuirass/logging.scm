@@ -19,10 +19,13 @@
 (define-module (cuirass logging)
   #:use-module (srfi srfi-19)
   #:use-module (ice-9 format)
+  #:use-module (ice-9 threads)
+  #:use-module (ice-9 ftw)
   #:export (current-logging-port
             current-logging-procedure
             log-message
-            with-time-logging))
+            with-time-logging
+            log-monitoring-stats))
 
 (define current-logging-port
   (make-parameter (current-error-port)))
@@ -61,3 +64,13 @@
 (define-syntax-rule (with-time-logging name exp ...)
   "Log under NAME the time taken to evaluate EXP."
   (call-with-time-logging name (lambda () exp ...)))
+
+(define (log-monitoring-stats)
+  "Log info about useful metrics: heap size, number of threads, etc."
+  (log-message "heap: ~,2f MiB; threads: ~a; file descriptors: ~a"
+               (/ (assoc-ref (gc-stats) 'heap-size) (expt 2. 20))
+               (length (all-threads))
+               (length
+                (scandir "/proc/self/fd"
+                         (lambda (file)
+                           (not (member file '("." ".."))))))))
