@@ -361,6 +361,10 @@ FILTERS is an assoc list which possible keys are 'project | 'jobset | 'job |
                 "ORDER BY Builds.start DESC")
                (('order 'submission-time)
                 "ORDER BY Builds.timestamp DESC")
+               (('order 'status+submission-time)
+                ;; With this order, builds in 'running' state (-1) appear
+                ;; before those in 'scheduled' state (-2).
+                "ORDER BY Builds.status DESC, Builds.timestamp DESC")
                (_ #f))
              filters)
         "ORDER BY Builds.id DESC"))               ;default order

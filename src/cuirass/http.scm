@@ -179,11 +179,14 @@
             ;; 'nr parameter is mandatory to limit query size.
             (valid-params? (assq-ref params 'nr)))
        (if valid-params?
-           (respond-json (object->json-string
-                          (handle-builds-request db
-                                                 `((status pending)
-                                                   ,@params
-                                                   (order submission-time)))))
+           (respond-json
+            (object->json-string
+             ;; Use the 'status+submission-time' order so that builds in
+             ;; 'running' state appear before builds in 'scheduled' state.
+             (handle-builds-request db
+                                    `((status pending)
+                                      ,@params
+                                      (order status+submission-time)))))
            (respond-json-with-error 500 "Parameter not defined!"))))
     ('method-not-allowed
      ;; 405 "Method Not Allowed"
