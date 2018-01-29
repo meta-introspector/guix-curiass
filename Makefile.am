@@ -187,10 +187,12 @@ info_TEXINFOS = doc/cuirass.texi
 doc_cuirass_TEXINFOS = doc/fdl-1.3.texi
 
 # Install the examples.
-nobase_dist_pkgdata_DATA = \
-  examples/gnu-system.scm \
-  examples/guix-jobs.scm \
-  examples/hello-singleton.scm \
+nobase_dist_pkgdata_DATA =			\
+  examples/random.scm				\
+  examples/random-jobs.scm			\
+  examples/gnu-system.scm			\
+  examples/guix-jobs.scm			\
+  examples/hello-singleton.scm			\
   examples/hello-subset.scm
 
 ## -------------- ##
