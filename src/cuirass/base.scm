@@ -204,6 +204,16 @@ fibers."
     ((? string? data)
      (call-with-input-string data read))))
 
+(match (resolve-module '(fibers internal) #t #f #:ensure #f)
+  (#f #t)                                         ;Fibers > 1.0.0
+  ((? module? internal)                           ;Fibers <= 1.0.0
+   ;; Work around <https://github.com/wingo/fibers/issues/19>.
+   ;; This monkey-patching aims to replace EPOLLERR occurrences in
+   ;; 'schedule-fibers-for-fd' with EPOLLERR | EPOLLHUP.
+   (module-define! internal 'EPOLLERR
+                   (logior (@ (fibers epoll) EPOLLERR)
+                           (@ (fibers epoll) EPOLLHUP)))))
+
 (define (evaluate store db spec)
   "Evaluate and build package derivations.  Return a list of jobs."
   (let* ((port (non-blocking-port
