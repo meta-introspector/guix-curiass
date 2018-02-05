@@ -493,8 +493,6 @@ updating DB accordingly."
   (define build-ids
     (map register jobs))
 
-  (log-message "load-path=~s" %load-path)
-  (log-message "load-compiled-path=~s" %load-compiled-path)
   (spawn-builds store db jobs)
 
   (let* ((results (filter-map (cut db-get-build db <>) build-ids))
