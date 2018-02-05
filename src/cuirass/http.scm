@@ -138,7 +138,7 @@
              (request-path-components request)
              'method-not-allowed)
     (((or "jobsets" "specifications") . rest)
-     (respond-json (object->json-string (car (db-get-specifications db)))))
+     (respond-json (object->json-string (db-get-specifications db))))
     (("build" build-id)
      (let ((hydra-build (handle-build-request db build-id)))
        (if hydra-build
