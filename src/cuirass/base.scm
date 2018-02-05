@@ -370,7 +370,7 @@ MAX-BATCH-SIZE items."
                                   (nix-protocol-error-message c)
                                   (nix-protocol-error-status c))))
             (log-message "building batch of ~a jobs (~a/~a)"
-                         max-batch-size count total)
+                         max-batch-size (- total count) total)
             (let-values (((port finish)
                           (build-derivations& store
                                               (map (lambda (job)
