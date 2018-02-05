@@ -198,6 +198,15 @@ Wait @var{n} seconds between each poll.
 This can be useful when you are not interested in building the
 dependencies of a particular job.
 
+@item --threads=@var{n}
+Use up to @var{n} kernel threads.
+
+@var{n} should be lower than or equal to the number of CPU cores on the
+machine.  In general though, having a large @var{n} is not very useful
+since the work of Cuirass is primarily I/O-bound---on the contrary,
+large values of @var{n} may increase overhead.  The default value should
+be appropriate for most cases.
+
 @item --version
 @itemx -V
 Display the actual version of @code{cuirass}.

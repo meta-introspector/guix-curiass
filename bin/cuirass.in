@@ -8,6 +8,7 @@ exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
 ;;;; cuirass -- continuous integration tool
 ;;; Copyright © 2016 Mathieu Lirzin <mthl@gnu.org>
 ;;; Copyright © 2017 Mathieu Othacehe <m.othacehe@gmail.com>
+;;; Copyright © 2018 Ludovic Courtès <ludo@gnu.org>
 ;;;
 ;;; This file is part of Cuirass.
 ;;;
@@ -31,6 +32,7 @@ exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
              (guix ui)
              (fibers)
              (fibers channels)
+             (ice-9 threads)                    ;for 'current-processor-count'
              (ice-9 getopt-long))
 
 (define (show-help)
@@ -48,6 +50,7 @@ exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
       --listen=HOST         Listen on the network interface for HOST
   -I, --interval=N          Wait N seconds between each poll
       --use-substitutes     Allow usage of pre-built substitutes
+      --threads=N           Use up to N kernel threads
   -V, --version             Display version
   -h, --help                Display this help message")
   (newline)
@@ -63,6 +66,7 @@ exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
     (listen                           (value #t))
     (interval       (single-char #\I) (value #t))
     (use-substitutes                  (value #f))
+    (threads                          (value #t))
     (fallback                         (value #f))
     (version        (single-char #\V) (value #f))
     (help           (single-char #\h) (value #f))))
@@ -95,8 +99,18 @@ exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
               (port      (string->number (option-ref opts 'port "8080")))
               (host      (option-ref opts 'listen "localhost"))
               (interval  (string->number (option-ref opts 'interval "300")))
-              (specfile  (option-ref opts 'specifications #f)))
+              (specfile  (option-ref opts 'specifications #f))
+
+              ;; Since our work is mostly I/O-bound, default to a maximum of 4
+              ;; kernel threads.  Going beyond that can increase overhead (GC
+              ;; may not scale well, work-stealing may become detrimental,
+              ;; etc.) for little in return.
+              (threads   (or (and=> (option-ref opts 'threads #f)
+                                    string->number)
+                             (min (current-processor-count) 4))))
           (prepare-git)
+
+          (log-message "running Fibers on ~a kernel threads" threads)
           (run-fibers
            (lambda ()
              (with-database db
@@ -158,4 +172,5 @@ exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
            ;; continuations.)  Thus, reduce the tick rate.
            #:hz 10
 
+           #:parallelism threads
            #:drain? #t)))))))
