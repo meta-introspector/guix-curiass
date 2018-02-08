@@ -33,10 +33,11 @@
   (let ((nonce (random 1e6)))
     (run-with-store store
       (gexp->derivation "random"
-                        #~(let ((seed (logxor (getpid)
-                                              (car (gettimeofday)))))
-                            (seed->random-state seed)
-                            (sleep (pk 'sleeping (random 10)))
+                        #~(let* ((seed  (logxor #$(cdr (gettimeofday))
+                                                (car (gettimeofday))
+                                                (cdr (gettimeofday))))
+                                 (state (seed->random-state seed)))
+                            (sleep (pk 'sleeping (random 10 state)))
                             #$nonce
                             (mkdir #$output))))))
 
