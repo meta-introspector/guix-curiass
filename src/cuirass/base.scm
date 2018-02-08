@@ -69,11 +69,13 @@
   (let* ((store (open-connection))
          (result (begin
                    ;; Always set #:keep-going? so we don't stop on the first
-                   ;; build failure.
+                   ;; build failure.  Set #:print-build-trace explicitly to
+                   ;; make sure 'process-build-log' sees build events.
                    (set-build-options store
                                       #:use-substitutes? (%use-substitutes?)
                                       #:fallback? (%fallback?)
-                                      #:keep-going? #t)
+                                      #:keep-going? #t
+                                      #:print-build-trace #t)
                    exp ...)))
     (close-connection store)
     result))
