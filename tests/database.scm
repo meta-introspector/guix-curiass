@@ -40,8 +40,12 @@
 
 (define* (make-dummy-job #:optional (name "foo"))
   `((#:name . ,name)
+    (#:job-name . "job")
+    (#:system . "x86_64-linux")
     (#:derivation . ,(string-append name ".drv"))
-    (#:specification 0)))
+    (#:nix-name . "foo")
+    (#:specification 0)
+    (#:eval-id . 42)))
 
 (define* (make-dummy-derivation drv #:optional (eval-id 0))
   `((#:derivation . ,drv)

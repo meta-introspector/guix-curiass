@@ -481,7 +481,11 @@ updating DB accordingly."
            (cur-time (time-second (current-time time-utc))))
       (let ((build `((#:derivation . ,drv)
                      (#:eval-id . ,eval-id)
-                     (#:log . ,log)
+
+                     ;; XXX: We'd leave LOG to #f (i.e., NULL) but that
+                     ;; currently violates the non-NULL constraint.
+                     (#:log . ,(or log ""))
+
                      (#:status . ,(build-status scheduled))
                      (#:outputs . ,outputs)
                      (#:timestamp . ,cur-time)

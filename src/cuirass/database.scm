@@ -53,28 +53,22 @@
             ;; Macros.
             with-database))
 
-(define (%sqlite-exec db sql)
-  (let* ((stmt (sqlite-prepare db sql))
-         (res  (let loop ((res '()))
-                 (let ((row (sqlite-step stmt)))
-                   (if (not row)
-                       (reverse! res)
-                       (loop (cons row res)))))))
-    (sqlite-finalize stmt)
-    res))
+(define (sqlite-exec db sql . args)
+  "Evaluate the given SQL query with the given ARGS.  Return the list of
+rows."
+  (define (normalize arg)
+    ;; Turn ARG into a string, unless it's a primitive SQL datatype.
+    (if (or (null? arg) (pair? arg) (vector? arg))
+        (object->string arg)
+        arg))
 
-(define-syntax sqlite-exec
-  ;; Note: Making it a macro so -Wformat can do its job.
-  (lambda (s)
-    "Wrap 'sqlite-prepare', 'sqlite-step', and 'sqlite-finalize'.  Send to given
-SQL statement to DB.  FMT and ARGS are passed to 'format'."
-    (syntax-case s ()
-      ((_ db fmt args ...)
-       #'(%sqlite-exec db (format #f fmt args ...)))
-      (id
-       (identifier? #'id)
-       #'(lambda (db fmt . args)
-           (%sqlite-exec db (apply format #f fmt args)))))))
+  (let ((stmt (sqlite-prepare db sql)))
+    (for-each (lambda (arg index)
+                (sqlite-bind stmt index (normalize arg)))
+              args (iota (length args) 1))
+    (let ((result (sqlite-fold-right cons '() stmt)))
+      (sqlite-finalize stmt)
+      result)))
 
 (define %package-database
   ;; Define to the database file name of this package.
@@ -144,9 +138,11 @@ database object."
   (apply sqlite-exec db "\
 INSERT OR IGNORE INTO Specifications (repo_name, url, load_path, file, \
                   proc, arguments, branch, tag, revision, no_compile_p) \
-  VALUES ('~A', '~A', '~A', '~A', '~S', '~S', '~A', '~A', '~A', ~A);"
+  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);"
          (append
-          (assq-refs spec '(#:name #:url #:load-path #:file #:proc #:arguments))
+          (assq-refs spec '(#:name #:url #:load-path #:file))
+          (map symbol->string (assq-refs spec '(#:proc)))
+          (map object->string (assq-refs spec '(#:arguments)))
           (assq-refs spec '(#:branch #:tag #:commit) "NULL")
           (list (if (assq-ref spec #:no-compile?) "1" "0"))))
   (last-insert-rowid db))
@@ -174,21 +170,22 @@ INSERT OR IGNORE INTO Specifications (repo_name, url, load_path, file, \
 (define (db-add-derivation db job)
   "Store a derivation result in database DB and return its ID."
   (sqlite-exec db "\
-INSERT OR IGNORE INTO Derivations (derivation, job_name, system, nix_name, evaluation)\
-  VALUES ('~A', '~A', '~A', '~A', '~A');"
+INSERT INTO Derivations (derivation, job_name, system, nix_name, evaluation)\
+  VALUES (?, ?, ?, ?, ?);"
                (assq-ref job #:derivation)
                (assq-ref job #:job-name)
                (assq-ref job #:system)
                (assq-ref job #:nix-name)
-               (assq-ref job #:eval-id)))
+               (assq-ref job #:eval-id))
+  (last-insert-rowid db))
 
 (define (db-get-derivation db id)
   "Retrieve a job in database DB which corresponds to ID."
-  (car (sqlite-exec db "SELECT * FROM Derivations WHERE derivation='~A';" id)))
+  (car (sqlite-exec db "SELECT * FROM Derivations WHERE derivation=?;" id)))
 
 (define (db-add-evaluation db eval)
   (sqlite-exec db "\
-INSERT INTO Evaluations (specification, revision) VALUES ('~A', '~A');"
+INSERT INTO Evaluations (specification, revision) VALUES (?, ?);"
                (assq-ref eval #:specification)
                (assq-ref eval #:revision))
   (last-insert-rowid db))
@@ -235,7 +232,7 @@ in the OUTPUTS table."
   (let* ((build-exec
           (sqlite-exec db "\
 INSERT INTO Builds (derivation, evaluation, log, status, timestamp, starttime, stoptime)\
-  VALUES ('~A', '~A', '~A', '~A', '~A', '~A', '~A');"
+  VALUES (?, ?, ?, ?, ?, ?, ?);"
                        (assq-ref build #:derivation)
                        (assq-ref build #:eval-id)
                        (assq-ref build #:log)
@@ -249,7 +246,7 @@ INSERT INTO Builds (derivation, evaluation, log, status, timestamp, starttime, s
                 (match output
                   ((name . path)
                    (sqlite-exec db "\
-INSERT INTO Outputs (build, name, path) VALUES ('~A', '~A', '~A');"
+INSERT INTO Outputs (build, name, path) VALUES (?, ?, ?);"
                                 build-id name path))))
               (assq-ref build #:outputs))
     build-id))
@@ -262,17 +259,21 @@ log file for DRV."
     (time-second (current-time time-utc)))
 
   (if (= status (build-status started))
-      (sqlite-exec db "UPDATE Builds SET starttime='~A', status='~A' \
-WHERE derivation='~A';"
+      (sqlite-exec db "UPDATE Builds SET starttime=?, status=? \
+WHERE derivation=?;"
                    now status drv)
-      (sqlite-exec db "UPDATE Builds SET stoptime='~A', \
-status='~A'~@[, log='~A'~] WHERE derivation='~A';"
-                   now status log-file drv)))
+      (if log-file
+          (sqlite-exec db "UPDATE Builds SET stoptime=?, status=?, log=? \
+WHERE derivation=?;"
+                       now status log-file drv)
+          (sqlite-exec db "UPDATE Builds SET stoptime=?, status=? \
+WHERE derivation=?;"
+                       now status drv))))
 
 (define (db-get-outputs db build-id)
   "Retrieve the OUTPUTS of the build identified by BUILD-ID in DB database."
   (let loop ((rows
-              (sqlite-exec db "SELECT name, path FROM Outputs WHERE build='~A';"
+              (sqlite-exec db "SELECT name, path FROM Outputs WHERE build=?;"
                            build-id))
              (outputs '()))
     (match rows
@@ -313,7 +314,7 @@ INNER JOIN Specifications ON Evaluations.specification = Specifications.repo_nam
 (define (db-get-build db id)
   "Retrieve a build in database DB which corresponds to ID."
   (let ((res (sqlite-exec db (string-append db-build-request
-                                            " WHERE Builds.id='~A';") id)))
+                                            " WHERE Builds.id=?;") id)))
     (match res
       ((build)
        (db-format-build db build))
@@ -397,7 +398,7 @@ FILTERS is an assoc list which possible keys are 'project | 'jobset | 'job |
 
 (define (db-get-stamp db spec)
   "Return a stamp corresponding to specification SPEC in database DB."
-  (let ((res (sqlite-exec db "SELECT * FROM Stamps WHERE specification='~A';"
+  (let ((res (sqlite-exec db "SELECT * FROM Stamps WHERE specification=?;"
                           (assq-ref spec #:name))))
     (match res
       (() "")
@@ -407,10 +408,10 @@ FILTERS is an assoc list which possible keys are 'project | 'jobset | 'job |
   "Associate stamp COMMIT to specification SPEC in database DB."
   (if (string-null? (db-get-stamp db spec))
       (sqlite-exec db "\
-INSERT INTO Stamps (specification, stamp) VALUES ('~A', '~A');"
+INSERT INTO Stamps (specification, stamp) VALUES (?, ?);"
                    (assq-ref spec #:name)
                    commit)
       (sqlite-exec db "\
-UPDATE Stamps SET stamp='~A' WHERE specification='~A';"
+UPDATE Stamps SET stamp=? WHERE specification=?;"
                    commit
                    (assq-ref spec #:name))))
