@@ -329,6 +329,19 @@ Essentially this procedure inverts the inversion-of-control that
 
   (sort jobs job<?))
 
+(define (update-build-statuses! store db lst)
+  "Update the build status of the derivations listed in LST, which have just
+been passed to 'build-derivations' (meaning that we can assume that, if their
+outputs are invalid, that they failed to build.)"
+  (define (update! drv)
+    (match (derivation-path->output-paths drv)
+      (((_ . outputs) ...)
+       (if (any (cut valid-path? store <>) outputs)
+           (db-update-build-status! db drv (build-status succeeded))
+           (db-update-build-status! db drv (build-status failed))))))
+
+  (for-each update! lst))
+
 (define* (spawn-builds store db jobs
                        #:key (max-batch-size 200))
   "Build the derivations associated with JOBS, a list of job alists, updating
@@ -362,10 +375,14 @@ MAX-BATCH-SIZE items."
              (count total))
     (if (zero? count)
         (log-message "done with ~a derivations" total)
-        (let-values (((batch rest)
-                      (if (> total max-batch-size)
-                          (split-at jobs max-batch-size)
-                          (values jobs '()))))
+        (let*-values (((batch rest)
+                       (if (> total max-batch-size)
+                           (split-at jobs max-batch-size)
+                           (values jobs '())))
+                      ((drv)
+                       (map (lambda (job)
+                              (assq-ref job #:derivation))
+                            batch)))
           (guard (c ((nix-protocol-error? c)
                      (log-message "batch of builds (partially) failed:\
 ~a (status: ~a)"
@@ -374,16 +391,22 @@ MAX-BATCH-SIZE items."
             (log-message "building batch of ~a jobs (~a/~a)"
                          max-batch-size (- total count) total)
             (let-values (((port finish)
-                          (build-derivations& store
-                                              (map (lambda (job)
-                                                     (assq-ref job #:derivation))
-                                                   batch))))
+                          (build-derivations& store drv)))
               (process-build-log port
                                  (lambda (event state)
                                    (handle-build-event db event))
                                  #t)
               (close-port port)
               (finish)))
+
+          ;; Most of the time 'handle-build-event' will update the build
+          ;; status of derivations.  However, it could be that some
+          ;; derivations were built "behind our back", in which case
+          ;; 'build-derivations' doesn't actually do anything and
+          ;; 'handle-build-event' doesn't see any event.  Because of that,
+          ;; adjust DB here.
+          (update-build-statuses! store db drv)
+
           (loop rest (max (- total max-batch-size) 0))))))
 
 (define* (handle-build-event db event)
