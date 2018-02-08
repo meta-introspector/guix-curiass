@@ -493,8 +493,7 @@ updating DB accordingly."
                      (#:timestamp . ,cur-time)
                      (#:starttime . 0)
                      (#:stoptime . 0))))
-        (db-add-build db build)
-        build)))
+        (db-add-build db build))))
 
   (define build-ids
     (map register jobs))
@@ -507,7 +506,10 @@ updating DB accordingly."
                            (= status (build-status succeeded)))
                          status))
          (outputs (map (cut assq-ref <> #:outputs) results))
-         (outs (filter-map (cut assoc-ref <> "out") outputs))
+         (outs (append-map (match-lambda
+                             (((_ (#:path . (? string? outputs))) ...)
+                              outputs))
+                           outputs))
          (fail (- (length jobs) success)))
     (log-message "outputs:\n~a" (string-join outs "\n"))
     (log-message "success: ~a, fail: ~a" success fail)
