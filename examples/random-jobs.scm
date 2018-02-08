@@ -23,7 +23,7 @@
 
 (define (make-job name derivation)
   (lambda ()
-    `((#:job-name ,name)
+    `((#:job-name . ,name)
       (#:derivation . ,(derivation-file-name (force derivation)))
       (#:license . ((name . "GPLv3+")))
       (#:description "dummy job")
