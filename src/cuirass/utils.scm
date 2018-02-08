@@ -71,10 +71,19 @@ value."
   (let ((channel (make-channel)))
     (call-with-new-thread
      (lambda ()
-       (call-with-values thunk
-         (lambda values
-           (put-message channel values)))))
-    (apply values (get-message channel))))
+       (catch #t
+         (lambda ()
+           (call-with-values thunk
+             (lambda values
+               (put-message channel `(values ,@values)))))
+         (lambda args
+           (put-message channel `(exception ,@args))))))
+
+    (match (get-message channel)
+      (('values . results)
+       (apply values results))
+      (('exception . args)
+       (apply throw args)))))
 
 (define-syntax-rule (non-blocking exp ...)
   "Evalaute EXP... in a separate thread so that it doesn't block the execution
