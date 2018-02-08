@@ -262,13 +262,18 @@ log file for DRV."
       (sqlite-exec db "UPDATE Builds SET starttime=?, status=? \
 WHERE derivation=?;"
                    now status drv)
+
+      ;; Update only if we're switching to a different status; otherwise leave
+      ;; things unchanged.  This ensures that 'stoptime' remains valid and
+      ;; doesn't change every time we mark DRV as 'succeeded' several times in
+      ;; a row, for instance.
       (if log-file
           (sqlite-exec db "UPDATE Builds SET stoptime=?, status=?, log=? \
-WHERE derivation=?;"
-                       now status log-file drv)
+WHERE derivation=? AND status != ?;"
+                       now status log-file drv status)
           (sqlite-exec db "UPDATE Builds SET stoptime=?, status=? \
-WHERE derivation=?;"
-                       now status drv))))
+WHERE derivation=? AND status != ?;"
+                       now status drv status))))
 
 (define (db-get-outputs db build-id)
   "Retrieve the OUTPUTS of the build identified by BUILD-ID in DB database."

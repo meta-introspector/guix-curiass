@@ -168,6 +168,11 @@ INSERT INTO Evaluations (specification, revision) VALUES (3, 3);")
           (let ((status1 (get-status)))
             (db-update-build-status! db "/foo.drv" (build-status succeeded)
                                      #:log-file "/foo.drv.log")
+
+            ;; Second call shouldn't make any difference.
+            (db-update-build-status! db "/foo.drv" (build-status succeeded)
+                                     #:log-file "/foo.drv.log")
+
             (let ((status2 (get-status))
                   (start   (get-status #:starttime))
                   (end     (get-status #:stoptime))
