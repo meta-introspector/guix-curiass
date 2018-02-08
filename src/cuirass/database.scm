@@ -62,7 +62,7 @@ rows."
         (object->string arg)
         arg))
 
-  (let ((stmt (sqlite-prepare db sql)))
+  (let ((stmt (sqlite-prepare db sql #:cache? #t)))
     (for-each (lambda (arg index)
                 (sqlite-bind stmt index (normalize arg)))
               args (iota (length args) 1))
