@@ -377,32 +377,55 @@ INNER JOIN Specifications ON Evaluations.specification = Specifications.repo_nam
 FILTERS is an assoc list which possible keys are 'project | 'jobset | 'job |
 'system | 'nr | 'order | 'status."
 
-  (define (format-where-clause filters)
-    (let ((where-clause
-           (filter-map
-            (lambda (param)
-              (match param
-                (('project project)
-                 (format #f "Specifications.repo_name='~A'" project))
-                (('jobset jobset)
-                 (format #f "Specifications.branch='~A'" jobset))
-                (('job job)
-                 (format #f "Derivations.job_name='~A'" job))
-                (('system system)
-                 (format #f "Derivations.system='~A'" system))
-                (('status 'done)
-                 "Builds.status >= 0")
-                (('status 'pending)
-                 "Builds.status < 0")
-                (_ #f)))
-            filters)))
-      (if (> (length where-clause) 0)
-          (string-append
-           "WHERE "
-           (string-join where-clause " AND "))
-          "")))
+  (define (clauses->query+arguments clauses)
+    ;; Given CLAUSES, return two values: a SQL query string, and a list of
+    ;; arguments to bind.  Each element of CLAUSES must be either a string, or
+    ;; a (SQL ARGUMENT) tuple, where SQL is a query fragment and ARGUMENT is
+    ;; the argument to be bound for that fragment.
+    (let loop ((clauses   clauses)
+               (query     '())
+               (arguments '()))
+      (match clauses
+        (()
+         (values (string-concatenate-reverse query)
+                 (reverse arguments)))
+        (((? string? clause) . rest)
+         (loop rest
+               (cons clause query)
+               arguments))
+        ((((? string? clause) argument) . rest)
+         (loop rest
+               (cons clause query)
+               (cons argument arguments))))))
 
-  (define (format-order-clause filters)
+  (define (where-clauses filters)
+    (match (filter-map (match-lambda
+                         (('project project)
+                          (list "Specifications.repo_name=?" project))
+                         (('jobset jobset)
+                          (list "Specifications.branch=?" jobset))
+                         (('job job)
+                          (list "Derivations.job_name=?" job))
+                         (('system system)
+                          (list "Derivations.system=?" system))
+                         (('status 'done)
+                          "Builds.status >= 0")
+                         (('status 'pending)
+                          "Builds.status < 0")
+                         (_ #f))
+                       filters)
+      (()
+       '(""))
+      ((clause)
+       (list "WHERE " clause))
+      ((clause0 rest ...)
+       (cons* "WHERE " clause0
+              (fold-right (lambda (clause result)
+                            `(" AND " ,clause ,@result))
+                          '()
+                          rest)))))
+
+  (define (order-clause filters)
     (or (any (match-lambda
                (('order 'build-id)
                 "ORDER BY Builds.id ASC")
@@ -422,31 +445,29 @@ FILTERS is an assoc list which possible keys are 'project | 'jobset | 'job |
              filters)
         "ORDER BY Builds.id DESC"))               ;default order
 
-  (define (format-limit-clause filters)
+  (define (limit-clause filters)
     (or (any (match-lambda
                (('nr number)
-                (format #f "LIMIT '~A'" number))
+                (list "LIMIT ?" number))
                (_ #f))
              filters)
         ""))
 
-  (let loop ((rows
-              (sqlite-exec db (string-append
-                               db-build-request
-                               " "
-                               (format-where-clause filters)
-                               " "
-                               (format-order-clause filters)
-                               " "
-                               (format-limit-clause filters)
-                               ";")))
-             (outputs '()))
-    (match rows
-      (()
-       (reverse outputs))
-      ((row . rest)
-       (loop rest
-             (cons (db-format-build db row) outputs))))))
+  (call-with-values
+      (lambda ()
+        (clauses->query+arguments (append (list db-build-request " ")
+                                          (where-clauses filters) '(" ")
+                                          (list (order-clause filters) " ")
+                                          (list (limit-clause filters) " "))))
+    (lambda (sql arguments)
+      (let loop ((rows    (apply %sqlite-exec db sql arguments))
+                 (outputs '()))
+        (match rows
+          (()
+           (reverse outputs))
+          ((row . rest)
+           (loop rest
+                 (cons (db-format-build db row) outputs))))))))
 
 (define (db-get-stamp db spec)
   "Return a stamp corresponding to specification SPEC in database DB."
