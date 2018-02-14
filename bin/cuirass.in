@@ -126,6 +126,7 @@ exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
                    (let ((exit-channel (make-channel))
                          (pending
                           (begin
+                            (clear-build-queue db)
                             (log-message "retrieving list of pending builds...")
                             (db-get-builds db '((status pending))))))
 

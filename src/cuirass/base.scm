@@ -49,6 +49,7 @@
             fetch-repository
             compile
             evaluate
+            clear-build-queue
             restart-builds
             build-packages
             prepare-git
@@ -451,6 +452,12 @@ updating DB accordingly."
   "Return true if BUILD1 and BUILD2 correspond to the same derivation."
   (string=? (assq-ref build1 #:derivation)
             (assq-ref build2 #:derivation)))
+
+(define (clear-build-queue db)
+  "Reset the status of builds in DB that are marked as \"started\".  This
+procedure is meant to be called at startup."
+  (log-message "marking stale builds as \"scheduled\"...")
+  (sqlite-exec db "UPDATE Builds SET status = -2 WHERE status = -1;"))
 
 (define (restart-builds db builds)
   "Restart builds whose status in DB is \"pending\" (scheduled or started)."
