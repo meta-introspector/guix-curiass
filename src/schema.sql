@@ -60,4 +60,10 @@ CREATE TABLE Builds (
   FOREIGN KEY (evaluation) REFERENCES Evaluations (id)
 );
 
+-- Create indexes to speed up common queries, in particular those
+-- corresponding to /api/latestbuilds HTTP requests.
+CREATE INDEX Builds_Derivations_index ON Builds(status ASC, derivation, evaluation, stoptime DESC);
+CREATE INDEX Specifications_index ON Specifications(repo_name, branch);
+CREATE INDEX Derivations_index ON Derivations(derivation, evaluation, job_name, system);
+
 COMMIT;
