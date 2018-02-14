@@ -29,10 +29,10 @@
       (#:description "dummy job")
       (#:long-description "really dummy job"))))
 
-(define (random-derivation store)
+(define* (random-derivation store #:optional (suffix ""))
   (let ((nonce (random 1e6)))
     (run-with-store store
-      (gexp->derivation "random"
+      (gexp->derivation (string-append "random" suffix)
                         #~(let* ((seed  (logxor #$(cdr (gettimeofday))
                                                 (car (gettimeofday))
                                                 (cdr (gettimeofday))))
@@ -44,7 +44,8 @@
 (define (make-random-jobs store arguments)
   (unfold (cut > <> 10)
           (lambda (i)
-            (make-job (string-append "foo" (number->string i))
-                      (delay (random-derivation store))))
+            (let ((suffix (number->string i)))
+              (make-job (string-append "foo" suffix)
+                        (delay (random-derivation store suffix)))))
           1+
           0))
