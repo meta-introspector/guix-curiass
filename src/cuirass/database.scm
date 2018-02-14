@@ -216,15 +216,25 @@ INSERT OR IGNORE INTO Specifications (repo_name, url, load_path, file, \
 
 (define (db-add-derivation db job)
   "Store a derivation result in database DB and return its ID."
-  (sqlite-exec db "\
+  (catch 'sqlite-error
+    (lambda ()
+      (sqlite-exec db "\
 INSERT INTO Derivations (derivation, job_name, system, nix_name, evaluation)\
   VALUES ("
-               (assq-ref job #:derivation) ", "
-               (assq-ref job #:job-name) ", "
-               (assq-ref job #:system) ", "
-               (assq-ref job #:nix-name) ", "
-               (assq-ref job #:eval-id) ");")
-  (last-insert-rowid db))
+                   (assq-ref job #:derivation) ", "
+                   (assq-ref job #:job-name) ", "
+                   (assq-ref job #:system) ", "
+                   (assq-ref job #:nix-name) ", "
+                   (assq-ref job #:eval-id) ");")
+      (last-insert-rowid db))
+    (lambda (key who code message . rest)
+      ;; If we get a unique-constraint-failed error, that means we have
+      ;; already inserted the same (derivation,eval-id) tuple.  That happens
+      ;; when several jobs produce the same derivation, and we can ignore it.
+      (if (= code SQLITE_CONSTRAINT_PRIMARYKEY)
+          (sqlite-exec db "SELECT * FROM Derivations WHERE derivation="
+                       (assq-ref job #:derivation) ";")
+          (apply throw key who code rest)))))
 
 (define (db-get-derivation db id)
   "Retrieve a job in database DB which corresponds to ID."
@@ -261,6 +271,8 @@ string."
 (define SQLITE_CONSTRAINT 19)
 (define SQLITE_CONSTRAINT_PRIMARYKEY
   (logior SQLITE_CONSTRAINT (ash 6 8)))
+(define SQLITE_CONSTRAINT_UNIQUE
+  (logior SQLITE_CONSTRAINT (ash 8 8)))
 
 (define-enumeration build-status
   ;; Build status as expected by Hydra's API.  Note: the negative values are

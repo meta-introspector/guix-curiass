@@ -106,6 +106,7 @@ INSERT INTO Evaluations (specification, revision) VALUES (3, 3);")
     (let* ((job (make-dummy-job))
            (key (assq-ref job #:derivation)))
       (db-add-derivation (%db) job)
+      (db-add-derivation (%db) job)               ;idempotent
       (%id key)))
 
   (test-assert "db-get-derivation"
