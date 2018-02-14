@@ -22,15 +22,12 @@
   #:use-module (cuirass database)
   #:use-module (cuirass utils)
   #:use-module (cuirass logging)
-  #:use-module (srfi srfi-11)
-  #:use-module (srfi srfi-26)
   #:use-module (ice-9 match)
   #:use-module (json)
   #:use-module (web request)
   #:use-module (web response)
-  #:use-module ((web server) #:hide (run-server))
+  #:use-module (web server)
   #:use-module (web uri)
-  #:use-module (fibers)
   #:export (run-cuirass-server))
 
 (define (build->hydra-build build)
@@ -213,24 +210,10 @@
     ;; thread creations and calls 'run-fibers' by itself, which isn't
     ;; necessary here (and harmful).
     ;;
-    ;; In addition, we roll our own instead of using Guile's 'run-server' and
-    ;; 'serve-one-client'.  The key thing here is that we spawn a fiber to
-    ;; process each client request and then directly go back waiting for the
-    ;; next client (conversely, Guile's 'run-server' loop processes clients
-    ;; one after another, sequentially.)  We can do that because we don't
-    ;; maintain any state across connections.
-    ;;
-    ;; XXX: We don't do 'call-with-sigint' like 'run-server' does.
-    (let* ((impl (lookup-server-impl 'fiberized))
-           (server (open-server impl `(#:host ,address #:port ,port))))
-      (let loop ()
-        (let-values (((client request body)
-                      (read-client impl server)))
-          ;; Spawn a fiber to handle REQUEST and reply to CLIENT.
-          (spawn-fiber
-           (lambda ()
-             (let-values (((response body state)
-                           (handle-request (cut url-handler <> <> db)
-                                           request body '())))
-               (write-client impl server client response body)))))
-        (loop)))))
+    ;; XXX: 'run-server' serializes client request processing, making sure
+    ;; only one client is served at a time.  This is not ideal, but processing
+    ;; things concurrently would require having several database handles.
+    (run-server url-handler
+                'fiberized
+                `(#:host ,address #:port ,port)
+                db)))
