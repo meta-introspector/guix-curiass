@@ -71,6 +71,9 @@
                (/ (assoc-ref (gc-stats) 'heap-size) (expt 2. 20))
                (length (all-threads))
                (length
-                (scandir "/proc/self/fd"
-                         (lambda (file)
-                           (not (member file '("." ".."))))))))
+                ;; In theory 'scandir' cannot return #f, but in practice,
+                ;; we've seen it before.
+                (or (scandir "/proc/self/fd"
+                             (lambda (file)
+                               (not (member file '("." "..")))))
+                    '()))))
