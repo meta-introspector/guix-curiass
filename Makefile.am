@@ -30,6 +30,8 @@ nodist_guileobject_DATA = $(dist_guilesite_DATA:.scm=.go)
 
 pkgmoduledir = $(guilesitedir)/$(PACKAGE)
 pkgobjectdir = $(guileobjectdir)/$(PACKAGE)
+webmoduledir = $(guilesitedir)/web/server
+webobjectdir = $(guileobjectdir)/web/server
 
 dist_pkgmodule_DATA =				\
   src/cuirass/base.scm				\
@@ -37,8 +39,7 @@ dist_pkgmodule_DATA =				\
   src/cuirass/http.scm				\
   src/cuirass/logging.scm			\
   src/cuirass/ui.scm				\
-  src/cuirass/utils.scm				\
-  src/web/server/fiberized.scm
+  src/cuirass/utils.scm
 
 nodist_pkgmodule_DATA = \
   src/cuirass/config.scm
@@ -46,6 +47,12 @@ nodist_pkgmodule_DATA = \
 nodist_pkgobject_DATA = \
   $(dist_pkgmodule_DATA:.scm=.go) \
   src/cuirass/config.go
+
+dist_webmodule_DATA =				\
+  src/web/server/fiberized.scm
+
+nodist_webobject_DATA =				\
+  $(dist_webmodule_DATA:.scm=.go)
 
 dist_pkgdata_DATA = src/schema.sql
 
@@ -90,9 +97,10 @@ TESTS = \
 	  --warn=format --warn=unbound-variable --warn=arity-mismatch \
 	  --target="$(host)" --output="$@" "$<" $(devnull_verbose)
 
-CLEANFILES = \
-  $(nodist_guilesite_DATA) \
-  $(dist_pkgmodule_DATA:.scm=.go) \
+CLEANFILES =					\
+  $(nodist_guilesite_DATA)			\
+  $(dist_pkgmodule_DATA:.scm=.go)		\
+  $(nodist_webobject_DATA)			\
   src/cuirass/config.go
 
 .PHONY:	sql-check
