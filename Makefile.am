@@ -101,6 +101,7 @@ CLEANFILES =					\
   $(nodist_guilesite_DATA)			\
   $(dist_pkgmodule_DATA:.scm=.go)		\
   $(nodist_webobject_DATA)			\
+  $(nodist_guileobject_DATA)			\
   src/cuirass/config.go
 
 .PHONY:	sql-check
