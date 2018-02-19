@@ -486,11 +486,6 @@ AND (:system IS NULL OR (:system = Derivations.system)) \
 AND (:status IS NULL OR (:status = 'done' AND Builds.status >= 0) OR (:status = 'pending' AND Builds.status < 0)) \
 ORDER BY ~a ~a, Builds.id ASC LIMIT :nr;" order-column-name order))
          (stmt (sqlite-prepare db stmt-text #:cache? #t)))
-    (write "ID")
-    (write filters)
-    (write (assqx-ref filters 'id))
-    (newline)
-    (force-output)
     (sqlite-bind-arguments stmt #:id (assqx-ref filters 'id)
                                 #:project (assqx-ref filters 'project)
                                 #:jobset (assqx-ref filters 'jobset)
@@ -506,10 +501,6 @@ ORDER BY ~a ~a, Builds.id ASC LIMIT :nr;" order-column-name order))
 
 (define (db-get-build db id)
   "Retrieve a build in database DB which corresponds to ID."
-  (write "XXX")
-  (write (db-get-builds db `((id ,id))))
-  (newline)
-  (force-output)
   (match (db-get-builds db `((id ,id)))
     ((build)
      build)
