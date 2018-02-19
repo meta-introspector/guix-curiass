@@ -379,6 +379,85 @@ FILTERS is an assoc list which possible keys are 'project | 'jobset | 'job |
          ((xkey xvalue) (if (eq? key xkey)
                             xvalue
                             (assqx-ref (cdr filters) key))))))
+
+  (define (format-output name path)
+   `(,name . ((#:path . ,path))))
+
+  (define (cons-output name path rest)
+    "If NAME and PATH are both not #f, cons them to REST.
+Otherwise return REST unchanged."
+    (if (and (not name) (not path))
+        rest
+        (cons (format-output name path) rest)))
+
+  (define (collect-outputs repeated-builds-id repeated-row outputs rows)
+    "Given rows somewhat like
+1 'a 'b  2 'x
+^ 'c 'd  2 'x
+| ^^^^^  ^^^^
+| group  ++++- group headers
+| detail
++------------ group id
+
+return rows somewhat like
+
+1 2 'x '((a b) (c d))
+
+.
+
+As a special case, if the group detail is #f #f, ignore it.
+This is made specifically to support LEFT JOINs.
+
+Assumes that if group id stays the same the group headers stay the same."
+    (define (finish-group)
+      (match repeated-row
+       (#(timestamp starttime stoptime log status derivation job-name system
+          nix-name repo-name branch)
+       `((#:id         . ,repeated-builds-id)
+         (#:timestamp  . ,timestamp)
+         (#:starttime  . ,starttime)
+         (#:stoptime   . ,stoptime)
+         (#:log        . ,log)
+         (#:status     . ,status)
+         (#:derivation . ,derivation)
+         (#:job-name   . ,job-name)
+         (#:system     . ,system)
+         (#:nix-name   . ,nix-name)
+         (#:repo-name  . ,repo-name)
+         (#:outputs    . ,outputs)
+         (#:branch     . ,branch)))))
+
+    (define (same-group? builds-id)
+      (= builds-id repeated-builds-id))
+
+    (match rows
+     (() (list (finish-group)))
+     ((#((? same-group? x-builds-id) x-output-name x-output-path ...) . rest)
+      ;; Accumulate group members of current group.
+      (let ((outputs (cons-output x-output-name x-output-path outputs)))
+        (collect-outputs repeated-builds-id repeated-row outputs rest)))
+     ((#(x-builds-id x-output-name x-output-path timestamp starttime stoptime log
+         status derivation job-name system nix-name repo-name branch) . rest)
+      (cons ;; Finish current group.
+            (finish-group)
+            ;; Start new group.
+            (let ((outputs (cons-output x-output-name x-output-path '())))
+              (let ((x-repeated-row (vector timestamp starttime stoptime
+                                            log status derivation job-name system
+                                            nix-name repo-name branch)))
+                (collect-outputs x-builds-id x-repeated-row outputs rest)))))))
+
+  (define (group-outputs rows)
+    (match rows
+     (() '())
+     ((#(x-builds-id x-output-name x-output-path timestamp starttime stoptime
+         log status derivation job-name system
+         nix-name repo-name branch) . rest)
+      (let ((x-repeated-row (vector timestamp starttime stoptime
+                                    log status derivation job-name system
+                                    nix-name repo-name branch)))
+        (collect-outputs x-builds-id x-repeated-row '() rows)))))
+
   (let* ((order (if (eq? (assqx-ref filters 'order) 'build-id)
                      "ASC"
                      "DESC"))
@@ -391,21 +470,27 @@ FILTERS is an assoc list which possible keys are 'project | 'jobset | 'job |
                   (('order 'submission-time) "Builds.timestamp")
                   (_ "Builds.id")))
          (stmt-text (format #f "\
-SELECT Builds.id, Builds.timestamp, Builds.starttime, Builds.stoptime, Builds.log, Builds.status, Builds.derivation,\
+SELECT Builds.id, Outputs.name, Outputs.path, Builds.timestamp, Builds.starttime, Builds.stoptime, Builds.log, Builds.status, Builds.derivation,\
 Derivations.job_name, Derivations.system, Derivations.nix_name,\
 Specifications.repo_name, Specifications.branch \
 FROM Builds \
 INNER JOIN Derivations ON Builds.derivation = Derivations.derivation AND Builds.evaluation = Derivations.evaluation \
 INNER JOIN Evaluations ON Derivations.evaluation = Evaluations.id \
 INNER JOIN Specifications ON Evaluations.specification = Specifications.repo_name \
+LEFT JOIN Outputs ON Outputs.build = Builds.id \
 WHERE (:id IS NULL OR (:id = Builds.id)) \
 AND (:project IS NULL OR (:project = Specifications.repo_name)) \
 AND (:jobset IS NULL OR (:jobset = Specifications.branch)) \
 AND (:job IS NULL OR (:job = Derivations.job_name)) \
 AND (:system IS NULL OR (:system = Derivations.system)) \
 AND (:status IS NULL OR (:status = 'done' AND Builds.status >= 0) OR (:status = 'pending' AND Builds.status < 0)) \
-ORDER BY ~a ~a LIMIT :nr;" order-column-name order))
+ORDER BY ~a ~a, Builds.id ASC LIMIT :nr;" order-column-name order))
          (stmt (sqlite-prepare db stmt-text #:cache? #t)))
+    (write "ID")
+    (write filters)
+    (write (assqx-ref filters 'id))
+    (newline)
+    (force-output)
     (sqlite-bind-arguments stmt #:id (assqx-ref filters 'id)
                                 #:project (assqx-ref filters 'project)
                                 #:jobset (assqx-ref filters 'jobset)
@@ -416,11 +501,15 @@ ORDER BY ~a ~a LIMIT :nr;" order-column-name order))
                                 #:nr (match (assqx-ref filters 'nr)
                                       (#f -1)
                                       (x x)))
-    (map (cut db-format-build db <>)
-         (sqlite-fold-right cons '() stmt))))
+    (sqlite-reset stmt)
+    (group-outputs (sqlite-fold-right cons '() stmt))))
 
 (define (db-get-build db id)
   "Retrieve a build in database DB which corresponds to ID."
+  (write "XXX")
+  (write (db-get-builds db `((id ,id))))
+  (newline)
+  (force-output)
   (match (db-get-builds db `((id ,id)))
     ((build)
      build)
