@@ -432,30 +432,23 @@ Assumes that if group id stays the same the group headers stay the same."
 
     (match rows
      (() (list (finish-group)))
-     ((#((? same-group? x-builds-id) x-output-name x-output-path ...) . rest)
+     ((#((? same-group? x-builds-id) x-output-name x-output-path other-cells ...) . rest)
       ;; Accumulate group members of current group.
       (let ((outputs (cons-output x-output-name x-output-path outputs)))
         (collect-outputs repeated-builds-id repeated-row outputs rest)))
-     ((#(x-builds-id x-output-name x-output-path timestamp starttime stoptime log
-         status derivation job-name system nix-name repo-name branch) . rest)
+     ((#(x-builds-id x-output-name x-output-path other-cells ...) . rest)
       (cons ;; Finish current group.
             (finish-group)
             ;; Start new group.
             (let ((outputs (cons-output x-output-name x-output-path '())))
-              (let ((x-repeated-row (vector timestamp starttime stoptime
-                                            log status derivation job-name system
-                                            nix-name repo-name branch)))
+              (let ((x-repeated-row (list->vector other-cells)))
                 (collect-outputs x-builds-id x-repeated-row outputs rest)))))))
 
   (define (group-outputs rows)
     (match rows
      (() '())
-     ((#(x-builds-id x-output-name x-output-path timestamp starttime stoptime
-         log status derivation job-name system
-         nix-name repo-name branch) . rest)
-      (let ((x-repeated-row (vector timestamp starttime stoptime
-                                    log status derivation job-name system
-                                    nix-name repo-name branch)))
+     ((#(x-builds-id x-output-name x-output-path other-cells ...) . rest)
+      (let ((x-repeated-row (list->vector other-cells)))
         (collect-outputs x-builds-id x-repeated-row '() rows)))))
 
   (let* ((order (if (eq? (assqx-ref filters 'order) 'build-id)
