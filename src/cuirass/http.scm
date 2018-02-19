@@ -140,12 +140,12 @@
     (((or "jobsets" "specifications") . rest)
      (respond-json (object->json-string (db-get-specifications db))))
     (("build" build-id)
-     (let ((hydra-build (handle-build-request db build-id)))
+     (let ((hydra-build (handle-build-request db (string->number build-id))))
        (if hydra-build
            (respond-json (object->json-string hydra-build))
            (respond-build-not-found build-id))))
     (("build" build-id "log" "raw")
-     (let ((build (db-get-build db build-id)))
+     (let ((build (db-get-build db (string->number build-id))))
        (if build
            (match (assq-ref build #:outputs)
              (((_ (#:path . (? string? output))) _ ...)
