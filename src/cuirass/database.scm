@@ -26,6 +26,7 @@
   #:use-module (ice-9 rdelim)
   #:use-module (srfi srfi-1)
   #:use-module (srfi srfi-19)
+  #:use-module (srfi srfi-26)
   #:use-module (sqlite3)
   #:export (;; Procedures.
             db-init
@@ -347,15 +348,6 @@ log file for DRV."
              (cons `(,name . ((#:path . ,path)))
                    outputs))))))
 
-(define db-build-request "\
-SELECT Builds.id, Builds.timestamp, Builds.starttime, Builds.stoptime, Builds.log, Builds.status, Builds.derivation,\
-Derivations.job_name, Derivations.system, Derivations.nix_name,\
-Specifications.repo_name, Specifications.branch \
-FROM Builds \
-INNER JOIN Derivations ON Builds.derivation = Derivations.derivation and Builds.evaluation = Derivations.evaluation \
-INNER JOIN Evaluations ON Derivations.evaluation = Evaluations.id \
-INNER JOIN Specifications ON Evaluations.specification = Specifications.repo_name")
-
 (define (db-format-build db build)
   (match build
     (#(id timestamp starttime stoptime log status derivation job-name system
@@ -374,112 +366,65 @@ INNER JOIN Specifications ON Evaluations.specification = Specifications.repo_nam
        (#:outputs    . ,(db-get-outputs db id))
        (#:branch     . ,branch)))))
 
-(define (db-get-build db id)
-  "Retrieve a build in database DB which corresponds to ID."
-  (let ((res (sqlite-exec db (string-append db-build-request
-                                            " WHERE Builds.id=")
-                          id ";")))
-    (match res
-      ((build)
-       (db-format-build db build))
-      (() #f))))
-
 (define (db-get-builds db filters)
   "Retrieve all builds in database DB which are matched by given FILTERS.
 FILTERS is an assoc list which possible keys are 'project | 'jobset | 'job |
 'system | 'nr | 'order | 'status."
 
-  (define (clauses->query+arguments clauses)
-    ;; Given CLAUSES, return two values: a SQL query string, and a list of
-    ;; arguments to bind.  Each element of CLAUSES must be either a string, or
-    ;; a (SQL ARGUMENT) tuple, where SQL is a query fragment and ARGUMENT is
-    ;; the argument to be bound for that fragment.
-    (let loop ((clauses   clauses)
-               (query     '())
-               (arguments '()))
-      (match clauses
-        (()
-         (values (string-concatenate-reverse query)
-                 (reverse arguments)))
-        (((? string? clause) . rest)
-         (loop rest
-               (cons clause query)
-               arguments))
-        ((((? string? clause) argument) . rest)
-         (loop rest
-               (cons clause query)
-               (cons argument arguments))))))
+  ;; XXX Change caller and remove
+  (define (assqx-ref filters key)
+    (if (null? filters)
+        #f
+        (match (car filters)
+         ((xkey xvalue) (if (eq? key xkey)
+                            xvalue
+                            (assqx-ref (cdr filters) key))))))
+  (let* ((order (if (eq? (assqx-ref filters 'order) 'build-id)
+                     "ASC"
+                     "DESC"))
+         (order-column-name
+          (match (assqx-ref filters 'order)
+                  (('order 'build-id) "Builds.id")
+                  (('order 'decreasing-build-id) "Builds.id")
+                  (('order 'finish-time) "Builds.stoptime")
+                  (('order 'start-time) "Builds.starttime")
+                  (('order 'submission-time) "Builds.timestamp")
+                  (_ "Builds.id")))
+         (stmt-text (format #f "\
+SELECT Builds.id, Builds.timestamp, Builds.starttime, Builds.stoptime, Builds.log, Builds.status, Builds.derivation,\
+Derivations.job_name, Derivations.system, Derivations.nix_name,\
+Specifications.repo_name, Specifications.branch \
+FROM Builds \
+INNER JOIN Derivations ON Builds.derivation = Derivations.derivation AND Builds.evaluation = Derivations.evaluation \
+INNER JOIN Evaluations ON Derivations.evaluation = Evaluations.id \
+INNER JOIN Specifications ON Evaluations.specification = Specifications.repo_name \
+WHERE (:id IS NULL OR (:id = Builds.id)) \
+AND (:project IS NULL OR (:project = Specifications.repo_name)) \
+AND (:jobset IS NULL OR (:jobset = Specifications.branch)) \
+AND (:job IS NULL OR (:job = Derivations.job_name)) \
+AND (:system IS NULL OR (:system = Derivations.system)) \
+AND (:status IS NULL OR (:status = 'done' AND Builds.status >= 0) OR (:status = 'pending' AND Builds.status < 0)) \
+ORDER BY ~a ~a LIMIT :nr;" order-column-name order))
+         (stmt (sqlite-prepare db stmt-text #:cache? #t)))
+    (sqlite-bind-arguments stmt #:id (assqx-ref filters 'id)
+                                #:project (assqx-ref filters 'project)
+                                #:jobset (assqx-ref filters 'jobset)
+                                #:job (assqx-ref filters 'job)
+                                #:system (assqx-ref filters 'system)
+                                #:status (and=> (assqx-ref filters 'status)
+                                                object->string)
+                                #:nr (match (assqx-ref filters 'nr)
+                                      (#f -1)
+                                      (x x)))
+    (map (cut db-format-build db <>)
+         (sqlite-fold-right cons '() stmt))))
 
-  (define (where-clauses filters)
-    (match (filter-map (match-lambda
-                         (('project project)
-                          (list "Specifications.repo_name=?" project))
-                         (('jobset jobset)
-                          (list "Specifications.branch=?" jobset))
-                         (('job job)
-                          (list "Derivations.job_name=?" job))
-                         (('system system)
-                          (list "Derivations.system=?" system))
-                         (('status 'done)
-                          "Builds.status >= 0")
-                         (('status 'pending)
-                          "Builds.status < 0")
-                         (_ #f))
-                       filters)
-      (()
-       '(""))
-      ((clause)
-       (list "WHERE " clause))
-      ((clause0 rest ...)
-       (cons* "WHERE " clause0
-              (fold-right (lambda (clause result)
-                            `(" AND " ,clause ,@result))
-                          '()
-                          rest)))))
-
-  (define (order-clause filters)
-    (or (any (match-lambda
-               (('order 'build-id)
-                "ORDER BY Builds.id ASC")
-               (('order 'decreasing-build-id)
-                "ORDER BY Builds.id DESC")
-               (('order 'finish-time)
-                "ORDER BY Builds.stoptime DESC")
-               (('order 'start-time)
-                "ORDER BY Builds.start DESC")
-               (('order 'submission-time)
-                "ORDER BY Builds.timestamp DESC")
-               (('order 'status+submission-time)
-                ;; With this order, builds in 'running' state (-1) appear
-                ;; before those in 'scheduled' state (-2).
-                "ORDER BY Builds.status DESC, Builds.timestamp DESC")
-               (_ #f))
-             filters)
-        "ORDER BY Builds.id DESC"))               ;default order
-
-  (define (limit-clause filters)
-    (or (any (match-lambda
-               (('nr number)
-                (list "LIMIT ?" number))
-               (_ #f))
-             filters)
-        ""))
-
-  (call-with-values
-      (lambda ()
-        (clauses->query+arguments (append (list db-build-request " ")
-                                          (where-clauses filters) '(" ")
-                                          (list (order-clause filters) " ")
-                                          (list (limit-clause filters) " "))))
-    (lambda (sql arguments)
-      (let loop ((rows    (apply %sqlite-exec db sql arguments))
-                 (outputs '()))
-        (match rows
-          (()
-           (reverse outputs))
-          ((row . rest)
-           (loop rest
-                 (cons (db-format-build db row) outputs))))))))
+(define (db-get-build db id)
+  "Retrieve a build in database DB which corresponds to ID."
+  (match (db-get-builds db `((id ,id)))
+    ((build)
+     build)
+    (() #f)))
 
 (define (db-get-stamp db spec)
   "Return a stamp corresponding to specification SPEC in database DB."
