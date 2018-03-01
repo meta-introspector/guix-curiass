@@ -219,6 +219,14 @@ fibers."
 
 (define (evaluate store db spec)
   "Evaluate and build package derivations.  Return a list of jobs."
+  (define (augment-job job eval-id)
+    (let ((drv (read-derivation-from-file
+                (assq-ref job #:derivation))))
+      `((#:eval-id . ,eval-id)
+        (#:nix-name . ,(derivation-name drv))
+        (#:system . ,(derivation-system drv))
+        ,@job)))
+
   (let* ((port (non-blocking-port
                 (open-pipe* OPEN_READ
                             "evaluate"
@@ -227,19 +235,28 @@ fibers."
                                            (assq-ref spec #:load-path))
                             (%guix-package-path)
                             (%package-cachedir)
-                            (object->string spec)
-                            (%package-database))))
-         (jobs (match (read/non-blocking port)
-                 ;; If an error occured during evaluation report it,
-                 ;; otherwise, suppose that data read from port are
-                 ;; correct and keep things going.
-                 ((? eof-object?)
-                  (raise (condition
-                          (&evaluation-error
-                           (name (assq-ref spec #:name))))))
-                 (data data))))
+                            (object->string spec))))
+         (result (match (read/non-blocking port)
+                   ;; If an error occured during evaluation report it,
+                   ;; otherwise, suppose that data read from port are
+                   ;; correct and keep things going.
+                   ((? eof-object?)
+                    (raise (condition
+                            (&evaluation-error
+                             (name (assq-ref spec #:name))))))
+                   (data data))))
     (close-pipe port)
-    jobs))
+    (match result
+      (('evaluation eval jobs)
+       (let ((eval-id (db-add-evaluation db eval)))
+         (log-message "created evaluation ~a for ~a, commit ~a" eval-id
+                      (assq-ref eval #:specification)
+                      (assq-ref eval #:revision))
+         (let ((jobs (map (lambda (job)
+                            (augment-job job eval-id))
+                          jobs)))
+           (for-each (cut db-add-derivation db <>) jobs)
+           jobs))))))
 
 
 ;;;
