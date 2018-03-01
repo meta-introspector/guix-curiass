@@ -35,11 +35,23 @@
   (define (bool->int bool)
     (if bool 1 0))
 
+  (define finished?
+    (bool->int
+     (not (memv (assq-ref build #:status)
+                (list (build-status scheduled)
+                      (build-status started))))))
+
   `((#:id . ,(assq-ref build #:id))
     (#:project . ,(assq-ref build #:repo-name))
     (#:jobset . ,(assq-ref build #:branch))
     (#:job . ,(assq-ref build #:job-name))
-    (#:timestamp . ,(assq-ref build #:timestamp))
+
+    ;; Hydra's API uses "timestamp" as the time of the last useful event for
+    ;; that build: evaluation or completion.
+    (#:timestamp . ,(if finished?
+                        (assq-ref build #:stoptime)
+                        (assq-ref build #:timestamp)))
+
     (#:starttime . ,(assq-ref build #:starttime))
     (#:stoptime . ,(assq-ref build #:stoptime))
     (#:derivation . ,(assq-ref build #:derivation))
@@ -50,10 +62,7 @@
     (#:busy . ,(bool->int (eqv? (build-status started)
                                 (assq-ref build #:status))))
     (#:priority . 0)
-    (#:finished . ,(bool->int
-                    (not (memv (assq-ref build #:status)
-                               (list (build-status scheduled)
-                                     (build-status started))))))
+    (#:finished . ,finished?)
     (#:buildproducts . #nil)
     (#:releasename . #nil)
     (#:buildinputs_builds . #nil)))
