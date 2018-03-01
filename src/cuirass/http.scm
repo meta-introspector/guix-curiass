@@ -84,10 +84,11 @@
                 (match (string-split param #\=)
                   ((key param)
                    (let ((key-symbol (string->symbol key)))
-                     (list key-symbol ((match key-symbol
-                                        ('id string->number)
-                                        ('nr string->number)
-                                        (_ const)) param))))))
+                     (list key-symbol
+                           (match key-symbol
+                             ('id (string->number param))
+                             ('nr (string->number param))
+                             (_   param)))))))
               (string-split query #\&)))))
 
 
