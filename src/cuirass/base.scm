@@ -368,7 +368,7 @@ MAX-BATCH-SIZE items."
   (define total (length jobs))
 
   (log-message "building ~a derivations in batches of ~a"
-               (length jobs) max-batch-size)
+               total max-batch-size)
 
   ;; Shuffle jobs so that we don't build sequentially i686/x86_64/aarch64,
   ;; master/core-updates, etc., which would be suboptimal.
@@ -377,7 +377,7 @@ MAX-BATCH-SIZE items."
     (if (zero? count)
         (log-message "done with ~a derivations" total)
         (let*-values (((batch rest)
-                       (if (> total max-batch-size)
+                       (if (> count max-batch-size)
                            (split-at jobs max-batch-size)
                            (values jobs '())))
                       ((drv)
@@ -408,7 +408,7 @@ MAX-BATCH-SIZE items."
           ;; adjust DB here.
           (update-build-statuses! store db drv)
 
-          (loop rest (max (- total max-batch-size) 0))))))
+          (loop rest (max (- count max-batch-size) 0))))))
 
 (define* (handle-build-event db event)
   "Handle EVENT, a build event sexp as produced by 'build-event-output-port',
