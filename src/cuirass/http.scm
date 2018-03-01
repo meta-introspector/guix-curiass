@@ -79,17 +79,18 @@
   '((parameter value) ...)."
   (let* ((uri (request-uri request))
          (query (uri-query uri)))
-    (and query
-         (map (lambda (param)
-                (match (string-split param #\=)
-                  ((key param)
-                   (let ((key-symbol (string->symbol key)))
-                     (list key-symbol
-                           (match key-symbol
-                             ('id (string->number param))
-                             ('nr (string->number param))
-                             (_   param)))))))
-              (string-split query #\&)))))
+    (if query
+        (map (lambda (param)
+               (match (string-split param #\=)
+                 ((key param)
+                  (let ((key-symbol (string->symbol key)))
+                    (list key-symbol
+                          (match key-symbol
+                            ('id (string->number param))
+                            ('nr (string->number param))
+                            (_   param)))))))
+             (string-split query #\&))
+        '())))
 
 
 ;;;
