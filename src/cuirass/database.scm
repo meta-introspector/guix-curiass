@@ -373,12 +373,13 @@ FILTERS is an assoc list which possible keys are 'project | 'jobset | 'job |
 
   ;; XXX Change caller and remove
   (define (assqx-ref filters key)
-    (if (null? filters)
-        #f
-        (match (car filters)
-         ((xkey xvalue) (if (eq? key xkey)
-                            xvalue
-                            (assqx-ref (cdr filters) key))))))
+    (match filters
+      (()
+       #f)
+      (((xkey xvalue) rest ...)
+       (if (eq? key xkey)
+           xvalue
+           (assqx-ref rest key)))))
 
   (define (format-output name path)
    `(,name . ((#:path . ,path))))
