@@ -360,6 +360,18 @@ outputs are invalid, that they failed to build.)"
 
   (for-each update! lst))
 
+(define (exception-reporter . results)
+  "Return an exception handler that reports the exception on the error port
+and returns the values RESULTS."
+  (lambda (key . args)
+    (false-if-exception
+     (let* ((stack (make-stack #t))
+            (depth (stack-length stack))
+            (frame (or (and (> depth 1) (stack-ref stack 1))
+                       (and (> depth 0)) (stack-ref stack 0))))
+       (print-exception (current-error-port) frame key args)
+       (apply values results)))))
+
 (define* (spawn-builds store db jobs
                        #:key (max-batch-size 200))
   "Build the derivations associated with JOBS, a list of job alists, updating
@@ -412,7 +424,12 @@ MAX-BATCH-SIZE items."
                           (build-derivations& store drv)))
               (process-build-log port
                                  (lambda (event state)
-                                   (handle-build-event db event))
+                                   ;; Catch any errors so we can keep reading
+                                   ;; from PORT and eventually close it.
+                                   (catch #t
+                                     (lambda ()
+                                       (handle-build-event db event))
+                                     (exception-reporter state)))
                                  #t)
               (close-port port)
               (finish)))
