@@ -36,10 +36,9 @@
     (if bool 1 0))
 
   (define finished?
-    (bool->int
-     (not (memv (assq-ref build #:status)
-                (list (build-status scheduled)
-                      (build-status started))))))
+    (not (memv (assq-ref build #:status)
+               (list (build-status scheduled)
+                     (build-status started)))))
 
   `((#:id . ,(assq-ref build #:id))
     (#:project . ,(assq-ref build #:repo-name))
@@ -62,7 +61,7 @@
     (#:busy . ,(bool->int (eqv? (build-status started)
                                 (assq-ref build #:status))))
     (#:priority . 0)
-    (#:finished . ,finished?)
+    (#:finished . ,(bool->int finished?))
     (#:buildproducts . #nil)
     (#:releasename . #nil)
     (#:buildinputs_builds . #nil)))
