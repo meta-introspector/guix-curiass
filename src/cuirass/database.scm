@@ -253,10 +253,8 @@ INSERT INTO Evaluations (specification, revision) VALUES ("
   ;; XXX: We don't install an unwind handler to play well with delimited
   ;; continuations and fibers.  But as a consequence, we leak DB when BODY
   ;; raises an exception.
-  (let* ((db (db-open))
-         (result (begin body ...)))
-    (db-close db)
-    result))
+  (let ((db (db-open)))
+    (unwind-protect body ... (db-close db))))
 
 (define* (read-quoted-string #:optional (port (current-input-port)))
   "Read all of the characters out of PORT and return them as a SQL quoted
