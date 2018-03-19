@@ -32,6 +32,7 @@
             object->json-scm
             object->json-string
             define-enumeration
+            unwind-protect
             non-blocking
             essential-task
             bytevector-range))
@@ -66,6 +67,25 @@ value."
     (syntax-rules (symbol ...)
       ((_ symbol) value)
       ...)))
+
+(define-syntax-rule (unwind-protect body ... conclude)
+  "Evaluate BODY... and return its result(s), but always evaluate CONCLUDE
+before leaving, even if an exception is raised.
+
+This is *not* implemented with 'dynamic-wind' in order to play well with
+delimited continuations and fibers."
+  (let ((conclusion (lambda () conclude)))
+    (catch #t
+      (lambda ()
+        (call-with-values
+            (lambda ()
+              body ...)
+          (lambda results
+            (conclusion)
+            (apply values results))))
+      (lambda args
+        (conclusion)
+        (apply throw args)))))
 
 (define (%non-blocking thunk)
   (let ((channel (make-channel)))
