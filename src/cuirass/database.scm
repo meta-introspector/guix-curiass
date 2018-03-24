@@ -136,9 +136,19 @@ question marks matches the number of arguments to bind."
               (reverse! insts)
               (loop (cons inst insts))))))))
 
-(define (wal-mode db)
-  "Turn DB in \"write-ahead log\" mode and return it."
+(define (set-db-options db)
+  "Set various options for DB and return it."
+
+  ;; Turn DB in "write-ahead log" mode and return it.
   (sqlite-exec db "PRAGMA journal_mode=WAL;")
+
+  ;; Install a busy handler such that, when the database is locked, sqlite
+  ;; retries until 30 seconds have passed, at which point it gives up and
+  ;; throws SQLITE_BUSY.  This is useful when we have several fibers or
+  ;; threads accessing the database concurrently.
+  ;;(sqlite-busy-timeout db (* 30 1000))
+  (sqlite-exec db "PRAGMA busy_timeout = 30000;")
+
   db)
 
 (define* (db-init #:optional (db-name (%package-database))
@@ -160,9 +170,9 @@ database object."
   ;; Use "write-ahead log" mode because it improves concurrency and should
   ;; avoid SQLITE_LOCKED errors when we have several readers:
   ;; <https://www.sqlite.org/wal.html>.
-  (wal-mode (if (file-exists? db)
-                (sqlite-open db SQLITE_OPEN_READWRITE)
-                (db-init db))))
+  (set-db-options (if (file-exists? db)
+                      (sqlite-open db SQLITE_OPEN_READWRITE)
+                      (db-init db))))
 
 (define (db-close db)
   "Close database object DB."
