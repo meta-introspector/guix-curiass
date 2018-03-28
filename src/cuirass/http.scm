@@ -22,12 +22,16 @@
   #:use-module (cuirass database)
   #:use-module (cuirass utils)
   #:use-module (cuirass logging)
+  #:use-module (srfi srfi-11)
+  #:use-module (srfi srfi-26)
   #:use-module (ice-9 match)
   #:use-module (json)
   #:use-module (web request)
   #:use-module (web response)
-  #:use-module (web server)
+  #:use-module ((web server) #:hide (run-server))
   #:use-module (web uri)
+  #:use-module (fibers)
+  #:use-module (fibers channels)
   #:export (run-cuirass-server))
 
 (define (build->hydra-build build)
@@ -66,20 +70,28 @@
     (#:releasename . #nil)
     (#:buildinputs_builds . #nil)))
 
-(define (handle-build-request db build-id)
-  "Retrieve build identified by BUILD-ID in DB and convert it to hydra
-  format. Return #f is not build was found."
-  (let ((build (db-get-build db build-id)))
+(define-syntax-rule (with-database-access channel db exp ...)
+  "Evaluate EXP with DB bound to the database.  Do that by passing EXP over to
+CHANNEL for execution by the database fiber.  This ensures that the database
+handle is only ever accessed from on thread, the thread where the database
+fiber runs (IOW, it creates a critical section.)"
+  (begin
+    (put-message channel (lambda (db) exp ...))
+    (get-message channel)))
+
+(define (handle-build-request db-channel build-id)
+  "Retrieve build identified by BUILD-ID over DB-CHANNEL and convert it to
+hydra format. Return #f is not build was found."
+  (let ((build (with-database-access db-channel db
+                 (db-get-build db build-id))))
     (and=> build build->hydra-build)))
 
-(define (handle-builds-request db filters)
-  "Retrieve all builds matched by FILTERS in DB and convert them to hydra
-  format."
-  ;; Since these requests can take several seconds (!), run them through
-  ;; 'non-blocking'.
-  (let ((builds (non-blocking
-                 (with-time-logging "builds request"
-                                    (db-get-builds db filters)))))
+(define (handle-builds-request db-channel filters)
+  "Retrieve all builds matched by FILTERS in DB-CHANNEL and convert them to
+Hydra format."
+  (let ((builds (with-database-access db-channel db
+                  (with-time-logging "builds request"
+                                     (db-get-builds db filters)))))
     (map build->hydra-build builds)))
 
 (define (request-parameters request)
@@ -112,10 +124,10 @@
 (define (request-path-components request)
   (split-and-decode-uri-path (uri-path (request-uri request))))
 
-(define (url-handler request body db)
+(define (url-handler request body db-channel)
 
-  (define* (respond response #:key body (db db))
-    (values response body db))
+  (define* (respond response #:key body (db-channel db-channel))
+    (values response body db-channel))
 
   (define-syntax-rule (respond-json body ...)
     (respond '((content-type . (application/json)))
@@ -152,14 +164,18 @@
              (request-path-components request)
              'method-not-allowed)
     (((or "jobsets" "specifications") . rest)
-     (respond-json (object->json-string (db-get-specifications db))))
+     (respond-json (object->json-string
+                    (with-database-access db-channel db
+                      (db-get-specifications db)))))
     (("build" build-id)
-     (let ((hydra-build (handle-build-request db (string->number build-id))))
+     (let ((hydra-build (handle-build-request db-channel
+                                              (string->number build-id))))
        (if hydra-build
            (respond-json (object->json-string hydra-build))
            (respond-build-not-found build-id))))
     (("build" build-id "log" "raw")
-     (let ((build (db-get-build db (string->number build-id))))
+     (let ((build (with-database-access db-channel db
+                    (db-get-build db (string->number build-id)))))
        (if build
            (match (assq-ref build #:outputs)
              (((_ (#:path . (? string? output))) _ ...)
@@ -186,7 +202,7 @@
        (if valid-params?
            ;; Limit results to builds that are "done".
            (respond-json (object->json-string
-                          (handle-builds-request db
+                          (handle-builds-request db-channel
                                                  `((status done)
                                                    ,@params
                                                    (order finish-time)))))
@@ -200,34 +216,65 @@
             (object->json-string
              ;; Use the 'status+submission-time' order so that builds in
              ;; 'running' state appear before builds in 'scheduled' state.
-             (handle-builds-request db
+             (handle-builds-request db-channel
                                     `((status pending)
                                       ,@params
                                       (order status+submission-time)))))
            (respond-json-with-error 500 "Parameter not defined!"))))
     ('method-not-allowed
      ;; 405 "Method Not Allowed"
-     (values (build-response #:code 405) #f db))
+     (values (build-response #:code 405) #f db-channel))
     (_
      (respond (build-response #:code 404)
               #:body (string-append "Resource not found: "
                                     (uri->string (request-uri request)))))))
 
 (define* (run-cuirass-server db #:key (host "localhost") (port 8080))
-  (let* ((host-info (gethostbyname host))
-         (address (inet-ntop (hostent:addrtype host-info)
-                             (car (hostent:addr-list host-info)))))
+  (let* ((host-info  (gethostbyname host))
+         (address    (inet-ntop (hostent:addrtype host-info)
+                                (car (hostent:addr-list host-info))))
+         (db-channel (make-channel)))
     (log-message "listening on ~A:~A" address port)
+
+    ;; Spawn a fiber to process database queries sequentially.  We need this
+    ;; because guile-sqlite3 handles are not thread-safe (caching in
+    ;; particular), and creating one new handle for each request would be
+    ;; costly and may defeat statement caching.
+    (spawn-fiber
+     (lambda ()
+       (let loop ()
+         (match (get-message db-channel)
+           ((? procedure? proc)
+            (put-message db-channel (proc db))))
+         (loop))))
 
     ;; Here we use our own web backend, call 'fiberized'.  We cannot use the
     ;; 'fibers' backend that comes with Fibers 1.0.0 because it does its own
     ;; thread creations and calls 'run-fibers' by itself, which isn't
     ;; necessary here (and harmful).
     ;;
-    ;; XXX: 'run-server' serializes client request processing, making sure
-    ;; only one client is served at a time.  This is not ideal, but processing
-    ;; things concurrently would require having several database handles.
-    (run-server url-handler
-                'fiberized
-                `(#:host ,address #:port ,port)
-                db)))
+    ;; In addition, we roll our own instead of using Guile's 'run-server' and
+    ;; 'serve-one-client'.  The key thing here is that we spawn a fiber to
+    ;; process each client request and then directly go back waiting for the
+    ;; next client (conversely, Guile's 'run-server' loop processes clients
+    ;; one after another, sequentially.)  We can do that because we don't
+    ;; maintain any state across connections.
+    ;;
+    ;; XXX: We don't do 'call-with-sigint' like 'run-server' does.
+    (let* ((impl (lookup-server-impl 'fiberized))
+           (server (open-server impl `(#:host ,address #:port ,port))))
+      (let loop ()
+        (let-values (((client request body)
+                      (read-client impl server)))
+          ;; Spawn a fiber to handle REQUEST and reply to CLIENT.
+          (spawn-fiber
+           (lambda ()
+             (let-values (((response body state)
+                           (handle-request (cut url-handler <> <> db-channel)
+                                           request body '())))
+               (write-client impl server client response body)))))
+        (loop)))))
+
+;;; Local Variables:
+;;; eval: (put 'with-database-access 'scheme-indent-function 2)
+;;; End:
