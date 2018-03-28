@@ -50,6 +50,7 @@
             compile
             evaluate
             clear-build-queue
+            cancel-old-builds
             restart-builds
             build-packages
             prepare-git
@@ -491,6 +492,14 @@ updating DB accordingly."
 procedure is meant to be called at startup."
   (log-message "marking stale builds as \"scheduled\"...")
   (sqlite-exec db "UPDATE Builds SET status = -2 WHERE status = -1;"))
+
+(define (cancel-old-builds db age)
+  "Cancel builds older than AGE seconds."
+  (log-message "canceling builds older than ~a seconds..." age)
+  (sqlite-exec db
+               "UPDATE Builds SET status = 4 WHERE status = -2 AND timestamp < "
+               (- (time-second (current-time time-utc)) age)
+               ";"))
 
 (define (restart-builds db builds)
   "Restart builds whose status in DB is \"pending\" (scheduled or started)."
