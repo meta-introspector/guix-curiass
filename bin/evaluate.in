@@ -51,14 +51,16 @@ exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
          (unless (assoc-ref spec #:use-substitutes?)
            ;; Make sure we don't resort to substitutes.
            (set-build-options store #:use-substitutes? #f #:substitute-urls '()))
+
          ;; Grafts can trigger early builds.  We do not want that to happen
          ;; during evaluation, so use a sledgehammer to catch such problems.
+         ;; An exception, though, is the evaluation of Guix itself, which
+         ;; requires building a "trampoline" program.
          (set! build-things
-               (lambda (store . args)
-                 (display "error: trying to build things during evaluation!~%"
-                          stderr)
-                 (simple-format stderr "'build-things' arguments: ~S~%" args)
-                 (exit 1)))
+           (lambda (store . args)
+             (simple-format stderr "warning: building things during evaluation~%")
+             (simple-format stderr "'build-things' arguments: ~S~%" args)
+             (apply real-build-things store args)))
 
          (parameterize ((%use-substitutes? (assoc-ref spec #:use-substitutes?)))
            (unless (string-null? guix-package-path)
