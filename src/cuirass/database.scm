@@ -460,17 +460,17 @@ Assumes that if group id stays the same the group headers stay the same."
        (let ((x-repeated-row (list->vector other-cells)))
          (collect-outputs x-builds-id x-repeated-row '() rows)))))
 
-  (let* ((order (if (eq? (assqx-ref filters 'order) 'build-id)
-                    "ASC"
-                    "DESC"))
-         (order-column-name
-          (match (assqx-ref filters 'order)
-            (('order 'build-id) "Builds.id")
-            (('order 'decreasing-build-id) "Builds.id")
-            (('order 'finish-time) "Builds.stoptime")
-            (('order 'start-time) "Builds.starttime")
-            (('order 'submission-time) "Builds.timestamp")
-            (_ "Builds.id")))
+  (let* ((order (match (assq 'order filters)
+                  (('order 'build-id) "Builds.id ASC")
+                  (('order 'decreasing-build-id) "Builds.id DESC")
+                  (('order 'finish-time) "Builds.stoptime DESC")
+                  (('order 'start-time) "Builds.starttime DESC")
+                  (('order 'submission-time) "Builds.timestamp DESC")
+                  (('order 'status+submission-time)
+                   ;; With this order, builds in 'running' state (-1) appear
+                   ;; before those in 'scheduled' state (-2).
+                   "Builds.status DESC, Builds.timestamp DESC")
+                  (_ "Builds.id DESC")))
          (stmt-text (format #f "\
 SELECT Builds.id, Outputs.name, Outputs.path, Builds.timestamp, Builds.starttime, Builds.stoptime, Builds.log, Builds.status, Builds.derivation,\
 Derivations.job_name, Derivations.system, Derivations.nix_name,\
@@ -486,7 +486,7 @@ AND (:jobset IS NULL OR (:jobset = Specifications.branch)) \
 AND (:job IS NULL OR (:job = Derivations.job_name)) \
 AND (:system IS NULL OR (:system = Derivations.system)) \
 AND (:status IS NULL OR (:status = 'done' AND Builds.status >= 0) OR (:status = 'pending' AND Builds.status < 0)) \
-ORDER BY ~a ~a, Builds.id ASC LIMIT :nr;" order-column-name order))
+ORDER BY ~a, Builds.id ASC LIMIT :nr;" order))
          (stmt (sqlite-prepare db stmt-text #:cache? #t)))
     (sqlite-bind-arguments stmt #:id (assqx-ref filters 'id)
                            #:project (assqx-ref filters 'project)

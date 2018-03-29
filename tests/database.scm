@@ -119,40 +119,6 @@ INSERT INTO Evaluations (specification, revision) VALUES (3, 3);")
       ;; This should be idempotent, see <https://bugs.gnu.org/28094>.
       (db-add-build (%db) build)))
 
-  (test-equal "db-get-builds"
-    #(((1 "/foo.drv") (2 "/bar.drv") (3 "/baz.drv")) ;ascending order
-      ((3 "/baz.drv") (2 "/bar.drv") (1 "/foo.drv")) ;descending order
-      ((3 "/baz.drv") (2 "/bar.drv") (1 "/foo.drv")) ;ditto
-      ((3 "/baz.drv") (2 "/bar.drv") (1 "/foo.drv")) ;ditto
-      ((3 "/baz.drv")))                              ;nr = 1
-    (with-temporary-database db
-      ;; Populate the 'Builds', 'Derivations', 'Evaluations', and
-      ;; 'Specifications' tables in a consistent way, as expected by the
-      ;; 'db-get-builds' query.
-      (db-add-build db (make-dummy-build 1 #:drv "/foo.drv"
-                                         #:outputs `(("out" . "/foo"))))
-      (db-add-build db (make-dummy-build 2 #:drv "/bar.drv"
-                                         #:outputs `(("out" . "/bar"))))
-      (db-add-build db (make-dummy-build 3 #:drv "/baz.drv"
-                                         #:outputs `(("out" . "/baz"))))
-      (db-add-derivation db (make-dummy-derivation "/foo.drv" 1))
-      (db-add-derivation db (make-dummy-derivation "/bar.drv" 2))
-      (db-add-derivation db (make-dummy-derivation "/baz.drv" 3))
-      (db-add-evaluation db (make-dummy-eval))
-      (db-add-evaluation db (make-dummy-eval))
-      (db-add-evaluation db (make-dummy-eval))
-      (db-add-specification db example-spec)
-
-      (let ((summarize (lambda (alist)
-                         (list (assq-ref alist #:id)
-                               (assq-ref alist #:derivation)))))
-        (vector (map summarize (db-get-builds db '((nr 3) (order build-id))))
-                (map summarize (db-get-builds db '()))
-                (map summarize (db-get-builds db '((project "guix"))))
-                (map summarize (db-get-builds db '((project "guix")
-                                                   (jobset "master"))))
-                (map summarize (db-get-builds db '((nr 1))))))))
-
   (test-equal "db-update-build-status!"
     (list (build-status scheduled)
           (build-status started)
@@ -185,6 +151,46 @@ INSERT INTO Evaluations (specification, revision) VALUES (3, 3);")
                   (log     (get-status #:log)))
               (and (> start 0) (>= end start)
                    (list status0 status1 status2 log))))))))
+
+  (test-equal "db-get-builds"
+    #(((1 "/foo.drv") (2 "/bar.drv") (3 "/baz.drv")) ;ascending order
+      ((3 "/baz.drv") (2 "/bar.drv") (1 "/foo.drv")) ;descending order
+      ((3 "/baz.drv") (2 "/bar.drv") (1 "/foo.drv")) ;ditto
+      ((3 "/baz.drv") (2 "/bar.drv") (1 "/foo.drv")) ;ditto
+      ((3 "/baz.drv"))                               ;nr = 1
+      ((2 "/bar.drv") (1 "/foo.drv") (3 "/baz.drv"))) ;status+submission-time
+    (with-temporary-database db
+      ;; Populate the 'Builds', 'Derivations', 'Evaluations', and
+      ;; 'Specifications' tables in a consistent way, as expected by the
+      ;; 'db-get-builds' query.
+      (db-add-build db (make-dummy-build 1 #:drv "/foo.drv"
+                                         #:outputs `(("out" . "/foo"))))
+      (db-add-build db (make-dummy-build 2 #:drv "/bar.drv"
+                                         #:outputs `(("out" . "/bar"))))
+      (db-add-build db (make-dummy-build 3 #:drv "/baz.drv"
+                                         #:outputs `(("out" . "/baz"))))
+      (db-add-derivation db (make-dummy-derivation "/foo.drv" 1))
+      (db-add-derivation db (make-dummy-derivation "/bar.drv" 2))
+      (db-add-derivation db (make-dummy-derivation "/baz.drv" 3))
+      (db-add-evaluation db (make-dummy-eval))
+      (db-add-evaluation db (make-dummy-eval))
+      (db-add-evaluation db (make-dummy-eval))
+      (db-add-specification db example-spec)
+
+      (db-update-build-status! db "/bar.drv" (build-status started)
+                               #:log-file "/bar.drv.log")
+
+      (let ((summarize (lambda (alist)
+                         (list (assq-ref alist #:id)
+                               (assq-ref alist #:derivation)))))
+        (vector (map summarize (db-get-builds db '((nr 3) (order build-id))))
+                (map summarize (db-get-builds db '()))
+                (map summarize (db-get-builds db '((project "guix"))))
+                (map summarize (db-get-builds db '((project "guix")
+                                                   (jobset "master"))))
+                (map summarize (db-get-builds db '((nr 1))))
+                (map summarize
+                     (db-get-builds db '((order status+submission-time))))))))
 
   (test-assert "db-close"
     (db-close (%db)))
