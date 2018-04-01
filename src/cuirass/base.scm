@@ -138,10 +138,13 @@ values."
     (lambda (key err)
       (report-git-error err))))
 
-(define (fetch-repository store spec)
+(define* (fetch-repository store spec #:key writable-copy?)
   "Get the latest version of repository specified in SPEC.  Return two
 values: the content of the git repository at URL copied into a store
-directory and the sha1 of the top level commit in this directory."
+directory and the sha1 of the top level commit in this directory.
+
+When WRITABLE-COPY? is true, return a writable copy; otherwise, return a
+read-only directory."
 
   (define (add-origin branch)
     "Prefix branch name with origin if no remote is specified."
@@ -160,21 +163,29 @@ directory and the sha1 of the top level commit in this directory."
         (tag    (and=> (assq-ref spec #:tag)
                        (lambda (t)
                          `(tag . ,t)))))
-    (latest-repository-commit store url
-                              #:cache-directory (%package-cachedir)
-                              #:ref (or branch commit tag))))
+    (let-values (((directory commit)
+                  (latest-repository-commit store url
+                                            #:cache-directory (%package-cachedir)
+                                            #:ref (or branch commit tag))))
+      ;; TODO: When WRITABLE-COPY? is true, we could directly copy the
+      ;; checkout directly in a writable location instead of copying it to the
+      ;; store first.
+      (values (if writable-copy?
+                  (make-writable-copy directory
+                                      (string-append (%package-cachedir)
+                                                     "/" (assq-ref spec #:name)))
+                  directory)
+              commit))))
 
-(define (copy-repository-cache repo spec)
-  "Copy REPO directory in cache. The directory is named after NAME
-  field in SPEC."
-  (let ((cachedir (%package-cachedir)))
-    (mkdir-p cachedir)
-    (with-directory-excursion cachedir
-      (let ((name (assq-ref spec #:name)))
-        ;; Flush any directory with the same name.
-        (false-if-exception (delete-file-recursively name))
-        (copy-recursively repo name)
-        (system* "chmod" "-R" "+w" name)))))
+(define (make-writable-copy source target)
+  "Create TARGET and make it a writable copy of directory SOURCE; delete
+TARGET beforehand if it exists.  Return TARGET."
+  (mkdir-p (dirname target))
+  ;; Remove any directory with the same name.
+  (false-if-exception (delete-file-recursively target))
+  (copy-recursively source target)
+  (system* "chmod" "-R" "+w" target)
+  target)
 
 (define (compile dir)
   ;; Required for fetching Guix bootstrap tarballs.
@@ -217,8 +228,9 @@ fibers."
                    (logior (@ (fibers epoll) EPOLLERR)
                            (@ (fibers epoll) EPOLLHUP)))))
 
-(define (evaluate store db spec)
-  "Evaluate and build package derivations.  Return a list of jobs."
+(define (evaluate store db spec source)
+  "Evaluate and build package derivations defined in SPEC, using the checkout
+in SOURCE directory.  Return a list of jobs."
   (define (augment-job job eval-id)
     (let ((drv (read-derivation-from-file
                 (assq-ref job #:derivation))))
@@ -234,8 +246,7 @@ fibers."
                                            (assq-ref spec #:name) "/"
                                            (assq-ref spec #:load-path))
                             (%guix-package-path)
-                            (%package-cachedir)
-                            (object->string spec))))
+                            source (object->string spec))))
          (result (match (read/non-blocking port)
                    ;; If an error occured during evaluation report it,
                    ;; otherwise, suppose that data read from port are
@@ -602,13 +613,17 @@ procedure is meant to be called at startup."
 (define (process-specs db jobspecs)
   "Evaluate and build JOBSPECS and store results in DB."
   (define (process spec)
+    (define compile?
+      (not (assq-ref spec #:no-compile?)))
+
     (with-store store
       (let ((stamp (db-get-stamp db spec))
             (name  (assoc-ref spec #:name)))
          (log-message "considering spec '~a', URL '~a'"
                       name (assoc-ref spec #:url))
          (receive (checkout commit)
-             (non-blocking (fetch-repository store spec))
+             (non-blocking (fetch-repository store spec
+                                             #:writable-copy? compile?))
            (log-message "spec '~a': fetched commit ~s (stamp was ~s)"
                         name commit stamp)
            (when commit
@@ -617,12 +632,8 @@ procedure is meant to be called at startup."
                ;; a concurrent evaluation of that same commit.
                (db-add-stamp db spec commit)
 
-               (copy-repository-cache checkout spec)
-
-               (unless (assq-ref spec #:no-compile?)
-                 (non-blocking
-                  (compile (string-append (%package-cachedir) "/"
-                                          (assq-ref spec #:name)))))
+               (when compile?
+                 (non-blocking (compile checkout)))
 
                (spawn-fiber
                 (lambda ()
@@ -635,7 +646,7 @@ procedure is meant to be called at startup."
                     (with-store store
                       (with-database db
                         (let* ((spec* (acons #:current-commit commit spec))
-                               (jobs  (evaluate store db spec*)))
+                               (jobs  (evaluate store db spec* checkout)))
                           (log-message "building ~a jobs for '~a'"
                                        (length jobs) name)
                           (build-packages store db jobs)))))))

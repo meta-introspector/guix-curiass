@@ -35,7 +35,7 @@ exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
 
 (define* (main #:optional (args (command-line)))
   (match args
-    ((command load-path guix-package-path cachedir specstr)
+    ((command load-path guix-package-path source specstr)
      ;; Load FILE, a Scheme file that defines Hydra jobs.
      (let ((%user-module (make-fresh-user-module))
            (spec         (with-input-from-string specstr read))
@@ -44,8 +44,7 @@ exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
        (save-module-excursion
         (lambda ()
           (set-current-module %user-module)
-          (with-directory-excursion
-              (string-append cachedir "/" (assq-ref spec #:name))
+          (with-directory-excursion source
             (primitive-load (assq-ref spec #:file)))))
        (with-store store
          (unless (assoc-ref spec #:use-substitutes?)
