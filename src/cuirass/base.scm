@@ -37,6 +37,7 @@
   #:use-module (ice-9 rdelim)
   #:use-module (ice-9 receive)
   #:use-module (ice-9 atomic)
+  #:use-module (ice-9 ftw)
   #:use-module (srfi srfi-1)
   #:use-module (srfi srfi-11)
   #:use-module (srfi srfi-19)
@@ -180,11 +181,24 @@ read-only directory."
 (define (make-writable-copy source target)
   "Create TARGET and make it a writable copy of directory SOURCE; delete
 TARGET beforehand if it exists.  Return TARGET."
+  (define (chmod+w file stat _)
+    (chmod file (logior #o200 (stat:perms stat))))
+
   (mkdir-p (dirname target))
   ;; Remove any directory with the same name.
   (false-if-exception (delete-file-recursively target))
   (copy-recursively source target)
-  (system* "chmod" "-R" "+w" target)
+
+  ;; Make all the files in TARGET writable.
+  (file-system-fold (const #t)                    ;enter?
+                    chmod+w                       ;leaf
+                    chmod+w                       ;down
+                    (const #t)                    ;up
+                    (const #t)                    ;skip
+                    (const #f)                    ;error
+                    *unspecified*                 ;init
+                    target)
+
   target)
 
 (define (compile dir)
