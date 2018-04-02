@@ -70,26 +70,17 @@
     (#:releasename . #nil)
     (#:buildinputs_builds . #nil)))
 
-(define-syntax-rule (with-database-access channel db exp ...)
-  "Evaluate EXP with DB bound to the database.  Do that by passing EXP over to
-CHANNEL for execution by the database fiber.  This ensures that the database
-handle is only ever accessed from on thread, the thread where the database
-fiber runs (IOW, it creates a critical section.)"
-  (begin
-    (put-message channel (lambda (db) exp ...))
-    (get-message channel)))
-
 (define (handle-build-request db-channel build-id)
   "Retrieve build identified by BUILD-ID over DB-CHANNEL and convert it to
 hydra format. Return #f is not build was found."
-  (let ((build (with-database-access db-channel db
+  (let ((build (with-critical-section db-channel (db)
                  (db-get-build db build-id))))
     (and=> build build->hydra-build)))
 
 (define (handle-builds-request db-channel filters)
   "Retrieve all builds matched by FILTERS in DB-CHANNEL and convert them to
 Hydra format."
-  (let ((builds (with-database-access db-channel db
+  (let ((builds (with-critical-section db-channel (db)
                   (with-time-logging "builds request"
                                      (db-get-builds db filters)))))
     (map build->hydra-build builds)))
@@ -165,7 +156,7 @@ Hydra format."
              'method-not-allowed)
     (((or "jobsets" "specifications") . rest)
      (respond-json (object->json-string
-                    (with-database-access db-channel db
+                    (with-critical-section db-channel (db)
                       (db-get-specifications db)))))
     (("build" build-id)
      (let ((hydra-build (handle-build-request db-channel
@@ -174,7 +165,7 @@ Hydra format."
            (respond-json (object->json-string hydra-build))
            (respond-build-not-found build-id))))
     (("build" build-id "log" "raw")
-     (let ((build (with-database-access db-channel db
+     (let ((build (with-critical-section db-channel (db)
                     (db-get-build db (string->number build-id)))))
        (if build
            (match (assq-ref build #:outputs)
@@ -233,20 +224,13 @@ Hydra format."
   (let* ((host-info  (gethostbyname host))
          (address    (inet-ntop (hostent:addrtype host-info)
                                 (car (hostent:addr-list host-info))))
-         (db-channel (make-channel)))
-    (log-message "listening on ~A:~A" address port)
 
-    ;; Spawn a fiber to process database queries sequentially.  We need this
-    ;; because guile-sqlite3 handles are not thread-safe (caching in
-    ;; particular), and creating one new handle for each request would be
-    ;; costly and may defeat statement caching.
-    (spawn-fiber
-     (lambda ()
-       (let loop ()
-         (match (get-message db-channel)
-           ((? procedure? proc)
-            (put-message db-channel (proc db))))
-         (loop))))
+         ;; Spawn a fiber to process database queries sequentially.  We need
+         ;; this because guile-sqlite3 handles are not thread-safe (caching in
+         ;; particular), and creating one new handle for each request would be
+         ;; costly and may defeat statement caching.
+         (db-channel (make-critical-section db)))
+    (log-message "listening on ~A:~A" address port)
 
     ;; Here we use our own web backend, call 'fiberized'.  We cannot use the
     ;; 'fibers' backend that comes with Fibers 1.0.0 because it does its own
@@ -274,7 +258,3 @@ Hydra format."
                                            request body '())))
                (write-client impl server client response body)))))
         (loop)))))
-
-;;; Local Variables:
-;;; eval: (put 'with-database-access 'scheme-indent-function 2)
-;;; End:

@@ -12,7 +12,8 @@
   (eval put 'call-with-time 'scheme-indent-function 1)
   (eval put 'test-error 'scheme-indent-function 1)
   (eval put 'make-parameter 'scheme-indent-function 1)
-  (eval put 'with-database 'scheme-indent-function 1))
+  (eval put 'with-database 'scheme-indent-function 1)
+  (eval . (put 'with-critical-section 'scheme-indent-function 2)))
  (texinfo-mode
   (indent-tabs-mode)
   (fill-column . 72)

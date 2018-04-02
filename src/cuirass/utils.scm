@@ -33,6 +33,11 @@
             object->json-string
             define-enumeration
             unwind-protect
+
+            make-critical-section
+            call-with-critical-section
+            with-critical-section
+
             non-blocking
             essential-task
             bytevector-range))
@@ -86,6 +91,35 @@ delimited continuations and fibers."
       (lambda args
         (conclusion)
         (apply throw args)))))
+
+(define (make-critical-section . args)
+  "Return a channel used to implement a critical section.  That channel can
+then be passed to 'join-critical-section', which will ensure sequential
+ordering.  ARGS are the arguments of the critical section.
+
+Critical sections are implemented by passing the procedure to execute to a
+dedicated fiber."
+  (let ((channel (make-channel)))
+    (spawn-fiber
+     (lambda ()
+       (let loop ()
+         (match (get-message channel)
+           ((? procedure? proc)
+            (put-message channel (apply proc args))))
+         (loop))))
+    channel))
+
+(define (call-with-critical-section channel proc)
+  "Call PROC in the critical section corresponding to CHANNEL.  Return the
+result of PROC."
+  (put-message channel proc)
+  (get-message channel))
+
+(define-syntax-rule (with-critical-section channel (vars ...) exp ...)
+  "Evaluate EXP... in the critical section corresponding to CHANNEL.
+VARS... are bound to the arguments of the critical section."
+  (call-with-critical-section channel
+                              (lambda (vars ...) exp ...)))
 
 (define (%non-blocking thunk)
   (let ((channel (make-channel)))
