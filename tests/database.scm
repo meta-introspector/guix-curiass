@@ -192,6 +192,29 @@ INSERT INTO Evaluations (specification, revision) VALUES (3, 3);")
                 (map summarize
                      (db-get-builds db '((order status+submission-time))))))))
 
+  (test-equal "db-get-pending-derivations"
+    '("/bar.drv" "/foo.drv")
+    (with-temporary-database db
+      ;; Populate the 'Builds', 'Derivations', 'Evaluations', and
+      ;; 'Specifications' tables.  Here, two builds map to the same derivation
+      ;; but the result of 'db-get-pending-derivations' must not contain any
+      ;; duplicate.
+      (db-add-build db (make-dummy-build 1 #:drv "/foo.drv"
+                                         #:outputs `(("out" . "/foo"))))
+      (db-add-build db (make-dummy-build 2 #:drv "/bar.drv"
+                                         #:outputs `(("out" . "/bar"))))
+      (db-add-build db (make-dummy-build 3 #:drv "/foo.drv"
+                                         #:outputs `(("out" . "/foo"))))
+      (db-add-derivation db (make-dummy-derivation "/foo.drv" 1))
+      (db-add-derivation db (make-dummy-derivation "/bar.drv" 2))
+      (db-add-derivation db (make-dummy-derivation "/foo.drv" 3))
+      (db-add-evaluation db (make-dummy-eval))
+      (db-add-evaluation db (make-dummy-eval))
+      (db-add-evaluation db (make-dummy-eval))
+      (db-add-specification db example-spec)
+
+      (sort (db-get-pending-derivations db) string<?)))
+
   (test-assert "db-close"
     (db-close (%db)))
 

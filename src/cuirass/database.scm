@@ -39,6 +39,7 @@
             db-add-evaluation
             db-add-derivation
             db-get-derivation
+            db-get-pending-derivations
             build-status
             db-add-build
             db-update-build-status!
@@ -507,6 +508,22 @@ ORDER BY ~a, Builds.id ASC LIMIT :nr;" order))
     ((build)
      build)
     (() #f)))
+
+(define (db-get-pending-derivations db)
+  "Return the list of derivation file names corresponding to pending builds in
+DB.  The returned list is guaranteed to not have any duplicates."
+  ;; This is of course much more efficient than calling 'delete-duplicates' on
+  ;; a list of results obtained without DISTINCT, both in space and time.
+  ;;
+  ;; Here we use a subquery so that sqlite can use two indexes instead of
+  ;; creating a "TEMP B-TREE" when doing a single flat query, as "EXPLAIN
+  ;; QUERY PLAN" shows.
+  (map (match-lambda (#(drv) drv))
+       (sqlite-exec db "
+SELECT DISTINCT derivation FROM (
+  SELECT Derivations.derivation FROM Derivations INNER JOIN Builds
+  WHERE Derivations.derivation = Builds.derivation AND Builds.status < 0
+);")))
 
 (define (db-get-stamp db spec)
   "Return a stamp corresponding to specification SPEC in database DB."
