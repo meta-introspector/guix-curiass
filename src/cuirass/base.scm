@@ -362,15 +362,10 @@ Essentially this procedure inverts the inversion-of-control that
 ;;; Building packages.
 ;;;
 
-(define (shuffle-jobs jobs)
-  "Shuffle JOBS, a list of job alists."
+(define (shuffle-derivations drv)
+  "Shuffle DRV, a list of derivation file names."
   ;; Our shuffling algorithm is simple: we sort by .drv file name.  :-)
-  (define (job<? job1 job2)
-    (let ((drv1 (assq-ref job1 #:derivation))
-          (drv2 (assq-ref job2 #:derivation)))
-      (string<? drv1 drv2)))
-
-  (sort jobs job<?))
+  (sort drv string<?))
 
 (define (update-build-statuses! store db lst)
   "Update the build status of the derivations listed in LST, which have just
@@ -397,11 +392,10 @@ and returns the values RESULTS."
        (print-exception (current-error-port) frame key args)
        (apply values results)))))
 
-(define* (spawn-builds store db jobs
+(define* (spawn-builds store db drv
                        #:key (max-batch-size 200))
-  "Build the derivations associated with JOBS, a list of job alists, updating
-DB as builds complete.  Derivations are submitted in batches of at most
-MAX-BATCH-SIZE items."
+  "Build the derivations listed in DRV, updating DB as builds complete.
+Derivations are submitted in batches of at most MAX-BATCH-SIZE items."
   ;; XXX: We want to pass 'build-derivations' as many derivations at once so
   ;; we benefit from as much parallelism as possible (we must be using
   ;; #:keep-going? #t).
@@ -419,31 +413,27 @@ MAX-BATCH-SIZE items."
   ;; This code works around it by submitting derivations in batches of at most
   ;; MAX-BATCH-SIZE.
 
-  (define total (length jobs))
+  (define total (length drv))
 
   (log-message "building ~a derivations in batches of ~a"
                total max-batch-size)
 
-  ;; Shuffle jobs so that we don't build sequentially i686/x86_64/aarch64,
+  ;; Shuffle DRV so that we don't build sequentially i686/x86_64/aarch64,
   ;; master/core-updates, etc., which would be suboptimal.
-  (let loop ((jobs  (shuffle-jobs jobs))
+  (let loop ((drv   (shuffle-derivations drv))
              (count total))
     (if (zero? count)
         (log-message "done with ~a derivations" total)
         (let*-values (((batch rest)
                        (if (> count max-batch-size)
-                           (split-at jobs max-batch-size)
-                           (values jobs '())))
-                      ((drv)
-                       (map (lambda (job)
-                              (assq-ref job #:derivation))
-                            batch)))
+                           (split-at drv max-batch-size)
+                           (values drv '()))))
           (guard (c ((nix-protocol-error? c)
                      (log-message "batch of builds (partially) failed:\
 ~a (status: ~a)"
                                   (nix-protocol-error-message c)
                                   (nix-protocol-error-status c))))
-            (log-message "building batch of ~a jobs (~a/~a)"
+            (log-message "building batch of ~a derivations (~a/~a)"
                          max-batch-size (- total count) total)
             (let-values (((port finish)
                           (build-derivations& store drv)))
@@ -526,43 +516,26 @@ procedure is meant to be called at startup."
                (- (time-second (current-time time-utc)) age)
                ";"))
 
-(define (restart-builds db builds)
+(define (restart-builds db)
   "Restart builds whose status in DB is \"pending\" (scheduled or started)."
   (with-store store
-    (let*-values (((builds)
-                   (delete-duplicates builds build-derivation=?))
-                  ((valid stale)
-                   (partition (lambda (build)
-                                (let ((drv (assq-ref build #:derivation)))
-                                  (valid-path? store drv)))
-                              builds)))
+    ;; Note: On a big database, 'db-get-pending-derivations' can take a couple
+    ;; of minutes, hence 'non-blocking'.
+    (log-message "retrieving list of pending builds...")
+    (let*-values (((valid stale)
+                   (partition (cut valid-path? store <>)
+                              (non-blocking (db-get-pending-derivations db)))))
       ;; We cannot restart builds listed in STALE, so mark them as canceled.
       (log-message "canceling ~a stale builds" (length stale))
-      (for-each (lambda (build)
-                  (db-update-build-status! db (assq-ref build #:derivation)
-                                           (build-status canceled)))
+      (for-each (lambda (drv)
+                  (db-update-build-status! db drv (build-status canceled)))
                 stale)
 
-      ;; Those in VALID can be restarted, but some of them may actually be
-      ;; done already--either because our database is outdated, or because it
-      ;; was not built by Cuirass.
-      (let-values (((done remaining)
-                    (partition (lambda (build)
-                                 (match (assq-ref build #:outputs)
-                                   (((name ((#:path . item))) _ ...)
-                                    (valid-path? store item))
-                                   (_ #f)))
-                               valid)))
-        (log-message "~a of the pending builds had actually completed"
-                     (length done))
-        (for-each (lambda (build)
-                    (db-update-build-status! db (assq-ref build #:derivation)
-                                             (build-status succeeded)))
-                  done)
-
-        (log-message "restarting ~a pending builds" (length remaining))
-        (spawn-builds store db remaining)
-        (log-message "done with restarted builds")))))
+      ;; Those in VALID can be restarted.  If some of them were built in the
+      ;; meantime behind our back, that's fine: 'spawn-builds' will DTRT.
+      (log-message "restarting ~a pending builds" (length valid))
+      (spawn-builds store db valid)
+      (log-message "done with restarted builds"))))
 
 (define (build-packages store db jobs)
   "Build JOBS and return a list of Build results."
@@ -595,7 +568,8 @@ procedure is meant to be called at startup."
   (define build-ids
     (map register jobs))
 
-  (spawn-builds store db jobs)
+  (spawn-builds store db
+                (map (cut assq-ref <> #:derivation) jobs))
 
   (let* ((results (filter-map (cut db-get-build db <>) build-ids))
          (status (map (cut assq-ref <> #:status) results))

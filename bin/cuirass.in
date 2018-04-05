@@ -128,12 +128,9 @@ exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
                                 new-specs)))
                (if one-shot?
                    (process-specs db (db-get-specifications db))
-                   (let ((exit-channel (make-channel))
-                         (pending
-                          (begin
-                            (clear-build-queue db)
-                            (log-message "retrieving list of pending builds...")
-                            (db-get-builds db '((status pending))))))
+                   (let ((exit-channel (make-channel)))
+
+                     (clear-build-queue db)
 
                      ;; First off, restart builds that had not completed or
                      ;; were not even started on a previous run.
@@ -142,7 +139,7 @@ exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
                        'restart-builds exit-channel
                        (lambda ()
                          (with-database db
-                           (restart-builds db pending)))))
+                           (restart-builds db)))))
 
                      (spawn-fiber
                       (essential-task
