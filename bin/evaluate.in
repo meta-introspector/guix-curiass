@@ -65,10 +65,15 @@ exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
            (unless (string-null? guix-package-path)
              (set-guix-package-path! guix-package-path))
            ;; Call the entry point of FILE and print the resulting job sexp.
+           ;; Among the arguments, always pass 'file-name' and 'revision' like
+           ;; Hydra does.
            (let* ((proc-name (assq-ref spec #:proc))
                   (proc    (module-ref %user-module proc-name))
-                  (thunks  (proc store (assq-ref spec #:arguments)))
                   (commit  (assq-ref spec #:current-commit))
+                  (args    `((revision . ,commit)
+                             (file-name . ,source)
+                             ,@(or (assq-ref spec #:arguments) '())))
+                  (thunks  (proc store args))
                   (eval    `((#:specification . ,(assq-ref spec #:name))
                              (#:revision . ,commit))))
              (pretty-print

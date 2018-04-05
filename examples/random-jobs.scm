@@ -42,6 +42,10 @@
                             (mkdir #$output))))))
 
 (define (make-random-jobs store arguments)
+  (format (current-error-port)
+          "evaluating random jobs from directory ~s, commit ~s~%"
+          (assq-ref arguments 'file-name)
+          (assq-ref arguments 'revision))
   (unfold (cut > <> 10)
           (lambda (i)
             (let ((suffix (number->string i)))
