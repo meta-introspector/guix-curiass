@@ -70,11 +70,13 @@ exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
            (let* ((proc-name (assq-ref spec #:proc))
                   (proc    (module-ref %user-module proc-name))
                   (commit  (assq-ref spec #:current-commit))
-                  (args    `((revision . ,commit)
-                             (file-name . ,source)
+                  (name    (assq-ref spec #:name))
+                  (args    `((,(string->symbol name)
+                              (revision . ,commit)
+                              (file-name . ,source))
                              ,@(or (assq-ref spec #:arguments) '())))
                   (thunks  (proc store args))
-                  (eval    `((#:specification . ,(assq-ref spec #:name))
+                  (eval    `((#:specification . ,name)
                              (#:revision . ,commit))))
              (pretty-print
               `(evaluation ,eval
