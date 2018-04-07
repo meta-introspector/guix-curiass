@@ -55,11 +55,12 @@ exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
          ;; during evaluation, so use a sledgehammer to catch such problems.
          ;; An exception, though, is the evaluation of Guix itself, which
          ;; requires building a "trampoline" program.
-         (set! build-things
-           (lambda (store . args)
-             (simple-format stderr "warning: building things during evaluation~%")
-             (simple-format stderr "'build-things' arguments: ~S~%" args)
-             (apply real-build-things store args)))
+         (let ((real-build-things build-things))
+           (set! build-things
+             (lambda (store . args)
+               (simple-format stderr "warning: building things during evaluation~%")
+               (simple-format stderr "'build-things' arguments: ~S~%" args)
+               (apply real-build-things store args))))
 
          (parameterize ((%use-substitutes? (assoc-ref spec #:use-substitutes?)))
            (unless (string-null? guix-package-path)
