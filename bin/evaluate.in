@@ -33,6 +33,9 @@ exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
              (guix derivations)
              (guix store))
 
+(define %not-colon
+  (char-set-complement (char-set #\:)))
+
 (define* (main #:optional (args (command-line)))
   (match args
     ((command load-path guix-package-path source specstr)
@@ -40,12 +43,21 @@ exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
      (let ((%user-module (make-fresh-user-module))
            (spec         (with-input-from-string specstr read))
            (stdout       (current-output-port))
-           (stderr       (current-error-port)))
+           (stderr       (current-error-port))
+           (load-path    (string-tokenize load-path %not-colon)))
        (save-module-excursion
         (lambda ()
           (set-current-module %user-module)
           (with-directory-excursion source
-            (primitive-load (assq-ref spec #:file)))))
+            (let ((original-path %load-path))
+              (dynamic-wind
+                (lambda ()
+                  (set! %load-path (append load-path original-path)))
+                (lambda ()
+                  (primitive-load (assq-ref spec #:file)))
+                (lambda ()
+                  (set! %load-path original-path)))))))
+
        (with-store store
          (unless (assoc-ref spec #:use-substitutes?)
            ;; Make sure we don't resort to substitutes.
