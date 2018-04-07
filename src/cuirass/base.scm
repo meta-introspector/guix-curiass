@@ -253,12 +253,24 @@ in SOURCE directory.  Return a list of jobs."
         (#:system . ,(derivation-system drv))
         ,@job)))
 
+  (define (tokenize str)
+    (string-tokenize str (char-set-complement (char-set #\:))))
+
+  (define load-path
+    (match (assq-ref spec #:load-path)
+      (#f
+       "")
+      ((= tokenize path)
+       (string-join (map (lambda (entry)
+                           (if (string-prefix? "/" entry)
+                               entry
+                               (string-append source "/" entry)))
+                         path)
+                    ":"))))
+
   (let* ((port (non-blocking-port
-                (open-pipe* OPEN_READ
-                            "evaluate"
-                            (string-append (%package-cachedir) "/"
-                                           (assq-ref spec #:name) "/"
-                                           (assq-ref spec #:load-path))
+                (open-pipe* OPEN_READ "evaluate"
+                            load-path
                             (%guix-package-path)
                             source (object->string spec))))
          (result (match (read/non-blocking port)

@@ -11,7 +11,8 @@ This manual is for Cuirass version @value{VERSION}, a build automation
 server.
 
 Copyright @copyright{} 2016, 2017 Mathieu Lirzin@*
-Copyright @copyright{} 2017 Mathieu Othacehe
+Copyright @copyright{} 2017 Mathieu Othacehe@*
+Copyright @copyright{} 2018 Ludovic Courtès
 
 @quotation
 Permission is granted to copy, distribute and/or modify this document
@@ -248,11 +249,15 @@ specification itself.
 The URL of the repository.
 
 @item load_path
-This text field holds the name of the subdirectory in the checked out
-repository that is passed to the @code{evaluate} tool as the Guile load
-path.  This directory is interpreted relative to the repository in the
-Cuirass cache directory.  This will usually be the current directory
+This field holds a colon-separated list of directories that are
+prepended to the Guile load path when evaluating @code{file} (see
+below.)
+
+Each entry that is not an absolute file name is interpreted relative to
+the source code checkout.  Often, @code{load_path} has just one entry,
 @code{"."}.
+
+When @code{load_path} is empty, the load path is left unchanged.
 
 @item file
 The absolute name of the Scheme file containing PROC.
