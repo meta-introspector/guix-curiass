@@ -35,17 +35,6 @@ exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
   (let ((m (resolve-interface module)))
     (module-ref m name)))
 
-(define-syntax-rule (with-directory-excursion dir body ...)
-  "Run BODY with DIR as the process's current directory."
-  (let ((init (getcwd)))
-   (dynamic-wind
-     (lambda ()
-       (chdir dir))
-     (lambda ()
-       body ...)
-     (lambda ()
-       (chdir init)))))
-
 (define %not-colon
   (char-set-complement (char-set #\:)))
 
@@ -66,18 +55,22 @@ exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
        (unless (string-null? guix-package-path)
          (setenv "GUIX_PACKAGE_PATH" guix-package-path))
 
+       ;; Since we have relative file name canonicalization by default, better
+       ;; change to SOURCE to make sure things like 'include' with relative
+       ;; file names work as expected.
+       (chdir source)
+
        (save-module-excursion
         (lambda ()
           (set-current-module %user-module)
-          (with-directory-excursion source
-            (let ((original-path %load-path))
-              (dynamic-wind
-                (lambda ()
-                  (set! %load-path (append load-path original-path)))
-                (lambda ()
-                  (primitive-load (assq-ref spec #:file)))
-                (lambda ()
-                  (set! %load-path original-path)))))))
+          (let ((original-path %load-path))
+            (dynamic-wind
+              (lambda ()
+                (set! %load-path (append load-path original-path)))
+              (lambda ()
+                (primitive-load (assq-ref spec #:file)))
+              (lambda ()
+                (set! %load-path original-path))))))
 
        ;; From there on we can access Guix modules.
 
