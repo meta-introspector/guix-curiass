@@ -25,13 +25,26 @@ exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
 ;;; You should have received a copy of the GNU General Public License
 ;;; along with Cuirass.  If not, see <http://www.gnu.org/licenses/>.
 
-(use-modules (cuirass)
-             (ice-9 match)
-             (ice-9 pretty-print)
-             (srfi srfi-26)
-             (guix build utils)
-             (guix derivations)
-             (guix store))
+
+;; Note: Do not use any Guix modules (see below).
+(use-modules (ice-9 match)
+             (ice-9 pretty-print))
+
+(define (ref module name)
+  "Dynamically link variable NAME under MODULE and return it."
+  (let ((m (resolve-interface module)))
+    (module-ref m name)))
+
+(define-syntax-rule (with-directory-excursion dir body ...)
+  "Run BODY with DIR as the process's current directory."
+  (let ((init (getcwd)))
+   (dynamic-wind
+     (lambda ()
+       (chdir dir))
+     (lambda ()
+       body ...)
+     (lambda ()
+       (chdir init)))))
 
 (define %not-colon
   (char-set-complement (char-set #\:)))
@@ -40,11 +53,19 @@ exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
   (match args
     ((command load-path guix-package-path source specstr)
      ;; Load FILE, a Scheme file that defines Hydra jobs.
+     ;;
+     ;; Until FILE is loaded, we must *not* load any Guix module because
+     ;; SOURCE may be providing its own, which could differ from ours--this is
+     ;; the case when SOURCE is a Guix checkout.  The 'ref' procedure helps us
+     ;; achieve this.
      (let ((%user-module (make-fresh-user-module))
            (spec         (with-input-from-string specstr read))
            (stdout       (current-output-port))
            (stderr       (current-error-port))
            (load-path    (string-tokenize load-path %not-colon)))
+       (unless (string-null? guix-package-path)
+         (setenv "GUIX_PACKAGE_PATH" guix-package-path))
+
        (save-module-excursion
         (lambda ()
           (set-current-module %user-module)
@@ -58,7 +79,11 @@ exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
                 (lambda ()
                   (set! %load-path original-path)))))))
 
-       (with-store store
+       ;; From there on we can access Guix modules.
+
+       (let ((store ((ref '(guix store) 'open-connection)))
+             (set-build-options (ref '(guix store)
+                                     'set-build-options)))
          (unless (assoc-ref spec #:use-substitutes?)
            ;; Make sure we don't resort to substitutes.
            (set-build-options store #:use-substitutes? #f #:substitute-urls '()))
@@ -67,36 +92,36 @@ exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
          ;; during evaluation, so use a sledgehammer to catch such problems.
          ;; An exception, though, is the evaluation of Guix itself, which
          ;; requires building a "trampoline" program.
-         (let ((real-build-things build-things))
-           (set! build-things
-             (lambda (store . args)
-               (simple-format stderr "warning: building things during evaluation~%")
-               (simple-format stderr "'build-things' arguments: ~S~%" args)
-               (apply real-build-things store args))))
+         (let ((real-build-things (ref '(guix store) 'build-things)))
+           (module-set! (resolve-module '(guix store))
+                        'build-things
+                        (lambda (store . args)
+                          (simple-format stderr "warning:
+building things during evaluation~%")
+                          (simple-format stderr
+                                         "'build-things' arguments: ~S~%"
+                                         args)
+                          (apply real-build-things store args))))
 
-         (parameterize ((%use-substitutes? (assoc-ref spec #:use-substitutes?)))
-           (unless (string-null? guix-package-path)
-             (set-guix-package-path! guix-package-path))
-           ;; Call the entry point of FILE and print the resulting job sexp.
-           ;; Among the arguments, always pass 'file-name' and 'revision' like
-           ;; Hydra does.
-           (let* ((proc-name (assq-ref spec #:proc))
-                  (proc    (module-ref %user-module proc-name))
-                  (commit  (assq-ref spec #:current-commit))
-                  (name    (assq-ref spec #:name))
-                  (args    `((,(string->symbol name)
-                              (revision . ,commit)
-                              (file-name . ,source))
-                             ,@(or (assq-ref spec #:arguments) '())))
-                  (thunks  (proc store args))
-                  (eval    `((#:specification . ,name)
-                             (#:revision . ,commit))))
-             (pretty-print
-              `(evaluation ,eval
-                           ,(map (lambda (thunk)
-                                   (call-with-time-display thunk))
-                                 thunks))
-              stdout))))))
+         ;; Call the entry point of FILE and print the resulting job sexp.
+         ;; Among the arguments, always pass 'file-name' and 'revision' like
+         ;; Hydra does.
+         (let* ((proc-name (assq-ref spec #:proc))
+                (proc    (module-ref %user-module proc-name))
+                (commit  (assq-ref spec #:current-commit))
+                (name    (assq-ref spec #:name))
+                (args    `((,(string->symbol name)
+                            (revision . ,commit)
+                            (file-name . ,source))
+                           ,@(or (assq-ref spec #:arguments) '())))
+                (thunks  (proc store args))
+                (eval    `((#:specification . ,name)
+                           (#:revision . ,commit))))
+           (pretty-print
+            `(evaluation ,eval
+                         ,(map (lambda (thunk) (thunk))
+                               thunks))
+            stdout)))))
     ((command _ ...)
      (simple-format (current-error-port) "Usage: ~A FILE
 Evaluate the Hydra jobs defined in FILE.~%"
