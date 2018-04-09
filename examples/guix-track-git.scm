@@ -1,5 +1,5 @@
 ;;; guix-track-git.scm -- job specification tracking a guix packages's git
-;;; Copyright © 2012, 2013, 2014, 2015, 2016 Ludovic Courtès <ludo@gnu.org>
+;;; Copyright © 2012, 2013, 2014, 2015, 2016, 2018 Ludovic Courtès <ludo@gnu.org>
 ;;; Copyright © 2016 Mathieu Lirzin <mthl@gnu.org>
 ;;; Copyright © 2016 Jan Nieuwenhuizen <janneke@gnu.org>
 ;;;
@@ -71,7 +71,7 @@
 
 ;; XXX: Debugging hack: since `hydra-eval-guile-jobs' redirects the output
 ;; port to the bit bucket, let us write to the error port instead.
-(setvbuf (current-error-port) _IOLBF)
+(setvbuf (current-error-port) 'line)
 (set-current-output-port (current-error-port))
 
 (define (license->alist lcs)

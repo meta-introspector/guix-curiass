@@ -79,8 +79,8 @@ exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
 (define* (main #:optional (args (command-line)))
 
   ;; Always have stdout/stderr line-buffered.
-  (setvbuf (current-output-port) _IOLBF)
-  (setvbuf (current-error-port) _IOLBF)
+  (setvbuf (current-output-port) 'line)
+  (setvbuf (current-error-port) 'line)
 
   (let ((opts (getopt-long args %options)))
     (parameterize
