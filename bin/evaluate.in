@@ -58,17 +58,14 @@ exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
        ;; file names work as expected.
        (chdir source)
 
+       ;; Change '%load-path' once and for all.  We need it to be effective
+       ;; both when we load SPEC's #:file and when we later call the thunks.
+       (set! %load-path (append load-path %load-path))
+
        (save-module-excursion
         (lambda ()
           (set-current-module %user-module)
-          (let ((original-path %load-path))
-            (dynamic-wind
-              (lambda ()
-                (set! %load-path (append load-path original-path)))
-              (lambda ()
-                (primitive-load (assq-ref spec #:file)))
-              (lambda ()
-                (set! %load-path original-path))))))
+          (primitive-load (assq-ref spec #:file))))
 
        ;; From there on we can access Guix modules.
 
