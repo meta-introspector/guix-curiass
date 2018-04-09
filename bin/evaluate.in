@@ -1,8 +1,6 @@
 #!/bin/sh
 # -*- scheme -*-
 # @configure_input@
-GUILE_LOAD_PATH="$1${GUILE_LOAD_PATH:+:}$GUILE_LOAD_PATH"
-export GUILE_LOAD_PATH
 exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
 !#
 ;;;; evaluate -- convert a specification to a job list
