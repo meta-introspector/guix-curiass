@@ -448,7 +448,7 @@ Derivations are submitted in batches of at most MAX-BATCH-SIZE items."
             (log-message "building batch of ~a derivations (~a/~a)"
                          max-batch-size (- total count) total)
             (let-values (((port finish)
-                          (build-derivations& store drv)))
+                          (build-derivations& store batch)))
               (process-build-log port
                                  (lambda (event state)
                                    ;; Catch any errors so we can keep reading
@@ -467,7 +467,7 @@ Derivations are submitted in batches of at most MAX-BATCH-SIZE items."
           ;; 'build-derivations' doesn't actually do anything and
           ;; 'handle-build-event' doesn't see any event.  Because of that,
           ;; adjust DB here.
-          (update-build-statuses! store db drv)
+          (update-build-statuses! store db batch)
 
           (loop rest (max (- count max-batch-size) 0))))))
 
