@@ -61,8 +61,8 @@ CREATE TABLE Builds (
 );
 
 -- Create indexes to speed up common queries, in particular those
--- corresponding to /api/latestbuilds HTTP requests.
-CREATE INDEX Builds_Derivations_index ON Builds(status ASC, derivation, evaluation, stoptime DESC);
+-- corresponding to /api/latestbuilds and /api/queue HTTP requests.
+CREATE INDEX Builds_Derivations_index ON Builds(status ASC, timestamp ASC, id, derivation, evaluation, stoptime DESC);
 CREATE INDEX Specifications_index ON Specifications(repo_name, branch);
 CREATE INDEX Derivations_index ON Derivations(derivation, evaluation, job_name, system);
 
