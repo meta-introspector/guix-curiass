@@ -45,6 +45,7 @@
             db-update-build-status!
             db-get-build
             db-get-builds
+            db-get-evaluations
             read-sql-file
             read-quoted-string
             sqlite-exec
@@ -541,3 +542,17 @@ INSERT INTO Stamps (specification, stamp) VALUES ("
                    (assq-ref spec #:name) ", " commit ");")
       (sqlite-exec db "UPDATE Stamps SET stamp=" commit
                    "WHERE specification=" (assq-ref spec #:name) ";")))
+
+(define (db-get-evaluations db limit)
+  (let loop ((rows  (sqlite-exec db "SELECT id, specification, revision
+FROM Evaluations ORDER BY id DESC LIMIT " limit ";"))
+             (evaluations '()))
+    (match rows
+      (() evaluations)
+      ((#(id specification revision)
+        . rest)
+       (loop rest
+             (cons `((#:id . ,id)
+                     (#:specification . ,specification)
+                     (#:revision . ,revision))
+                   evaluations))))))

@@ -186,6 +186,17 @@ Hydra format."
              (#f
               (respond-build-not-found build-id)))
            (respond-build-not-found build-id))))
+    (("api" "evaluations")
+     (let* ((params (request-parameters request))
+            ;; 'nr parameter is mandatory to limit query size.
+            (nr (match (assq-ref params 'nr)
+                  ((val) val)
+                  (_ #f))))
+       (if nr
+           (respond-json (object->json-string
+                          (with-critical-section db-channel (db)
+                            (db-get-evaluations db nr))))
+           (respond-json-with-error 500 "Parameter not defined!"))))
     (("api" "latestbuilds")
      (let* ((params (request-parameters request))
             ;; 'nr parameter is mandatory to limit query size.

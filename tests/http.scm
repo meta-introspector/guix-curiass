@@ -94,6 +94,11 @@
     (#:releasename . #nil)
     (#:buildinputs_builds . #nil)))
 
+(define evaluations-query-result
+  '((#:id . 2)
+    (#:specification . "guix")
+    (#:revision . "fakesha2")))
+
 (test-group-with-cleanup "http"
   (test-assert "object->json-string"
     ;; Note: We cannot compare the strings directly because field ordering
@@ -175,15 +180,19 @@
               (#:tag . #f)
               (#:commit . #f)
               (#:no-compile? . #f)))
-           (evaluation
+           (evaluation1
             '((#:specification . "guix")
-              (#:revision . 1))))
+              (#:revision . "fakesha1")))
+           (evaluation2
+            '((#:specification . "guix")
+              (#:revision . "fakesha2"))))
       (db-add-build (%db) build1)
       (db-add-build (%db) build2)
       (db-add-derivation (%db) derivation1)
       (db-add-derivation (%db) derivation2)
       (db-add-specification (%db) specification)
-      (db-add-evaluation (%db) evaluation)))
+      (db-add-evaluation (%db) evaluation1)
+      (db-add-evaluation (%db) evaluation2)))
 
   (test-assert "/build/1"
     (hash-table=?
@@ -253,6 +262,19 @@
       ((dictionary)
        (list (hash-ref dictionary "nixname")
              (hash-ref dictionary "buildstatus")))))
+
+  (test-assert "/api/evaluations?nr=1"
+    (let ((hash-list
+           (call-with-input-string
+               (utf8->string
+                (http-get-body (test-cuirass-uri "/api/evaluations?nr=1")))
+             json->scm)))
+      (and (= (length hash-list) 1)
+           (hash-table=?
+            (car hash-list)
+            (call-with-input-string
+                (object->json-string evaluations-query-result)
+              json->scm)))))
 
   (test-assert "db-close"
     (db-close (%db)))
