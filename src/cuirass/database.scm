@@ -548,7 +548,7 @@ INSERT INTO Stamps (specification, stamp) VALUES ("
 FROM Evaluations ORDER BY id DESC LIMIT " limit ";"))
              (evaluations '()))
     (match rows
-      (() evaluations)
+      (() (reverse evaluations))
       ((#(id specification revision)
         . rest)
        (loop rest
