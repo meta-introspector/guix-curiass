@@ -105,10 +105,10 @@ basis of the @dfn{Continuous integration} practice.
 @chapter Overview
 
 @command{cuirass} acts as a daemon polling @acronym{VCS, version control
-system} repositories for changes, and evaluating a derivation when
-something has changed (@pxref{Derivations, Derivations,, guix, Guix}).
-As a final step the derivation is realized and the result of that build
-allows you to know if the job succeeded or not.
+system} repositories (called @dfn{inputs}) for changes, and evaluating a
+derivation when an input has changed (@pxref{Derivations, Derivations,, guix,
+Guix}).  As a final step the derivation is realized and the result of that
+build allows you to know if the job succeeded or not.
 
 What is actually done by @command{cuirass} is specified in a @dfn{job
 specification} which is represented as an association list which is a
@@ -116,19 +116,39 @@ basic and traditional Scheme data structure.  Here is an example of what
 a specification might look like:
 
 @lisp
- `((#:name . "hello")
-   (#:url . "git://git.savannah.gnu.org/guix.git")
-   (#:branch . "master")
-   (#:no-compile? . #t)
-   (#:load-path . ".")
+ '((#:name . "foo-master")
+   (#:load-path-inputs . ("guix"))
+   (#:package-path-inputs . ("packages"))
+   (#:proc-input . "conf")
+   (#:proc-file . "drv-list.scm")
    (#:proc . cuirass-jobs)
-   (#:file . "/tmp/drv-file.scm")
-   (#:arguments (subset . "hello")))
+   (#:proc-args (subset . "foo"))
+   (#:inputs . (((#:name . "guix")
+                 (#:url . "git://git.savannah.gnu.org/guix.git")
+                 (#:load-path . ".")
+                 (#:branch . "master")
+                 (#:no-compile? . #t))
+                ((#:name . "conf")
+                 (#:url . "git://my-personal-conf.git")
+                 (#:load-path . ".")
+                 (#:branch . "master")
+                 (#:no-compile? . #t))
+                ((#:name . "packages")
+                 (#:url . "git://my-custom-packages.git")
+                 (#:load-path . ".")
+                 (#:branch . "master")
+                 (#:no-compile? . #t)))))
 @end lisp
 
 In this specification the keys are Scheme keywords which have the nice
 property of being self evaluating.  This means that they can't refer to
 another value like symbols do.
+
+There are three inputs: one tracking the Guix repository, one tracking the
+repository containing the @code{proc}, and one tracking the repository
+containing the custom packages (see @code{GUIX_PACKAGE_PATH}).
+@code{#:load-path-inputs}, @code{#:package-path-inputs} and
+@code{#:proc-input} refer to these inputs by their name.
 
 @quotation Note
 @c This refers to
@@ -229,47 +249,69 @@ Cuirass uses a SQLite database to store information about jobs and past
 build results, but also to coordinate the execution of jobs.
 
 The database contains the following tables: @code{Specifications},
-@code{Stamps}, @code{Evaluations}, @code{Derivations}, and
+@code{Inputs}, @code{Stamps}, @code{Evaluations}, @code{Derivations} and
 @code{Builds}.  The purpose of each of these tables is explained below.
 
 @section Specifications
 @cindex specifications, database
 
-This table stores specifications describing the repository from whence
+This table stores specifications describing the repositories from whence
 Cuirass fetches code and the environment in which it will be processed.
 Entries in this table must have values for the following text fields:
 
 @table @code
-@item repo_name
-This field holds the name of the repository.  This field is also the
-primary key of this table.  Although this field is called
-@code{repo_name} in the database, it's called @code{name} in the
-specification itself.
+@item name
+This field holds the name of the specification.  This field is also the
+primary key of this table.
+
+@item load_path_inputs
+This field holds a list of input names whose load path is prepended to Guile's
+@code{%load-path} when evaluating @code{proc_file}.
+
+@item package_path_inputs
+This field holds a list of input names whose load path is prepended to
+@code{GUIX_PACKAGE_PATH} when evaluating @code{proc_file}.
+
+@item proc_input
+The name of the input containing @code{proc}.
+
+@item proc_file
+The path of the Scheme file containing @code{proc}, relative to
+@code{proc_input}.
+
+@item proc
+This text field holds the name of the procedure in the Scheme file
+@code{proc_file} that produces a list of jobs.
+
+@item proc_args
+A list of arguments to be passed to @code{proc}.  This can be used to produce
+a different set of jobs using the same @code{proc}.
+@end table
+
+@section Inputs
+@cindex inputs, database
+
+This table stores the data related to the repositories that are periodically
+fetched by Cuirass.  Entries in this table must have values for the following
+text fields:
+
+@table @code
+@item specification
+This field holds the name of the specification from the @code{Specifications}
+table associated with the input.  Every input belongs to a specification, and
+that specification can refer to its inputs.
+
+@item name
+This field holds the name of the input.  That name can be used as a key by the
+@code{proc} if it needs access to its resulting checkout.
 
 @item url
 The URL of the repository.
 
 @item load_path
-This field holds a colon-separated list of directories that are
-prepended to the Guile load path when evaluating @code{file} (see
-below.)
+Used by a specification when it refers to an input's load path.  See
+@code{load_path_inputs} and @code{package_path_inputs}.
 
-Each entry that is not an absolute file name is interpreted relative to
-the source code checkout.  Often, @code{load_path} has just one entry,
-@code{"."}.
-
-When @code{load_path} is empty, the load path is left unchanged.
-
-@item file
-The absolute name of the Scheme file containing PROC.
-
-@item proc
-This text field holds the name of the procedure in the Scheme file FILE
-that produces a list of jobs.
-
-@item arguments
-A list of arguments to be passed to PROC.  This can be used to produce a
-different set of jobs using the same PROC.
 @end table
 
 The following columns are optional:
@@ -280,13 +322,12 @@ This text field determines which branch of the repository Cuirass should
 check out.
 
 @item tag
-This text field is an alternative to using BRANCH or REVISION.  It tells
-Cuirass to check out the repository at the specified tag.
+This text field is an alternative to using @code{branch} or @code{revision}.
+It tells Cuirass to check out the repository at the specified tag.
 
 @item revision
-This text field is an alternative to using BRANCH or TAG.  It tells
-Cuirass to check out the repository at a particular revision.  In the
-case of a git repository this would be a commit hash.
+This text field is an alternative to using @code{branch} or @code{tag}.  It
+tells Cuirass to check out the repository at a particular commit.
 
 @item no_compile_p
 When this integer field holds the value @code{1} Cuirass will skip
@@ -296,14 +337,13 @@ compilation for the specified repository.
 @section Stamps
 @cindex stamps, database
 
-When a specification is processed, the repository must be downloaded at
-a certain revision as specified.  The @code{Stamps} table stores the
-current revision for every specification when it is being processed.
+When a specification is processed, the repositories must be downloaded at a
+certain revision as specified.  The @code{Stamps} table stores the current
+revisions for every specification when it is being processed.
 
-The table only has two text columns: @code{specification}, which
-references a specification from the @code{Specifications} table via the
-field @code{repo_name}, and @code{stamp}, which holds the revision
-(e.g. a commit hash).
+The table only has two text columns: @code{specification}, which references a
+specification from the @code{Specifications} table via the field @code{name},
+and @code{stamp}, which holds the revisions (space separated commit hashes).
 
 @section Evaluations
 @cindex evaluations, database
@@ -319,12 +359,12 @@ The @code{Evaluations} table has the following columns:
 This is an automatically incrementing numeric identifier.
 
 @item specification
-This field holds the @code{repo_name} of a specification from the
+This field holds the @code{name} of a specification from the
 @code{Specifications} table.
 
-@item revision
-This text field holds the revision string (e.g. a git commit) of the
-repository specified in the related specification.
+@item commits
+This text field holds the revisions (space separated commit hashes) of the
+repositories specified as inputs of the related specification.
 @end table
 
 @section Derivations

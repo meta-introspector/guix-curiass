@@ -227,47 +227,76 @@ database object."
   (vector-ref (car (sqlite-exec db "SELECT last_insert_rowid();"))
               0))
 
-(define (db-add-specification db spec)
-  "Store specification SPEC in database DB and return its ID."
+(define (db-add-input db spec-name input)
   (sqlite-exec db "\
-INSERT OR IGNORE INTO Specifications (repo_name, url, load_path, file, \
-                  proc, arguments, branch, tag, revision, no_compile_p) \
+INSERT OR IGNORE INTO Inputs (specification, name, url, load_path, branch, \
+tag, revision, no_compile_p) VALUES ("
+               spec-name ", "
+               (assq-ref input #:name) ", "
+               (assq-ref input #:url) ", "
+               (assq-ref input #:load-path) ", "
+               (assq-ref input #:branch) ", "
+               (assq-ref input #:tag) ", "
+               (assq-ref input #:commit) ", "
+               (if (assq-ref input #:no-compile?) 1 0) ");")
+  (last-insert-rowid db))
+
+(define (db-add-specification db spec)
+  "Store SPEC in database DB. SPEC inputs are stored in the INPUTS table."
+  (sqlite-exec db "\
+INSERT OR IGNORE INTO Specifications (name, load_path_inputs, \
+package_path_inputs, proc_input, proc_file, proc, proc_args) \
   VALUES ("
                (assq-ref spec #:name) ", "
-               (assq-ref spec #:url) ", "
-               (assq-ref spec #:load-path) ", "
-               (assq-ref spec #:file) ", "
+               (assq-ref spec #:load-path-inputs) ", "
+               (assq-ref spec #:package-path-inputs)", "
+               (assq-ref spec #:proc-input) ", "
+               (assq-ref spec #:proc-file) ", "
                (symbol->string (assq-ref spec #:proc)) ", "
-               (assq-ref spec #:arguments) ", "
-               (assq-ref spec #:branch) ", "
-               (assq-ref spec #:tag) ", "
-               (assq-ref spec #:commit) ", "
-               (if (assq-ref spec #:no-compile?) 1 0)
-               ");")
-  (last-insert-rowid db))
+               (assq-ref spec #:proc-args) ");")
+  (let ((spec-id (last-insert-rowid db)))
+    (for-each (lambda (input)
+                (db-add-input db (assq-ref spec #:name) input))
+              (assq-ref spec #:inputs))
+    spec-id))
+
+(define (db-get-inputs db spec-name)
+  (let loop ((rows (sqlite-exec db "SELECT * FROM Inputs WHERE specification="
+                                spec-name ";"))
+             (inputs '()))
+    (match rows
+      (() inputs)
+      ((#(specification name url load-path branch tag revision no-compile-p)
+        . rest)
+       (loop rest
+             (cons `((#:name . ,name)
+                     (#:url . ,url)
+                     (#:load-path . ,load-path)
+                     (#:branch . ,branch)
+                     (#:tag . ,tag)
+                     (#:commit . ,revision)
+                     (#:no-compile? . ,(positive? no-compile-p)))
+                   inputs))))))
 
 (define (db-get-specifications db)
   (let loop ((rows  (sqlite-exec db "SELECT * FROM Specifications;"))
              (specs '()))
     (match rows
       (() specs)
-      ((#(name url load-path file proc args branch tag rev no-compile?)
+      ((#(name load-path-inputs package-path-inputs proc-input proc-file proc
+               proc-args)
         . rest)
        (loop rest
              (cons `((#:name . ,name)
-                     (#:url . ,url)
-                     (#:load-path . ,load-path)
-                     (#:file . ,file)
+                     (#:load-path-inputs .
+                      ,(with-input-from-string load-path-inputs read))
+                     (#:package-path-inputs .
+                      ,(with-input-from-string package-path-inputs read))
+                     (#:proc-input . ,proc-input)
+                     (#:proc-file . ,proc-file)
                      (#:proc . ,(with-input-from-string proc read))
-                     (#:arguments . ,(with-input-from-string args read))
-                     (#:branch . ,branch)
-                     (#:tag . ,(match tag
-                                 ("NULL" #f)
-                                 (_      tag)))
-                     (#:commit . ,(match rev
-                                    ("NULL" #f)
-                                    (_      rev)))
-                     (#:no-compile? . ,(positive? no-compile?)))
+                     (#:proc-args . ,(with-input-from-string proc-args read))
+                     (#:inputs . ,(db-get-inputs db name)))
                    specs))))))
 
 (define (db-add-derivation db job)
@@ -298,9 +327,9 @@ INSERT INTO Derivations (derivation, job_name, system, nix_name, evaluation)\
 
 (define (db-add-evaluation db eval)
   (sqlite-exec db "\
-INSERT INTO Evaluations (specification, revision) VALUES ("
+INSERT INTO Evaluations (specification, commits) VALUES ("
                (assq-ref eval #:specification) ", "
-               (assq-ref eval #:revision) ");")
+               (string-join (assq-ref eval #:commits)) ");")
   (last-insert-rowid db))
 
 (define-syntax-rule (with-database db body ...)
@@ -517,14 +546,14 @@ Assumes that if group id stays the same the group headers stay the same."
          (stmt-text (format #f "\
 SELECT Builds.id, Outputs.name, Outputs.path, Builds.timestamp, Builds.starttime, Builds.stoptime, Builds.log, Builds.status, Builds.derivation,\
 Derivations.job_name, Derivations.system, Derivations.nix_name,\
-Specifications.repo_name \
+Specifications.name \
 FROM Builds \
 INNER JOIN Derivations ON Builds.derivation = Derivations.derivation AND Builds.evaluation = Derivations.evaluation \
 INNER JOIN Evaluations ON Derivations.evaluation = Evaluations.id \
-INNER JOIN Specifications ON Evaluations.specification = Specifications.repo_name \
+INNER JOIN Specifications ON Evaluations.specification = Specifications.name \
 LEFT JOIN Outputs ON Outputs.build = Builds.id \
 WHERE (:id IS NULL OR (:id = Builds.id)) \
-AND (:jobset IS NULL OR (:jobset = Specifications.repo_name)) \
+AND (:jobset IS NULL OR (:jobset = Specifications.name)) \
 AND (:job IS NULL OR (:job = Derivations.job_name)) \
 AND (:system IS NULL OR (:system = Derivations.system)) \
 AND (:status IS NULL OR (:status = 'done' AND Builds.status >= 0) OR (:status = 'pending' AND Builds.status < 0)) \
@@ -570,28 +599,28 @@ SELECT DISTINCT derivation FROM (
   (let ((res (sqlite-exec db "SELECT * FROM Stamps WHERE specification="
                           (assq-ref spec #:name) ";")))
     (match res
-      (() "")
-      ((#(spec commit)) commit))))
+      (() #f)
+      ((#(spec stamp)) stamp))))
 
-(define (db-add-stamp db spec commit)
-  "Associate stamp COMMIT to specification SPEC in database DB."
-  (if (string-null? (db-get-stamp db spec))
+(define (db-add-stamp db spec stamp)
+  "Associate STAMP to specification SPEC in database DB."
+  (if (db-get-stamp db spec)
+      (sqlite-exec db "UPDATE Stamps SET stamp=" stamp
+                   "WHERE specification=" (assq-ref spec #:name) ";")
       (sqlite-exec db "\
 INSERT INTO Stamps (specification, stamp) VALUES ("
-                   (assq-ref spec #:name) ", " commit ");")
-      (sqlite-exec db "UPDATE Stamps SET stamp=" commit
-                   "WHERE specification=" (assq-ref spec #:name) ";")))
+                   (assq-ref spec #:name) ", " stamp ");")))
 
 (define (db-get-evaluations db limit)
-  (let loop ((rows  (sqlite-exec db "SELECT id, specification, revision
+  (let loop ((rows  (sqlite-exec db "SELECT id, specification, commits
 FROM Evaluations ORDER BY id DESC LIMIT " limit ";"))
              (evaluations '()))
     (match rows
       (() (reverse evaluations))
-      ((#(id specification revision)
+      ((#(id specification commits)
         . rest)
        (loop rest
              (cons `((#:id . ,id)
                      (#:specification . ,specification)
-                     (#:revision . ,revision))
+                     (#:commits . ,(string-tokenize commits)))
                    evaluations))))))

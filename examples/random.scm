@@ -1,5 +1,6 @@
 ;;; random.scm -- Job specification that creates random build jobs
 ;;; Copyright © 2018 Ludovic Courtès <ludo@gnu.org>
+;;; Copyright © 2018 Clément Lassieur <clement@lassieur.org>
 ;;;
 ;;; This file is part of Cuirass.
 ;;;
@@ -20,10 +21,14 @@
                    (string-append (dirname (current-filename)) "/.."))))
   (list
    `((#:name . "random")
-     (#:url . ,(string-append "file://" top-srcdir))
-     (#:branch . "master")
-     (#:no-compile? . #t)
-     (#:load-path . ".")
+     (#:load-path-inputs . ())          ;use the Guix shipped with Cuirass
+     (#:package-path-inputs . ())
+     (#:proc-input . "cuirass")
+     (#:proc-file . "examples/random-jobs.scm")
      (#:proc . make-random-jobs)
-     (#:file . "examples/random-jobs.scm")
-     (#:arguments . ()))))
+     (#:proc-args . ())
+     (#:inputs . (((#:name . "cuirass")
+                   (#:url . ,(string-append "file://" top-srcdir))
+                   (#:load-path . ".")
+                   (#:branch . "master")
+                   (#:no-compile? . #t)))))))

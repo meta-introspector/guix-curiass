@@ -97,7 +97,7 @@
 (define evaluations-query-result
   '((#:id . 2)
     (#:specification . "guix")
-    (#:revision . "fakesha2")))
+    (#:commits . ("fakesha2" "fakesha3"))))
 
 (test-group-with-cleanup "http"
   (test-assert "object->json-string"
@@ -171,21 +171,25 @@
               (#:eval-id . 1)))
            (specification
             '((#:name . "guix")
-              (#:url . "git://git.savannah.gnu.org/guix.git")
-              (#:load-path . ".")
-              (#:file . "/tmp/gnu-system.scm")
+              (#:load-path-inputs . ("savannah"))
+              (#:package-path-inputs . ())
+              (#:proc-input . "savannah")
+              (#:proc-file . "/tmp/gnu-system.scm")
               (#:proc . hydra-jobs)
-              (#:arguments (subset . "hello"))
-              (#:branch . "master")
-              (#:tag . #f)
-              (#:commit . #f)
-              (#:no-compile? . #f)))
+              (#:proc-args (subset . "hello"))
+              (#:inputs . (((#:name . "savannah")
+                            (#:url . "git://git.savannah.gnu.org/guix.git")
+                            (#:load-path . ".")
+                            (#:branch . "master")
+                            (#:tag . #f)
+                            (#:commit . #f)
+                            (#:no-compile? . #f))))))
            (evaluation1
             '((#:specification . "guix")
-              (#:revision . "fakesha1")))
+              (#:commits . ("fakesha1" "fakesha3"))))
            (evaluation2
             '((#:specification . "guix")
-              (#:revision . "fakesha2"))))
+              (#:commits . ("fakesha2" "fakesha3")))))
       (db-add-build (%db) build1)
       (db-add-build (%db) build2)
       (db-add-derivation (%db) derivation1)

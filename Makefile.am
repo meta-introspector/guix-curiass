@@ -3,6 +3,7 @@
 # Copyright © 1995-2016 Free Software Foundation, Inc.
 # Copyright © 2016, 2017 Mathieu Lirzin <mthl@gnu.org>
 # Copyright © 2018 Ludovic Courtès <ludo@gnu.org>
+# Copyright © 2018 Clément Lassieur <clement@lassieur.org>
 #
 # This file is part of Cuirass.
 #
@@ -32,6 +33,7 @@ pkgmoduledir = $(guilesitedir)/$(PACKAGE)
 pkgobjectdir = $(guileobjectdir)/$(PACKAGE)
 webmoduledir = $(guilesitedir)/web/server
 webobjectdir = $(guileobjectdir)/web/server
+sqldir = $(pkgdatadir)/sql
 
 dist_pkgmodule_DATA =				\
   src/cuirass/base.scm				\
@@ -55,6 +57,9 @@ nodist_webobject_DATA =				\
   $(dist_webmodule_DATA:.scm=.go)
 
 dist_pkgdata_DATA = src/schema.sql
+
+dist_sql_DATA = 				\
+  src/sql/upgrade-1.sql
 
 TEST_EXTENSIONS = .scm .sh
 AM_TESTS_ENVIRONMENT = \

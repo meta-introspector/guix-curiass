@@ -25,19 +25,30 @@
 
 (define example-spec
   '((#:name . "guix")
-    (#:url . "git://git.savannah.gnu.org/guix.git")
-    (#:load-path . ".")
-    (#:file . "/tmp/gnu-system.scm")
+    (#:load-path-inputs . ("savannah"))
+    (#:package-path-inputs . ())
+    (#:proc-input . "savannah")
+    (#:proc-file . "/tmp/gnu-system.scm")
     (#:proc . hydra-jobs)
-    (#:arguments (subset . "hello"))
-    (#:branch . "master")
-    (#:tag . #f)
-    (#:commit . #f)
-    (#:no-compile? . #f)))
+    (#:proc-args (subset . "hello"))
+    (#:inputs . (((#:name . "savannah")
+                  (#:url . "git://git.savannah.gnu.org/guix.git")
+                  (#:load-path . ".")
+                  (#:branch . "master")
+                  (#:tag . #f)
+                  (#:commit . #f)
+                  (#:no-compile? . #f))
+                 ((#:name . "maintenance")
+                  (#:url . "git://git.savannah.gnu.org/guix/maintenance.git")
+                  (#:load-path . ".")
+                  (#:branch . "master")
+                  (#:tag . #f)
+                  (#:commit . #f)
+                  (#:no-compile? . #f))))))
 
-(define* (make-dummy-eval #:optional (revision "cabba3e"))
+(define* (make-dummy-eval #:optional (commits '("cabba3e 61730ea")))
   `((#:specification . "guix")
-    (#:revision . ,revision)))
+    (#:commits . ,commits)))
 
 (define* (make-dummy-job #:optional (name "foo"))
   `((#:name . ,name)
@@ -90,11 +101,11 @@
   (test-assert "sqlite-exec"
     (begin
       (sqlite-exec (%db) "\
-INSERT INTO Evaluations (specification, revision) VALUES (1, 1);")
+INSERT INTO Evaluations (specification, commits) VALUES (1, 1);")
       (sqlite-exec (%db) "\
-INSERT INTO Evaluations (specification, revision) VALUES (2, 2);")
+INSERT INTO Evaluations (specification, commits) VALUES (2, 2);")
       (sqlite-exec (%db) "\
-INSERT INTO Evaluations (specification, revision) VALUES (3, 3);")
+INSERT INTO Evaluations (specification, commits) VALUES (3, 3);")
       (sqlite-exec (%db) "SELECT * FROM Evaluations;")))
 
   (test-equal "db-add-specification"

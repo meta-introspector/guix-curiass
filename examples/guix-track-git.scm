@@ -2,6 +2,7 @@
 ;;; Copyright © 2012, 2013, 2014, 2015, 2016, 2018 Ludovic Courtès <ludo@gnu.org>
 ;;; Copyright © 2016 Mathieu Lirzin <mthl@gnu.org>
 ;;; Copyright © 2016 Jan Nieuwenhuizen <janneke@gnu.org>
+;;; Copyright © 2018 Clément Lassieur <clement@lassieur.org>
 ;;;
 ;;; This file is part of Cuirass.
 ;;;
@@ -154,7 +155,7 @@ valid."
    (string-map (lambda (c) (if (memq c (string->list ":/")) #\- c)) url)
     #\-))
 
-(define* (package->spec pkg #:key (branch "master") commit url)
+(define* (package->input pkg #:key (branch "master") commit url)
   (let ((url (or url ((compose git-reference-url origin-uri package-source) pkg))))
     `((#:name . ,(url->file-name url))
       (#:url . ,url)
@@ -195,17 +196,18 @@ valid."
          (uri (origin-uri source)))
     (if (not branch)
         pkg
-        (let* ((spec (package->spec pkg #:branch branch #:commit commit #:url url)))
-          (let-values (((checkout commit)
-                        (fetch-repository store spec)))
-            (let* ((url (or url (git-reference-url uri)))
-                   ; maybe (string-append (%package-cachedir) "/" (url->file-name url))
-                   (git-dir checkout)
-                   (hash (bytevector->nix-base32-string (file-hash git-dir)))
-                   (source (origin (uri (git-reference (url url) (commit commit)))
-                                   (method git-fetch)
-                                   (sha256 (base32 hash)))))
-              (set-fields pkg ((package-source) source))))))))
+        (let* ((input (package->input pkg #:branch branch #:commit commit #:url url))
+               (checkout (fetch-input store input))
+               (url (or url (git-reference-url uri)))
+               ;; maybe (string-append (%package-cachedir) "/" (url->file-name url))
+               (git-dir (assq-ref checkout #:directory))
+               (hash (bytevector->nix-base32-string (file-hash git-dir)))
+               (source (origin (uri (git-reference
+                                     (url url)
+                                     (commit (assq-ref checkout #:commit))))
+                               (method git-fetch)
+                               (sha256 (base32 hash)))))
+          (set-fields pkg ((package-source) source))))))
 
 
 ;;;

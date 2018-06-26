@@ -1,5 +1,6 @@
 ;;; hello-singleton.scm -- job specification test for hello in master
 ;;; Copyright © 2016 Mathieu Lirzin <mthl@gnu.org>
+;;; Copyright © 2018 Clément Lassieur <clement@lassieur.org>
 ;;;
 ;;; This file is part of Cuirass.
 ;;;
@@ -16,18 +17,23 @@
 ;;; You should have received a copy of the GNU General Public License
 ;;; along with Cuirass.  If not, see <http://www.gnu.org/licenses/>.
 
-(define (local-file file)
-  ;; In the common case jobs will be defined relative to the repository.
-  ;; However for testing purpose use local gnu-system.scm instead.
-  (string-append (dirname (current-filename)) "/" file))
-
 (define hello-master
-  `((#:name . "guix")
-    (#:url . "git://git.savannah.gnu.org/guix.git")
-    (#:load-path . ".")
-    (#:file . ,(local-file "gnu-system.scm"))
+  '((#:name . "guix-master")
+    (#:load-path-inputs . ("guix"))
+    (#:package-path-inputs . ())
+    (#:proc-input . "cuirass")
+    (#:proc-file . "examples/gnu-system.scm")
     (#:proc . hydra-jobs)
-    (#:arguments (subset . "hello"))
-    (#:branch . "master")))
+    (#:proc-args (subset . "hello"))
+    (#:inputs . (((#:name . "guix")
+                  (#:url . "git://git.savannah.gnu.org/guix.git")
+                  (#:load-path . ".")
+                  (#:branch . "master")
+                  (#:no-compile? . #t))
+                 ((#:name . "cuirass")
+                  (#:url . "https://git.savannah.gnu.org/git/guix/guix-cuirass.git")
+                  (#:load-path . ".")
+                  (#:branch . "master")
+                  (#:no-compile? . #t))))))
 
 (list hello-master)

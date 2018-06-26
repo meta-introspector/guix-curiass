@@ -3,6 +3,7 @@
 ;;; Copyright © 2016, 2017 Mathieu Lirzin <mthl@gnu.org>
 ;;; Copyright © 2017 Mathieu Othacehe <m.othacehe@gmail.com>
 ;;; Copyright © 2017 Ricardo Wurmus <rekado@elephly.net>
+;;; Copyright © 2018 Clément Lassieur <clement@lassieur.org>
 ;;;
 ;;; This file is part of Cuirass.
 ;;;
@@ -38,6 +39,7 @@
   #:use-module (ice-9 receive)
   #:use-module (ice-9 atomic)
   #:use-module (ice-9 ftw)
+  #:use-module (ice-9 threads)
   #:use-module (srfi srfi-1)
   #:use-module (srfi srfi-11)
   #:use-module (srfi srfi-19)
@@ -47,7 +49,8 @@
   #:use-module (rnrs bytevectors)
   #:export (;; Procedures.
             call-with-time-display
-            fetch-repository
+            fetch-input
+            fetch-inputs
             compile
             evaluate
             clear-build-queue
@@ -56,9 +59,7 @@
             build-packages
             prepare-git
             process-specs
-            set-guix-package-path!
             ;; Parameters.
-            %guix-package-path
             %package-cachedir
             %use-substitutes?
             %fallback?))
@@ -139,10 +140,11 @@ values."
     (lambda (key err)
       (report-git-error err))))
 
-(define* (fetch-repository store spec #:key writable-copy?)
-  "Get the latest version of repository specified in SPEC.  Return two
-values: the content of the git repository at URL copied into a store
-directory and the sha1 of the top level commit in this directory.
+(define* (fetch-input store input #:key writable-copy?) ;TODO fix desc
+  "Get the latest version of repository inputified in INPUT.  Return an
+association list containing the input name, the content of the git repository
+at URL copied into a store directory and the sha1 of the top level commit in
+this directory.
 
 When WRITABLE-COPY? is true, return a writable copy; otherwise, return a
 read-only directory."
@@ -153,15 +155,15 @@ read-only directory."
         branch
         (string-append "origin/" branch)))
 
-  (let ((name   (assq-ref spec #:name))
-        (url    (assq-ref spec #:url))
-        (branch (and=> (assq-ref spec #:branch)
+  (let ((name   (assq-ref input #:name))
+        (url    (assq-ref input #:url))
+        (branch (and=> (assq-ref input #:branch)
                        (lambda (b)
                          `(branch . ,(add-origin b)))))
-        (commit (and=> (assq-ref spec #:commit)
+        (commit (and=> (assq-ref input #:commit)
                        (lambda (c)
                          `(commit . ,c))))
-        (tag    (and=> (assq-ref spec #:tag)
+        (tag    (and=> (assq-ref input #:tag)
                        (lambda (t)
                          `(tag . ,t)))))
     (let-values (((directory commit)
@@ -171,12 +173,16 @@ read-only directory."
       ;; TODO: When WRITABLE-COPY? is true, we could directly copy the
       ;; checkout directly in a writable location instead of copying it to the
       ;; store first.
-      (values (if writable-copy?
-                  (make-writable-copy directory
-                                      (string-append (%package-cachedir)
-                                                     "/" (assq-ref spec #:name)))
-                  directory)
-              commit))))
+      (let ((directory (if writable-copy?
+                           (make-writable-copy directory
+                                               (string-append
+                                                (%package-cachedir) "/" name))
+                           directory)))
+        `((#:name . ,name)
+          (#:directory . ,directory)
+          (#:commit . ,commit)
+          (#:load-path . ,(assq-ref input #:load-path))
+          (#:no-compile? . ,(assq-ref input #:no-compile?)))))))
 
 (define (make-writable-copy source target)
   "Create TARGET and make it a writable copy of directory SOURCE; delete
@@ -242,9 +248,9 @@ fibers."
                    (logior (@ (fibers epoll) EPOLLERR)
                            (@ (fibers epoll) EPOLLHUP)))))
 
-(define (evaluate store db spec source)
-  "Evaluate and build package derivations defined in SPEC, using the checkout
-in SOURCE directory.  Return a list of jobs."
+(define (evaluate store db spec checkouts commits)
+  "Evaluate and build package derivations defined in SPEC, using CHECKOUTS.
+Return a list of jobs."
   (define (augment-job job eval-id)
     (let ((drv (read-derivation-from-file
                 (assq-ref job #:derivation))))
@@ -253,26 +259,10 @@ in SOURCE directory.  Return a list of jobs."
         (#:system . ,(derivation-system drv))
         ,@job)))
 
-  (define (tokenize str)
-    (string-tokenize str (char-set-complement (char-set #\:))))
-
-  (define load-path
-    (match (assq-ref spec #:load-path)
-      (#f
-       "")
-      ((= tokenize path)
-       (string-join (map (lambda (entry)
-                           (if (string-prefix? "/" entry)
-                               entry
-                               (string-append source "/" entry)))
-                         path)
-                    ":"))))
-
   (let* ((port (non-blocking-port
                 (open-pipe* OPEN_READ "evaluate"
-                            load-path
-                            (%guix-package-path)
-                            source (object->string spec))))
+                            (object->string spec)
+                            (object->string checkouts))))
          (result (match (read/non-blocking port)
                    ;; If an error occured during evaluation report it,
                    ;; otherwise, suppose that data read from port are
@@ -284,11 +274,12 @@ in SOURCE directory.  Return a list of jobs."
                    (data data))))
     (close-pipe port)
     (match result
-      (('evaluation eval jobs)
-       (let ((eval-id (db-add-evaluation db eval)))
-         (log-message "created evaluation ~a for ~a, commit ~a" eval-id
-                      (assq-ref eval #:specification)
-                      (assq-ref eval #:revision))
+      (('evaluation jobs)
+       (let* ((spec-name (assq-ref spec #:name))
+              (eval-id (db-add-evaluation
+                        db `((#:specification . ,spec-name)
+                             (#:commits . ,commits)))))
+         (log-message "created evaluation ~a for '~a'" eval-id spec-name)
          (let ((jobs (map (lambda (job)
                             (augment-job job eval-id))
                           jobs)))
@@ -610,70 +601,83 @@ procedure is meant to be called at startup."
      (when (or directory file)
        (set-tls-certificate-locations! directory file)))))
 
+(define (compile? checkout)
+  (not (assq-ref checkout #:no-compile?)))
+
+(define (fetch-inputs spec)
+  "Fetch all inputs of SPEC in parallel."
+  (let* ((inputs (assq-ref spec #:inputs))
+         (thunks
+          (map
+           (lambda (input)
+             (lambda ()
+               (with-store store
+                 (log-message "fetching input '~a' of spec '~a'"
+                              (assq-ref input #:name)
+                              (assq-ref spec #:name))
+                 (fetch-input store input
+                              #:writable-copy? (compile? input)))))
+           inputs))
+         (results (par-map %non-blocking thunks)))
+    (map (lambda (checkout)
+           (log-message "fetched input '~a' of spec '~a' (commit ~s)"
+                        (assq-ref checkout #:name)
+                        (assq-ref spec #:name)
+                        (assq-ref checkout #:commit))
+           checkout)
+         results)))
+
+(define (compile-checkouts spec checkouts)
+  "Compile CHECKOUTS in parallel."
+  (let* ((thunks
+          (map
+           (lambda (checkout)
+             (lambda ()
+               (log-message "compiling input '~a' of spec '~a' (commit ~s)"
+                            (assq-ref checkout #:name)
+                            (assq-ref spec #:name)
+                            (assq-ref checkout #:commit))
+               (compile checkout)))
+           checkouts))
+         (results (par-map %non-blocking thunks)))
+    (map (lambda (checkout)
+           (log-message "compiled input '~a' of spec '~a' (commit ~s)"
+                        (assq-ref checkout #:name)
+                        (assq-ref spec #:name)
+                        (assq-ref checkout #:commit))
+           checkout)
+         results)))
+
 (define (process-specs db jobspecs)
   "Evaluate and build JOBSPECS and store results in DB."
   (define (process spec)
-    (define compile?
-      (not (assq-ref spec #:no-compile?)))
-
     (with-store store
-      (let ((stamp (db-get-stamp db spec))
-            (name  (assoc-ref spec #:name)))
-         (log-message "considering spec '~a', URL '~a'"
-                      name (assoc-ref spec #:url))
-         (receive (checkout commit)
-             (non-blocking (fetch-repository store spec
-                                             #:writable-copy? compile?))
-           (log-message "spec '~a': fetched commit ~s (stamp was ~s)"
-                        name commit stamp)
-           (when commit
-             (unless (string=? commit stamp)
-               ;; Immediately mark COMMIT as being processed so we don't spawn
-               ;; a concurrent evaluation of that same commit.
-               (db-add-stamp db spec commit)
+      (let* ((stamp (db-get-stamp db spec))
+             (name (assoc-ref spec #:name))
+             (checkouts (fetch-inputs spec))
+             (commits (map (cut assq-ref <> #:commit) checkouts))
+             (commits-str (string-join commits)))
+        (unless (equal? commits-str stamp)
+          ;; Immediately mark SPEC's INPUTS as being processed so we don't
+          ;; spawn a concurrent evaluation of that same commit.
+          (db-add-stamp db spec commits-str)
+          (compile-checkouts spec (filter compile? checkouts))
+          (spawn-fiber
+           (lambda ()
+             (guard (c ((evaluation-error? c)
+                        (log-message "failed to evaluate spec '~a'"
+                                     (evaluation-error-spec-name c))
+                        #f))
+               (log-message "evaluating spec '~a': stamp ~s different from ~s"
+                            name commits-str stamp)
+               (with-store store
+                 (with-database db
+                   (let ((jobs (evaluate store db spec checkouts commits)))
+                     (log-message "building ~a jobs for '~a'"
+                                  (length jobs) name)
+                     (build-packages store db jobs)))))))
 
-               (when compile?
-                 (non-blocking (compile checkout)))
-
-               (spawn-fiber
-                (lambda ()
-                  (guard (c ((evaluation-error? c)
-                             (log-message "failed to evaluate spec '~s'"
-                                          (evaluation-error-spec-name c))
-                             #f))
-                    (log-message "evaluating '~a' with commit ~s"
-                                 name commit)
-                    (with-store store
-                      (with-database db
-                        (let* ((spec* (acons #:current-commit commit spec))
-                               (jobs  (evaluate store db spec* checkout)))
-                          (log-message "building ~a jobs for '~a'"
-                                       (length jobs) name)
-                          (build-packages store db jobs)))))))
-
-               ;; 'spawn-fiber' returns zero values but we need one.
-               *unspecified*))))))
+          ;; 'spawn-fiber' returns zero values but we need one.
+          *unspecified*))))
 
   (for-each process jobspecs))
-
-
-;;;
-;;; Guix package path.
-;;;
-
-(define %guix-package-path
-  ;; Extension of package modules search path.
-  (make-parameter ""))
-
-(define (set-guix-package-path! path)
-  "Use PATH to find custom packages not defined in (gnu packages ...)
-namespace or not already present in current Guile load paths.  PATH is
-expected to be a colon-separated string of directories."
-  (define (set-paths! dir)
-    (%package-module-path (cons dir (%package-module-path)))
-    (%patch-path (cons dir (%patch-path)))
-    (set! %load-path (cons dir %load-path))
-    (set! %load-compiled-path (cons dir %load-compiled-path)))
-
-  (let ((dirs (parse-path path)))
-    (for-each set-paths! dirs)))

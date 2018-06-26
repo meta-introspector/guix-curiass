@@ -27,32 +27,96 @@ exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
 
 ;; Note: Do not use any Guix modules (see below).
 (use-modules (ice-9 match)
-             (ice-9 pretty-print))
+             (ice-9 pretty-print)
+             (srfi srfi-1)
+             (srfi srfi-26))
 
 (define (ref module name)
   "Dynamically link variable NAME under MODULE and return it."
   (let ((m (resolve-interface module)))
     (module-ref m name)))
 
-(define %not-colon
-  (char-set-complement (char-set #\:)))
+(define (absolutize directory load-path)
+  (if (string-prefix? "/" load-path)
+      load-path
+      (string-append directory "/" load-path)))
+
+(define (input-checkout checkouts input-name)
+  "Find in CHECKOUTS the CHECKOUT corresponding to INPUT-NAME, and return it."
+  (find (lambda (checkout)
+          (string=? (assq-ref checkout #:name)
+                    input-name))
+        checkouts))
+
+(define (spec-source spec checkouts)
+  "Find in CHECKOUTS the directory where the #:PROC-INPUT repository of SPEC
+has been checked out, and return it."
+  (let* ((input-name (assq-ref spec #:proc-input))
+         (checkout (input-checkout checkouts input-name)))
+    (assq-ref checkout #:directory)))
+
+(define (spec-load-path spec checkouts)
+  "Find in CHECKOUTS the load paths of each SPEC's #:LOAD-PATH-INPUTS and
+return them as a list."
+  (map (lambda (input-name)
+         (let* ((checkout (input-checkout checkouts input-name))
+                (directory (assq-ref checkout #:directory))
+                (load-path (assq-ref checkout #:load-path)))
+           (absolutize directory load-path)))
+       (assq-ref spec #:load-path-inputs)))
+
+(define (spec-package-path spec checkouts)
+  "Find in CHECKOUTS the package paths of each SPEC's #:PACKAGE-PATH-INPUTS
+and return them as a colon separated string."
+  (let* ((input-names (assq-ref spec #:package-path-inputs))
+         (checkouts (map (cut input-checkout checkouts <>) input-names)))
+    (string-join
+     (map
+      (lambda (checkout)
+        (let ((directory (assq-ref checkout #:directory))
+              (load-path (assq-ref checkout #:load-path)))
+          (absolutize directory load-path)))
+      checkouts)
+     ":")))
+
+(define (format-checkouts checkouts)
+  "Format checkouts the way Hydra does: #:NAME becomes the key as a symbol,
+#:DIRECTORY becomes FILE-NAME and #:COMMIT becomes REVISION.  The other
+entries are added because they could be useful during the evaluation."
+  (map
+   (lambda (checkout)
+     (let loop ((in checkout)
+                (out '())
+                (name #f))
+       (match in
+         (()
+          (cons name out))
+         (((#:name . val) . rest)
+          (loop rest out (string->symbol val)))
+         (((#:directory . val) . rest)
+          (loop rest (cons `(file-name . ,val) out) name))
+         (((#:commit . val) . rest)
+          (loop rest (cons `(revision . ,val) out) name))
+         (((keyword . val) . rest)
+          (loop rest (cons `(,(keyword->symbol keyword) . ,val) out) name)))))
+   checkouts))
 
 (define* (main #:optional (args (command-line)))
   (match args
-    ((command load-path guix-package-path source specstr)
+    ((command spec-str checkouts-str)
      ;; Load FILE, a Scheme file that defines Hydra jobs.
      ;;
-     ;; Until FILE is loaded, we must *not* load any Guix module because
-     ;; SOURCE may be providing its own, which could differ from ours--this is
-     ;; the case when SOURCE is a Guix checkout.  The 'ref' procedure helps us
-     ;; achieve this.
-     (let ((%user-module (make-fresh-user-module))
-           (spec         (with-input-from-string specstr read))
-           (stdout       (current-output-port))
-           (stderr       (current-error-port))
-           (load-path    (string-tokenize load-path %not-colon)))
-       (unless (string-null? guix-package-path)
-         (setenv "GUIX_PACKAGE_PATH" guix-package-path))
+     ;; Until FILE is loaded, we must *not* load any Guix module because the
+     ;; user may be providing its own with #:LOAD-PATH-INPUTS, which could
+     ;; differ from ours.  The 'ref' procedure helps us achieve this.
+     (let* ((%user-module (make-fresh-user-module))
+            (spec (with-input-from-string spec-str read))
+            (checkouts (with-input-from-string checkouts-str read))
+            (source (spec-source spec checkouts))
+            (file (assq-ref spec #:proc-file))
+            (stdout (current-output-port))
+            (stderr (current-error-port)))
+       (setenv "GUIX_PACKAGE_PATH" (spec-package-path spec checkouts))
 
        ;; Since we have relative file name canonicalization by default, better
        ;; change to SOURCE to make sure things like 'include' with relative
@@ -60,13 +124,13 @@ exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
        (chdir source)
 
        ;; Change '%load-path' once and for all.  We need it to be effective
-       ;; both when we load SPEC's #:file and when we later call the thunks.
-       (set! %load-path (append load-path %load-path))
+       ;; both when we load FILE and when we later call the thunks.
+       (set! %load-path (append (spec-load-path spec checkouts) %load-path))
 
        (save-module-excursion
         (lambda ()
           (set-current-module %user-module)
-          (primitive-load (assq-ref spec #:file))))
+          (primitive-load file)))
 
        ;; From there on we can access Guix modules.
 
@@ -93,22 +157,12 @@ building things during evaluation~%")
                           (apply real-build-things store args))))
 
          ;; Call the entry point of FILE and print the resulting job sexp.
-         ;; Among the arguments, always pass 'file-name' and 'revision' like
-         ;; Hydra does.
-         (let* ((proc-name (assq-ref spec #:proc))
-                (proc    (module-ref %user-module proc-name))
-                (commit  (assq-ref spec #:current-commit))
-                (name    (assq-ref spec #:name))
-                (args    `((guix
-                            (revision . ,commit)
-                            (file-name . ,source))
-                           ,@(or (assq-ref spec #:arguments) '())))
-                (thunks  (proc store args))
-                (eval    `((#:specification . ,name)
-                           (#:revision . ,commit))))
+         (let* ((proc (module-ref %user-module (assq-ref spec #:proc)))
+                (args `(,@(format-checkouts checkouts)
+                        ,@(or (assq-ref spec #:proc-args) '())))
+                (thunks (proc store args)))
            (pretty-print
-            `(evaluation ,eval
-                         ,(map (lambda (thunk) (thunk))
+            `(evaluation ,(map (lambda (thunk) (thunk))
                                thunks))
             stdout)))))
     ((command _ ...)

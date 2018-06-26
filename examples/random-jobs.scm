@@ -1,5 +1,6 @@
 ;;; random.scm -- Definition of the random build jobs
 ;;; Copyright © 2018 Ludovic Courtès <ludo@gnu.org>
+;;; Copyright © 2018 Clément Lassieur <clement@lassieur.org>
 ;;;
 ;;; This file is part of Cuirass.
 ;;;
@@ -42,11 +43,11 @@
                             (mkdir #$output))))))
 
 (define (make-random-jobs store arguments)
-  (let ((random (assq-ref arguments 'random)))
+  (let ((checkout (assq-ref arguments 'cuirass)))
     (format (current-error-port)
             "evaluating random jobs from directory ~s, commit ~s~%"
-            (assq-ref random 'file-name)
-            (assq-ref random 'revision)))
+            (assq-ref checkout 'file-name)
+            (assq-ref checkout 'revision)))
 
   (unfold (cut > <> 10)
           (lambda (i)

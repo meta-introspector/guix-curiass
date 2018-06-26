@@ -39,6 +39,7 @@
             call-with-critical-section
             with-critical-section
 
+            %non-blocking
             non-blocking
             essential-task
             bytevector-range))

@@ -1,5 +1,6 @@
 ;;; hello-subset.scm -- job specification test for hello subset
 ;;; Copyright © 2016 Mathieu Lirzin <mthl@gnu.org>
+;;; Copyright © 2018 Clément Lassieur <clement@lassieur.org>
 ;;;
 ;;; This file is part of Cuirass.
 ;;;
@@ -16,28 +17,34 @@
 ;;; You should have received a copy of the GNU General Public License
 ;;; along with Cuirass.  If not, see <http://www.gnu.org/licenses/>.
 
-(define (local-file file)
-  ;; In the common case jobs will be defined relative to the repository.
-  ;; However for testing purpose use local gnu-system.scm instead.
-  (string-append (dirname (current-filename)) "/" file))
-
-(define job-base
-  `((#:name . "guix")
-    (#:url . "git://git.savannah.gnu.org/guix.git")
-    (#:load-path . ".")
-    (#:file . ,(local-file "gnu-system.scm"))
+(define (job-base key value)
+  `((#:name . ,(string-append "guix-" value))
+    (#:load-path-inputs . ("guix"))
+    (#:package-path-inputs . ())
+    (#:proc-input . "cuirass")
+    (#:proc-file . "examples/gnu-system.scm")
     (#:proc . hydra-jobs)
-    (#:arguments (subset . "hello"))))
+    (#:proc-args (subset . "hello"))
+    (#:inputs . (,(acons key value
+                         '((#:name . "guix")
+                           (#:url . "git://git.savannah.gnu.org/guix.git")
+                           (#:load-path . ".")
+                           (#:no-compile? . #t)))
+                 ((#:name . "cuirass")
+                  (#:url . "https://git.savannah.gnu.org/git/guix/guix-cuirass.git")
+                  (#:load-path . ".")
+                  (#:branch . "master")
+                  (#:no-compile? . #t))))))
 
 (define guix-master
-  (acons #:branch "master" job-base))
+  (job-base #:branch "master"))
 
 (define guix-core-updates
-  (acons #:branch "core-updates" job-base))
+  (job-base #:branch "core-updates"))
 
-(define guix-0.10
-  (acons #:tag "v0.10.0" job-base))
+(define guix-0.15
+  (job-base #:tag "v0.15.0"))
 
 (list guix-master
       guix-core-updates
-      guix-0.10)
+      guix-0.15)
