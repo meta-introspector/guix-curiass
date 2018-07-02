@@ -2,6 +2,7 @@
 ;;; Copyright © 2012, 2013, 2016, 2018 Ludovic Courtès <ludo@gnu.org>
 ;;; Copyright © 2015 David Thompson <davet@gnu.org>
 ;;; Copyright © 2016 Mathieu Lirzin <mthl@gnu.org>
+;;; Copyright © 2018 Clément Lassieur <clement@lassieur.org>
 ;;;
 ;;; This file is part of Cuirass.
 ;;;
@@ -122,22 +123,23 @@ VARS... are bound to the arguments of the critical section."
                               (lambda (vars ...) exp ...)))
 
 (define (%non-blocking thunk)
-  (let ((channel (make-channel)))
-    (call-with-new-thread
-     (lambda ()
-       (catch #t
-         (lambda ()
-           (call-with-values thunk
-             (lambda values
-               (put-message channel `(values ,@values)))))
-         (lambda args
-           (put-message channel `(exception ,@args))))))
+  (parameterize (((@@ (fibers internal) current-fiber) #f))
+    (let ((channel (make-channel)))
+      (call-with-new-thread
+       (lambda ()
+         (catch #t
+           (lambda ()
+             (call-with-values thunk
+               (lambda values
+                 (put-message channel `(values ,@values)))))
+           (lambda args
+             (put-message channel `(exception ,@args))))))
 
-    (match (get-message channel)
-      (('values . results)
-       (apply values results))
-      (('exception . args)
-       (apply throw args)))))
+      (match (get-message channel)
+        (('values . results)
+         (apply values results))
+        (('exception . args)
+         (apply throw args))))))
 
 (define-syntax-rule (non-blocking exp ...)
   "Evalaute EXP... in a separate thread so that it doesn't block the execution
