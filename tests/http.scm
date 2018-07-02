@@ -2,6 +2,7 @@
 ;;; Copyright © 2016 Mathieu Lirzin <mthl@gnu.org>
 ;;; Copyright © 2017, 2018 Ludovic Courtès <ludo@gnu.org>
 ;;; Copyright © 2017 Mathieu Othacehe <m.othacehe@gmail.com>
+;;; Copyright © 2018 Clément Lassieur <clement@lassieur.org>
 ;;;
 ;;; This file is part of Cuirass.
 ;;;
@@ -76,8 +77,7 @@
 
 (define build-query-result
   '((#:id . 1)
-    (#:project . "guix")
-    (#:jobset . "master")
+    (#:jobset . "guix")
     (#:job . "fake-job")
     (#:timestamp . 1501347493)
     (#:starttime . 1501347493)
@@ -226,13 +226,13 @@
     500
     (response-code (http-get (test-cuirass-uri "/api/latestbuilds"))))
 
-  (test-assert "/api/latestbuilds?nr=1&project=guix&jobset=master"
+  (test-assert "/api/latestbuilds?nr=1&jobset=guix"
     (let ((hash-list
            (call-with-input-string
                (utf8->string
                 (http-get-body
                  (test-cuirass-uri
-                  "/api/latestbuilds?nr=1&project=guix&jobset=master")))
+                  "/api/latestbuilds?nr=1&jobset=guix")))
              json->scm)))
       (and (= (length hash-list) 1)
            (hash-table=?
@@ -241,14 +241,14 @@
                 (object->json-string build-query-result)
               json->scm)))))
 
-  (test-assert "/api/latestbuilds?nr=1&project=gnu"
+  (test-assert "/api/latestbuilds?nr=1&jobset=gnu"
     ;; The result should be an empty JSON array.
     (let ((hash-list
            (call-with-input-string
                (utf8->string
                 (http-get-body
                  (test-cuirass-uri
-                  "/api/latestbuilds?nr=1&project=gnu")))
+                  "/api/latestbuilds?nr=1&jobset=gnu")))
              json->scm)))
       (= (length hash-list) 0)))
 

@@ -2,6 +2,7 @@
 ;;; Copyright © 2016 Mathieu Lirzin <mthl@gnu.org>
 ;;; Copyright © 2017 Mathieu Othacehe <m.othacehe@gmail.com>
 ;;; Copyright © 2018 Ludovic Courtès <ludo@gnu.org>
+;;; Copyright © 2018 Clément Lassieur <clement@lassieur.org>
 ;;;
 ;;; This file is part of Cuirass.
 ;;;
@@ -45,8 +46,7 @@
                      (build-status started)))))
 
   `((#:id . ,(assq-ref build #:id))
-    (#:project . ,(assq-ref build #:repo-name))
-    (#:jobset . ,(assq-ref build #:branch))
+    (#:jobset . ,(assq-ref build #:repo-name))
     (#:job . ,(assq-ref build #:job-name))
 
     ;; Hydra's API uses "timestamp" as the time of the last useful event for

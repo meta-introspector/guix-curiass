@@ -404,7 +404,7 @@ log file for DRV."
 (define (db-format-build db build)
   (match build
     (#(id timestamp starttime stoptime log status derivation job-name system
-          nix-name repo-name branch)
+          nix-name repo-name)
      `((#:id         . ,id)
        (#:timestamp  . ,timestamp)
        (#:starttime  . ,starttime)
@@ -416,13 +416,12 @@ log file for DRV."
        (#:system     . ,system)
        (#:nix-name   . ,nix-name)
        (#:repo-name  . ,repo-name)
-       (#:outputs    . ,(db-get-outputs db id))
-       (#:branch     . ,branch)))))
+       (#:outputs    . ,(db-get-outputs db id))))))
 
 (define (db-get-builds db filters)
   "Retrieve all builds in database DB which are matched by given FILTERS.
-FILTERS is an assoc list which possible keys are 'project | 'jobset | 'job |
-'system | 'nr | 'order | 'status."
+FILTERS is an assoc list which possible keys are 'jobset | 'job | 'system |
+'nr | 'order | 'status."
 
   ;; XXX Change caller and remove
   (define (assqx-ref filters key)
@@ -466,7 +465,7 @@ Assumes that if group id stays the same the group headers stay the same."
     (define (finish-group)
       (match repeated-row
         (#(timestamp starttime stoptime log status derivation job-name system
-                     nix-name repo-name branch)
+                     nix-name repo-name)
          `((#:id         . ,repeated-builds-id)
            (#:timestamp  . ,timestamp)
            (#:starttime  . ,starttime)
@@ -478,8 +477,7 @@ Assumes that if group id stays the same the group headers stay the same."
            (#:system     . ,system)
            (#:nix-name   . ,nix-name)
            (#:repo-name  . ,repo-name)
-           (#:outputs    . ,outputs)
-           (#:branch     . ,branch)))))
+           (#:outputs    . ,outputs)))))
 
     (define (same-group? builds-id)
       (= builds-id repeated-builds-id))
@@ -519,22 +517,20 @@ Assumes that if group id stays the same the group headers stay the same."
          (stmt-text (format #f "\
 SELECT Builds.id, Outputs.name, Outputs.path, Builds.timestamp, Builds.starttime, Builds.stoptime, Builds.log, Builds.status, Builds.derivation,\
 Derivations.job_name, Derivations.system, Derivations.nix_name,\
-Specifications.repo_name, Specifications.branch \
+Specifications.repo_name \
 FROM Builds \
 INNER JOIN Derivations ON Builds.derivation = Derivations.derivation AND Builds.evaluation = Derivations.evaluation \
 INNER JOIN Evaluations ON Derivations.evaluation = Evaluations.id \
 INNER JOIN Specifications ON Evaluations.specification = Specifications.repo_name \
 LEFT JOIN Outputs ON Outputs.build = Builds.id \
 WHERE (:id IS NULL OR (:id = Builds.id)) \
-AND (:project IS NULL OR (:project = Specifications.repo_name)) \
-AND (:jobset IS NULL OR (:jobset = Specifications.branch)) \
+AND (:jobset IS NULL OR (:jobset = Specifications.repo_name)) \
 AND (:job IS NULL OR (:job = Derivations.job_name)) \
 AND (:system IS NULL OR (:system = Derivations.system)) \
 AND (:status IS NULL OR (:status = 'done' AND Builds.status >= 0) OR (:status = 'pending' AND Builds.status < 0)) \
 ORDER BY ~a, Builds.id ASC LIMIT :nr;" order))
          (stmt (sqlite-prepare db stmt-text #:cache? #t)))
     (sqlite-bind-arguments stmt #:id (assqx-ref filters 'id)
-                           #:project (assqx-ref filters 'project)
                            #:jobset (assqx-ref filters 'jobset)
                            #:job (assqx-ref filters 'job)
                            #:system (assqx-ref filters 'system)

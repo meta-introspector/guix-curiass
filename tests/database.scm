@@ -2,6 +2,7 @@
 ;;;
 ;;; Copyright © 2016 Mathieu Lirzin <mthl@gnu.org>
 ;;; Copyright © 2018 Ludovic Courtès <ludo@gnu.org>
+;;; Copyright © 2018 Clément Lassieur <clement@lassieur.org>
 ;;;
 ;;; This file is part of Cuirass.
 ;;;
@@ -156,7 +157,6 @@ INSERT INTO Evaluations (specification, revision) VALUES (3, 3);")
     #(((1 "/foo.drv") (2 "/bar.drv") (3 "/baz.drv")) ;ascending order
       ((3 "/baz.drv") (2 "/bar.drv") (1 "/foo.drv")) ;descending order
       ((3 "/baz.drv") (2 "/bar.drv") (1 "/foo.drv")) ;ditto
-      ((3 "/baz.drv") (2 "/bar.drv") (1 "/foo.drv")) ;ditto
       ((3 "/baz.drv"))                               ;nr = 1
       ((2 "/bar.drv") (1 "/foo.drv") (3 "/baz.drv"))) ;status+submission-time
     (with-temporary-database db
@@ -185,9 +185,7 @@ INSERT INTO Evaluations (specification, revision) VALUES (3, 3);")
                                (assq-ref alist #:derivation)))))
         (vector (map summarize (db-get-builds db '((nr 3) (order build-id))))
                 (map summarize (db-get-builds db '()))
-                (map summarize (db-get-builds db '((project "guix"))))
-                (map summarize (db-get-builds db '((project "guix")
-                                                   (jobset "master"))))
+                (map summarize (db-get-builds db '((jobset "guix"))))
                 (map summarize (db-get-builds db '((nr 1))))
                 (map summarize
                      (db-get-builds db '((order status+submission-time))))))))
