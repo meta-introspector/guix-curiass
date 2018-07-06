@@ -2,6 +2,7 @@
 ;;; Copyright © 2016, 2017 Mathieu Lirzin <mthl@gnu.org>
 ;;; Copyright © 2017 Mathieu Othacehe <m.othacehe@gmail.com>
 ;;; Copyright © 2018 Ludovic Courtès <ludo@gnu.org>
+;;; Copyright © 2018 Clément Lassieur <clement@lassieur.org>
 ;;;
 ;;; This file is part of Cuirass.
 ;;;
@@ -23,7 +24,9 @@
   #:use-module (cuirass utils)
   #:use-module (ice-9 match)
   #:use-module (ice-9 format)
+  #:use-module (ice-9 ftw)
   #:use-module (ice-9 rdelim)
+  #:use-module (ice-9 regex)
   #:use-module (srfi srfi-1)
   #:use-module (srfi srfi-19)
   #:use-module (srfi srfi-26)
@@ -126,6 +129,12 @@ question marks matches the number of arguments to bind."
                                      (string-append %datadir "/" %package))
                                  "/schema.sql")))
 
+(define %package-sql-dir
+  ;; Define to the directory containing the SQL files.
+  (make-parameter (string-append (or (getenv "CUIRASS_DATADIR")
+                                     (string-append %datadir "/" %package))
+                                 "/sql")))
+
 (define (read-sql-file file-name)
   "Return a list of string containing SQL instructions from FILE-NAME."
   (call-with-input-file file-name
@@ -153,6 +162,25 @@ question marks matches the number of arguments to bind."
 
   db)
 
+(define (db-load db schema)
+  "Evaluate the file SCHEMA, which may contain SQL queries, into DB."
+  (for-each (cut sqlite-exec db <>)
+            (read-sql-file schema)))
+
+(define (db-schema-version db)
+  (vector-ref (car (sqlite-exec db "PRAGMA user_version;")) 0))
+
+(define (db-set-schema-version db version)
+  (sqlite-exec db (format #f "PRAGMA user_version = ~d;" version)))
+
+(define (latest-db-schema-version)
+  "Return the version to which the schema should be upgraded, based on the
+upgrade-n.sql files, or 0 if there are no such files."
+  (reduce max 0
+          (map (compose string->number (cut match:substring <> 1))
+               (filter-map (cut string-match "^upgrade-([0-9]+)\\.sql$" <>)
+                           (or (scandir (%package-sql-dir)) '())))))
+
 (define* (db-init #:optional (db-name (%package-database))
                   #:key (schema (%package-schema-file)))
   "Open the database to store and read jobs and builds informations.  Return a
@@ -162,9 +190,24 @@ database object."
     (delete-file db-name))
   (let ((db (sqlite-open db-name (logior SQLITE_OPEN_CREATE
                                          SQLITE_OPEN_READWRITE))))
-    (for-each (lambda (sql) (sqlite-exec db sql))
-              (read-sql-file schema))
+    (db-load db schema)
+    (db-set-schema-version db (latest-db-schema-version))
     db))
+
+(define (schema-upgrade-file version)
+  "Return the file containing the SQL instructions that upgrade the schema
+from VERSION-1 to VERSION."
+  (in-vicinity (%package-sql-dir) (format #f "upgrade-~a.sql" version)))
+
+(define (db-upgrade db)
+  "Upgrade database DB based on its current version and the available
+upgrade-n.sql files."
+  (for-each (lambda (version)
+              (db-load db (schema-upgrade-file version))
+              (db-set-schema-version db version))
+            (let ((current (db-schema-version db)))
+              (iota (- (latest-db-schema-version) current) (1+ current))))
+  db)
 
 (define* (db-open #:optional (db (%package-database)))
   "Open database to store or read jobs and builds informations.  Return a
@@ -173,7 +216,7 @@ database object."
   ;; avoid SQLITE_LOCKED errors when we have several readers:
   ;; <https://www.sqlite.org/wal.html>.
   (set-db-options (if (file-exists? db)
-                      (sqlite-open db SQLITE_OPEN_READWRITE)
+                      (db-upgrade (sqlite-open db SQLITE_OPEN_READWRITE))
                       (db-init db))))
 
 (define (db-close db)
