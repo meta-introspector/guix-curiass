@@ -189,7 +189,8 @@ database object."
     (format (current-error-port) "Removing leftover database ~a~%" db-name)
     (delete-file db-name))
   (let ((db (sqlite-open db-name (logior SQLITE_OPEN_CREATE
-                                         SQLITE_OPEN_READWRITE))))
+                                         SQLITE_OPEN_READWRITE
+                                         SQLITE_OPEN_NOMUTEX))))
     (db-load db schema)
     (db-set-schema-version db (latest-db-schema-version))
     db))
@@ -215,8 +216,14 @@ database object."
   ;; Use "write-ahead log" mode because it improves concurrency and should
   ;; avoid SQLITE_LOCKED errors when we have several readers:
   ;; <https://www.sqlite.org/wal.html>.
+
+  ;; SQLITE_OPEN_NOMUTEX disables mutexing on database connection and prepared
+  ;; statement objects, thus making us responsible for serializing access to
+  ;; database connections and prepared statements.
   (set-db-options (if (file-exists? db)
-                      (db-upgrade (sqlite-open db SQLITE_OPEN_READWRITE))
+                      (db-upgrade
+                       (sqlite-open db (logior SQLITE_OPEN_READWRITE
+                                               SQLITE_OPEN_NOMUTEX)))
                       (db-init db))))
 
 (define (db-close db)
