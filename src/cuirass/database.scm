@@ -58,7 +58,6 @@
             read-sql-file
             read-quoted-string
             sqlite-exec
-            assqx-ref
             ;; Parameters.
             %package-database
             %package-schema-file
@@ -461,16 +460,6 @@ log file for DRV."
        (#:repo-name  . ,repo-name)
        (#:outputs    . ,(db-get-outputs db id))))))
 
-;; XXX Change caller and remove
-(define (assqx-ref filters key)
-  (match filters
-    (()
-     #f)
-    (((xkey xvalue) rest ...)
-     (if (eq? key xkey)
-         xvalue
-         (assqx-ref rest key)))))
-
 (define (db-get-builds db filters)
   "Retrieve all builds in database DB which are matched by given FILTERS.
 FILTERS is an assoc list whose possible keys are 'id | 'jobset | 'job |
@@ -547,13 +536,13 @@ Assumes that if group id stays the same the group headers stay the same."
          (collect-outputs x-builds-id x-repeated-row '() rows)))))
 
   (let* ((order (match (assq 'order filters)
-                  (('order 'build-id) "id ASC")
-                  (('order 'decreasing-build-id) "id DESC")
-                  (('order 'finish-time) "stoptime DESC")
-                  (('order 'finish-time+build-id) "stoptime DESC, id DESC")
-                  (('order 'start-time) "starttime DESC")
-                  (('order 'submission-time) "timestamp DESC")
-                  (('order 'status+submission-time)
+                  (('order . 'build-id) "id ASC")
+                  (('order . 'decreasing-build-id) "id DESC")
+                  (('order . 'finish-time) "stoptime DESC")
+                  (('order . 'finish-time+build-id) "stoptime DESC, id DESC")
+                  (('order . 'start-time) "starttime DESC")
+                  (('order . 'submission-time) "timestamp DESC")
+                  (('order . 'status+submission-time)
                    ;; With this order, builds in 'running' state (-1) appear
                    ;; before those in 'scheduled' state (-2).
                    "status DESC, timestamp DESC")
@@ -585,17 +574,17 @@ ORDER BY ~a, id ASC;" order))
          (stmt (sqlite-prepare db stmt-text #:cache? #t)))
     (sqlite-bind-arguments
      stmt
-     #:id (assqx-ref filters 'id)
-     #:jobset (assqx-ref filters 'jobset)
-     #:job (assqx-ref filters 'job)
-     #:evaluation (assqx-ref filters 'evaluation)
-     #:system (assqx-ref filters 'system)
-     #:status (and=> (assqx-ref filters 'status) object->string)
-     #:borderlowid (assqx-ref filters 'border-low-id)
-     #:borderhighid (assqx-ref filters 'border-high-id)
-     #:borderlowtime (assqx-ref filters 'border-low-time)
-     #:borderhightime (assqx-ref filters 'border-high-time)
-     #:nr (match (assqx-ref filters 'nr)
+     #:id (assq-ref filters 'id)
+     #:jobset (assq-ref filters 'jobset)
+     #:job (assq-ref filters 'job)
+     #:evaluation (assq-ref filters 'evaluation)
+     #:system (assq-ref filters 'system)
+     #:status (and=> (assq-ref filters 'status) object->string)
+     #:borderlowid (assq-ref filters 'border-low-id)
+     #:borderhighid (assq-ref filters 'border-high-id)
+     #:borderlowtime (assq-ref filters 'border-low-time)
+     #:borderhightime (assq-ref filters 'border-high-time)
+     #:nr (match (assq-ref filters 'nr)
             (#f -1)
             (x x)))
     (sqlite-reset stmt)
@@ -603,7 +592,7 @@ ORDER BY ~a, id ASC;" order))
 
 (define (db-get-build db id)
   "Retrieve a build in database DB which corresponds to ID."
-  (match (db-get-builds db `((id ,id)))
+  (match (db-get-builds db `((id . ,id)))
     ((build)
      build)
     (() #f)))

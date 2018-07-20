@@ -194,12 +194,14 @@ INSERT INTO Evaluations (specification, commits) VALUES (3, 3);")
       (let ((summarize (lambda (alist)
                          (list (assq-ref alist #:id)
                                (assq-ref alist #:derivation)))))
-        (vector (map summarize (db-get-builds db '((nr 3) (order build-id))))
+        (vector (map summarize (db-get-builds db '((nr . 3)
+                                                   (order . build-id))))
                 (map summarize (db-get-builds db '()))
-                (map summarize (db-get-builds db '((jobset "guix"))))
-                (map summarize (db-get-builds db '((nr 1))))
+                (map summarize (db-get-builds db '((jobset . "guix"))))
+                (map summarize (db-get-builds db '((nr . 1))))
                 (map summarize
-                     (db-get-builds db '((order status+submission-time))))))))
+                     (db-get-builds
+                      db '((order . status+submission-time))))))))
 
   (test-equal "db-get-pending-derivations"
     '("/bar.drv" "/foo.drv")

@@ -118,7 +118,7 @@
 
 (define (request-parameters request)
   "Parse the REQUEST query parameters and return them under the form
-  '((parameter value) ...)."
+  '((parameter . value) ...)."
   (let* ((uri (request-uri request))
          (query (uri-query uri)))
     (if query
@@ -126,7 +126,7 @@
                (match (string-split param #\=)
                  ((key param)
                   (let ((key-symbol (string->symbol key)))
-                    (list key-symbol
+                    (cons key-symbol
                           (match key-symbol
                             ('id (string->number param))
                             ('nr (string->number param))
@@ -248,9 +248,7 @@
     (("api" "evaluations")
      (let* ((params (request-parameters request))
             ;; 'nr parameter is mandatory to limit query size.
-            (nr (match (assq-ref params 'nr)
-                  ((val) val)
-                  (_ #f))))
+            (nr (assq-ref params 'nr)))
        (if nr
            (respond-json (object->json-string
                           (with-critical-section db-channel (db)
@@ -265,9 +263,9 @@
            (respond-json
             (object->json-string
              (with-critical-section db-channel (db)
-               (handle-builds-request db `((status done)
+               (handle-builds-request db `((status . done)
                                            ,@params
-                                           (order finish-time))))))
+                                           (order . finish-time))))))
            (respond-json-with-error 500 "Parameter not defined!"))))
     (("api" "queue")
      (let* ((params (request-parameters request))
@@ -279,9 +277,9 @@
              ;; Use the 'status+submission-time' order so that builds in
              ;; 'running' state appear before builds in 'scheduled' state.
              (with-critical-section db-channel (db)
-               (handle-builds-request db `((status pending)
+               (handle-builds-request db `((status . pending)
                                            ,@params
-                                           (order status+submission-time))))))
+                                           (order . status+submission-time))))))
            (respond-json-with-error 500 "Parameter not defined!"))))
     ('()
      (respond-html (html-page
@@ -296,8 +294,8 @@
         (let* ((evaluation-id-max (db-get-evaluations-id-max db name))
                (evaluation-id-min (db-get-evaluations-id-min db name))
                (params (request-parameters request))
-               (border-high (assqx-ref params 'border-high))
-               (border-low (assqx-ref params 'border-low))
+               (border-high (assq-ref params 'border-high))
+               (border-low (assq-ref params 'border-low))
                (evaluations (db-get-evaluations-build-summary db
                                                               name
                                                               %page-size
@@ -314,20 +312,20 @@
         (let* ((builds-id-max (db-get-builds-max db id))
                (builds-id-min (db-get-builds-min db id))
                (params (request-parameters request))
-               (border-high-time (assqx-ref params 'border-high-time))
-               (border-low-time (assqx-ref params 'border-low-time))
-               (border-high-id (assqx-ref params 'border-high-id))
-               (border-low-id (assqx-ref params 'border-low-id)))
+               (border-high-time (assq-ref params 'border-high-time))
+               (border-low-time (assq-ref params 'border-low-time))
+               (border-high-id (assq-ref params 'border-high-id))
+               (border-low-id (assq-ref params 'border-low-id)))
           (html-page
            "Evaluation"
            (build-eval-table
-            (handle-builds-request db `((evaluation ,id)
-                                        (nr ,%page-size)
-                                        (order finish-time+build-id)
-                                        (border-high-time ,border-high-time)
-                                        (border-low-time ,border-low-time)
-                                        (border-high-id ,border-high-id)
-                                        (border-low-id ,border-low-id)))
+            (handle-builds-request db `((evaluation . ,id)
+                                        (nr . ,%page-size)
+                                        (order . finish-time+build-id)
+                                        (border-high-time . ,border-high-time)
+                                        (border-low-time . ,border-low-time)
+                                        (border-high-id . ,border-high-id)
+                                        (border-low-id . ,border-low-id)))
             builds-id-min
             builds-id-max))))))
 
