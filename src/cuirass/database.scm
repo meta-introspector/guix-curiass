@@ -3,6 +3,7 @@
 ;;; Copyright © 2017 Mathieu Othacehe <m.othacehe@gmail.com>
 ;;; Copyright © 2018 Ludovic Courtès <ludo@gnu.org>
 ;;; Copyright © 2018 Clément Lassieur <clement@lassieur.org>
+;;; Copyright © 2018 Tatiana Sholokhova <tanja201396@gmail.com>
 ;;;
 ;;; This file is part of Cuirass.
 ;;;
@@ -48,10 +49,16 @@
             db-update-build-status!
             db-get-build
             db-get-builds
+            db-get-builds-min
+            db-get-builds-max
             db-get-evaluations
+            db-get-evaluations-build-summary
+            db-get-evaluations-id-min
+            db-get-evaluations-id-max
             read-sql-file
             read-quoted-string
             sqlite-exec
+            assqx-ref
             ;; Parameters.
             %package-database
             %package-schema-file
@@ -454,20 +461,20 @@ log file for DRV."
        (#:repo-name  . ,repo-name)
        (#:outputs    . ,(db-get-outputs db id))))))
 
+;; XXX Change caller and remove
+(define (assqx-ref filters key)
+  (match filters
+    (()
+     #f)
+    (((xkey xvalue) rest ...)
+     (if (eq? key xkey)
+         xvalue
+         (assqx-ref rest key)))))
+
 (define (db-get-builds db filters)
   "Retrieve all builds in database DB which are matched by given FILTERS.
-FILTERS is an assoc list which possible keys are 'jobset | 'job | 'system |
-'nr | 'order | 'status."
-
-  ;; XXX Change caller and remove
-  (define (assqx-ref filters key)
-    (match filters
-      (()
-       #f)
-      (((xkey xvalue) rest ...)
-       (if (eq? key xkey)
-           xvalue
-           (assqx-ref rest key)))))
+FILTERS is an assoc list whose possible keys are 'id | 'jobset | 'job |
+'system | 'nr | 'order | 'status | 'evaluation."
 
   (define (format-output name path)
     `(,name . ((#:path . ,path))))
@@ -540,41 +547,57 @@ Assumes that if group id stays the same the group headers stay the same."
          (collect-outputs x-builds-id x-repeated-row '() rows)))))
 
   (let* ((order (match (assq 'order filters)
-                  (('order 'build-id) "Builds.id ASC")
-                  (('order 'decreasing-build-id) "Builds.id DESC")
-                  (('order 'finish-time) "Builds.stoptime DESC")
-                  (('order 'start-time) "Builds.starttime DESC")
-                  (('order 'submission-time) "Builds.timestamp DESC")
+                  (('order 'build-id) "id ASC")
+                  (('order 'decreasing-build-id) "id DESC")
+                  (('order 'finish-time) "stoptime DESC")
+                  (('order 'finish-time+build-id) "stoptime DESC, id DESC")
+                  (('order 'start-time) "starttime DESC")
+                  (('order 'submission-time) "timestamp DESC")
                   (('order 'status+submission-time)
                    ;; With this order, builds in 'running' state (-1) appear
                    ;; before those in 'scheduled' state (-2).
-                   "Builds.status DESC, Builds.timestamp DESC")
-                  (_ "Builds.id DESC")))
-         (stmt-text (format #f "\
-SELECT Builds.id, Outputs.name, Outputs.path, Builds.timestamp, Builds.starttime, Builds.stoptime, Builds.log, Builds.status, Builds.derivation,\
-Derivations.job_name, Derivations.system, Derivations.nix_name,\
-Specifications.name \
-FROM Builds \
-INNER JOIN Derivations ON Builds.derivation = Derivations.derivation AND Builds.evaluation = Derivations.evaluation \
-INNER JOIN Evaluations ON Derivations.evaluation = Evaluations.id \
-INNER JOIN Specifications ON Evaluations.specification = Specifications.name \
-LEFT JOIN Outputs ON Outputs.build = Builds.id \
-WHERE (:id IS NULL OR (:id = Builds.id)) \
-AND (:jobset IS NULL OR (:jobset = Specifications.name)) \
-AND (:job IS NULL OR (:job = Derivations.job_name)) \
-AND (:system IS NULL OR (:system = Derivations.system)) \
-AND (:status IS NULL OR (:status = 'done' AND Builds.status >= 0) OR (:status = 'pending' AND Builds.status < 0)) \
-ORDER BY ~a, Builds.id ASC LIMIT :nr;" order))
+                   "status DESC, timestamp DESC")
+                  (_ "id DESC")))
+         (stmt-text (format #f "SELECT * FROM (
+SELECT Builds.id, Outputs.name, Outputs.path, Builds.timestamp,
+Builds.starttime, Builds.stoptime, Builds.log, Builds.status,
+Builds.derivation, Derivations.job_name, Derivations.system,
+Derivations.nix_name,Specifications.name
+FROM Builds
+INNER JOIN Derivations ON Builds.derivation = Derivations.derivation
+AND Builds.evaluation = Derivations.evaluation
+INNER JOIN Evaluations ON Derivations.evaluation = Evaluations.id
+INNER JOIN Specifications ON Evaluations.specification = Specifications.name
+LEFT JOIN Outputs ON Outputs.build = Builds.id
+WHERE (:id IS NULL OR (:id = Builds.id))
+AND (:jobset IS NULL OR (:jobset = Specifications.name))
+AND (:job IS NULL OR (:job = Derivations.job_name))
+AND (:system IS NULL OR (:system = Derivations.system))
+AND (:evaluation IS NULL OR (:evaluation = Builds.evaluation))
+AND (:status IS NULL OR (:status = 'done' AND Builds.status >= 0) OR (:status = 'pending' AND Builds.status < 0))
+AND (:borderlowtime IS NULL OR :borderlowid IS NULL OR ((:borderlowtime, :borderlowid) < (Builds.stoptime, Builds.id)))
+AND (:borderhightime IS NULL OR :borderhighid IS NULL OR ((:borderhightime, :borderhighid) > (Builds.stoptime, Builds.id)))
+ORDER BY
+CASE WHEN :borderlowtime IS NULL OR :borderlowid IS NULL THEN Builds.stoptime ELSE -Builds.stoptime END DESC,
+CASE WHEN :borderlowtime IS NULL OR :borderlowid IS NULL THEN Builds.id ELSE -Builds.id END DESC
+LIMIT :nr)
+ORDER BY ~a, id ASC;" order))
          (stmt (sqlite-prepare db stmt-text #:cache? #t)))
-    (sqlite-bind-arguments stmt #:id (assqx-ref filters 'id)
-                           #:jobset (assqx-ref filters 'jobset)
-                           #:job (assqx-ref filters 'job)
-                           #:system (assqx-ref filters 'system)
-                           #:status (and=> (assqx-ref filters 'status)
-                                           object->string)
-                           #:nr (match (assqx-ref filters 'nr)
-                                  (#f -1)
-                                  (x x)))
+    (sqlite-bind-arguments
+     stmt
+     #:id (assqx-ref filters 'id)
+     #:jobset (assqx-ref filters 'jobset)
+     #:job (assqx-ref filters 'job)
+     #:evaluation (assqx-ref filters 'evaluation)
+     #:system (assqx-ref filters 'system)
+     #:status (and=> (assqx-ref filters 'status) object->string)
+     #:borderlowid (assqx-ref filters 'border-low-id)
+     #:borderhighid (assqx-ref filters 'border-high-id)
+     #:borderlowtime (assqx-ref filters 'border-low-time)
+     #:borderhightime (assqx-ref filters 'border-high-time)
+     #:nr (match (assqx-ref filters 'nr)
+            (#f -1)
+            (x x)))
     (sqlite-reset stmt)
     (group-outputs (sqlite-fold-right cons '() stmt))))
 
@@ -631,3 +654,68 @@ FROM Evaluations ORDER BY id DESC LIMIT " limit ";"))
                      (#:specification . ,specification)
                      (#:commits . ,(string-tokenize commits)))
                    evaluations))))))
+
+(define (db-get-evaluations-build-summary db spec limit border-low border-high)
+  (let loop ((rows (sqlite-exec db "
+SELECT E.id, E.commits, B.succeeded, B.failed, B.scheduled
+FROM (SELECT id, evaluation, SUM(status=0) as succeeded,
+SUM(status>0) as failed, SUM(status<0) as scheduled
+FROM Builds
+GROUP BY evaluation) B
+JOIN
+(SELECT id, commits
+FROM Evaluations
+WHERE (specification=" spec ")
+AND (" border-low "IS NULL OR (id >" border-low "))
+AND (" border-high "IS NULL OR (id <" border-high "))
+ORDER BY CASE WHEN " border-low "IS NULL THEN id ELSE -id END DESC
+LIMIT " limit ") E
+ON B.evaluation=E.id
+ORDER BY E.id ASC;"))
+             (evaluations '()))
+    (match rows
+      (() evaluations)
+      ((#(id commits succeeded failed scheduled) . rest)
+       (loop rest
+             (cons `((#:id . ,id)
+                     (#:commits . ,commits)
+                     (#:succeeded . ,succeeded)
+                     (#:failed . ,failed)
+                     (#:scheduled . ,scheduled))
+                   evaluations))))))
+
+(define (db-get-evaluations-id-min db spec)
+  "Return the min id of evaluations for the given specification SPEC."
+  (let ((rows (sqlite-exec db "
+SELECT MIN(id) FROM Evaluations
+WHERE specification=" spec)))
+    (vector-ref (car rows) 0)))
+
+(define (db-get-evaluations-id-max db spec)
+  "Return the max id of evaluations for the given specification SPEC."
+  (let ((rows (sqlite-exec db "
+SELECT MAX(id) FROM Evaluations
+WHERE specification=" spec)))
+    (vector-ref (car rows) 0)))
+
+(define (db-get-builds-min db eval)
+  "Return the min build (stoptime, id) pair for
+   the given evaluation EVAL."
+  (let ((rows (sqlite-exec db "
+SELECT stoptime, MIN(id) FROM
+(SELECT id, stoptime FROM Builds
+WHERE evaluation=" eval " AND
+stoptime = (SELECT MIN(stoptime)
+FROM Builds WHERE evaluation=" eval "))")))
+    (vector->list (car rows))))
+
+(define (db-get-builds-max db eval)
+  "Return the max build (stoptime, id) pair for
+   the given evaluation EVAL."
+  (let ((rows (sqlite-exec db "
+SELECT stoptime, MAX(id) FROM
+(SELECT id, stoptime FROM Builds
+WHERE evaluation=" eval " AND
+stoptime = (SELECT MAX(stoptime)
+FROM Builds WHERE evaluation=" eval "))")))
+    (vector->list (car rows))))

@@ -3,6 +3,7 @@
 ;;; Copyright © 2017 Mathieu Othacehe <m.othacehe@gmail.com>
 ;;; Copyright © 2018 Ludovic Courtès <ludo@gnu.org>
 ;;; Copyright © 2018 Clément Lassieur <clement@lassieur.org>
+;;; Copyright © 2018 Tatiana Sholokhova <tanja201396@gmail.com>
 ;;;
 ;;; This file is part of Cuirass.
 ;;;
@@ -20,11 +21,14 @@
 ;;; along with Cuirass.  If not, see <http://www.gnu.org/licenses/>.
 
 (define-module (cuirass http)
+  #:use-module (cuirass config)
   #:use-module (cuirass database)
   #:use-module (cuirass utils)
   #:use-module (cuirass logging)
+  #:use-module (srfi srfi-1)
   #:use-module (srfi srfi-11)
   #:use-module (srfi srfi-26)
+  #:use-module (ice-9 binary-ports)
   #:use-module (ice-9 match)
   #:use-module (json)
   #:use-module (web request)
@@ -33,7 +37,36 @@
   #:use-module (web uri)
   #:use-module (fibers)
   #:use-module (fibers channels)
+  #:use-module (sxml simple)
+  #:use-module (cuirass templates)
+  #:use-module (guix utils)
+  #:use-module (guix build union)
   #:export (run-cuirass-server))
+
+(define %static-directory
+  ;; Define to the static file directory.
+  (make-parameter (string-append
+                   (or (getenv "CUIRASS_DATADIR")
+                       (string-append %datadir "/" %package))
+                   "/static")))
+
+(define %page-size 10)
+
+(define %file-mime-types
+  '(("css" . (text/css))
+    ("otf" . (font/otf))
+    ("woff" . (font/woff))
+    ("js"  . (text/javascript))
+    ("png" . (image/png))
+    ("gif" . (image/gif))
+    ("html" . (text/html))))
+
+(define %file-white-list
+  '("css/bootstrap.css"
+    "css/open-iconic-bootstrap.css"
+    "fonts/open-iconic.otf"
+    "fonts/open-iconic.woff"
+    "images/logo.png"))
 
 (define (build->hydra-build build)
   "Convert BUILD to an assoc list matching hydra API format."
@@ -70,19 +103,17 @@
     (#:releasename . #nil)
     (#:buildinputs_builds . #nil)))
 
-(define (handle-build-request db-channel build-id)
-  "Retrieve build identified by BUILD-ID over DB-CHANNEL and convert it to
-hydra format. Return #f is not build was found."
-  (let ((build (with-critical-section db-channel (db)
-                 (db-get-build db build-id))))
+(define (handle-build-request db build-id)
+  "Retrieve build identified by BUILD-ID over DB and convert it
+  to hydra format. Return #f is not build was found."
+  (let ((build (db-get-build db build-id)))
     (and=> build build->hydra-build)))
 
-(define (handle-builds-request db-channel filters)
-  "Retrieve all builds matched by FILTERS in DB-CHANNEL and convert them to
-Hydra format."
-  (let ((builds (with-critical-section db-channel (db)
-                  (with-time-logging "builds request"
-                                     (db-get-builds db filters)))))
+(define (handle-builds-request db filters)
+  "Retrieve all builds matched by FILTERS in DB and convert them
+  to Hydra format."
+  (let ((builds (with-time-logging "builds request"
+                                   (db-get-builds db filters))))
     (map build->hydra-build builds)))
 
 (define (request-parameters request)
@@ -136,6 +167,28 @@ Hydra format."
      (object->json-string
       `((error . ,message)))))
 
+  (define (respond-html body)
+    (respond '((content-type . (application/xhtml+xml)))
+             #:body
+             (lambda (port)
+               (format
+                port "<!DOCTYPE html PUBLIC ~s ~s>"
+                "-//W3C//DTD XHTML 1.0 Transitional//EN"
+                "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd")
+               (sxml->xml body port))))
+
+  (define (respond-static-file path)
+    ;; PATH is a list of path components
+    (let ((file-name (string-join path "/"))
+          (file-path (string-join (cons* (%static-directory) path) "/")))
+      (if (and (member file-name %file-white-list)
+               (file-exists? file-path)
+               (not (file-is-directory? file-path)))
+          (respond `((content-type . ,(assoc-ref %file-mime-types
+                                                 (file-extension file-path))))
+           #:body (call-with-input-file file-path get-bytevector-all))
+          (respond-not-found file-name))))
+
   (define (respond-build-not-found build-id)
     (respond-json-with-error
      404
@@ -146,6 +199,11 @@ Hydra format."
       (respond-json-with-error
        404
        (format #f "The build log of derivation ~a is not available." drv))))
+
+  (define (respond-not-found resource_name)
+    (respond (build-response #:code 404)
+             #:body (string-append "Resource not found: "
+                                   resource_name)))
 
   (log-message "~a ~a" (request-method request)
                (uri-path (request-uri request)))
@@ -159,8 +217,9 @@ Hydra format."
                     (with-critical-section db-channel (db)
                       (db-get-specifications db)))))
     (("build" build-id)
-     (let ((hydra-build (handle-build-request db-channel
-                                              (string->number build-id))))
+     (let ((hydra-build
+            (with-critical-section db-channel (db)
+              (handle-build-request db (string->number build-id)))))
        (if hydra-build
            (respond-json (object->json-string hydra-build))
            (respond-build-not-found build-id))))
@@ -203,11 +262,12 @@ Hydra format."
             (valid-params? (assq-ref params 'nr)))
        (if valid-params?
            ;; Limit results to builds that are "done".
-           (respond-json (object->json-string
-                          (handle-builds-request db-channel
-                                                 `((status done)
-                                                   ,@params
-                                                   (order finish-time)))))
+           (respond-json
+            (object->json-string
+             (with-critical-section db-channel (db)
+               (handle-builds-request db `((status done)
+                                           ,@params
+                                           (order finish-time))))))
            (respond-json-with-error 500 "Parameter not defined!"))))
     (("api" "queue")
      (let* ((params (request-parameters request))
@@ -218,18 +278,66 @@ Hydra format."
             (object->json-string
              ;; Use the 'status+submission-time' order so that builds in
              ;; 'running' state appear before builds in 'scheduled' state.
-             (handle-builds-request db-channel
-                                    `((status pending)
-                                      ,@params
-                                      (order status+submission-time)))))
+             (with-critical-section db-channel (db)
+               (handle-builds-request db `((status pending)
+                                           ,@params
+                                           (order status+submission-time))))))
            (respond-json-with-error 500 "Parameter not defined!"))))
+    ('()
+     (respond-html (html-page
+                    "Cuirass"
+                    (specifications-table
+                     (with-critical-section db-channel (db)
+                       (db-get-specifications db))))))
+
+    (("jobset" name)
+     (respond-html
+      (with-critical-section db-channel (db)
+        (let* ((evaluation-id-max (db-get-evaluations-id-max db name))
+               (evaluation-id-min (db-get-evaluations-id-min db name))
+               (params (request-parameters request))
+               (border-high (assqx-ref params 'border-high))
+               (border-low (assqx-ref params 'border-low))
+               (evaluations (db-get-evaluations-build-summary db
+                                                              name
+                                                              %page-size
+                                                              border-low
+                                                              border-high)))
+          (html-page name (evaluation-info-table name
+                                                 evaluations
+                                                 evaluation-id-min
+                                                 evaluation-id-max))))))
+
+    (("eval" id)
+     (respond-html
+      (with-critical-section db-channel (db)
+        (let* ((builds-id-max (db-get-builds-max db id))
+               (builds-id-min (db-get-builds-min db id))
+               (params (request-parameters request))
+               (border-high-time (assqx-ref params 'border-high-time))
+               (border-low-time (assqx-ref params 'border-low-time))
+               (border-high-id (assqx-ref params 'border-high-id))
+               (border-low-id (assqx-ref params 'border-low-id)))
+          (html-page
+           "Evaluation"
+           (build-eval-table
+            (handle-builds-request db `((evaluation ,id)
+                                        (nr ,%page-size)
+                                        (order finish-time+build-id)
+                                        (border-high-time ,border-high-time)
+                                        (border-low-time ,border-low-time)
+                                        (border-high-id ,border-high-id)
+                                        (border-low-id ,border-low-id)))
+            builds-id-min
+            builds-id-max))))))
+
+    (("static" path ...)
+     (respond-static-file path))
     ('method-not-allowed
      ;; 405 "Method Not Allowed"
      (values (build-response #:code 405) #f db-channel))
     (_
-     (respond (build-response #:code 404)
-              #:body (string-append "Resource not found: "
-                                    (uri->string (request-uri request)))))))
+     (respond-not-found (uri->string (request-uri request))))))
 
 (define* (run-cuirass-server db #:key (host "localhost") (port 8080))
   (let* ((host-info  (gethostbyname host))

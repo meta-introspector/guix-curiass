@@ -4,6 +4,7 @@
 # Copyright © 2016, 2017 Mathieu Lirzin <mthl@gnu.org>
 # Copyright © 2018 Ludovic Courtès <ludo@gnu.org>
 # Copyright © 2018 Clément Lassieur <clement@lassieur.org>
+# Copyright © 2018 Tatiana Sholokhova <tanja201396@gmail.com>
 #
 # This file is part of Cuirass.
 #
@@ -34,6 +35,10 @@ pkgobjectdir = $(guileobjectdir)/$(PACKAGE)
 webmoduledir = $(guilesitedir)/web/server
 webobjectdir = $(guileobjectdir)/web/server
 sqldir = $(pkgdatadir)/sql
+staticdir = $(pkgdatadir)/static
+cssdir = $(staticdir)/css
+fontsdir = $(staticdir)/fonts
+imagesdir = $(staticdir)/images
 
 dist_pkgmodule_DATA =				\
   src/cuirass/base.scm				\
@@ -41,7 +46,8 @@ dist_pkgmodule_DATA =				\
   src/cuirass/http.scm				\
   src/cuirass/logging.scm			\
   src/cuirass/ui.scm				\
-  src/cuirass/utils.scm
+  src/cuirass/utils.scm             \
+  src/cuirass/templates.scm
 
 nodist_pkgmodule_DATA = \
   src/cuirass/config.scm
@@ -60,6 +66,18 @@ dist_pkgdata_DATA = src/schema.sql
 
 dist_sql_DATA = 				\
   src/sql/upgrade-1.sql
+
+dist_css_DATA =					\
+  src/static/css/bootstrap.css			\
+  src/static/css/open-iconic-bootstrap.css
+dist_fonts_DATA =				\
+  src/static/fonts/open-iconic.eot		\
+  src/static/fonts/open-iconic.otf		\
+  src/static/fonts/open-iconic.svg		\
+  src/static/fonts/open-iconic.ttf		\
+  src/static/fonts/open-iconic.woff
+dist_images_DATA =				\
+  src/static/images/logo.png
 
 TEST_EXTENSIONS = .scm .sh
 AM_TESTS_ENVIRONMENT = \
