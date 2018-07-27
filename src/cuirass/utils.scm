@@ -106,16 +106,17 @@ dedicated fiber."
      (lambda ()
        (let loop ()
          (match (get-message channel)
-           ((? procedure? proc)
-            (put-message channel (apply proc args))))
+           (((? channel? reply) . (? procedure? proc))
+            (put-message reply (apply proc args))))
          (loop))))
     channel))
 
 (define (call-with-critical-section channel proc)
   "Call PROC in the critical section corresponding to CHANNEL.  Return the
 result of PROC."
-  (put-message channel proc)
-  (get-message channel))
+  (let ((reply (make-channel)))
+    (put-message channel (cons reply proc))
+    (get-message reply)))
 
 (define-syntax-rule (with-critical-section channel (vars ...) exp ...)
   "Evaluate EXP... in the critical section corresponding to CHANNEL.
