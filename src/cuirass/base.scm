@@ -280,11 +280,9 @@ Return a list of jobs."
                         db `((#:specification . ,spec-name)
                              (#:commits . ,commits)))))
          (log-message "created evaluation ~a for '~a'" eval-id spec-name)
-         (let ((jobs (map (lambda (job)
-                            (augment-job job eval-id))
-                          jobs)))
-           (for-each (cut db-add-derivation db <>) jobs)
-           jobs))))))
+         (map (lambda (job)
+                (augment-job job eval-id))
+              jobs))))))
 
 
 ;;;
@@ -546,6 +544,9 @@ procedure is meant to be called at startup."
     (let* ((name     (assq-ref job #:job-name))
            (drv      (assq-ref job #:derivation))
            (eval-id  (assq-ref job #:eval-id))
+           (job-name (assq-ref job #:job-name))
+           (system   (assq-ref job #:system))
+           (nix-name (assq-ref job #:nix-name))
            ;; XXX: How to keep logs from several attempts?
            (log      (log-file store drv))
            (outputs  (filter-map (lambda (res)
@@ -556,6 +557,9 @@ procedure is meant to be called at startup."
            (cur-time (time-second (current-time time-utc))))
       (let ((build `((#:derivation . ,drv)
                      (#:eval-id . ,eval-id)
+                     (#:job-name . ,job-name)
+                     (#:system . ,system)
+                     (#:nix-name . ,nix-name)
 
                      ;; XXX: We'd leave LOG to #f (i.e., NULL) but that
                      ;; currently violates the non-NULL constraint.
@@ -568,13 +572,12 @@ procedure is meant to be called at startup."
                      (#:stoptime . 0))))
         (db-add-build db build))))
 
-  (define build-ids
-    (map register jobs))
+  (define derivations
+    (filter-map register jobs))
 
-  (spawn-builds store db
-                (map (cut assq-ref <> #:derivation) jobs))
+  (spawn-builds store db derivations)
 
-  (let* ((results (filter-map (cut db-get-build db <>) build-ids))
+  (let* ((results (filter-map (cut db-get-build db <>) derivations))
          (status (map (cut assq-ref <> #:status) results))
          (success (count (lambda (status)
                            (= status (build-status succeeded)))
@@ -584,7 +587,7 @@ procedure is meant to be called at startup."
                              (((_ (#:path . (? string? outputs))) ...)
                               outputs))
                            outputs))
-         (fail (- (length jobs) success)))
+         (fail (- (length derivations) success)))
     (log-message "outputs:\n~a" (string-join outs "\n"))
     (log-message "success: ~a, fail: ~a" success fail)
     results))

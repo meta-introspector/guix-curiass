@@ -50,27 +50,14 @@
   `((#:specification . "guix")
     (#:commits . ,commits)))
 
-(define* (make-dummy-job #:optional (name "foo"))
-  `((#:name . ,name)
-    (#:job-name . "job")
-    (#:system . "x86_64-linux")
-    (#:derivation . ,(string-append name ".drv"))
-    (#:nix-name . "foo")
-    (#:specification 0)
-    (#:eval-id . 42)))
-
-(define* (make-dummy-derivation drv #:optional (eval-id 0))
-  `((#:derivation . ,drv)
-    (#:job-name . "job")
-    (#:system . "x86_64-linux")
-    (#:nix-name . ,(basename drv ".drv"))
-    (#:eval-id . ,eval-id)))
-
-(define* (make-dummy-build #:optional (eval-id 42)
-                           #:key (drv "/foo.drv")
-                           (outputs '(("foo" . "/foo"))))
+(define* (make-dummy-build drv
+                           #:optional (eval-id 42)
+                           #:key (outputs '(("foo" . "/foo"))))
   `((#:derivation . ,drv)
     (#:eval-id . ,eval-id)
+    (#:job-name . "job")
+    (#:system . "x86_64-linux")
+    (#:nix-name . "foo")
     (#:log . "log")
     (#:outputs . (("foo" . "/foo")))))
 
@@ -84,10 +71,6 @@
 
 (define %db
   ;; Global Slot for a database object.
-  (make-parameter #t))
-
-(define %id
-  ;; Global Slot for a job ID in the database.
   (make-parameter #t))
 
 (define database-name
@@ -114,21 +97,13 @@ INSERT INTO Evaluations (specification, commits) VALUES (3, 3);")
       (db-add-specification (%db) example-spec)
       (car (db-get-specifications (%db)))))
 
-  (test-assert "db-add-derivation"
-    (let* ((job (make-dummy-job))
-           (key (assq-ref job #:derivation)))
-      (db-add-derivation (%db) job)
-      (db-add-derivation (%db) job)               ;idempotent
-      (%id key)))
-
-  (test-assert "db-get-derivation"
-    (db-get-derivation (%db) (%id)))
-
-  (test-assert "db-add-build"
-    (let ((build (make-dummy-build)))
+  (test-equal "db-add-build"
+    #f
+    (let ((build (make-dummy-build "/foo.drv")))
       (db-add-build (%db) build)
 
-      ;; This should be idempotent, see <https://bugs.gnu.org/28094>.
+      ;; Should return #f when adding a build whose derivation is already
+      ;; there, see <https://bugs.gnu.org/28094>.
       (db-add-build (%db) build)))
 
   (test-equal "db-update-build-status!"
@@ -137,13 +112,12 @@ INSERT INTO Evaluations (specification, commits) VALUES (3, 3);")
           (build-status succeeded)
           "/foo.drv.log")
     (with-temporary-database db
-      (let* ((id (db-add-build
-                  db
-                  (make-dummy-build 1 #:drv "/foo.drv"
-                                    #:outputs '(("out" . "/foo")))))
+      (let* ((derivation (db-add-build
+                          db
+                          (make-dummy-build "/foo.drv" 1
+                                            #:outputs '(("out" . "/foo")))))
              (get-status (lambda* (#:optional (key #:status))
-                           (assq-ref (db-get-build db id) key))))
-        (db-add-derivation db (make-dummy-derivation "/foo.drv" 1))
+                           (assq-ref (db-get-build db derivation) key))))
         (db-add-evaluation db (make-dummy-eval))
         (db-add-specification db example-spec)
 
@@ -171,18 +145,15 @@ INSERT INTO Evaluations (specification, commits) VALUES (3, 3);")
       ((3 "/baz.drv"))                               ;nr = 1
       ((2 "/bar.drv") (1 "/foo.drv") (3 "/baz.drv"))) ;status+submission-time
     (with-temporary-database db
-      ;; Populate the 'Builds', 'Derivations', 'Evaluations', and
+      ;; Populate the 'Builds'', 'Evaluations', and
       ;; 'Specifications' tables in a consistent way, as expected by the
       ;; 'db-get-builds' query.
-      (db-add-build db (make-dummy-build 1 #:drv "/foo.drv"
+      (db-add-build db (make-dummy-build "/foo.drv" 1
                                          #:outputs `(("out" . "/foo"))))
-      (db-add-build db (make-dummy-build 2 #:drv "/bar.drv"
+      (db-add-build db (make-dummy-build "/bar.drv" 2
                                          #:outputs `(("out" . "/bar"))))
-      (db-add-build db (make-dummy-build 3 #:drv "/baz.drv"
+      (db-add-build db (make-dummy-build "/baz.drv" 3
                                          #:outputs `(("out" . "/baz"))))
-      (db-add-derivation db (make-dummy-derivation "/foo.drv" 1))
-      (db-add-derivation db (make-dummy-derivation "/bar.drv" 2))
-      (db-add-derivation db (make-dummy-derivation "/baz.drv" 3))
       (db-add-evaluation db (make-dummy-eval))
       (db-add-evaluation db (make-dummy-eval))
       (db-add-evaluation db (make-dummy-eval))
@@ -206,19 +177,16 @@ INSERT INTO Evaluations (specification, commits) VALUES (3, 3);")
   (test-equal "db-get-pending-derivations"
     '("/bar.drv" "/foo.drv")
     (with-temporary-database db
-      ;; Populate the 'Builds', 'Derivations', 'Evaluations', and
+      ;; Populate the 'Builds', 'Evaluations', and
       ;; 'Specifications' tables.  Here, two builds map to the same derivation
       ;; but the result of 'db-get-pending-derivations' must not contain any
       ;; duplicate.
-      (db-add-build db (make-dummy-build 1 #:drv "/foo.drv"
+      (db-add-build db (make-dummy-build "/foo.drv" 1
                                          #:outputs `(("out" . "/foo"))))
-      (db-add-build db (make-dummy-build 2 #:drv "/bar.drv"
+      (db-add-build db (make-dummy-build "/bar.drv" 2
                                          #:outputs `(("out" . "/bar"))))
-      (db-add-build db (make-dummy-build 3 #:drv "/foo.drv"
+      (db-add-build db (make-dummy-build "/foo.drv" 3
                                          #:outputs `(("out" . "/foo"))))
-      (db-add-derivation db (make-dummy-derivation "/foo.drv" 1))
-      (db-add-derivation db (make-dummy-derivation "/bar.drv" 2))
-      (db-add-derivation db (make-dummy-derivation "/foo.drv" 3))
       (db-add-evaluation db (make-dummy-eval))
       (db-add-evaluation db (make-dummy-eval))
       (db-add-evaluation db (make-dummy-eval))

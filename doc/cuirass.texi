@@ -249,9 +249,8 @@ Cuirass uses a SQLite database to store information about jobs and past
 build results, but also to coordinate the execution of jobs.
 
 The database contains the following tables: @code{Specifications},
-@code{Inputs}, @code{Stamps}, @code{Evaluations}, @code{Derivations},
-@code{Builds} and @code{Outputs}.  The purpose of each of these tables is
-explained below.
+@code{Inputs}, @code{Stamps}, @code{Evaluations}, @code{Builds} and
+@code{Outputs}.  The purpose of each of these tables is explained below.
 
 @section Specifications
 @cindex specifications, database
@@ -349,9 +348,8 @@ and @code{stamp}, which holds the revisions (space separated commit hashes).
 @section Evaluations
 @cindex evaluations, database
 
-An evaluation relates a specification with the revision of the
-repository specified therein.  Derivations and builds (see below) each
-belong to a specific evaluation.
+An evaluation relates a specification with the revision of the repository
+specified therein.  Builds (see below) belong to a specific evaluation.
 
 The @code{Evaluations} table has the following columns:
 
@@ -368,20 +366,21 @@ This text field holds the revisions (space separated commit hashes) of the
 repositories specified as inputs of the related specification.
 @end table
 
-@section Derivations
-@cindex derivations, database
+@section Builds
+@cindex builds, database
 
-This table associates a tuple of the absolute derivation file name and
-evaluation identifier with a job name.
+This table holds records of the derivations and their build status.  Note that
+a job will be registered here only if its derivation doesn't already exist.
 
 @table @code
 @item derivation
-This column holds the absolute file name of the Guix derivation that is
-supposed to be evaluated for this job.
+This text field holds the absolute name of the derivation file that
+resulted in this build.
 
 @item evaluation
-This field holds the @code{id} of an evaluation from the
-@code{Evaluations} table.
+This integer field references the evaluation identifier from the
+@code{Evaluations} table, indicating to which evaluation this build
+belongs.
 
 @item job_name
 This text field holds the name of the job.
@@ -392,28 +391,6 @@ This text field holds the system name of the derivation.
 @item nix_name
 This text field holds the name of the derivation ---e.g.,
 @code{coreutils-8.24}.
-
-@end table
-
-@section Builds
-@cindex builds, database
-
-This table holds records of completed or failed package builds.  Note
-that builds are not in a one to one relationship with derivations in
-order to keep track of non-deterministic compilations.
-
-@table @code
-@item id
-This is an automatically incrementing numeric identifier.
-
-@item derivation
-This text field holds the absolute name of the derivation file that
-resulted in this build.
-
-@item evaluation
-This integer field references the evaluation identifier from the
-@code{Evaluations} table, indicating to which evaluation this build
-belongs.
 
 @item log
 This text field holds the absolute file name of the build log file.
@@ -442,9 +419,9 @@ stored in @code{Builds} table may have zero (if it has failed), one or
 multiple outputs.
 
 @table @code
-@item build
-This field holds the @code{id} of a build from the
-@code{Builds} table.
+@item derivation
+This field holds the @code{derivation} of a build from the @code{Builds}
+table.
 
 @item name
 This text field holds the name of the output.

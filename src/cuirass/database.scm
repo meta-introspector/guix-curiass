@@ -41,8 +41,6 @@
             db-add-stamp
             db-get-stamp
             db-add-evaluation
-            db-add-derivation
-            db-get-derivation
             db-get-pending-derivations
             build-status
             db-add-build
@@ -312,32 +310,6 @@ package_path_inputs, proc_input, proc_file, proc, proc_args) \
                      (#:inputs . ,(db-get-inputs db name)))
                    specs))))))
 
-(define (db-add-derivation db job)
-  "Store a derivation result in database DB and return its ID."
-  (catch 'sqlite-error
-    (lambda ()
-      (sqlite-exec db "\
-INSERT INTO Derivations (derivation, job_name, system, nix_name, evaluation)\
-  VALUES ("
-                   (assq-ref job #:derivation) ", "
-                   (assq-ref job #:job-name) ", "
-                   (assq-ref job #:system) ", "
-                   (assq-ref job #:nix-name) ", "
-                   (assq-ref job #:eval-id) ");")
-      (last-insert-rowid db))
-    (lambda (key who code message . rest)
-      ;; If we get a unique-constraint-failed error, that means we have
-      ;; already inserted the same (derivation,eval-id) tuple.  That happens
-      ;; when several jobs produce the same derivation, and we can ignore it.
-      (if (= code SQLITE_CONSTRAINT_PRIMARYKEY)
-          (sqlite-exec db "SELECT * FROM Derivations WHERE derivation="
-                       (assq-ref job #:derivation) ";")
-          (apply throw key who code rest)))))
-
-(define (db-get-derivation db id)
-  "Retrieve a job in database DB which corresponds to ID."
-  (car (sqlite-exec db "SELECT * FROM Derivations WHERE derivation=" id ";")))
-
 (define (db-add-evaluation db eval)
   (sqlite-exec db "\
 INSERT INTO Evaluations (specification, commits) VALUES ("
@@ -384,27 +356,39 @@ string."
 (define (db-add-build db build)
   "Store BUILD in database DB. BUILD eventual outputs are stored
 in the OUTPUTS table."
-  (let* ((build-exec
-          (sqlite-exec db "\
-INSERT INTO Builds (derivation, evaluation, log, status, timestamp, starttime, stoptime)\
-  VALUES ("
-                       (assq-ref build #:derivation) ", "
-                       (assq-ref build #:eval-id) ", "
-                       (assq-ref build #:log) ", "
-                       (or (assq-ref build #:status)
-                           (build-status scheduled)) ", "
-                       (or (assq-ref build #:timestamp) 0) ", "
-                       (or (assq-ref build #:starttime) 0) ", "
-                       (or (assq-ref build #:stoptime) 0) ");"))
-         (build-id (last-insert-rowid db)))
-    (for-each (lambda (output)
-                (match output
-                  ((name . path)
-                   (sqlite-exec db "\
-INSERT INTO Outputs (build, name, path) VALUES ("
-                                build-id ", " name ", " path ");"))))
-              (assq-ref build #:outputs))
-    build-id))
+  (catch 'sqlite-error
+    (lambda ()
+      (sqlite-exec db "
+INSERT INTO Builds (derivation, evaluation, job_name, system, nix_name, log,
+status, timestamp, starttime, stoptime)
+VALUES ("
+                   (assq-ref build #:derivation) ", "
+                   (assq-ref build #:eval-id) ", "
+                   (assq-ref build #:job-name) ", "
+                   (assq-ref build #:system) ", "
+                   (assq-ref build #:nix-name) ", "
+                   (assq-ref build #:log) ", "
+                   (or (assq-ref build #:status)
+                       (build-status scheduled)) ", "
+                   (or (assq-ref build #:timestamp) 0) ", "
+                   (or (assq-ref build #:starttime) 0) ", "
+                   (or (assq-ref build #:stoptime) 0) ");")
+      (let ((derivation (assq-ref build #:derivation)))
+        (for-each (lambda (output)
+                    (match output
+                      ((name . path)
+                       (sqlite-exec db "\
+INSERT INTO Outputs (derivation, name, path) VALUES ("
+                                    derivation ", " name ", " path ");"))))
+                  (assq-ref build #:outputs))
+        derivation))
+    (lambda (key who code message . rest)
+      ;; If we get a unique-constraint-failed error, that means we have
+      ;; already inserted the same build.  That happens when several jobs
+      ;; produce the same derivation, and we can ignore it.
+      (if (= code SQLITE_CONSTRAINT_PRIMARYKEY)
+          #f
+          (apply throw key who code rest)))))
 
 (define* (db-update-build-status! db drv status #:key log-file)
   "Update DB so that DRV's status is STATUS.  This also updates the
@@ -429,11 +413,11 @@ log file for DRV."
                        ", status=" status
                        "WHERE derivation=" drv " AND status != " status ";"))))
 
-(define (db-get-outputs db build-id)
-  "Retrieve the OUTPUTS of the build identified by BUILD-ID in DB database."
+(define (db-get-outputs db derivation)
+  "Retrieve the OUTPUTS of the build identified by DERIVATION in DB database."
   (let loop ((rows
-              (sqlite-exec db "SELECT name, path FROM Outputs WHERE build="
-                           build-id ";"))
+              (sqlite-exec db "SELECT name, path FROM Outputs
+WHERE derivation =" derivation ";"))
              (outputs '()))
     (match rows
       (() outputs)
@@ -445,56 +429,56 @@ log file for DRV."
 
 (define (filters->order filters)
   (match (assq 'order filters)
-    (('order . 'build-id) "id ASC")
-    (('order . 'decreasing-build-id) "id DESC")
+    (('order . 'build-id) "rowid ASC")
+    (('order . 'decreasing-build-id) "rowid DESC")
     (('order . 'finish-time) "stoptime DESC")
-    (('order . 'finish-time+build-id) "stoptime DESC, id DESC")
+    (('order . 'finish-time+build-id) "stoptime DESC, rowid DESC")
     (('order . 'start-time) "starttime DESC")
     (('order . 'submission-time) "timestamp DESC")
     ;; With this order, builds in 'running' state (-1) appear
     ;; before those in 'scheduled' state (-2).
     (('order . 'status+submission-time) "status DESC, timestamp DESC")
-    (_ "id DESC")))
+    (_ "rowid DESC")))
 
 (define (db-get-builds db filters)
   "Retrieve all builds in database DB which are matched by given FILTERS.
-FILTERS is an assoc list whose possible keys are 'id | 'jobset | 'job |
-'system | 'nr | 'order | 'status | 'evaluation."
+FILTERS is an assoc list whose possible keys are 'derivation | 'id | 'jobset |
+'job | 'system | 'nr | 'order | 'status | 'evaluation."
   (let* ((order (filters->order filters))
          (stmt-text (format #f "SELECT * FROM (
-SELECT Builds.id, Builds.timestamp, Builds.starttime, Builds.stoptime,
-Builds.log, Builds.status, Builds.derivation, Derivations.job_name,
-Derivations.system, Derivations.nix_name, Specifications.name
+SELECT Builds.derivation, Builds.rowid, Builds.timestamp, Builds.starttime,
+Builds.stoptime, Builds.log, Builds.status, Builds.job_name, Builds.system,
+Builds.nix_name, Specifications.name
 FROM Builds
-INNER JOIN Derivations ON Builds.derivation = Derivations.derivation
-AND Builds.evaluation = Derivations.evaluation
-INNER JOIN Evaluations ON Derivations.evaluation = Evaluations.id
+INNER JOIN Evaluations ON Builds.evaluation = Evaluations.id
 INNER JOIN Specifications ON Evaluations.specification = Specifications.name
-WHERE (:id IS NULL OR (:id = Builds.id))
+WHERE (:id IS NULL OR (:id = Builds.rowid))
+AND (:derivation IS NULL OR (:derivation = Builds.derivation))
 AND (:jobset IS NULL OR (:jobset = Specifications.name))
-AND (:job IS NULL OR (:job = Derivations.job_name))
-AND (:system IS NULL OR (:system = Derivations.system))
+AND (:job IS NULL OR (:job = Builds.job_name))
+AND (:system IS NULL OR (:system = Builds.system))
 AND (:evaluation IS NULL OR (:evaluation = Builds.evaluation))
 AND (:status IS NULL OR (:status = 'done' AND Builds.status >= 0)
                      OR (:status = 'pending' AND Builds.status < 0))
 AND (:borderlowtime IS NULL OR :borderlowid IS NULL
- OR ((:borderlowtime, :borderlowid) < (Builds.stoptime, Builds.id)))
+ OR ((:borderlowtime, :borderlowid) < (Builds.stoptime, Builds.rowid)))
 AND (:borderhightime IS NULL OR :borderhighid IS NULL
- OR ((:borderhightime, :borderhighid) > (Builds.stoptime, Builds.id)))
+ OR ((:borderhightime, :borderhighid) > (Builds.stoptime, Builds.rowid)))
 ORDER BY
 CASE WHEN :borderlowtime IS NULL
        OR :borderlowid IS NULL THEN Builds.stoptime
                                ELSE -Builds.stoptime
 END DESC,
 CASE WHEN :borderlowtime IS NULL
-       OR :borderlowid IS NULL THEN Builds.id
-                               ELSE -Builds.id
+       OR :borderlowid IS NULL THEN Builds.rowid
+                               ELSE -Builds.rowid
 END DESC
 LIMIT :nr)
-ORDER BY ~a, id ASC;" order))
+ORDER BY ~a, rowid ASC;" order))
          (stmt (sqlite-prepare db stmt-text #:cache? #t)))
     (sqlite-bind-arguments
      stmt
+     #:derivation (assq-ref filters 'derivation)
      #:id (assq-ref filters 'id)
      #:jobset (assq-ref filters 'jobset)
      #:job (assq-ref filters 'job)
@@ -513,45 +497,37 @@ ORDER BY ~a, id ASC;" order))
                (builds '()))
       (match rows
         (() (reverse builds))
-        ((#(id timestamp starttime stoptime log status derivation job-name
-               system nix-name specification) . rest)
+        ((#(derivation id timestamp starttime stoptime log status job-name
+                       system nix-name specification) . rest)
          (loop rest
-               (cons `((#:id . ,id)
+               (cons `((#:derivation . ,derivation)
+                       (#:id . ,id)
                        (#:timestamp . ,timestamp)
                        (#:starttime . ,starttime)
                        (#:stoptime . ,stoptime)
                        (#:log . ,log)
                        (#:status . ,status)
-                       (#:derivation . ,derivation)
                        (#:job-name . ,job-name)
                        (#:system . ,system)
                        (#:nix-name . ,nix-name)
                        (#:specification . ,specification)
-                       (#:outputs . ,(db-get-outputs db id)))
+                       (#:outputs . ,(db-get-outputs db derivation)))
                      builds)))))))
 
-(define (db-get-build db id)
-  "Retrieve a build in database DB which corresponds to ID."
-  (match (db-get-builds db `((id . ,id)))
-    ((build)
-     build)
-    (() #f)))
+(define (db-get-build db derivation-or-id)
+  "Retrieve a build in database DB which corresponds to DERIVATION-OR-ID."
+  (let ((key (if (number? derivation-or-id) 'id 'derivation)))
+    (match (db-get-builds db `((,key . ,derivation-or-id)))
+      ((build)
+       build)
+      (() #f))))
 
 (define (db-get-pending-derivations db)
   "Return the list of derivation file names corresponding to pending builds in
 DB.  The returned list is guaranteed to not have any duplicates."
-  ;; This is of course much more efficient than calling 'delete-duplicates' on
-  ;; a list of results obtained without DISTINCT, both in space and time.
-  ;;
-  ;; Here we use a subquery so that sqlite can use two indexes instead of
-  ;; creating a "TEMP B-TREE" when doing a single flat query, as "EXPLAIN
-  ;; QUERY PLAN" shows.
   (map (match-lambda (#(drv) drv))
        (sqlite-exec db "
-SELECT DISTINCT derivation FROM (
-  SELECT Derivations.derivation FROM Derivations INNER JOIN Builds
-  WHERE Derivations.derivation = Builds.derivation AND Builds.status < 0
-);")))
+SELECT derivation FROM Builds WHERE Builds.status < 0;")))
 
 (define (db-get-stamp db spec)
   "Return a stamp corresponding to specification SPEC in database DB."
@@ -596,7 +572,7 @@ AND (" border-high "IS NULL OR (id <" border-high "))
 ORDER BY CASE WHEN " border-low "IS NULL THEN id ELSE -id END DESC
 LIMIT " limit ") E
 LEFT JOIN
-(SELECT id, evaluation, SUM(status=0) as succeeded,
+(SELECT rowid, evaluation, SUM(status=0) as succeeded,
 SUM(status>0) as failed, SUM(status<0) as scheduled
 FROM Builds
 GROUP BY evaluation) B
@@ -632,8 +608,8 @@ WHERE specification=" spec)))
   "Return the min build (stoptime, id) pair for
    the given evaluation EVAL."
   (let ((rows (sqlite-exec db "
-SELECT stoptime, MIN(id) FROM
-(SELECT id, stoptime FROM Builds
+SELECT stoptime, MIN(rowid) FROM
+(SELECT rowid, stoptime FROM Builds
 WHERE evaluation=" eval " AND
 stoptime = (SELECT MIN(stoptime)
 FROM Builds WHERE evaluation=" eval "))")))
@@ -643,8 +619,8 @@ FROM Builds WHERE evaluation=" eval "))")))
   "Return the max build (stoptime, id) pair for
    the given evaluation EVAL."
   (let ((rows (sqlite-exec db "
-SELECT stoptime, MAX(id) FROM
-(SELECT id, stoptime FROM Builds
+SELECT stoptime, MAX(rowid) FROM
+(SELECT rowid, stoptime FROM Builds
 WHERE evaluation=" eval " AND
 stoptime = (SELECT MAX(stoptime)
 FROM Builds WHERE evaluation=" eval "))")))

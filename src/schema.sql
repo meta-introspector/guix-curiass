@@ -37,43 +37,31 @@ CREATE TABLE Evaluations (
   FOREIGN KEY (specification) REFERENCES Specifications (name)
 );
 
-CREATE TABLE Derivations (
-  derivation    TEXT NOT NULL,
+CREATE TABLE Outputs (
+  derivation TEXT NOT NULL,
+  name TEXT NOT NULL,
+  path TEXT NOT NULL,
+  PRIMARY KEY (derivation, name),
+  FOREIGN KEY (derivation) REFERENCES Builds (derivation)
+);
+
+CREATE TABLE Builds (
+  derivation    TEXT NOT NULL PRIMARY KEY,
   evaluation    INTEGER NOT NULL,
   job_name      TEXT NOT NULL,
   system        TEXT NOT NULL,
   nix_name      TEXT NOT NULL,
-  PRIMARY KEY (derivation, evaluation),
-  FOREIGN KEY (evaluation) REFERENCES Evaluations (id)
-);
-
-CREATE TABLE Outputs (
-  build INTEGER NOT NULL,
-  name TEXT NOT NULL,
-  path TEXT NOT NULL,
-  PRIMARY KEY (build, name),
-  FOREIGN KEY (build) REFERENCES Builds (id)
-);
-
--- Builds are not in a one to one relationship with derivations in order to
--- keep track of non deterministic compilations.
-CREATE TABLE Builds (
-  id            INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
-  derivation    TEXT NOT NULL,
-  evaluation    INTEGER NOT NULL,
   log           TEXT NOT NULL,
   status        INTEGER NOT NULL,
   timestamp     INTEGER NOT NULL,
   starttime     INTEGER NOT NULL,
   stoptime      INTEGER NOT NULL,
-  FOREIGN KEY (derivation) REFERENCES Derivations (derivation),
   FOREIGN KEY (evaluation) REFERENCES Evaluations (id)
 );
 
 -- Create indexes to speed up common queries, in particular those
 -- corresponding to /api/latestbuilds and /api/queue HTTP requests.
-CREATE INDEX Builds_Derivations_index ON Builds(status ASC, timestamp ASC, id, derivation, evaluation, stoptime DESC);
+CREATE INDEX Builds_index ON Builds(job_name, system, status ASC, timestamp ASC, derivation, evaluation, stoptime DESC);
 CREATE INDEX Inputs_index ON Inputs(specification, name, branch);
-CREATE INDEX Derivations_index ON Derivations(derivation, evaluation, job_name, system);
 
 COMMIT;
