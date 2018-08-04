@@ -443,23 +443,6 @@ log file for DRV."
              (cons `(,name . ((#:path . ,path)))
                    outputs))))))
 
-(define (db-format-build db build)
-  (match build
-    (#(id timestamp starttime stoptime log status derivation job-name system
-          nix-name repo-name)
-     `((#:id         . ,id)
-       (#:timestamp  . ,timestamp)
-       (#:starttime  . ,starttime)
-       (#:stoptime   . ,stoptime)
-       (#:log        . ,log)
-       (#:status     . ,status)
-       (#:derivation . ,derivation)
-       (#:job-name   . ,job-name)
-       (#:system     . ,system)
-       (#:nix-name   . ,nix-name)
-       (#:repo-name  . ,repo-name)
-       (#:outputs    . ,(db-get-outputs db id))))))
-
 (define (db-get-builds db filters)
   "Retrieve all builds in database DB which are matched by given FILTERS.
 FILTERS is an assoc list whose possible keys are 'id | 'jobset | 'job |
