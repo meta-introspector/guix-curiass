@@ -443,104 +443,33 @@ log file for DRV."
              (cons `(,name . ((#:path . ,path)))
                    outputs))))))
 
+(define (filters->order filters)
+  (match (assq 'order filters)
+    (('order . 'build-id) "id ASC")
+    (('order . 'decreasing-build-id) "id DESC")
+    (('order . 'finish-time) "stoptime DESC")
+    (('order . 'finish-time+build-id) "stoptime DESC, id DESC")
+    (('order . 'start-time) "starttime DESC")
+    (('order . 'submission-time) "timestamp DESC")
+    ;; With this order, builds in 'running' state (-1) appear
+    ;; before those in 'scheduled' state (-2).
+    (('order . 'status+submission-time) "status DESC, timestamp DESC")
+    (_ "id DESC")))
+
 (define (db-get-builds db filters)
   "Retrieve all builds in database DB which are matched by given FILTERS.
 FILTERS is an assoc list whose possible keys are 'id | 'jobset | 'job |
 'system | 'nr | 'order | 'status | 'evaluation."
-
-  (define (format-output name path)
-    `(,name . ((#:path . ,path))))
-
-  (define (cons-output name path rest)
-    "If NAME and PATH are both not #f, cons them to REST.
-Otherwise return REST unchanged."
-    (if (and (not name) (not path))
-        rest
-        (cons (format-output name path) rest)))
-
-  (define (collect-outputs repeated-builds-id repeated-row outputs rows)
-    "Given rows somewhat like
-1 'a 'b  2 'x
-^ 'c 'd  2 'x
-| ^^^^^  ^^^^
-| group  ++++- group headers
-| detail
-+------------ group id
-
-return rows somewhat like
-
-1 2 'x '((a b) (c d))
-
-.
-
-As a special case, if the group detail is #f #f, ignore it.
-This is made specifically to support LEFT JOINs.
-
-Assumes that if group id stays the same the group headers stay the same."
-    (define (finish-group)
-      (match repeated-row
-        (#(timestamp starttime stoptime log status derivation job-name system
-                     nix-name specification)
-         `((#:id         . ,repeated-builds-id)
-           (#:timestamp  . ,timestamp)
-           (#:starttime  . ,starttime)
-           (#:stoptime   . ,stoptime)
-           (#:log        . ,log)
-           (#:status     . ,status)
-           (#:derivation . ,derivation)
-           (#:job-name   . ,job-name)
-           (#:system     . ,system)
-           (#:nix-name   . ,nix-name)
-           (#:specification . ,specification)
-           (#:outputs    . ,outputs)))))
-
-    (define (same-group? builds-id)
-      (= builds-id repeated-builds-id))
-
-    (match rows
-      (() (list (finish-group)))
-      ((#((? same-group? x-builds-id) x-output-name x-output-path other-cells ...) . rest)
-       ;; Accumulate group members of current group.
-       (let ((outputs (cons-output x-output-name x-output-path outputs)))
-         (collect-outputs repeated-builds-id repeated-row outputs rest)))
-      ((#(x-builds-id x-output-name x-output-path other-cells ...) . rest)
-       (cons (finish-group)                       ;finish current group
-
-             ;; Start new group.
-             (let* ((outputs (cons-output x-output-name x-output-path '()))
-                    (x-repeated-row (list->vector other-cells)))
-               (collect-outputs x-builds-id x-repeated-row outputs rest))))))
-
-  (define (group-outputs rows)
-    (match rows
-      (() '())
-      ((#(x-builds-id x-output-name x-output-path other-cells ...) . rest)
-       (let ((x-repeated-row (list->vector other-cells)))
-         (collect-outputs x-builds-id x-repeated-row '() rows)))))
-
-  (let* ((order (match (assq 'order filters)
-                  (('order . 'build-id) "id ASC")
-                  (('order . 'decreasing-build-id) "id DESC")
-                  (('order . 'finish-time) "stoptime DESC")
-                  (('order . 'finish-time+build-id) "stoptime DESC, id DESC")
-                  (('order . 'start-time) "starttime DESC")
-                  (('order . 'submission-time) "timestamp DESC")
-                  (('order . 'status+submission-time)
-                   ;; With this order, builds in 'running' state (-1) appear
-                   ;; before those in 'scheduled' state (-2).
-                   "status DESC, timestamp DESC")
-                  (_ "id DESC")))
+  (let* ((order (filters->order filters))
          (stmt-text (format #f "SELECT * FROM (
-SELECT Builds.id, Outputs.name, Outputs.path, Builds.timestamp,
-Builds.starttime, Builds.stoptime, Builds.log, Builds.status,
-Builds.derivation, Derivations.job_name, Derivations.system,
-Derivations.nix_name,Specifications.name
+SELECT Builds.id, Builds.timestamp, Builds.starttime, Builds.stoptime,
+Builds.log, Builds.status, Builds.derivation, Derivations.job_name,
+Derivations.system, Derivations.nix_name, Specifications.name
 FROM Builds
 INNER JOIN Derivations ON Builds.derivation = Derivations.derivation
 AND Builds.evaluation = Derivations.evaluation
 INNER JOIN Evaluations ON Derivations.evaluation = Evaluations.id
 INNER JOIN Specifications ON Evaluations.specification = Specifications.name
-LEFT JOIN Outputs ON Outputs.build = Builds.id
 WHERE (:id IS NULL OR (:id = Builds.id))
 AND (:jobset IS NULL OR (:jobset = Specifications.name))
 AND (:job IS NULL OR (:job = Derivations.job_name))
@@ -580,7 +509,26 @@ ORDER BY ~a, id ASC;" order))
             (#f -1)
             (x x)))
     (sqlite-reset stmt)
-    (group-outputs (sqlite-fold-right cons '() stmt))))
+    (let loop ((rows (sqlite-fold-right cons '() stmt))
+               (builds '()))
+      (match rows
+        (() (reverse builds))
+        ((#(id timestamp starttime stoptime log status derivation job-name
+               system nix-name specification) . rest)
+         (loop rest
+               (cons `((#:id . ,id)
+                       (#:timestamp . ,timestamp)
+                       (#:starttime . ,starttime)
+                       (#:stoptime . ,stoptime)
+                       (#:log . ,log)
+                       (#:status . ,status)
+                       (#:derivation . ,derivation)
+                       (#:job-name . ,job-name)
+                       (#:system . ,system)
+                       (#:nix-name . ,nix-name)
+                       (#:specification . ,specification)
+                       (#:outputs . ,(db-get-outputs db id)))
+                     builds)))))))
 
 (define (db-get-build db id)
   "Retrieve a build in database DB which corresponds to ID."
