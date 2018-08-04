@@ -563,12 +563,21 @@ AND (:jobset IS NULL OR (:jobset = Specifications.name))
 AND (:job IS NULL OR (:job = Derivations.job_name))
 AND (:system IS NULL OR (:system = Derivations.system))
 AND (:evaluation IS NULL OR (:evaluation = Builds.evaluation))
-AND (:status IS NULL OR (:status = 'done' AND Builds.status >= 0) OR (:status = 'pending' AND Builds.status < 0))
-AND (:borderlowtime IS NULL OR :borderlowid IS NULL OR ((:borderlowtime, :borderlowid) < (Builds.stoptime, Builds.id)))
-AND (:borderhightime IS NULL OR :borderhighid IS NULL OR ((:borderhightime, :borderhighid) > (Builds.stoptime, Builds.id)))
+AND (:status IS NULL OR (:status = 'done' AND Builds.status >= 0)
+                     OR (:status = 'pending' AND Builds.status < 0))
+AND (:borderlowtime IS NULL OR :borderlowid IS NULL
+ OR ((:borderlowtime, :borderlowid) < (Builds.stoptime, Builds.id)))
+AND (:borderhightime IS NULL OR :borderhighid IS NULL
+ OR ((:borderhightime, :borderhighid) > (Builds.stoptime, Builds.id)))
 ORDER BY
-CASE WHEN :borderlowtime IS NULL OR :borderlowid IS NULL THEN Builds.stoptime ELSE -Builds.stoptime END DESC,
-CASE WHEN :borderlowtime IS NULL OR :borderlowid IS NULL THEN Builds.id ELSE -Builds.id END DESC
+CASE WHEN :borderlowtime IS NULL
+       OR :borderlowid IS NULL THEN Builds.stoptime
+                               ELSE -Builds.stoptime
+END DESC,
+CASE WHEN :borderlowtime IS NULL
+       OR :borderlowid IS NULL THEN Builds.id
+                               ELSE -Builds.id
+END DESC
 LIMIT :nr)
 ORDER BY ~a, id ASC;" order))
          (stmt (sqlite-prepare db stmt-text #:cache? #t)))
