@@ -497,7 +497,7 @@ Assumes that if group id stays the same the group headers stay the same."
     (define (finish-group)
       (match repeated-row
         (#(timestamp starttime stoptime log status derivation job-name system
-                     nix-name repo-name)
+                     nix-name specification)
          `((#:id         . ,repeated-builds-id)
            (#:timestamp  . ,timestamp)
            (#:starttime  . ,starttime)
@@ -508,7 +508,7 @@ Assumes that if group id stays the same the group headers stay the same."
            (#:job-name   . ,job-name)
            (#:system     . ,system)
            (#:nix-name   . ,nix-name)
-           (#:repo-name  . ,repo-name)
+           (#:specification . ,specification)
            (#:outputs    . ,outputs)))))
 
     (define (same-group? builds-id)

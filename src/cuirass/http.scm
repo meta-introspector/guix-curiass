@@ -79,7 +79,7 @@
                      (build-status started)))))
 
   `((#:id . ,(assq-ref build #:id))
-    (#:jobset . ,(assq-ref build #:repo-name))
+    (#:jobset . ,(assq-ref build #:specification))
     (#:job . ,(assq-ref build #:job-name))
 
     ;; Hydra's API uses "timestamp" as the time of the last useful event for
