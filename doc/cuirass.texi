@@ -249,8 +249,9 @@ Cuirass uses a SQLite database to store information about jobs and past
 build results, but also to coordinate the execution of jobs.
 
 The database contains the following tables: @code{Specifications},
-@code{Inputs}, @code{Stamps}, @code{Evaluations}, @code{Derivations} and
-@code{Builds}.  The purpose of each of these tables is explained below.
+@code{Inputs}, @code{Stamps}, @code{Evaluations}, @code{Derivations},
+@code{Builds} and @code{Outputs}.  The purpose of each of these tables is
+explained below.
 
 @section Specifications
 @cindex specifications, database
