@@ -639,11 +639,7 @@ FROM Evaluations ORDER BY id DESC LIMIT " limit ";"))
 (define (db-get-evaluations-build-summary db spec limit border-low border-high)
   (let loop ((rows (sqlite-exec db "
 SELECT E.id, E.commits, B.succeeded, B.failed, B.scheduled
-FROM (SELECT id, evaluation, SUM(status=0) as succeeded,
-SUM(status>0) as failed, SUM(status<0) as scheduled
-FROM Builds
-GROUP BY evaluation) B
-JOIN
+FROM
 (SELECT id, commits
 FROM Evaluations
 WHERE (specification=" spec ")
@@ -651,6 +647,11 @@ AND (" border-low "IS NULL OR (id >" border-low "))
 AND (" border-high "IS NULL OR (id <" border-high "))
 ORDER BY CASE WHEN " border-low "IS NULL THEN id ELSE -id END DESC
 LIMIT " limit ") E
+LEFT JOIN
+(SELECT id, evaluation, SUM(status=0) as succeeded,
+SUM(status>0) as failed, SUM(status<0) as scheduled
+FROM Builds
+GROUP BY evaluation) B
 ON B.evaluation=E.id
 ORDER BY E.id ASC;"))
              (evaluations '()))
@@ -660,9 +661,9 @@ ORDER BY E.id ASC;"))
        (loop rest
              (cons `((#:id . ,id)
                      (#:commits . ,commits)
-                     (#:succeeded . ,succeeded)
-                     (#:failed . ,failed)
-                     (#:scheduled . ,scheduled))
+                     (#:succeeded . ,(or succeeded 0))
+                     (#:failed . ,(or failed 0))
+                     (#:scheduled . ,(or scheduled 0)))
                    evaluations))))))
 
 (define (db-get-evaluations-id-min db spec)
