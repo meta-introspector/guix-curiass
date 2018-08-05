@@ -26,7 +26,17 @@
             evaluation-info-table
             build-eval-table))
 
-(define (html-page title body)
+(define (navigation-items navigation)
+  (match navigation
+    (() '())
+    ((item . rest)
+     (cons `(li (@ (class "nav-item"))
+                (a (@ (class "nav-link" ,(if (null? rest) " active" ""))
+                      (href ,(assq-ref item #:link)))
+                   ,(assq-ref item #:name)))
+           (navigation-items rest)))))
+
+(define (html-page title body navigation)
   "Return HTML page with given TITLE and BODY."
   `(html (@ (xmlns "http://www.w3.org/1999/xhtml")
             (xml:lang "en")
@@ -44,11 +54,21 @@
                    (href "/static/css/open-iconic-bootstrap.css")))
           (title ,title))
          (body
-          (nav (@ (class "navbar navbar-expand-lg navbar-light bg-light"))
-               (a (@ (class "navbar-brand") (href "/"))
+          (nav (@ (class "navbar navbar-expand navbar-light bg-light"))
+               (a (@ (class "navbar-brand pt-0")
+                     (href "/"))
                   (img (@ (src "/static/images/logo.png")
                           (alt "logo")
-                          (height "25")))))
+                          (height "25")
+                          (style "margin-top: -12px"))))
+               (div (@ (class "navbar-nav-scroll"))
+                    (ul (@ (class "navbar-nav"))
+                        (li (@ (class "nav-item"))
+                            (a (@ (class "nav-link" ,(if (null? navigation)
+                                                         " active" ""))
+                                  (href "/"))
+                               Home))
+                        ,@(navigation-items navigation))))
           (main (@ (role "main") (class "container pt-4 px-1"))
                 ,body
                 (hr)))))

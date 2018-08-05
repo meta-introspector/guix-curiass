@@ -167,15 +167,19 @@ Hydra format."
      (object->json-string
       `((error . ,message)))))
 
-  (define (respond-html body)
-    (respond '((content-type . (application/xhtml+xml)))
-             #:body
-             (lambda (port)
-               (format
-                port "<!DOCTYPE html PUBLIC ~s ~s>"
-                "-//W3C//DTD XHTML 1.0 Transitional//EN"
-                "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd")
-               (sxml->xml body port))))
+  (define* (respond-html body #:key code)
+    (respond
+     (let ((content-type '((content-type . (application/xhtml+xml)))))
+       (if code
+           (build-response #:headers content-type #:code code)
+           content-type))
+     #:body
+     (lambda (port)
+       (format
+        port "<!DOCTYPE html PUBLIC ~s ~s>"
+        "-//W3C//DTD XHTML 1.0 Transitional//EN"
+        "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd")
+       (sxml->xml body port))))
 
   (define (respond-static-file path)
     ;; PATH is a list of path components
@@ -193,6 +197,13 @@ Hydra format."
     (respond-json-with-error
      404
      (format #f "Build with ID ~a doesn't exist." build-id)))
+
+  (define (respond-html-eval-not-found eval-id)
+    (respond-html
+     (html-page "Page not found"
+                (format #f "Evaluation with ID ~a doesn't exist." eval-id)
+                '())
+     #:code 404))
 
   (define (respond-build-log-not-found build)
     (let ((drv (assq-ref build #:derivation)))
@@ -275,7 +286,8 @@ Hydra format."
     ('()
      (respond-html (html-page
                     "Cuirass"
-                    (specifications-table (db-get-specifications)))))
+                    (specifications-table (db-get-specifications))
+                    '())))
 
     (("jobset" name)
      (respond-html
@@ -291,32 +303,42 @@ Hydra format."
         (html-page name (evaluation-info-table name
                                                evaluations
                                                evaluation-id-min
-                                               evaluation-id-max)))))
+                                               evaluation-id-max)
+                   `(((#:name . ,name)
+                      (#:link . ,(string-append "/jobset/" name))))))))
 
     (("eval" id)
-     (respond-html
-      (let* ((params (request-parameters request))
-             (status (assq-ref params 'status))
-             (builds-id-max (db-get-builds-max id status))
-             (builds-id-min (db-get-builds-min id status))
-             (border-high-time (assq-ref params 'border-high-time))
-             (border-low-time (assq-ref params 'border-low-time))
-             (border-high-id (assq-ref params 'border-high-id))
-             (border-low-id (assq-ref params 'border-low-id)))
-        (html-page
-         "Evaluation"
-         (build-eval-table
-          (handle-builds-request `((evaluation . ,id)
-                                   (status . ,(and=> status string->symbol))
-                                   (nr . ,%page-size)
-                                   (order . finish-time+build-id)
-                                   (border-high-time . ,border-high-time)
-                                   (border-low-time . ,border-low-time)
-                                   (border-high-id . ,border-high-id)
-                                   (border-low-id . ,border-low-id)))
-          builds-id-min
-          builds-id-max
-          status)))))
+     (let* ((params (request-parameters request))
+            (status (assq-ref params 'status))
+            (builds-id-max (db-get-builds-max id status))
+            (builds-id-min (db-get-builds-min id status))
+            (border-high-time (assq-ref params 'border-high-time))
+            (border-low-time (assq-ref params 'border-low-time))
+            (border-high-id (assq-ref params 'border-high-id))
+            (border-low-id (assq-ref params 'border-low-id))
+            (specification (db-get-evaluation-specification id)))
+       (if specification
+           (respond-html
+            (html-page
+             "Evaluation"
+             (build-eval-table
+              (handle-builds-request
+               `((evaluation . ,id)
+                 (status . ,(and=> status string->symbol))
+                 (nr . ,%page-size)
+                 (order . finish-time+build-id)
+                 (border-high-time . ,border-high-time)
+                 (border-low-time . ,border-low-time)
+                 (border-high-id . ,border-high-id)
+                 (border-low-id . ,border-low-id)))
+              builds-id-min
+              builds-id-max
+              status)
+             `(((#:name . ,specification)
+                (#:link . ,(string-append "/jobset/" specification)))
+               ((#:name . ,(string-append "Evaluation " id))
+                (#:link . ,(string-append "/eval/" id))))))
+           (respond-html-eval-not-found id))))
 
     (("static" path ...)
      (respond-static-file path))
