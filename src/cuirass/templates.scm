@@ -173,7 +173,8 @@ and BUILD-MAX are global minimal and maximal (stoptime, rowid) pairs."
        (th (@ (scope "col")) "Finished at")
        (th (@ (scope "col")) Job)
        (th (@ (scope "col")) Nixname)
-       (th (@ (scope "col")) System))))
+       (th (@ (scope "col")) System)
+       (th (@ (scope "col")) Log))))
 
   (define (table-row build)
     `(tr
@@ -195,7 +196,9 @@ and BUILD-MAX are global minimal and maximal (stoptime, rowid) pairs."
       (td ,(strftime "%c" (localtime (assq-ref build #:stoptime))))
       (td ,(assq-ref build #:job))
       (td ,(assq-ref build #:nixname))
-      (td ,(assq-ref build #:system))))
+      (td ,(assq-ref build #:system))
+      (td (a (@ (href "/build/" ,(assq-ref build #:id) "/log/raw"))
+             raw))))
 
   (define (build-id build)
     (match build
