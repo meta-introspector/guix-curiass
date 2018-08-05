@@ -248,7 +248,7 @@ fibers."
                    (logior (@ (fibers epoll) EPOLLERR)
                            (@ (fibers epoll) EPOLLHUP)))))
 
-(define (evaluate store db spec checkouts commits)
+(define (evaluate store spec checkouts commits)
   "Evaluate and build package derivations defined in SPEC, using CHECKOUTS.
 Return a list of jobs."
   (define (augment-job job eval-id)
@@ -277,8 +277,8 @@ Return a list of jobs."
       (('evaluation jobs)
        (let* ((spec-name (assq-ref spec #:name))
               (eval-id (db-add-evaluation
-                        db `((#:specification . ,spec-name)
-                             (#:commits . ,commits)))))
+                        `((#:specification . ,spec-name)
+                          (#:commits . ,commits)))))
          (log-message "created evaluation ~a for '~a'" eval-id spec-name)
          (map (lambda (job)
                 (augment-job job eval-id))
@@ -368,7 +368,7 @@ Essentially this procedure inverts the inversion-of-control that
   ;; Our shuffling algorithm is simple: we sort by .drv file name.  :-)
   (sort drv string<?))
 
-(define (update-build-statuses! store db lst)
+(define (update-build-statuses! store lst)
   "Update the build status of the derivations listed in LST, which have just
 been passed to 'build-derivations' (meaning that we can assume that, if their
 outputs are invalid, that they failed to build.)"
@@ -376,8 +376,8 @@ outputs are invalid, that they failed to build.)"
     (match (derivation-path->output-paths drv)
       (((_ . outputs) ...)
        (if (any (cut valid-path? store <>) outputs)
-           (db-update-build-status! db drv (build-status succeeded))
-           (db-update-build-status! db drv (build-status failed))))))
+           (db-update-build-status! drv (build-status succeeded))
+           (db-update-build-status! drv (build-status failed))))))
 
   (for-each update! lst))
 
@@ -393,10 +393,11 @@ and returns the values RESULTS."
        (print-exception (current-error-port) frame key args)
        (apply values results)))))
 
-(define* (spawn-builds store db drv
+(define* (spawn-builds store drv
                        #:key (max-batch-size 200))
-  "Build the derivations listed in DRV, updating DB as builds complete.
-Derivations are submitted in batches of at most MAX-BATCH-SIZE items."
+  "Build the derivations listed in DRV, updating the database as builds
+complete.  Derivations are submitted in batches of at most MAX-BATCH-SIZE
+items."
   ;; XXX: We want to pass 'build-derivations' as many derivations at once so
   ;; we benefit from as much parallelism as possible (we must be using
   ;; #:keep-going? #t).
@@ -444,7 +445,7 @@ Derivations are submitted in batches of at most MAX-BATCH-SIZE items."
                                    ;; from PORT and eventually close it.
                                    (catch #t
                                      (lambda ()
-                                       (handle-build-event db event))
+                                       (handle-build-event event))
                                      (exception-reporter state)))
                                  #t)
               (close-port port)
@@ -455,14 +456,14 @@ Derivations are submitted in batches of at most MAX-BATCH-SIZE items."
           ;; derivations were built "behind our back", in which case
           ;; 'build-derivations' doesn't actually do anything and
           ;; 'handle-build-event' doesn't see any event.  Because of that,
-          ;; adjust DB here.
-          (update-build-statuses! store db batch)
+          ;; adjust the database here.
+          (update-build-statuses! store batch)
 
           (loop rest (max (- count max-batch-size) 0))))))
 
-(define* (handle-build-event db event)
+(define* (handle-build-event event)
   "Handle EVENT, a build event sexp as produced by 'build-event-output-port',
-updating DB accordingly."
+updating the database accordingly."
   (define (valid? file)
     ;; FIXME: Sometimes we might get bogus events due to the interleaving of
     ;; build messages.  This procedure prevents us from propagating the bogus
@@ -475,7 +476,7 @@ updating DB accordingly."
      (if (valid? drv)
          (begin
            (log-message "build started: '~a'" drv)
-           (db-update-build-status! db drv (build-status started)))
+           (db-update-build-status! drv (build-status started)))
          (log-message "bogus build-started event for '~a'" drv)))
     (('build-remote drv host _ ...)
      (log-message "'~a' offloaded to '~a'" drv host))
@@ -483,13 +484,13 @@ updating DB accordingly."
      (if (valid? drv)
          (begin
            (log-message "build succeeded: '~a'" drv)
-           (db-update-build-status! db drv (build-status succeeded)))
+           (db-update-build-status! drv (build-status succeeded)))
          (log-message "bogus build-succeeded event for '~a'" drv)))
     (('build-failed drv _ ...)
      (if (valid? drv)
          (begin
            (log-message "build failed: '~a'" drv)
-           (db-update-build-status! db drv (build-status failed)))
+           (db-update-build-status! drv (build-status failed)))
          (log-message "bogus build-failed event for '~a'" drv)))
     (('substituter-started item _ ...)
      (log-message "substituter started: '~a'" item))
@@ -503,42 +504,42 @@ updating DB accordingly."
   (string=? (assq-ref build1 #:derivation)
             (assq-ref build2 #:derivation)))
 
-(define (clear-build-queue db)
-  "Reset the status of builds in DB that are marked as \"started\".  This
-procedure is meant to be called at startup."
+(define (clear-build-queue)
+  "Reset the status of builds in the database that are marked as \"started\".
+This procedure is meant to be called at startup."
   (log-message "marking stale builds as \"scheduled\"...")
-  (sqlite-exec db "UPDATE Builds SET status = -2 WHERE status = -1;"))
+  (with-db-critical-section db
+    (sqlite-exec db "UPDATE Builds SET status = -2 WHERE status = -1;")))
 
-(define (cancel-old-builds db age)
+(define (cancel-old-builds age)
   "Cancel builds older than AGE seconds."
   (log-message "canceling builds older than ~a seconds..." age)
-  (sqlite-exec db
-               "UPDATE Builds SET status = 4 WHERE status = -2 AND timestamp < "
-               (- (time-second (current-time time-utc)) age)
-               ";"))
+  (with-db-critical-section db
+    (sqlite-exec
+     db "UPDATE Builds SET status = 4 WHERE status = -2 AND timestamp < "
+     (- (time-second (current-time time-utc)) age) ";")))
 
-(define (restart-builds db)
-  "Restart builds whose status in DB is \"pending\" (scheduled or started)."
+(define (restart-builds)
+  "Restart builds whose status in the database is \"pending\" (scheduled or
+started)."
   (with-store store
-    ;; Note: On a big database, 'db-get-pending-derivations' can take a couple
-    ;; of minutes, hence 'non-blocking'.
     (log-message "retrieving list of pending builds...")
     (let*-values (((valid stale)
                    (partition (cut valid-path? store <>)
-                              (non-blocking (db-get-pending-derivations db)))))
+                              (db-get-pending-derivations))))
       ;; We cannot restart builds listed in STALE, so mark them as canceled.
       (log-message "canceling ~a stale builds" (length stale))
       (for-each (lambda (drv)
-                  (db-update-build-status! db drv (build-status canceled)))
+                  (db-update-build-status! drv (build-status canceled)))
                 stale)
 
       ;; Those in VALID can be restarted.  If some of them were built in the
       ;; meantime behind our back, that's fine: 'spawn-builds' will DTRT.
       (log-message "restarting ~a pending builds" (length valid))
-      (spawn-builds store db valid)
+      (spawn-builds store valid)
       (log-message "done with restarted builds"))))
 
-(define (build-packages store db jobs)
+(define (build-packages store jobs)
   "Build JOBS and return a list of Build results."
   (define (register job)
     (let* ((name     (assq-ref job #:job-name))
@@ -570,14 +571,14 @@ procedure is meant to be called at startup."
                      (#:timestamp . ,cur-time)
                      (#:starttime . 0)
                      (#:stoptime . 0))))
-        (db-add-build db build))))
+        (db-add-build build))))
 
   (define derivations
     (filter-map register jobs))
 
-  (spawn-builds store db derivations)
+  (spawn-builds store derivations)
 
-  (let* ((results (filter-map (cut db-get-build db <>) derivations))
+  (let* ((results (filter-map (cut db-get-build <>) derivations))
          (status (map (cut assq-ref <> #:status) results))
          (success (count (lambda (status)
                            (= status (build-status succeeded)))
@@ -651,11 +652,11 @@ procedure is meant to be called at startup."
            checkout)
          results)))
 
-(define (process-specs db jobspecs)
-  "Evaluate and build JOBSPECS and store results in DB."
+(define (process-specs jobspecs)
+  "Evaluate and build JOBSPECS and store results in the database."
   (define (process spec)
     (with-store store
-      (let* ((stamp (db-get-stamp db spec))
+      (let* ((stamp (db-get-stamp spec))
              (name (assoc-ref spec #:name))
              (checkouts (fetch-inputs spec))
              (commits (map (cut assq-ref <> #:commit) checkouts))
@@ -663,7 +664,7 @@ procedure is meant to be called at startup."
         (unless (equal? commits-str stamp)
           ;; Immediately mark SPEC's INPUTS as being processed so we don't
           ;; spawn a concurrent evaluation of that same commit.
-          (db-add-stamp db spec commits-str)
+          (db-add-stamp spec commits-str)
           (compile-checkouts spec (filter compile? checkouts))
           (spawn-fiber
            (lambda ()
@@ -674,11 +675,10 @@ procedure is meant to be called at startup."
                (log-message "evaluating spec '~a': stamp ~s different from ~s"
                             name commits-str stamp)
                (with-store store
-                 (with-database db
-                   (let ((jobs (evaluate store db spec checkouts commits)))
-                     (log-message "building ~a jobs for '~a'"
-                                  (length jobs) name)
-                     (build-packages store db jobs)))))))
+                 (let ((jobs (evaluate store spec checkouts commits)))
+                   (log-message "building ~a jobs for '~a'"
+                                (length jobs) name)
+                   (build-packages store jobs))))))
 
           ;; 'spawn-fiber' returns zero values but we need one.
           *unspecified*))))

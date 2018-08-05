@@ -115,19 +115,19 @@ exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
           (log-message "running Fibers on ~a kernel threads" threads)
           (run-fibers
            (lambda ()
-             (with-database db
+             (with-database
                (and specfile
                     (let ((new-specs (save-module-excursion
                                       (lambda ()
                                         (set-current-module (make-user-module '()))
                                         (primitive-load specfile)))))
-                      (for-each (lambda (spec) (db-add-specification db spec))
+                      (for-each (lambda (spec) (db-add-specification spec))
                                 new-specs)))
                (if one-shot?
-                   (process-specs db (db-get-specifications db))
+                   (process-specs (db-get-specifications))
                    (let ((exit-channel (make-channel)))
 
-                     (clear-build-queue db)
+                     (clear-build-queue)
 
                      ;; First off, restart builds that had not completed or
                      ;; were not even started on a previous run.
@@ -135,25 +135,22 @@ exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
                       (essential-task
                        'restart-builds exit-channel
                        (lambda ()
-                         (with-database db
-                           (restart-builds db)))))
+                         (restart-builds))))
 
                      (spawn-fiber
                       (essential-task
                        'build exit-channel
                        (lambda ()
-                         (with-database db
-                           (while #t
-                             (process-specs db (db-get-specifications db))
-                             (log-message "next evaluation in ~a seconds" interval)
-                             (sleep interval))))))
+                         (while #t
+                           (process-specs (db-get-specifications))
+                           (log-message "next evaluation in ~a seconds" interval)
+                           (sleep interval)))))
 
                      (spawn-fiber
                       (essential-task
                        'web-server exit-channel
                        (lambda ()
-                         (with-database db
-                           (run-cuirass-server db #:host host #:port port))))
+                         (run-cuirass-server #:host host #:port port)))
                       #:parallel? #t)
 
                      (spawn-fiber

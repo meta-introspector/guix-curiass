@@ -125,14 +125,17 @@
        json->scm)))
 
   (test-assert "db-init"
-    (%db (db-init database-name)))
+    (begin
+      (%db (db-init database-name))
+      (%db-channel (make-critical-section (%db)))
+      #t))
 
   (test-assert "cuirass-run"
     (call-with-new-thread
      (lambda ()
        (run-fibers
         (lambda ()
-          (run-cuirass-server (%db) #:port 6688))
+          (run-cuirass-server #:port 6688))
         #:drain? #t))))
 
   (test-assert "wait-server"
@@ -184,11 +187,11 @@
            (evaluation2
             '((#:specification . "guix")
               (#:commits . ("fakesha2" "fakesha3")))))
-      (db-add-build (%db) build1)
-      (db-add-build (%db) build2)
-      (db-add-specification (%db) specification)
-      (db-add-evaluation (%db) evaluation1)
-      (db-add-evaluation (%db) evaluation2)))
+      (db-add-build build1)
+      (db-add-build build2)
+      (db-add-specification specification)
+      (db-add-evaluation evaluation1)
+      (db-add-evaluation evaluation2)))
 
   (test-assert "/build/1"
     (hash-table=?
@@ -275,4 +278,6 @@
   (test-assert "db-close"
     (db-close (%db)))
 
-  (delete-file database-name))
+  (begin
+    (%db-channel #f)
+    (delete-file database-name)))

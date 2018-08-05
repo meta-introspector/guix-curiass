@@ -21,6 +21,7 @@
 
 (use-modules (cuirass database)
              ((guix utils) #:select (call-with-temporary-output-file))
+             (cuirass utils)
              (srfi srfi-64))
 
 (define example-spec
@@ -61,12 +62,12 @@
     (#:log . "log")
     (#:outputs . (("foo" . "/foo")))))
 
-(define-syntax-rule (with-temporary-database db body ...)
+(define-syntax-rule (with-temporary-database body ...)
   (call-with-temporary-output-file
    (lambda (file port)
      (parameterize ((%package-database file))
        (db-init file)
-       (with-database db
+       (with-database
          body ...)))))
 
 (define %db
@@ -79,7 +80,10 @@
 
 (test-group-with-cleanup "database"
   (test-assert "db-init"
-    (%db (db-init database-name)))
+    (begin
+      (%db (db-init database-name))
+      (%db-channel (make-critical-section (%db)))
+      #t))
 
   (test-assert "sqlite-exec"
     (begin
@@ -94,41 +98,40 @@ INSERT INTO Evaluations (specification, commits) VALUES (3, 3);")
   (test-equal "db-add-specification"
     example-spec
     (begin
-      (db-add-specification (%db) example-spec)
-      (car (db-get-specifications (%db)))))
+      (db-add-specification example-spec)
+      (car (db-get-specifications))))
 
   (test-equal "db-add-build"
     #f
     (let ((build (make-dummy-build "/foo.drv")))
-      (db-add-build (%db) build)
+      (db-add-build build)
 
       ;; Should return #f when adding a build whose derivation is already
       ;; there, see <https://bugs.gnu.org/28094>.
-      (db-add-build (%db) build)))
+      (db-add-build build)))
 
   (test-equal "db-update-build-status!"
     (list (build-status scheduled)
           (build-status started)
           (build-status succeeded)
           "/foo.drv.log")
-    (with-temporary-database db
+    (with-temporary-database
       (let* ((derivation (db-add-build
-                          db
                           (make-dummy-build "/foo.drv" 1
                                             #:outputs '(("out" . "/foo")))))
              (get-status (lambda* (#:optional (key #:status))
-                           (assq-ref (db-get-build db derivation) key))))
-        (db-add-evaluation db (make-dummy-eval))
-        (db-add-specification db example-spec)
+                           (assq-ref (db-get-build derivation) key))))
+        (db-add-evaluation (make-dummy-eval))
+        (db-add-specification example-spec)
 
         (let ((status0 (get-status)))
-          (db-update-build-status! db "/foo.drv" (build-status started))
+          (db-update-build-status! "/foo.drv" (build-status started))
           (let ((status1 (get-status)))
-            (db-update-build-status! db "/foo.drv" (build-status succeeded)
+            (db-update-build-status! "/foo.drv" (build-status succeeded)
                                      #:log-file "/foo.drv.log")
 
             ;; Second call shouldn't make any difference.
-            (db-update-build-status! db "/foo.drv" (build-status succeeded)
+            (db-update-build-status! "/foo.drv" (build-status succeeded)
                                      #:log-file "/foo.drv.log")
 
             (let ((status2 (get-status))
@@ -144,61 +147,61 @@ INSERT INTO Evaluations (specification, commits) VALUES (3, 3);")
       ((3 "/baz.drv") (2 "/bar.drv") (1 "/foo.drv")) ;ditto
       ((3 "/baz.drv"))                               ;nr = 1
       ((2 "/bar.drv") (1 "/foo.drv") (3 "/baz.drv"))) ;status+submission-time
-    (with-temporary-database db
+    (with-temporary-database
       ;; Populate the 'Builds'', 'Evaluations', and
       ;; 'Specifications' tables in a consistent way, as expected by the
       ;; 'db-get-builds' query.
-      (db-add-build db (make-dummy-build "/foo.drv" 1
-                                         #:outputs `(("out" . "/foo"))))
-      (db-add-build db (make-dummy-build "/bar.drv" 2
-                                         #:outputs `(("out" . "/bar"))))
-      (db-add-build db (make-dummy-build "/baz.drv" 3
-                                         #:outputs `(("out" . "/baz"))))
-      (db-add-evaluation db (make-dummy-eval))
-      (db-add-evaluation db (make-dummy-eval))
-      (db-add-evaluation db (make-dummy-eval))
-      (db-add-specification db example-spec)
+      (db-add-build (make-dummy-build "/foo.drv" 1
+                                      #:outputs `(("out" . "/foo"))))
+      (db-add-build (make-dummy-build "/bar.drv" 2
+                                      #:outputs `(("out" . "/bar"))))
+      (db-add-build (make-dummy-build "/baz.drv" 3
+                                      #:outputs `(("out" . "/baz"))))
+      (db-add-evaluation (make-dummy-eval))
+      (db-add-evaluation (make-dummy-eval))
+      (db-add-evaluation (make-dummy-eval))
+      (db-add-specification example-spec)
 
-      (db-update-build-status! db "/bar.drv" (build-status started)
+      (db-update-build-status! "/bar.drv" (build-status started)
                                #:log-file "/bar.drv.log")
 
       (let ((summarize (lambda (alist)
                          (list (assq-ref alist #:id)
                                (assq-ref alist #:derivation)))))
-        (vector (map summarize (db-get-builds db '((nr . 3)
-                                                   (order . build-id))))
-                (map summarize (db-get-builds db '()))
-                (map summarize (db-get-builds db '((jobset . "guix"))))
-                (map summarize (db-get-builds db '((nr . 1))))
+        (vector (map summarize (db-get-builds '((nr . 3) (order . build-id))))
+                (map summarize (db-get-builds '()))
+                (map summarize (db-get-builds '((jobset . "guix"))))
+                (map summarize (db-get-builds '((nr . 1))))
                 (map summarize
-                     (db-get-builds
-                      db '((order . status+submission-time))))))))
+                     (db-get-builds '((order . status+submission-time))))))))
 
   (test-equal "db-get-pending-derivations"
     '("/bar.drv" "/foo.drv")
-    (with-temporary-database db
+    (with-temporary-database
       ;; Populate the 'Builds', 'Evaluations', and
       ;; 'Specifications' tables.  Here, two builds map to the same derivation
       ;; but the result of 'db-get-pending-derivations' must not contain any
       ;; duplicate.
-      (db-add-build db (make-dummy-build "/foo.drv" 1
-                                         #:outputs `(("out" . "/foo"))))
-      (db-add-build db (make-dummy-build "/bar.drv" 2
-                                         #:outputs `(("out" . "/bar"))))
-      (db-add-build db (make-dummy-build "/foo.drv" 3
-                                         #:outputs `(("out" . "/foo"))))
-      (db-add-evaluation db (make-dummy-eval))
-      (db-add-evaluation db (make-dummy-eval))
-      (db-add-evaluation db (make-dummy-eval))
-      (db-add-specification db example-spec)
+      (db-add-build (make-dummy-build "/foo.drv" 1
+                                      #:outputs `(("out" . "/foo"))))
+      (db-add-build (make-dummy-build "/bar.drv" 2
+                                      #:outputs `(("out" . "/bar"))))
+      (db-add-build (make-dummy-build "/foo.drv" 3
+                                      #:outputs `(("out" . "/foo"))))
+      (db-add-evaluation (make-dummy-eval))
+      (db-add-evaluation (make-dummy-eval))
+      (db-add-evaluation (make-dummy-eval))
+      (db-add-specification example-spec)
 
-      (sort (db-get-pending-derivations db) string<?)))
+      (sort (db-get-pending-derivations) string<?)))
 
   (test-assert "db-close"
     (db-close (%db)))
 
-  (delete-file database-name))
+  (begin
+    (%db-channel #f)
+    (delete-file database-name)))
 
 ;;; Local Variables:
-;;; eval: (put 'with-temporary-database 'scheme-indent-function 1)
+;;; eval: (put 'with-temporary-database 'scheme-indent-function 0)
 ;;; End:

@@ -103,17 +103,17 @@
     (#:releasename . #nil)
     (#:buildinputs_builds . #nil)))
 
-(define (handle-build-request db build-id)
-  "Retrieve build identified by BUILD-ID over DB and convert it
-  to hydra format. Return #f is not build was found."
-  (let ((build (db-get-build db build-id)))
+(define (handle-build-request build-id)
+  "Retrieve build identified by BUILD-ID over the database and convert it to
+hydra format. Return #f is not build was found."
+  (let ((build (db-get-build build-id)))
     (and=> build build->hydra-build)))
 
-(define (handle-builds-request db filters)
-  "Retrieve all builds matched by FILTERS in DB and convert them
-  to Hydra format."
+(define (handle-builds-request filters)
+  "Retrieve all builds matched by FILTERS in the database and convert them to
+Hydra format."
   (let ((builds (with-time-logging "builds request"
-                                   (db-get-builds db filters))))
+                                   (db-get-builds filters))))
     (map build->hydra-build builds)))
 
 (define (request-parameters request)
@@ -146,10 +146,10 @@
 (define (request-path-components request)
   (split-and-decode-uri-path (uri-path (request-uri request))))
 
-(define (url-handler request body db-channel)
+(define (url-handler request body)
 
-  (define* (respond response #:key body (db-channel db-channel))
-    (values response body db-channel))
+  (define* (respond response #:key body)
+    (values response body #f))
 
   (define-syntax-rule (respond-json body ...)
     (respond '((content-type . (application/json)))
@@ -213,19 +213,14 @@
              (request-path-components request)
              'method-not-allowed)
     (((or "jobsets" "specifications") . rest)
-     (respond-json (object->json-string
-                    (with-critical-section db-channel (db)
-                      (db-get-specifications db)))))
+     (respond-json (object->json-string (db-get-specifications))))
     (("build" build-id)
-     (let ((hydra-build
-            (with-critical-section db-channel (db)
-              (handle-build-request db (string->number build-id)))))
+     (let ((hydra-build (handle-build-request (string->number build-id))))
        (if hydra-build
            (respond-json (object->json-string hydra-build))
            (respond-build-not-found build-id))))
     (("build" build-id "log" "raw")
-     (let ((build (with-critical-section db-channel (db)
-                    (db-get-build db (string->number build-id)))))
+     (let ((build (db-get-build (string->number build-id))))
        (if build
            (match (assq-ref build #:outputs)
              (((_ (#:path . (? string? output))) _ ...)
@@ -250,9 +245,7 @@
             ;; 'nr parameter is mandatory to limit query size.
             (nr (assq-ref params 'nr)))
        (if nr
-           (respond-json (object->json-string
-                          (with-critical-section db-channel (db)
-                            (db-get-evaluations db nr))))
+           (respond-json (object->json-string (db-get-evaluations nr)))
            (respond-json-with-error 500 "Parameter not defined!"))))
     (("api" "latestbuilds")
      (let* ((params (request-parameters request))
@@ -262,10 +255,9 @@
            ;; Limit results to builds that are "done".
            (respond-json
             (object->json-string
-             (with-critical-section db-channel (db)
-               (handle-builds-request db `((status . done)
-                                           ,@params
-                                           (order . finish-time))))))
+             (handle-builds-request `((status . done)
+                                      ,@params
+                                      (order . finish-time)))))
            (respond-json-with-error 500 "Parameter not defined!"))))
     (("api" "queue")
      (let* ((params (request-parameters request))
@@ -276,77 +268,65 @@
             (object->json-string
              ;; Use the 'status+submission-time' order so that builds in
              ;; 'running' state appear before builds in 'scheduled' state.
-             (with-critical-section db-channel (db)
-               (handle-builds-request db `((status . pending)
-                                           ,@params
-                                           (order . status+submission-time))))))
+             (handle-builds-request `((status . pending)
+                                      ,@params
+                                      (order . status+submission-time)))))
            (respond-json-with-error 500 "Parameter not defined!"))))
     ('()
      (respond-html (html-page
                     "Cuirass"
-                    (specifications-table
-                     (with-critical-section db-channel (db)
-                       (db-get-specifications db))))))
+                    (specifications-table (db-get-specifications)))))
 
     (("jobset" name)
      (respond-html
-      (with-critical-section db-channel (db)
-        (let* ((evaluation-id-max (db-get-evaluations-id-max db name))
-               (evaluation-id-min (db-get-evaluations-id-min db name))
-               (params (request-parameters request))
-               (border-high (assq-ref params 'border-high))
-               (border-low (assq-ref params 'border-low))
-               (evaluations (db-get-evaluations-build-summary db
-                                                              name
-                                                              %page-size
-                                                              border-low
-                                                              border-high)))
-          (html-page name (evaluation-info-table name
-                                                 evaluations
-                                                 evaluation-id-min
-                                                 evaluation-id-max))))))
+      (let* ((evaluation-id-max (db-get-evaluations-id-max name))
+             (evaluation-id-min (db-get-evaluations-id-min name))
+             (params (request-parameters request))
+             (border-high (assq-ref params 'border-high))
+             (border-low (assq-ref params 'border-low))
+             (evaluations (db-get-evaluations-build-summary name
+                                                            %page-size
+                                                            border-low
+                                                            border-high)))
+        (html-page name (evaluation-info-table name
+                                               evaluations
+                                               evaluation-id-min
+                                               evaluation-id-max)))))
 
     (("eval" id)
      (respond-html
-      (with-critical-section db-channel (db)
-        (let* ((builds-id-max (db-get-builds-max db id))
-               (builds-id-min (db-get-builds-min db id))
-               (params (request-parameters request))
-               (border-high-time (assq-ref params 'border-high-time))
-               (border-low-time (assq-ref params 'border-low-time))
-               (border-high-id (assq-ref params 'border-high-id))
-               (border-low-id (assq-ref params 'border-low-id)))
-          (html-page
-           "Evaluation"
-           (build-eval-table
-            (handle-builds-request db `((evaluation . ,id)
-                                        (nr . ,%page-size)
-                                        (order . finish-time+build-id)
-                                        (border-high-time . ,border-high-time)
-                                        (border-low-time . ,border-low-time)
-                                        (border-high-id . ,border-high-id)
-                                        (border-low-id . ,border-low-id)))
-            builds-id-min
-            builds-id-max))))))
+      (let* ((builds-id-max (db-get-builds-max id))
+             (builds-id-min (db-get-builds-min id))
+             (params (request-parameters request))
+             (border-high-time (assq-ref params 'border-high-time))
+             (border-low-time (assq-ref params 'border-low-time))
+             (border-high-id (assq-ref params 'border-high-id))
+             (border-low-id (assq-ref params 'border-low-id)))
+        (html-page
+         "Evaluation"
+         (build-eval-table
+          (handle-builds-request `((evaluation . ,id)
+                                   (nr . ,%page-size)
+                                   (order . finish-time+build-id)
+                                   (border-high-time . ,border-high-time)
+                                   (border-low-time . ,border-low-time)
+                                   (border-high-id . ,border-high-id)
+                                   (border-low-id . ,border-low-id)))
+          builds-id-min
+          builds-id-max)))))
 
     (("static" path ...)
      (respond-static-file path))
     ('method-not-allowed
      ;; 405 "Method Not Allowed"
-     (values (build-response #:code 405) #f db-channel))
+     (values (build-response #:code 405) #f #f))
     (_
      (respond-not-found (uri->string (request-uri request))))))
 
-(define* (run-cuirass-server db #:key (host "localhost") (port 8080))
+(define* (run-cuirass-server #:key (host "localhost") (port 8080))
   (let* ((host-info  (gethostbyname host))
          (address    (inet-ntop (hostent:addrtype host-info)
-                                (car (hostent:addr-list host-info))))
-
-         ;; Spawn a fiber to process database queries sequentially.  We need
-         ;; this because guile-sqlite3 handles are not thread-safe (caching in
-         ;; particular), and creating one new handle for each request would be
-         ;; costly and may defeat statement caching.
-         (db-channel (make-critical-section db)))
+                                (car (hostent:addr-list host-info)))))
     (log-message "listening on ~A:~A" address port)
 
     ;; Here we use our own web backend, call 'fiberized'.  We cannot use the
@@ -371,7 +351,7 @@
           (spawn-fiber
            (lambda ()
              (let-values (((response body state)
-                           (handle-request (cut url-handler <> <> db-channel)
+                           (handle-request (cut url-handler <> <>)
                                            request body '())))
                (write-client impl server client response body)))))
         (loop)))))

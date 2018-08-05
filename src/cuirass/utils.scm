@@ -103,17 +103,18 @@ then be passed to 'join-critical-section', which will ensure sequential
 ordering.  ARGS are the arguments of the critical section.
 
 Critical sections are implemented by passing the procedure to execute to a
-dedicated fiber."
-  (let ((channel (make-channel)))
-    (spawn-fiber
-     (lambda ()
-       (parameterize ((%critical-section-args args))
-         (let loop ()
-           (match (get-message channel)
-             (((? channel? reply) . (? procedure? proc))
-              (put-message reply (apply proc args))))
-           (loop)))))
-    channel))
+dedicated thread."
+  (parameterize (((@@ (fibers internal) current-fiber) #f))
+    (let ((channel (make-channel)))
+      (call-with-new-thread
+       (lambda ()
+         (parameterize ((%critical-section-args args))
+           (let loop ()
+             (match (get-message channel)
+               (((? channel? reply) . (? procedure? proc))
+                (put-message reply (apply proc args))))
+             (loop)))))
+      channel)))
 
 (define (call-with-critical-section channel proc)
   "Send PROC to the critical section through CHANNEL.  Return the result of
