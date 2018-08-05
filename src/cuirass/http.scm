@@ -295,9 +295,10 @@ Hydra format."
 
     (("eval" id)
      (respond-html
-      (let* ((builds-id-max (db-get-builds-max id))
-             (builds-id-min (db-get-builds-min id))
-             (params (request-parameters request))
+      (let* ((params (request-parameters request))
+             (status (assq-ref params 'status))
+             (builds-id-max (db-get-builds-max id status))
+             (builds-id-min (db-get-builds-min id status))
              (border-high-time (assq-ref params 'border-high-time))
              (border-low-time (assq-ref params 'border-low-time))
              (border-high-id (assq-ref params 'border-high-id))
@@ -306,6 +307,7 @@ Hydra format."
          "Evaluation"
          (build-eval-table
           (handle-builds-request `((evaluation . ,id)
+                                   (status . ,(and=> status string->symbol))
                                    (nr . ,%page-size)
                                    (order . finish-time+build-id)
                                    (border-high-time . ,border-high-time)
@@ -313,7 +315,8 @@ Hydra format."
                                    (border-high-id . ,border-high-id)
                                    (border-low-id . ,border-low-id)))
           builds-id-min
-          builds-id-max)))))
+          builds-id-max
+          status)))))
 
     (("static" path ...)
      (respond-static-file path))

@@ -113,11 +113,14 @@
 
 (define (evaluation-badges evaluation)
   (if (zero? (assq-ref evaluation #:in-progress))
-      `((a (@ (href "#") (class "badge badge-success"))
+      `((a (@ (href "/eval/" ,(assq-ref evaluation #:id) "?status=succeeded")
+              (class "badge badge-success"))
            ,(assq-ref evaluation #:succeeded))
-        (a (@ (href "#") (class "badge badge-danger"))
+        (a (@ (href "/eval/" ,(assq-ref evaluation #:id) "?status=failed")
+              (class "badge badge-danger"))
            ,(assq-ref evaluation #:failed))
-        (a (@ (href "#") (class "badge badge-secondary"))
+        (a (@ (href "/eval/" ,(assq-ref evaluation #:id) "?status=pending")
+              (class "badge badge-secondary"))
            ,(assq-ref evaluation #:scheduled)))
       '((em "In progress…"))))
 
@@ -158,9 +161,9 @@
                 (format #f "?border-high=~d" page-id-min))
             (format #f "?border-low=~d" (1- id-min)))))))
 
-(define (build-eval-table builds build-min build-max)
-  "Return HTML for the BUILDS table NAME. BUILD-MIN and BUILD-MAX are
-   global minimal and maximal (stoptime, id) pairs."
+(define (build-eval-table builds build-min build-max status)
+  "Return HTML for the BUILDS table evaluation with given STATUS.  BUILD-MIN
+and BUILD-MAX are global minimal and maximal (stoptime, rowid) pairs."
   (define (table-header)
     `(thead
       (tr
@@ -217,19 +220,27 @@
                 (page-build-min (last build-time-ids))
                 (page-build-max (first build-time-ids)))
            (pagination
-            (format #f "?border-high-time=~d&border-high-id=~d"
-                    (build-stoptime build-max)
-                    (1+ (build-id build-max)))
+            (format
+             #f "?border-high-time=~d&border-high-id=~d~@[&status=~a~]"
+             (build-stoptime build-max)
+             (1+ (build-id build-max))
+             status)
             (if (equal? page-build-max build-max)
                 ""
-                (format #f "?border-low-time=~d&border-low-id=~d"
-                        (build-stoptime page-build-max)
-                        (build-id page-build-max)))
+                (format
+                 #f "?border-low-time=~d&border-low-id=~d~@[&status=~a~]"
+                 (build-stoptime page-build-max)
+                 (build-id page-build-max)
+                 status))
             (if (equal? page-build-min build-min)
                 ""
-                (format #f "?border-high-time=~d&border-high-id=~d"
-                        (build-stoptime page-build-min)
-                        (build-id page-build-min)))
-            (format #f "?border-low-time=~d&border-low-id=~d"
-                    (build-stoptime build-min)
-                    (1- (build-id build-min))))))))
+                (format
+                 #f "?border-high-time=~d&border-high-id=~d~@[&status=~a~]"
+                 (build-stoptime page-build-min)
+                 (build-id page-build-min)
+                 status))
+            (format
+             #f "?border-low-time=~d&border-low-id=~d~@[&status=~a~]"
+             (build-stoptime build-min)
+             (1- (build-id build-min))
+             status))))))

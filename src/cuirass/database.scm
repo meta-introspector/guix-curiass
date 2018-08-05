@@ -559,7 +559,9 @@ AND (:job IS NULL OR (:job = Builds.job_name))
 AND (:system IS NULL OR (:system = Builds.system))
 AND (:evaluation IS NULL OR (:evaluation = Builds.evaluation))
 AND (:status IS NULL OR (:status = 'done' AND Builds.status >= 0)
-                     OR (:status = 'pending' AND Builds.status < 0))
+                     OR (:status = 'pending' AND Builds.status < 0)
+                     OR (:status = 'succeeded' AND Builds.status = 0)
+                     OR (:status = 'failed' AND Builds.status > 0))
 AND (:borderlowtime IS NULL OR :borderlowid IS NULL
  OR ((:borderlowtime, :borderlowid) < (Builds.stoptime, Builds.rowid)))
 AND (:borderhightime IS NULL OR :borderhighid IS NULL
@@ -712,26 +714,40 @@ SELECT MAX(id) FROM Evaluations
 WHERE specification=" spec)))
       (vector-ref (car rows) 0))))
 
-(define (db-get-builds-min eval)
-  "Return the min build (stoptime, id) pair for
-   the given evaluation EVAL."
+(define (db-get-builds-min eval status)
+  "Return the min build (stoptime, rowid) pair for the given evaluation EVAL
+and STATUS."
   (with-db-critical-section db
     (let ((rows (sqlite-exec db "
 SELECT stoptime, MIN(rowid) FROM
 (SELECT rowid, stoptime FROM Builds
-WHERE evaluation=" eval " AND
-stoptime = (SELECT MIN(stoptime)
-FROM Builds WHERE evaluation=" eval "))")))
+WHERE evaluation=" eval "
+AND stoptime = (SELECT MIN(stoptime)
+FROM Builds
+WHERE evaluation = " eval "
+AND (" status " IS NULL OR (" status " = 'pending'
+                            AND Builds.status < 0)
+                        OR (" status " = 'succeeded'
+                            AND Builds.status = 0)
+                        OR (" status " = 'failed'
+                            AND Builds.status > 0))))")))
       (vector->list (car rows)))))
 
-(define (db-get-builds-max eval)
-  "Return the max build (stoptime, id) pair for
-   the given evaluation EVAL."
+(define (db-get-builds-max eval status)
+  "Return the max build (stoptime, rowid) pair for the given evaluation EVAL
+and STATUS."
   (with-db-critical-section db
     (let ((rows (sqlite-exec db "
 SELECT stoptime, MAX(rowid) FROM
 (SELECT rowid, stoptime FROM Builds
 WHERE evaluation=" eval " AND
 stoptime = (SELECT MAX(stoptime)
-FROM Builds WHERE evaluation=" eval "))")))
+FROM Builds
+WHERE evaluation = " eval "
+AND (" status " IS NULL OR (" status " = 'pending'
+                            AND Builds.status < 0)
+                        OR (" status " = 'succeeded'
+                            AND Builds.status = 0)
+                        OR (" status " = 'failed'
+                            AND Builds.status > 0))))")))
       (vector->list (car rows)))))
