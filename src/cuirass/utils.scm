@@ -94,6 +94,9 @@ delimited continuations and fibers."
         (conclusion)
         (apply throw args)))))
 
+(define %critical-section-args
+  (make-parameter #f))
+
 (define (make-critical-section . args)
   "Return a channel used to implement a critical section.  That channel can
 then be passed to 'join-critical-section', which will ensure sequential
@@ -104,19 +107,23 @@ dedicated fiber."
   (let ((channel (make-channel)))
     (spawn-fiber
      (lambda ()
-       (let loop ()
-         (match (get-message channel)
-           (((? channel? reply) . (? procedure? proc))
-            (put-message reply (apply proc args))))
-         (loop))))
+       (parameterize ((%critical-section-args args))
+         (let loop ()
+           (match (get-message channel)
+             (((? channel? reply) . (? procedure? proc))
+              (put-message reply (apply proc args))))
+           (loop)))))
     channel))
 
 (define (call-with-critical-section channel proc)
-  "Call PROC in the critical section corresponding to CHANNEL.  Return the
-result of PROC."
-  (let ((reply (make-channel)))
-    (put-message channel (cons reply proc))
-    (get-message reply)))
+  "Send PROC to the critical section through CHANNEL.  Return the result of
+PROC.  If already in the critical section, call PROC immediately."
+  (let ((args (%critical-section-args)))
+    (if args
+        (apply proc args)
+        (let ((reply (make-channel)))
+          (put-message channel (cons reply proc))
+          (get-message reply)))))
 
 (define-syntax-rule (with-critical-section channel (vars ...) exp ...)
   "Evaluate EXP... in the critical section corresponding to CHANNEL.
