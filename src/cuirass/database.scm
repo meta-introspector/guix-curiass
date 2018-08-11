@@ -38,9 +38,9 @@
             db-close
             db-add-specification
             db-get-specifications
-            db-add-stamp
-            db-get-stamp
             db-add-evaluation
+            db-set-evaluations-done
+            db-set-evaluation-done
             db-get-pending-derivations
             build-status
             db-add-build
@@ -265,6 +265,29 @@ tag, revision, no_compile_p) VALUES ("
                  (if (assq-ref input #:no-compile?) 1 0) ");")
     (last-insert-rowid db)))
 
+(define (db-add-checkout spec-name eval-id checkout)
+  "Insert CHECKOUT associated with SPEC-NAME and EVAL-ID.  If a checkout with
+the same revision already exists for SPEC-NAME, return #f."
+  (with-db-critical-section db
+    (catch 'sqlite-error
+      (lambda ()
+        (sqlite-exec db "\
+INSERT INTO Checkouts (specification, revision, evaluation, input,
+directory) VALUES ("
+                     spec-name ", "
+                     (assq-ref checkout #:commit) ", "
+                     eval-id ", "
+                     (assq-ref checkout #:input) ", "
+                     (assq-ref checkout #:directory) ");")
+        (last-insert-rowid db))
+      (lambda (key who code message . rest)
+        ;; If we get a unique-constraint-failed error, that means we have
+        ;; already inserted the same checkout.  That happens for each input
+        ;; that doesn't change between two evaluations.
+        (if (= code SQLITE_CONSTRAINT_PRIMARYKEY)
+            #f
+            (apply throw key who code rest))))))
+
 (define (db-add-specification spec)
   "Store SPEC in database the database.  SPEC inputs are stored in the INPUTS
 table."
@@ -328,13 +351,31 @@ package_path_inputs, proc_input, proc_file, proc, proc_args) \
                        (#:inputs . ,(db-get-inputs name)))
                      specs)))))))
 
-(define (db-add-evaluation eval)
+(define (db-add-evaluation spec-name checkouts)
+  "Add a new evaluation for SPEC-NAME only if one of the CHECKOUTS is new.
+Otherwise, return #f."
   (with-db-critical-section db
-    (sqlite-exec db "\
-INSERT INTO Evaluations (specification, commits) VALUES ("
-                 (assq-ref eval #:specification) ", "
-                 (string-join (assq-ref eval #:commits)) ");")
-    (last-insert-rowid db)))
+    (sqlite-exec db "BEGIN TRANSACTION;")
+    (sqlite-exec db "INSERT INTO Evaluations (specification, in_progress)
+VALUES (" spec-name ", true);")
+    (let* ((eval-id (last-insert-rowid db))
+           (new-checkouts (filter-map
+                           (cut db-add-checkout spec-name eval-id <>)
+                           checkouts)))
+      (if (null? new-checkouts)
+          (begin (sqlite-exec db "ROLLBACK;")
+                 #f)
+          (begin (sqlite-exec db "COMMIT;")
+                 eval-id)))))
+
+(define (db-set-evaluations-done)
+  (with-db-critical-section db
+    (sqlite-exec db "UPDATE Evaluations SET in_progress = false;")))
+
+(define (db-set-evaluation-done eval-id)
+  (with-db-critical-section db
+    (sqlite-exec db "UPDATE Evaluations SET in_progress = false
+WHERE id = " eval-id ";")))
 
 (define-syntax-rule (with-database body ...)
   "Run BODY with %DB-CHANNEL being dynamically bound to a channel implementing
@@ -568,46 +609,44 @@ the database.  The returned list is guaranteed to not have any duplicates."
          (sqlite-exec db "
 SELECT derivation FROM Builds WHERE Builds.status < 0;"))))
 
-(define (db-get-stamp spec)
-  "Return a stamp corresponding to specification SPEC in the database."
+(define (db-get-checkouts eval-id)
   (with-db-critical-section db
-    (let ((res (sqlite-exec db "SELECT * FROM Stamps WHERE specification="
-                            (assq-ref spec #:name) ";")))
-      (match res
-        (() #f)
-        ((#(spec stamp)) stamp)))))
-
-(define (db-add-stamp spec stamp)
-  "Associate STAMP to specification SPEC in the database."
-  (with-db-critical-section db
-    (if (db-get-stamp spec)
-        (sqlite-exec db "UPDATE Stamps SET stamp=" stamp
-                     "WHERE specification=" (assq-ref spec #:name) ";")
-        (sqlite-exec db "\
-INSERT INTO Stamps (specification, stamp) VALUES ("
-                     (assq-ref spec #:name) ", " stamp ");"))))
+    (let loop ((rows (sqlite-exec
+                      db "SELECT revision, input, directory FROM Checkouts
+WHERE evaluation =" eval-id ";"))
+               (checkouts '()))
+      (match rows
+        (() checkouts)
+        ((#(revision input directory)
+           . rest)
+         (loop rest
+               (cons `((#:commit . ,revision)
+                       (#:input . ,input)
+                       (#:directory . ,directory))
+                     checkouts)))))))
 
 (define (db-get-evaluations limit)
   (with-db-critical-section db
-    (let loop ((rows  (sqlite-exec db "SELECT id, specification, commits
+    (let loop ((rows  (sqlite-exec db "SELECT id, specification, in_progress
 FROM Evaluations ORDER BY id DESC LIMIT " limit ";"))
                (evaluations '()))
       (match rows
         (() (reverse evaluations))
-        ((#(id specification commits)
+        ((#(id specification in-progress)
            . rest)
          (loop rest
                (cons `((#:id . ,id)
                        (#:specification . ,specification)
-                       (#:commits . ,(string-tokenize commits)))
+                       (#:in-progress . ,in-progress)
+                       (#:checkouts . ,(db-get-checkouts id)))
                      evaluations)))))))
 
 (define (db-get-evaluations-build-summary spec limit border-low border-high)
   (with-db-critical-section db
     (let loop ((rows (sqlite-exec db "
-SELECT E.id, E.commits, B.succeeded, B.failed, B.scheduled
+SELECT E.id, E.in_progress, B.succeeded, B.failed, B.scheduled
 FROM
-(SELECT id, commits
+(SELECT id, in_progress
 FROM Evaluations
 WHERE (specification=" spec ")
 AND (" border-low "IS NULL OR (id >" border-low "))
@@ -624,10 +663,12 @@ ORDER BY E.id ASC;"))
                (evaluations '()))
       (match rows
         (() evaluations)
-        ((#(id commits succeeded failed scheduled) . rest)
+        ((#(id in-progress succeeded failed scheduled) . rest)
          (loop rest
                (cons `((#:id . ,id)
-                       (#:commits . ,commits)
+                       (#:in-progress . ,in-progress)
+                       (#:checkouts . ,(db-get-checkouts id))
+                       (#:in-progress . ,in-progress)
                        (#:succeeded . ,(or succeeded 0))
                        (#:failed . ,(or failed 0))
                        (#:scheduled . ,(or scheduled 0)))

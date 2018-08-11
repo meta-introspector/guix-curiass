@@ -249,7 +249,7 @@ Cuirass uses a SQLite database to store information about jobs and past
 build results, but also to coordinate the execution of jobs.
 
 The database contains the following tables: @code{Specifications},
-@code{Inputs}, @code{Stamps}, @code{Evaluations}, @code{Builds} and
+@code{Inputs}, @code{Checkouts}, @code{Evaluations}, @code{Builds} and
 @code{Outputs}.  The purpose of each of these tables is explained below.
 
 @section Specifications
@@ -334,16 +334,33 @@ When this integer field holds the value @code{1} Cuirass will skip
 compilation for the specified repository.
 @end table
 
-@section Stamps
-@cindex stamps, database
+@section Checkouts
+@cindex checkouts, database
 
 When a specification is processed, the repositories must be downloaded at a
-certain revision as specified.  The @code{Stamps} table stores the current
-revisions for every specification when it is being processed.
+certain revision as specified.  The download is called a checkout.  The
+@code{Checkouts} table stores the new checkouts for every specification when
+it is being processed.
 
-The table only has two text columns: @code{specification}, which references a
-specification from the @code{Specifications} table via the field @code{name},
-and @code{stamp}, which holds the revisions (space separated commit hashes).
+The @code{Checkouts} table has the following columns:
+
+@table @code
+@item specification
+The specification associated with the checkout.
+
+@item revision
+The revision of the checkout. Within the same specification, two checkouts
+can't be identical: they can't have the same revision.
+
+@item evaluation
+The evaluation that was triggered by the addition of that new checkout.
+
+@item input
+The input associated with the checkout.
+
+@item directory
+The directory into which the checkout was extracted.
+@end table
 
 @section Evaluations
 @cindex evaluations, database

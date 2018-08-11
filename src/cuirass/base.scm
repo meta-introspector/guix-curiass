@@ -178,7 +178,7 @@ read-only directory."
                                                (string-append
                                                 (%package-cachedir) "/" name))
                            directory)))
-        `((#:name . ,name)
+        `((#:input . ,name)
           (#:directory . ,directory)
           (#:commit . ,commit)
           (#:load-path . ,(assq-ref input #:load-path))
@@ -248,10 +248,10 @@ fibers."
                    (logior (@ (fibers epoll) EPOLLERR)
                            (@ (fibers epoll) EPOLLHUP)))))
 
-(define (evaluate store spec checkouts commits)
+(define (evaluate store spec eval-id checkouts)
   "Evaluate and build package derivations defined in SPEC, using CHECKOUTS.
-Return a list of jobs."
-  (define (augment-job job eval-id)
+Return a list of jobs that are associated to EVAL-ID."
+  (define (augment-job job)
     (let ((drv (read-derivation-from-file
                 (assq-ref job #:derivation))))
       `((#:eval-id . ,eval-id)
@@ -275,14 +275,9 @@ Return a list of jobs."
     (close-pipe port)
     (match result
       (('evaluation jobs)
-       (let* ((spec-name (assq-ref spec #:name))
-              (eval-id (db-add-evaluation
-                        `((#:specification . ,spec-name)
-                          (#:commits . ,commits)))))
-         (log-message "created evaluation ~a for '~a'" eval-id spec-name)
-         (map (lambda (job)
-                (augment-job job eval-id))
-              jobs))))))
+       (let* ((spec-name (assq-ref spec #:name)))
+         (log-message "evaluation ~a for '~a' completed" eval-id spec-name)
+         (map augment-job jobs))))))
 
 
 ;;;
@@ -539,7 +534,7 @@ started)."
       (spawn-builds store valid)
       (log-message "done with restarted builds"))))
 
-(define (build-packages store jobs)
+(define (build-packages store jobs eval-id)
   "Build JOBS and return a list of Build results."
   (define (register job)
     (let* ((name     (assq-ref job #:job-name))
@@ -575,6 +570,10 @@ started)."
 
   (define derivations
     (filter-map register jobs))
+
+  (log-message "evaluation ~a registered ~a new derivations"
+               eval-id (length derivations))
+  (db-set-evaluation-done eval-id)
 
   (spawn-builds store derivations)
 
@@ -625,7 +624,7 @@ started)."
          (results (par-map %non-blocking thunks)))
     (map (lambda (checkout)
            (log-message "fetched input '~a' of spec '~a' (commit ~s)"
-                        (assq-ref checkout #:name)
+                        (assq-ref checkout #:input)
                         (assq-ref spec #:name)
                         (assq-ref checkout #:commit))
            checkout)
@@ -638,7 +637,7 @@ started)."
            (lambda (checkout)
              (lambda ()
                (log-message "compiling input '~a' of spec '~a' (commit ~s)"
-                            (assq-ref checkout #:name)
+                            (assq-ref checkout #:input)
                             (assq-ref spec #:name)
                             (assq-ref checkout #:commit))
                (compile checkout)))
@@ -646,7 +645,7 @@ started)."
          (results (par-map %non-blocking thunks)))
     (map (lambda (checkout)
            (log-message "compiled input '~a' of spec '~a' (commit ~s)"
-                        (assq-ref checkout #:name)
+                        (assq-ref checkout #:input)
                         (assq-ref spec #:name)
                         (assq-ref checkout #:commit))
            checkout)
@@ -656,15 +655,10 @@ started)."
   "Evaluate and build JOBSPECS and store results in the database."
   (define (process spec)
     (with-store store
-      (let* ((stamp (db-get-stamp spec))
-             (name (assoc-ref spec #:name))
+      (let* ((name (assoc-ref spec #:name))
              (checkouts (fetch-inputs spec))
-             (commits (map (cut assq-ref <> #:commit) checkouts))
-             (commits-str (string-join commits)))
-        (unless (equal? commits-str stamp)
-          ;; Immediately mark SPEC's INPUTS as being processed so we don't
-          ;; spawn a concurrent evaluation of that same commit.
-          (db-add-stamp spec commits-str)
+             (eval-id (db-add-evaluation name checkouts)))
+        (when eval-id
           (compile-checkouts spec (filter compile? checkouts))
           (spawn-fiber
            (lambda ()
@@ -672,13 +666,12 @@ started)."
                         (log-message "failed to evaluate spec '~a'"
                                      (evaluation-error-spec-name c))
                         #f))
-               (log-message "evaluating spec '~a': stamp ~s different from ~s"
-                            name commits-str stamp)
+               (log-message "evaluating spec '~a'" name)
                (with-store store
-                 (let ((jobs (evaluate store spec checkouts commits)))
+                 (let ((jobs (evaluate store spec eval-id checkouts)))
                    (log-message "building ~a jobs for '~a'"
                                 (length jobs) name)
-                   (build-packages store jobs))))))
+                   (build-packages store jobs eval-id))))))
 
           ;; 'spawn-fiber' returns zero values but we need one.
           *unspecified*))))

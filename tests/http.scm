@@ -44,9 +44,12 @@
               (hash-table-keys t2))
        (hash-fold (lambda (key value result)
                     (and result
-                         (let ((equal? (if (hash-table? value)
-                                           hash-table=?
-                                           equal?)))
+                         (let ((equal?
+                                (match value
+                                  ((? hash-table?) hash-table=?)
+                                  (((? hash-table?) ...)
+                                   (cut every hash-table=? <> <>))
+                                  (_ equal?))))
                            (equal? value
                                    (hash-ref t2 key)))))
                   #t
@@ -95,9 +98,12 @@
     (#:buildinputs_builds . #nil)))
 
 (define evaluations-query-result
-  '((#:id . 2)
-    (#:specification . "guix")
-    (#:commits . ("fakesha2" "fakesha3"))))
+  '(((#:id . 2)
+     (#:specification . "guix")
+     (#:in-progress . 1)
+     (#:checkouts . (((#:commit . "fakesha2")
+                      (#:input . "savannah")
+                      (#:directory . "dir3")))))))
 
 (test-group-with-cleanup "http"
   (test-assert "object->json-string"
@@ -180,18 +186,33 @@
                             (#:branch . "master")
                             (#:tag . #f)
                             (#:commit . #f)
+                            (#:no-compile? . #f))
+                           ((#:name . "packages")
+                            (#:url . "git://git.savannah.gnu.org/guix.git")
+                            (#:load-path . ".")
+                            (#:branch . "master")
+                            (#:tag . #f)
+                            (#:commit . #f)
                             (#:no-compile? . #f))))))
-           (evaluation1
-            '((#:specification . "guix")
-              (#:commits . ("fakesha1" "fakesha3"))))
-           (evaluation2
-            '((#:specification . "guix")
-              (#:commits . ("fakesha2" "fakesha3")))))
+           (checkouts1
+            '(((#:commit . "fakesha1")
+               (#:input . "savannah")
+               (#:directory . "dir1"))
+              ((#:commit . "fakesha3")
+               (#:input . "packages")
+               (#:directory . "dir2"))))
+           (checkouts2
+            '(((#:commit . "fakesha2")
+               (#:input . "savannah")
+               (#:directory . "dir3"))
+              ((#:commit . "fakesha3")
+               (#:input . "packages")
+               (#:directory . "dir4")))))
       (db-add-build build1)
       (db-add-build build2)
       (db-add-specification specification)
-      (db-add-evaluation evaluation1)
-      (db-add-evaluation evaluation2)))
+      (db-add-evaluation "guix" checkouts1)
+      (db-add-evaluation "guix" checkouts2)))
 
   (test-assert "/build/1"
     (hash-table=?
@@ -271,9 +292,9 @@
       (and (= (length hash-list) 1)
            (hash-table=?
             (car hash-list)
-            (call-with-input-string
-                (object->json-string evaluations-query-result)
-              json->scm)))))
+            (car (call-with-input-string
+                     (object->json-string evaluations-query-result)
+                   json->scm))))))
 
   (test-assert "db-close"
     (db-close (%db)))

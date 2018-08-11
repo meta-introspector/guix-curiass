@@ -129,6 +129,12 @@ exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
 
                      (clear-build-queue)
 
+                     ;; If Cuirass was stopped during an evaluation, consider
+                     ;; it done.  Builds that were not registered during this
+                     ;; evaluation will be registered during the next
+                     ;; evaluation.
+                     (db-set-evaluations-done)
+
                      ;; First off, restart builds that had not completed or
                      ;; were not even started on a previous run.
                      (spawn-fiber

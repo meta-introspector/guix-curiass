@@ -44,7 +44,7 @@ exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
 (define (input-checkout checkouts input-name)
   "Find in CHECKOUTS the CHECKOUT corresponding to INPUT-NAME, and return it."
   (find (lambda (checkout)
-          (string=? (assq-ref checkout #:name)
+          (string=? (assq-ref checkout #:input)
                     input-name))
         checkouts))
 
@@ -91,7 +91,7 @@ entries are added because they could be useful during the evaluation."
        (match in
          (()
           (cons name out))
-         (((#:name . val) . rest)
+         (((#:input . val) . rest)
           (loop rest out (string->symbol val)))
          (((#:directory . val) . rest)
           (loop rest (cons `(file-name . ,val) out) name))

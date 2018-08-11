@@ -100,6 +100,27 @@
                        (href ,last-link))
                     "Last >>"))))))
 
+(define (input-changes checkouts)
+  (let ((changes
+         (string-join
+          (map (lambda (checkout)
+                 (let ((input (assq-ref checkout #:input))
+                       (commit (assq-ref checkout #:commit)))
+                   (format #f "~a → ~a" input (substring commit 0 7))))
+               checkouts)
+          ", ")))
+    (if (string=? changes "") '(em "None") changes)))
+
+(define (evaluation-badges evaluation)
+  (if (zero? (assq-ref evaluation #:in-progress))
+      `((a (@ (href "#") (class "badge badge-success"))
+           ,(assq-ref evaluation #:succeeded))
+        (a (@ (href "#") (class "badge badge-danger"))
+           ,(assq-ref evaluation #:failed))
+        (a (@ (href "#") (class "badge badge-secondary"))
+           ,(assq-ref evaluation #:scheduled)))
+      '((em "In progress…"))))
+
 (define (evaluation-info-table name evaluations id-min id-max)
   "Return HTML for the EVALUATION table NAME. ID-MIN and ID-MAX are
   global minimal and maximal id."
@@ -111,7 +132,7 @@
            `((thead
               (tr
                (th (@ (scope "col")) "#")
-               (th (@ (scope "col")) Commits)
+               (th (@ (scope "col")) "Input changes")
                (th (@ (scope "col")) Success)))
              (tbody
               ,@(map
@@ -119,16 +140,8 @@
                    `(tr (th (@ (scope "row"))
                             (a (@ (href "/eval/" ,(assq-ref row #:id)))
                                ,(assq-ref row #:id)))
-                        (td ,(string-join
-                              (map (cut substring <> 0 7)
-                                   (string-tokenize (assq-ref row #:commits)))
-                              ", "))
-                        (td (a (@ (href "#") (class "badge badge-success"))
-                               ,(assq-ref row #:succeeded))
-                            (a (@ (href "#") (class "badge badge-danger"))
-                               ,(assq-ref row #:failed))
-                            (a (@ (href "#") (class "badge badge-secondary"))
-                               ,(assq-ref row #:scheduled)))))
+                        (td ,(input-changes (assq-ref row #:checkouts)))
+                        (td ,@(evaluation-badges row))))
                  evaluations)))))
     ,(if (null? evaluations)
          (pagination "" "" "" "")

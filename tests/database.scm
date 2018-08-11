@@ -47,9 +47,13 @@
                   (#:commit . #f)
                   (#:no-compile? . #f))))))
 
-(define* (make-dummy-eval #:optional (commits '("cabba3e 61730ea")))
-  `((#:specification . "guix")
-    (#:commits . ,commits)))
+(define (make-dummy-checkouts fakesha1 fakesha2)
+  `(((#:commit . ,fakesha1)
+     (#:input . "guix")
+     (#:directory . "foo"))
+    ((#:commit . ,fakesha2)
+     (#:input . "packages")
+     (#:directory . "bar"))))
 
 (define* (make-dummy-build drv
                            #:optional (eval-id 42)
@@ -88,11 +92,11 @@
   (test-assert "sqlite-exec"
     (begin
       (sqlite-exec (%db) "\
-INSERT INTO Evaluations (specification, commits) VALUES (1, 1);")
+INSERT INTO Evaluations (specification, in_progress) VALUES (1, false);")
       (sqlite-exec (%db) "\
-INSERT INTO Evaluations (specification, commits) VALUES (2, 2);")
+INSERT INTO Evaluations (specification, in_progress) VALUES (2, false);")
       (sqlite-exec (%db) "\
-INSERT INTO Evaluations (specification, commits) VALUES (3, 3);")
+INSERT INTO Evaluations (specification, in_progress) VALUES (3, false);")
       (sqlite-exec (%db) "SELECT * FROM Evaluations;")))
 
   (test-equal "db-add-specification"
@@ -121,7 +125,8 @@ INSERT INTO Evaluations (specification, commits) VALUES (3, 3);")
                                             #:outputs '(("out" . "/foo")))))
              (get-status (lambda* (#:optional (key #:status))
                            (assq-ref (db-get-build derivation) key))))
-        (db-add-evaluation (make-dummy-eval))
+        (db-add-evaluation "guix" (make-dummy-checkouts "fakesha1"
+                                                        "fakesha2"))
         (db-add-specification example-spec)
 
         (let ((status0 (get-status)))
@@ -157,9 +162,9 @@ INSERT INTO Evaluations (specification, commits) VALUES (3, 3);")
                                       #:outputs `(("out" . "/bar"))))
       (db-add-build (make-dummy-build "/baz.drv" 3
                                       #:outputs `(("out" . "/baz"))))
-      (db-add-evaluation (make-dummy-eval))
-      (db-add-evaluation (make-dummy-eval))
-      (db-add-evaluation (make-dummy-eval))
+      (db-add-evaluation "guix" (make-dummy-checkouts "fakesha1" "fakesha2"))
+      (db-add-evaluation "guix" (make-dummy-checkouts "fakesha1" "fakesha3"))
+      (db-add-evaluation "guix" (make-dummy-checkouts "fakssha2" "fakesha3"))
       (db-add-specification example-spec)
 
       (db-update-build-status! "/bar.drv" (build-status started)
@@ -188,9 +193,9 @@ INSERT INTO Evaluations (specification, commits) VALUES (3, 3);")
                                       #:outputs `(("out" . "/bar"))))
       (db-add-build (make-dummy-build "/foo.drv" 3
                                       #:outputs `(("out" . "/foo"))))
-      (db-add-evaluation (make-dummy-eval))
-      (db-add-evaluation (make-dummy-eval))
-      (db-add-evaluation (make-dummy-eval))
+      (db-add-evaluation "guix" (make-dummy-checkouts "fakesha1" "fakesha2"))
+      (db-add-evaluation "guix" (make-dummy-checkouts "fakesha1" "fakesha3"))
+      (db-add-evaluation "guix" (make-dummy-checkouts "fakssha2" "fakesha3"))
       (db-add-specification example-spec)
 
       (sort (db-get-pending-derivations) string<?)))
