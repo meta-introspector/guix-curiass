@@ -126,7 +126,7 @@ question marks matches the number of arguments to bind."
 
 (define %package-database
   ;; Define to the database file name of this package.
-  (make-parameter (string-append %localstatedir "/run/" %package
+  (make-parameter (string-append %localstatedir "/lib/" %package
                                  "/" %package ".db")))
 
 (define %package-schema-file
