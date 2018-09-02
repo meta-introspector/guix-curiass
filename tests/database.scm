@@ -57,14 +57,15 @@
 
 (define* (make-dummy-build drv
                            #:optional (eval-id 42)
-                           #:key (outputs '(("foo" . "/foo"))))
+                           #:key (outputs
+                                  `(("foo" . ,(format #f "~a.output" drv)))))
   `((#:derivation . ,drv)
     (#:eval-id . ,eval-id)
     (#:job-name . "job")
     (#:system . "x86_64-linux")
     (#:nix-name . "foo")
     (#:log . "log")
-    (#:outputs . (("foo" . "/foo")))))
+    (#:outputs . ,outputs)))
 
 (define-syntax-rule (with-temporary-database body ...)
   (call-with-temporary-output-file
@@ -113,6 +114,17 @@ INSERT INTO Evaluations (specification, in_progress) VALUES (3, false);")
       ;; Should return #f when adding a build whose derivation is already
       ;; there, see <https://bugs.gnu.org/28094>.
       (db-add-build build)))
+
+  (test-equal "db-add-build-with-fixed-output"
+    #f
+    (let ((build1 (make-dummy-build "/fixed1.drv"
+                                    #:outputs '(("out" . "/fixed-output"))))
+          (build2 (make-dummy-build "/fixed2.drv"
+                                    #:outputs '(("out" . "/fixed-output")))))
+      (db-add-build build1)
+
+      ;; Should return #f because the outputs are the same.
+      (db-add-build build2)))
 
   (test-equal "db-update-build-status!"
     (list (build-status scheduled)

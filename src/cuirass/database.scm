@@ -425,12 +425,33 @@ string."
   (failed-other      3)
   (canceled          4))
 
-(define (db-add-build build)
-  "Store BUILD in database the database.  BUILD eventual outputs are stored in
-the OUTPUTS table."
+(define (db-add-output derivation output)
+  "Insert OUTPUT associated with DERIVATION.  If an output with the same path
+already exists, return #f."
   (with-db-critical-section db
     (catch 'sqlite-error
       (lambda ()
+        (match output
+          ((name . path)
+           (sqlite-exec db "\
+INSERT INTO Outputs (derivation, name, path) VALUES ("
+                        derivation ", " name ", " path ");")))
+        (last-insert-rowid db))
+      (lambda (key who code message . rest)
+        ;; If we get a unique-constraint-failed error, that means we have
+        ;; already inserted the same output.  That happens with fixed-output
+        ;; derivations.
+        (if (= code SQLITE_CONSTRAINT_PRIMARYKEY)
+            #f
+            (apply throw key who code rest))))))
+
+(define (db-add-build build)
+  "Store BUILD in database the database only if one of its outputs is new.
+Return #f otherwise.  BUILD outputs are stored in the OUTPUTS table."
+  (with-db-critical-section db
+    (catch 'sqlite-error
+      (lambda ()
+        (sqlite-exec db "BEGIN TRANSACTION;")
         (sqlite-exec db "
 INSERT INTO Builds (derivation, evaluation, job_name, system, nix_name, log,
 status, timestamp, starttime, stoptime)
@@ -446,21 +467,22 @@ VALUES ("
                      (or (assq-ref build #:timestamp) 0) ", "
                      (or (assq-ref build #:starttime) 0) ", "
                      (or (assq-ref build #:stoptime) 0) ");")
-        (let ((derivation (assq-ref build #:derivation)))
-          (for-each (lambda (output)
-                      (match output
-                        ((name . path)
-                         (sqlite-exec db "\
-INSERT INTO Outputs (derivation, name, path) VALUES ("
-                                      derivation ", " name ", " path ");"))))
-                    (assq-ref build #:outputs))
-          derivation))
+        (let* ((derivation (assq-ref build #:derivation))
+               (outputs (assq-ref build #:outputs))
+               (new-outputs (filter-map (cut db-add-output derivation <>)
+                                        outputs)))
+          (if (null? new-outputs)
+              (begin (sqlite-exec db "ROLLBACK;")
+                     #f)
+              (begin (sqlite-exec db "COMMIT;")
+                     derivation))))
       (lambda (key who code message . rest)
         ;; If we get a unique-constraint-failed error, that means we have
         ;; already inserted the same build.  That happens when several jobs
         ;; produce the same derivation, and we can ignore it.
         (if (= code SQLITE_CONSTRAINT_PRIMARYKEY)
-            #f
+            (begin (sqlite-exec db "ROLLBACK;")
+                   #f)
             (apply throw key who code rest))))))
 
 (define* (db-update-build-status! drv status #:key log-file)

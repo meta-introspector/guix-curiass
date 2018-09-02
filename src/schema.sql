@@ -46,8 +46,7 @@ CREATE TABLE Evaluations (
 CREATE TABLE Outputs (
   derivation TEXT NOT NULL,
   name TEXT NOT NULL,
-  path TEXT NOT NULL,
-  PRIMARY KEY (derivation, name),
+  path TEXT NOT NULL PRIMARY KEY,
   FOREIGN KEY (derivation) REFERENCES Builds (derivation)
 );
 
