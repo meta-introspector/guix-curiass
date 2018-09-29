@@ -181,7 +181,7 @@
                 (format #f "?border-high=~d" page-id-min))
             (format #f "?border-low=~d" (1- id-min)))))))
 
-(define (build-eval-table builds build-min build-max status)
+(define (build-eval-table eval-id builds build-min build-max status)
   "Return HTML for the BUILDS table evaluation with given STATUS.  BUILD-MIN
 and BUILD-MAX are global minimal and maximal (stoptime, rowid) pairs."
   (define (table-header)
@@ -228,7 +228,12 @@ and BUILD-MAX are global minimal and maximal (stoptime, rowid) pairs."
     (match build
       ((stoptime id) stoptime)))
 
-  `((table
+  `((p (@ (class "lead"))
+       ,(format #f "~@[~a~] ~:[B~;b~]uilds of evaluation #~a"
+                (and=> status string-capitalize)
+                status
+                eval-id))
+    (table
      (@ (class "table table-sm table-hover table-striped"))
      ,@(if (null? builds)
            `((th (@ (scope "col")) "No elements here."))

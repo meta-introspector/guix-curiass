@@ -322,6 +322,7 @@ Hydra format."
             (html-page
              "Evaluation"
              (build-eval-table
+              id
               (handle-builds-request
                `((evaluation . ,id)
                  (status . ,(and=> status string->symbol))
