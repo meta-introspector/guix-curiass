@@ -251,6 +251,13 @@ database object."
   (vector-ref (car (sqlite-exec db "SELECT last_insert_rowid();"))
               0))
 
+(define (expect-one-row rows)
+  "Several SQL queries expect one result, or zero if not found.  This gets rid
+of the list, and returns #f when there is no result."
+  (match rows
+    ((row) row)
+    (() #f)))
+
 (define (db-add-input spec-name input)
   (with-db-critical-section db
     (sqlite-exec db "\
@@ -621,10 +628,7 @@ ORDER BY ~a, rowid ASC;" order))
   "Retrieve a build in the database which corresponds to DERIVATION-OR-ID."
   (with-db-critical-section db
     (let ((key (if (number? derivation-or-id) 'id 'derivation)))
-      (match (db-get-builds `((,key . ,derivation-or-id)))
-        ((build)
-         build)
-        (() #f)))))
+      (expect-one-row (db-get-builds `((,key . ,derivation-or-id)))))))
 
 (define (db-get-pending-derivations)
   "Return the list of derivation file names corresponding to pending builds in
@@ -705,7 +709,7 @@ ORDER BY E.id ASC;"))
     (let ((rows (sqlite-exec db "
 SELECT MIN(id) FROM Evaluations
 WHERE specification=" spec)))
-      (vector-ref (car rows) 0))))
+      (and=> (expect-one-row rows) (cut vector-ref <> 0)))))
 
 (define (db-get-evaluations-id-max spec)
   "Return the max id of evaluations for the given specification SPEC."
@@ -713,7 +717,7 @@ WHERE specification=" spec)))
     (let ((rows (sqlite-exec db "
 SELECT MAX(id) FROM Evaluations
 WHERE specification=" spec)))
-      (vector-ref (car rows) 0))))
+      (and=> (expect-one-row rows) (cut vector-ref <> 0)))))
 
 (define (db-get-builds-min eval status)
   "Return the min build (stoptime, rowid) pair for the given evaluation EVAL
@@ -732,7 +736,7 @@ AND (" status " IS NULL OR (" status " = 'pending'
                             AND Builds.status = 0)
                         OR (" status " = 'failed'
                             AND Builds.status > 0))))")))
-      (vector->list (car rows)))))
+      (and=> (expect-one-row rows) vector->list))))
 
 (define (db-get-builds-max eval status)
   "Return the max build (stoptime, rowid) pair for the given evaluation EVAL
@@ -751,7 +755,7 @@ AND (" status " IS NULL OR (" status " = 'pending'
                             AND Builds.status = 0)
                         OR (" status " = 'failed'
                             AND Builds.status > 0))))")))
-      (vector->list (car rows)))))
+      (and=> (expect-one-row rows) vector->list))))
 
 (define (db-get-evaluation-specification eval)
   "Return specification of evaluation with id EVAL."
@@ -759,6 +763,4 @@ AND (" status " IS NULL OR (" status " = 'pending'
     (let ((rows (sqlite-exec db "
 SELECT specification FROM Evaluations
 WHERE id = " eval)))
-      (match rows
-        ((row) (vector-ref row 0))
-        (() #f)))))
+      (and=> (expect-one-row rows) (cut vector-ref <> 0)))))
