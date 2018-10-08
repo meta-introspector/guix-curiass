@@ -372,7 +372,11 @@ outputs are invalid, that they failed to build.)"
       (((_ . outputs) ...)
        (if (any (cut valid-path? store <>) outputs)
            (db-update-build-status! drv (build-status succeeded))
-           (db-update-build-status! drv (build-status failed))))))
+           (db-update-build-status! drv
+                                    (if (log-file store
+                                                  (derivation-file-name drv))
+                                        (build-status failed)
+                                        (build-status failed-dependency)))))))
 
   (for-each update! lst))
 
