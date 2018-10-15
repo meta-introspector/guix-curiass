@@ -143,9 +143,6 @@
   (let loop ()
     (match (accept socket (logior SOCK_NONBLOCK SOCK_CLOEXEC))
       ((client . sockaddr)
-       (log-message "HTTP connection from ~a"
-                    (inet-ntop (sockaddr:fam sockaddr)
-                               (sockaddr:addr sockaddr)))
        (spawn-fiber (lambda () (client-loop client have-request))
                     #:parallel? #t)
        (loop)))))
