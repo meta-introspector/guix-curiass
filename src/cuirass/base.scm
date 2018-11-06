@@ -74,12 +74,15 @@
     (unwind-protect
      ;; Always set #:keep-going? so we don't stop on the first build failure.
      ;; Set #:print-build-trace explicitly to make sure 'process-build-log'
-     ;; sees build events.
+     ;; sees build events; set #:build-verbosity 1 so that we don't receive
+     ;; output from the builders (that is, we only get build traces, nothing
+     ;; more), which in turn makes sure we can correctly process build traces.
      (set-build-options store
                         #:use-substitutes? (%use-substitutes?)
                         #:fallback? (%fallback?)
                         #:keep-going? #t
-                        #:print-build-trace #t)
+                        #:print-build-trace #t
+                        #:build-verbosity 1)
      exp ...
      (close-connection store))))
 
@@ -464,9 +467,9 @@ items."
   "Handle EVENT, a build event sexp as produced by 'build-event-output-port',
 updating the database accordingly."
   (define (valid? file)
-    ;; FIXME: Sometimes we might get bogus events due to the interleaving of
-    ;; build messages.  This procedure prevents us from propagating the bogus
-    ;; file name to the database.
+    ;; When builder output is turned off (build-verbosity = 1), we normally
+    ;; only see valid derivation file names in EVENT.  To be on the safe side,
+    ;; double-check that this is the case.
     (and (store-path? file)
          (string-suffix? ".drv" file)))
 
