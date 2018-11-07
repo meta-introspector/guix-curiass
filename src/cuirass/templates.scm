@@ -1,5 +1,6 @@
 ;;; templates.scm -- HTTP API
 ;;; Copyright © 2018 Tatiana Sholokhova <tanja201396@gmail.com>
+;;; Copyright © 2018 Ludovic Courtès <ludo@gnu.org>
 ;;;
 ;;; This file is part of Cuirass.
 ;;;
@@ -189,13 +190,13 @@ and BUILD-MAX are global minimal and maximal (stoptime, rowid) pairs."
     `(thead
       (tr
        (th (@ (scope "col")) '())
-       (th (@ (scope "col")) ID)
-       (th (@ (scope "col")) Specification)
-       (th (@ (scope "col")) "Finished at")
-       (th (@ (scope "col")) Job)
-       (th (@ (scope "col")) Nixname)
-       (th (@ (scope "col")) System)
-       (th (@ (scope "col")) Log))))
+       (th (@ (scope "col")) "ID")
+       (th (@ (scope "col")) "Specification")
+       (th (@ (scope "col")) "Completion time")
+       (th (@ (scope "col")) "Job")
+       (th (@ (scope "col")) "Name")
+       (th (@ (scope "col")) "System")
+       (th (@ (scope "col")) "Log"))))
 
   (define (table-row build)
     (define status
