@@ -39,6 +39,8 @@
                                                 (cdr (gettimeofday))))
                                  (state (seed->random-state seed)))
                             (sleep (pk 'sleeping (random 10 state)))
+                            (when (zero? (random 4 state))
+                              (error "we're faillliiiiing!"))
                             #$nonce
                             (mkdir #$output))))))
 
