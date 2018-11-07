@@ -30,19 +30,25 @@
       (#:description "dummy job")
       (#:long-description "really dummy job"))))
 
+(define %seed
+  (logxor (cdr (gettimeofday))
+          (car (gettimeofday))
+          (cdr (gettimeofday))))
+
+(define %state
+  (seed->random-state %seed))
+
 (define* (random-derivation store #:optional (suffix ""))
   (let ((nonce (random 1e6)))
     (run-with-store store
       (gexp->derivation (string-append "random" suffix)
-                        #~(let* ((seed  (logxor #$(cdr (gettimeofday))
-                                                (car (gettimeofday))
-                                                (cdr (gettimeofday))))
-                                 (state (seed->random-state seed)))
+                        #~(let ((state (seed->random-state #$%seed)))
                             (sleep (pk 'sleeping (random 10 state)))
                             (when (zero? (random 4 state))
                               (error "we're faillliiiiing!"))
                             #$nonce
                             (mkdir #$output))))))
+
 
 (define (make-random-jobs store arguments)
   (let ((checkout (assq-ref arguments 'cuirass)))
@@ -50,6 +56,9 @@
             "evaluating random jobs from directory ~s, commit ~s~%"
             (assq-ref checkout 'file-name)
             (assq-ref checkout 'revision)))
+
+  (when (zero? (random 7 %state))
+    (error "Evaluation is failing!"))
 
   (unfold (cut > <> 10)
           (lambda (i)
