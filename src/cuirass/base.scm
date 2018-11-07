@@ -467,7 +467,7 @@ items."
                            (split-at drv max-batch-size)
                            (values drv '()))))
           (guard (c ((nix-protocol-error? c)
-                     (log-message "batch of builds (partially) failed:\
+                     (log-message "batch of builds (partially) failed: \
 ~a (status: ~a)"
                                   (nix-protocol-error-message c)
                                   (nix-protocol-error-status c))))
