@@ -31,8 +31,10 @@ exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
              (cuirass logging)
              (cuirass utils)
              (guix ui)
+             ((guix build utils) #:select (mkdir-p))
              (fibers)
              (fibers channels)
+             (srfi srfi-19)
              (ice-9 threads)                    ;for 'current-processor-count'
              (ice-9 getopt-long))
 
@@ -46,6 +48,7 @@ exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
   -S  --specifications=SPECFILE
                             Add specifications from SPECFILE to database.
   -D  --database=DB         Use DB to store build results.
+      --ttl=DURATION        Keep build results live for at least DURATION.
   -p  --port=NUM            Port of the HTTP server.
       --listen=HOST         Listen on the network interface for HOST
   -I, --interval=N          Wait N seconds between each poll
@@ -67,6 +70,7 @@ exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
     (use-substitutes                  (value #f))
     (threads                          (value #t))
     (fallback                         (value #f))
+    (ttl                              (value #t))
     (version        (single-char #\V) (value #f))
     (help           (single-char #\h) (value #f))))
 
@@ -88,7 +92,9 @@ exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
          (%package-cachedir
           (option-ref opts 'cache-directory (%package-cachedir)))
          (%use-substitutes? (option-ref opts 'use-substitutes #f))
-         (%fallback? (option-ref opts 'fallback #f)))
+         (%fallback? (option-ref opts 'fallback #f))
+         (%gc-root-ttl
+          (time-second (string->duration (option-ref opts 'ttl "30d")))))
       (cond
        ((option-ref opts 'help #f)
         (show-help)
@@ -97,6 +103,7 @@ exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
         (show-version)
         (exit 0))
        (else
+        (mkdir-p (%gc-root-directory))
         (let ((one-shot? (option-ref opts 'one-shot #f))
               (port      (string->number (option-ref opts 'port "8080")))
               (host      (option-ref opts 'listen "localhost"))

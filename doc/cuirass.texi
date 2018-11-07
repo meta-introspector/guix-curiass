@@ -203,6 +203,17 @@ build results. Since @code{cuirass} uses SQLite as a database engine,
 @var{database} must be a file name.  If the file doesn't exist, it will
 be created.
 
+@item --ttl=@var{duration}
+Cuirass registers build results as garbage collector (GC) roots, thereby
+preventing them from being deleted by the GC.  The @option{--ttl} option
+instructs it to keep those GC roots live for at least @var{duration}---e.g.,
+@code{1m} for one month, @code{2w} for two weeks, and so on.  The default is
+30 days.
+
+Those GC roots are typically stored in
+@file{/var/guix/gcroots/per-user/@var{user}/cuirass}, where @var{user} is the
+user under which Cuirass is running.
+
 @item --port=@var{num}
 @itemx -p @var{num}
 Make the HTTP interface listen on port @var{num}.  Use port 8080 by

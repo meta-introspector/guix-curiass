@@ -30,6 +30,8 @@
   #:use-module (guix derivations)
   #:use-module (guix store)
   #:use-module (guix git)
+  #:use-module (guix cache)
+  #:use-module ((guix config) #:select (%state-directory))
   #:use-module (git)
   #:use-module (ice-9 binary-ports)
   #:use-module (ice-9 format)
@@ -61,6 +63,8 @@
             process-specs
             ;; Parameters.
             %package-cachedir
+            %gc-root-directory
+            %gc-root-ttl
             %use-substitutes?
             %fallback?))
 
@@ -111,6 +115,37 @@
           val
           (scm-error 'wrong-type-arg
                      "%package-cachedir" "Not a string: ~S" (list #f) #f)))))
+
+(define %gc-root-directory
+  ;; Directory where garbage collector roots are stored.  We register build
+  ;; outputs there.
+  (make-parameter (string-append %state-directory
+                                 "/gcroots/profiles/per-user/"
+                                 (passwd:name (getpwuid (getuid)))
+                                 "/cuirass")))
+
+(define %gc-root-ttl
+  ;; The "time to live" (TTL) of GC roots.
+  (make-parameter (* 30 24 3600)))
+
+(define (gc-root-expiration-time file)
+  "Return \"expiration time\" of FILE (a symlink in %GC-ROOT-DIRECTORY)
+computed as its modification time + TTL seconds."
+  (match (false-if-exception (lstat file))
+    (#f 0)                         ;FILE may have been deleted in the meantime
+    (st (+ (stat:mtime st) (%gc-root-ttl)))))
+
+(define (register-gc-root item)
+  "Create a GC root pointing to ITEM, a store item."
+  (catch 'system-error
+    (lambda ()
+      (symlink item
+               (string-append (%gc-root-directory)
+                              "/" (basename item))))
+    (lambda args
+      ;; If the symlink already exist, assume it points to ITEM.
+      (unless (= EEXIST (system-error-errno args))
+        (apply throw args)))))
 
 (define (call-with-time thunk kont)
   "Call THUNK and pass KONT the elapsed time followed by THUNK's return
@@ -473,6 +508,13 @@ updating the database accordingly."
     (and (store-path? file)
          (string-suffix? ".drv" file)))
 
+  (define (gc-roots directory)
+    ;; Return the list of GC roots (symlinks) in DIRECTORY.
+    (map (cut string-append directory "/" <>)
+         (scandir directory
+                  (lambda (file)
+                    (not (member file '("." "..")))))))
+
   (match event
     (('build-started drv _ ...)
      (if (valid? drv)
@@ -486,7 +528,16 @@ updating the database accordingly."
      (if (valid? drv)
          (begin
            (log-message "build succeeded: '~a'" drv)
-           (db-update-build-status! drv (build-status succeeded)))
+           (db-update-build-status! drv (build-status succeeded))
+
+           (for-each (match-lambda
+                       ((name . output)
+                        (register-gc-root output)))
+                     (derivation-path->output-paths drv))
+           (maybe-remove-expired-cache-entries (%gc-root-directory)
+                                               gc-roots
+                                               #:entry-expiration
+                                               gc-root-expiration-time))
          (log-message "bogus build-succeeded event for '~a'" drv)))
     (('build-failed drv _ ...)
      (if (valid? drv)
