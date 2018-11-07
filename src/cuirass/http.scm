@@ -377,7 +377,6 @@ Hydra format."
           (spawn-fiber
            (lambda ()
              (let-values (((response body state)
-                           (handle-request (cut url-handler <> <>)
-                                           request body '())))
+                           (handle-request url-handler request body '())))
                (write-client impl server client response body)))))
         (loop)))))
