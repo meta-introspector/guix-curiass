@@ -234,6 +234,10 @@ and BUILD-MAX are global minimal and maximal (stoptime, rowid) pairs."
     (define status
       (assq-ref build #:buildstatus))
 
+    (define completed?
+      (or (= (build-status succeeded) status)
+          (= (build-status failed) status)))
+
     `(tr
       (td ,(cond
             ((= (build-status succeeded) status)
@@ -263,15 +267,16 @@ and BUILD-MAX are global minimal and maximal (stoptime, rowid) pairs."
                     ""))))
       (th (@ (scope "row")),(assq-ref build #:id))
       (td ,(assq-ref build #:jobset))
-      (td ,(if (or (= (build-status succeeded) status)
-                   (= (build-status failed) status))
+      (td ,(if completed?
                (time->string (assq-ref build #:stoptime))
                "—"))
       (td ,(assq-ref build #:job))
       (td ,(assq-ref build #:nixname))
       (td ,(assq-ref build #:system))
-      (td (a (@ (href "/build/" ,(assq-ref build #:id) "/log/raw"))
-             raw))))
+      (td ,(if completed?
+               `(a (@ (href "/build/" ,(assq-ref build #:id) "/log/raw"))
+                   "raw")
+               "—"))))
 
   (define (build-id build)
     (match build
