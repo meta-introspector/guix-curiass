@@ -306,6 +306,7 @@ Return a list of jobs that are associated to EVAL-ID."
                    ;; otherwise, suppose that data read from port are
                    ;; correct and keep things going.
                    ((? eof-object?)
+                    (db-set-evaluation-done eval-id) ;failed!
                     (raise (condition
                             (&evaluation-error
                              (name (assq-ref spec #:name))))))
