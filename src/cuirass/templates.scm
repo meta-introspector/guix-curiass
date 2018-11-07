@@ -21,6 +21,7 @@
   #:use-module (ice-9 format)
   #:use-module (ice-9 match)
   #:use-module (srfi srfi-1)
+  #:use-module (srfi srfi-19)
   #:use-module (srfi srfi-26)
   #:use-module ((cuirass database) #:select (build-status))
   #:export (html-page
@@ -183,6 +184,37 @@
                 (format #f "?border-high=~d" page-id-min))
             (format #f "?border-low=~d" (1- id-min)))))))
 
+(define (time->string time)
+  "Return a string representing TIME in a concise, human-readable way."
+  (define now*
+    (current-time time-utc))
+
+  (define now
+    (time-second now*))
+
+  (define elapsed
+    (- now time))
+
+  (cond ((< elapsed 120)
+         "seconds ago")
+        ((< elapsed 7200)
+         (let ((minutes (inexact->exact
+                         (round (/ elapsed 60)))))
+           (format #f "~a minutes ago" minutes)))
+        ((< elapsed (* 48 3600))
+         (let ((hours (inexact->exact
+                       (round (/ elapsed 3600)))))
+           (format #f "~a hours ago" hours)))
+        (else
+         (let* ((time    (make-time time-utc 0 time))
+                (date    (time-utc->date time))
+                (year    (date-year date))
+                (current (date-year (time-utc->date now*)))
+                (format  (if (= year )
+                             "~e ~b ~H:~M ~z"
+                             "~e ~b ~Y ~H:~M ~z")))
+           (date->string date format)))))
+
 (define (build-eval-table eval-id builds build-min build-max status)
   "Return HTML for the BUILDS table evaluation with given STATUS.  BUILD-MIN
 and BUILD-MAX are global minimal and maximal (stoptime, rowid) pairs."
@@ -233,7 +265,7 @@ and BUILD-MAX are global minimal and maximal (stoptime, rowid) pairs."
       (td ,(assq-ref build #:jobset))
       (td ,(if (or (= (build-status succeeded) status)
                    (= (build-status failed) status))
-               (strftime "%c" (localtime (assq-ref build #:stoptime)))
+               (time->string (assq-ref build #:stoptime))
                "—"))
       (td ,(assq-ref build #:job))
       (td ,(assq-ref build #:nixname))
