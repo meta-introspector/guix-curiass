@@ -136,7 +136,7 @@ specified."
        (lambda (key who code message . rest)
          (if (= code error)
              (begin handle ...)
-             (apply throw key who code rest)))))))
+             (apply throw key who code message rest)))))))
 
 (define %package-database
   ;; Define to the database file name of this package.
