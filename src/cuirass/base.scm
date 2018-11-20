@@ -734,4 +734,13 @@ started)."
           ;; 'spawn-fiber' returns zero values but we need one.
           *unspecified*))))
 
-  (for-each process jobspecs))
+  (for-each (lambda (spec)
+              ;; Catch Git errors, which might be transient, and keep going.
+              (catch 'git-error
+                (lambda ()
+                  (process spec))
+                (lambda (key error)
+                  (log-message "Git error while fetching inputs of '~a': ~s~%"
+                               (assq-ref spec #:name)
+                               (git-error-message error)))))
+            jobspecs))
