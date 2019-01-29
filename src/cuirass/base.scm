@@ -1,5 +1,5 @@
 ;;; base.scm -- Cuirass base module
-;;; Copyright © 2016, 2017, 2018 Ludovic Courtès <ludo@gnu.org>
+;;; Copyright © 2016, 2017, 2018, 2019 Ludovic Courtès <ludo@gnu.org>
 ;;; Copyright © 2016, 2017 Mathieu Lirzin <mthl@gnu.org>
 ;;; Copyright © 2017 Mathieu Othacehe <m.othacehe@gmail.com>
 ;;; Copyright © 2017 Ricardo Wurmus <rekado@elephly.net>
@@ -375,7 +375,7 @@ Essentially this procedure inverts the inversion-of-control that
       (lambda ()
         (catch #t
           (lambda ()
-            (guard (c ((nix-error? c)
+            (guard (c ((store-error? c)
                        (close-port output)
                        (atomic-box-set! result c)))
               (parameterize ((current-build-output-port output))
@@ -467,11 +467,11 @@ items."
                        (if (> count max-batch-size)
                            (split-at drv max-batch-size)
                            (values drv '()))))
-          (guard (c ((nix-protocol-error? c)
+          (guard (c ((store-protocol-error? c)
                      (log-message "batch of builds (partially) failed: \
 ~a (status: ~a)"
-                                  (nix-protocol-error-message c)
-                                  (nix-protocol-error-status c))))
+                                  (store-protocol-error-message c)
+                                  (store-protocol-error-status c))))
             (log-message "building batch of ~a derivations (~a/~a)"
                          max-batch-size (- total count) total)
             (let-values (((port finish)
