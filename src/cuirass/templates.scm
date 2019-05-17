@@ -1,6 +1,7 @@
 ;;; templates.scm -- HTTP API
 ;;; Copyright © 2018 Tatiana Sholokhova <tanja201396@gmail.com>
 ;;; Copyright © 2018 Ludovic Courtès <ludo@gnu.org>
+;;; Copyright © 2019 Ricardo Wurmus <rekado@elephly.net>
 ;;;
 ;;; This file is part of Cuirass.
 ;;;
@@ -27,7 +28,8 @@
   #:export (html-page
             specifications-table
             evaluation-info-table
-            build-eval-table))
+            build-eval-table
+            build-search-results-table))
 
 (define (navigation-items navigation)
   (match navigation
@@ -38,6 +40,23 @@
                       (href ,(assq-ref item #:link)))
                    ,(assq-ref item #:name)))
            (navigation-items rest)))))
+
+(define search-form
+  `(form (@ (id "search")
+            (class "form-inline")
+            (action "/search"))
+         (div
+          (@ (class "input-group"))
+          (input (@ (type "text")
+                    (class "form-control")
+                    (id   "query")
+                    (name "query")
+                    (placeholder "search for builds")))
+          (span (@ (class "input-group-append"))
+                (button
+                 (@ (type "submit")
+                    (class "btn btn-primary"))
+                 "Search")))))
 
 (define (html-page title body navigation)
   "Return HTML page with given TITLE and BODY."
@@ -64,14 +83,15 @@
                           (alt "logo")
                           (height "25")
                           (style "margin-top: -12px"))))
-               (div (@ (class "navbar-nav-scroll"))
-                    (ul (@ (class "navbar-nav"))
-                        (li (@ (class "nav-item"))
-                            (a (@ (class "nav-link" ,(if (null? navigation)
-                                                         " active" ""))
-                                  (href "/"))
-                               Home))
-                        ,@(navigation-items navigation))))
+               (div (@ (class "navbar-collapse"))
+                         (ul (@ (class "navbar-nav"))
+                             (li (@ (class "nav-item"))
+                                 (a (@ (class "nav-link" ,(if (null? navigation)
+                                                              " active" ""))
+                                       (href "/"))
+                                    Home))
+                             ,@(navigation-items navigation)))
+               ,search-form)
           (main (@ (role "main") (class "container pt-4 px-1"))
                 ,body
                 (hr)))))
@@ -341,3 +361,102 @@ and BUILD-MAX are global minimal and maximal (stoptime, rowid) pairs."
              (build-stoptime build-min)
              (1- (build-id build-min))
              status))))))
+
+(define (build-search-results-table query builds build-min build-max)
+  "Return HTML for the BUILDS table evaluation matching QUERY.  BUILD-MIN
+and BUILD-MAX are global minimal and maximal row identifiers."
+  (define (table-header)
+    `(thead
+      (tr
+       (th (@ (scope "col")) '())
+       (th (@ (scope "col")) "ID")
+       (th (@ (scope "col")) "Specification")
+       (th (@ (scope "col")) "Completion time")
+       (th (@ (scope "col")) "Job")
+       (th (@ (scope "col")) "Name")
+       (th (@ (scope "col")) "System")
+       (th (@ (scope "col")) "Log"))))
+
+  (define (table-row build)
+    (define status
+      (assq-ref build #:buildstatus))
+
+    (define completed?
+      (or (= (build-status succeeded) status)
+          (= (build-status failed) status)))
+
+    `(tr
+      (td ,(cond
+            ((= (build-status succeeded) status)
+             `(span (@ (class "oi oi-check text-success")
+                       (title "Succeeded")
+                       (aria-hidden "true"))
+                    ""))
+            ((= (build-status scheduled) status)
+             `(span (@ (class "oi oi-clock text-warning")
+                       (title "Scheduled")
+                       (aria-hidden "true"))
+                    ""))
+            ((= (build-status canceled) status)
+             `(span (@ (class "oi oi-question-mark text-warning")
+                       (title "Canceled")
+                       (aria-hidden "true"))
+                    ""))
+            ((= (build-status failed-dependency) status)
+             `(span (@ (class "oi oi-warning text-danger")
+                       (title "Dependency failed")
+                       (aria-hidden "true"))
+                    ""))
+            (else
+             `(span (@ (class "oi oi-x text-danger")
+                       (title "Failed")
+                       (aria-hidden "true"))
+                    ""))))
+      (th (@ (scope "row")),(assq-ref build #:id))
+      (td ,(assq-ref build #:jobset))
+      (td ,(if completed?
+               (time->string (assq-ref build #:stoptime))
+               "—"))
+      (td ,(assq-ref build #:job))
+      (td ,(assq-ref build #:nixname))
+      (td ,(assq-ref build #:system))
+      (td ,(if completed?
+               `(a (@ (href "/build/" ,(assq-ref build #:id) "/log/raw"))
+                   "raw")
+               "—"))))
+
+  `((p (@ (class "lead"))
+       ,(format #f "Builds matching ~a" query))
+    (table
+     (@ (class "table table-sm table-hover table-striped"))
+     ,@(if (null? builds)
+           `((th (@ (scope "col")) "No elements here."))
+           `(,(table-header)
+             (tbody ,@(map table-row builds)))))
+
+    ,(if (null? builds)
+         (pagination "" "" "" "")
+         (let* ((build-ids (map (lambda (row) (assq-ref row #:id)) builds))
+                (page-build-min (last build-ids))
+                (page-build-max (first build-ids)))
+           (pagination
+            (format
+             #f "?query=~a&border-high-id=~d"
+             query
+             (1+ (first build-max)))
+            (if (equal? page-build-max (first build-max))
+                ""
+                (format
+                 #f "?query=~a&border-low-id=~d"
+                 query
+                 page-build-max))
+            (if (equal? page-build-min (first build-min))
+                ""
+                (format
+                 #f "?query=~a&border-high-id=~d"
+                 query
+                 page-build-min))
+            (format
+             #f "?query=~a&border-low-id=~d"
+             query
+             (1- (first build-min))))))))

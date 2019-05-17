@@ -4,6 +4,7 @@
 ;;; Copyright © 2018 Ludovic Courtès <ludo@gnu.org>
 ;;; Copyright © 2018 Clément Lassieur <clement@lassieur.org>
 ;;; Copyright © 2018 Tatiana Sholokhova <tanja201396@gmail.com>
+;;; Copyright © 2019 Ricardo Wurmus <rekado@elephly.net>
 ;;;
 ;;; This file is part of Cuirass.
 ;;;
@@ -114,6 +115,13 @@ hydra format. Return #f is not build was found."
 Hydra format."
   (let ((builds (with-time-logging "builds request"
                                    (db-get-builds filters))))
+    (map build->hydra-build builds)))
+
+(define (handle-builds-search-request filters)
+  "Retrieve all builds matched by FILTERS in the database and convert them to
+Hydra format."
+  (let ((builds (with-time-logging "builds search request"
+                                   (db-get-builds-by-search filters))))
     (map build->hydra-build builds)))
 
 (define (request-parameters request)
@@ -340,6 +348,30 @@ Hydra format."
                ((#:name . ,(string-append "Evaluation " id))
                 (#:link . ,(string-append "/eval/" id))))))
            (respond-html-eval-not-found id))))
+
+    (("search")
+     (let* ((params (request-parameters request))
+            (query (assq-ref params 'query))
+            (builds-id-min (db-get-builds-query-min query))
+            (builds-id-max (db-get-builds-query-max query))
+            (border-low-id (assq-ref params 'border-low-id))
+            (border-high-id (assq-ref params 'border-high-id)))
+       (if query
+           (respond-html
+            (html-page
+             "Search results"
+             (build-search-results-table
+              query
+              (handle-builds-search-request
+               `((query . ,query)
+                 (nr . ,%page-size)
+                 (order . finish-time+build-id)
+                 (border-low-id . ,border-low-id)
+                 (border-high-id . ,border-high-id)))
+              builds-id-min
+              builds-id-max)
+             '()))
+           (respond-json-with-error 500 "Query parameter not provided!"))))
 
     (("static" path ...)
      (respond-static-file path))

@@ -4,6 +4,7 @@
 ;;; Copyright © 2018 Ludovic Courtès <ludo@gnu.org>
 ;;; Copyright © 2018 Clément Lassieur <clement@lassieur.org>
 ;;; Copyright © 2018 Tatiana Sholokhova <tanja201396@gmail.com>
+;;; Copyright © 2019 Ricardo Wurmus <rekado@elephly.net>
 ;;;
 ;;; This file is part of Cuirass.
 ;;;
@@ -47,8 +48,11 @@
             db-update-build-status!
             db-get-build
             db-get-builds
+            db-get-builds-by-search
             db-get-builds-min
             db-get-builds-max
+            db-get-builds-query-min
+            db-get-builds-query-max
             db-get-evaluations
             db-get-evaluations-build-summary
             db-get-evaluations-id-min
@@ -552,6 +556,59 @@ WHERE derivation =" derivation ";"))
     (('order . 'status+submission-time) "status DESC, timestamp DESC")
     (_ "rowid DESC")))
 
+(define (db-get-builds-by-search filters)
+  "Retrieve all builds in the database which are matched by given FILTERS.
+FILTERS is an assoc list whose possible keys are the symbols query,
+border-low-id, border-high-id, and nr."
+  (with-db-critical-section db
+    (let* ((stmt-text (format #f "SELECT * FROM (
+SELECT Builds.rowid, Builds.timestamp, Builds.starttime,
+Builds.stoptime, Builds.log, Builds.status, Builds.job_name, Builds.system,
+Builds.nix_name, Specifications.name
+FROM Builds
+INNER JOIN Evaluations ON Builds.evaluation = Evaluations.id
+INNER JOIN Specifications ON Evaluations.specification = Specifications.name
+WHERE (Builds.nix_name LIKE :query)
+AND (:borderlowid IS NULL
+ OR (:borderlowid < Builds.rowid))
+AND (:borderhighid IS NULL
+ OR (:borderhighid > Builds.rowid))
+ORDER BY
+CASE WHEN :borderlowid IS NULL THEN Builds.rowid
+                               ELSE -Builds.rowid
+END DESC
+LIMIT :nr)
+ORDER BY rowid DESC;"))
+           (stmt (sqlite-prepare db stmt-text #:cache? #t)))
+      (sqlite-bind-arguments
+       stmt
+       #:query (and=> (assq-ref filters 'query)
+                      (lambda (query) (string-append query "-%")))
+       #:borderlowid (assq-ref filters 'border-low-id)
+       #:borderhighid (assq-ref filters 'border-high-id)
+       #:nr (match (assq-ref filters 'nr)
+              (#f -1)
+              (x x)))
+      (sqlite-reset stmt)
+      (let loop ((rows (sqlite-fold-right cons '() stmt))
+                 (builds '()))
+        (match rows
+          (() (reverse builds))
+          ((#(id timestamp starttime stoptime log status job-name
+                 system nix-name specification) . rest)
+           (loop rest
+                 (cons `((#:id . ,id)
+                         (#:timestamp . ,timestamp)
+                         (#:starttime . ,starttime)
+                         (#:stoptime . ,stoptime)
+                         (#:log . ,log)
+                         (#:status . ,status)
+                         (#:job-name . ,job-name)
+                         (#:system . ,system)
+                         (#:nix-name . ,nix-name)
+                         (#:specification . ,specification))
+                       builds))))))))
+
 (define (db-get-builds filters)
   "Retrieve all builds in the database which are matched by given FILTERS.
 FILTERS is an assoc list whose possible keys are 'derivation | 'id | 'jobset |
@@ -722,6 +779,20 @@ WHERE specification=" spec)))
 SELECT MAX(id) FROM Evaluations
 WHERE specification=" spec)))
       (and=> (expect-one-row rows) (cut vector-ref <> 0)))))
+
+(define (db-get-builds-query-min query)
+  "Return the smallest build row identifier matching QUERY."
+  (with-db-critical-section db
+    (let ((rows (sqlite-exec db "
+SELECT MIN(rowid) FROM Builds WHERE nix_name LIKE " (string-append query "-%"))))
+      (and=> (expect-one-row rows) vector->list))))
+
+(define (db-get-builds-query-max query)
+  "Return the largest build row identifier matching QUERY."
+  (with-db-critical-section db
+    (let ((rows (sqlite-exec db "
+SELECT MAX(rowid) FROM Builds WHERE nix_name LIKE " (string-append query "-%"))))
+      (and=> (expect-one-row rows) vector->list))))
 
 (define (db-get-builds-min eval status)
   "Return the min build (stoptime, rowid) pair for the given evaluation EVAL
