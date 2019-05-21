@@ -426,7 +426,7 @@ and BUILD-MAX are global minimal and maximal row identifiers."
                "—"))))
 
   `((p (@ (class "lead"))
-       ,(format #f "Builds matching ~a" query))
+       "Builds matching " (em ,query))
     (table
      (@ (class "table table-sm table-hover table-striped"))
      ,@(if (null? builds)
