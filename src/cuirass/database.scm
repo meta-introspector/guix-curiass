@@ -556,6 +556,24 @@ WHERE derivation =" derivation ";"))
     (('order . 'status+submission-time) "status DESC, timestamp DESC")
     (_ "rowid DESC")))
 
+(define (query->bind-arguments query-string)
+  "Return a list of keys to query strings by parsing QUERY-STRING."
+  (let ((args (append-map (lambda (token)
+                            (match (string-split token #\:)
+                              (("system" system)
+                               `(#:system ,system))
+                              (("spec" spec)
+                               `(#:spec ,spec))
+                              ((query)
+                               `(#:query ,(string-append query "-%")))))
+                          (string-tokenize query-string))))
+    ;; Normalize arguments
+    (fold (lambda (key acc)
+            (if (member key acc)
+                acc
+                (append (list key #f) acc)))
+          args '(#:spec #:system))))
+
 (define (db-get-builds-by-search filters)
   "Retrieve all builds in the database which are matched by given FILTERS.
 FILTERS is an assoc list whose possible keys are the symbols query,
@@ -569,6 +587,10 @@ FROM Builds
 INNER JOIN Evaluations ON Builds.evaluation = Evaluations.id
 INNER JOIN Specifications ON Evaluations.specification = Specifications.name
 WHERE (Builds.nix_name LIKE :query)
+AND (:spec IS NULL
+ OR (Specifications.name = :spec))
+AND (:system IS NULL
+ OR (Builds.system = :system))
 AND (:borderlowid IS NULL
  OR (:borderlowid < Builds.rowid))
 AND (:borderhighid IS NULL
@@ -580,15 +602,15 @@ END DESC
 LIMIT :nr)
 ORDER BY rowid DESC;"))
            (stmt (sqlite-prepare db stmt-text #:cache? #t)))
-      (sqlite-bind-arguments
-       stmt
-       #:query (and=> (assq-ref filters 'query)
-                      (lambda (query) (string-append query "-%")))
-       #:borderlowid (assq-ref filters 'border-low-id)
-       #:borderhighid (assq-ref filters 'border-high-id)
-       #:nr (match (assq-ref filters 'nr)
-              (#f -1)
-              (x x)))
+      (apply sqlite-bind-arguments
+             stmt
+             (append (list
+                      #:borderlowid (assq-ref filters 'border-low-id)
+                      #:borderhighid (assq-ref filters 'border-high-id)
+                      #:nr (match (assq-ref filters 'nr)
+                             (#f -1)
+                             (x x)))
+                     (query->bind-arguments (assq-ref filters 'query))))
       (sqlite-reset stmt)
       (let loop ((rows (sqlite-fold-right cons '() stmt))
                  (builds '()))
@@ -783,16 +805,40 @@ WHERE specification=" spec)))
 (define (db-get-builds-query-min query)
   "Return the smallest build row identifier matching QUERY."
   (with-db-critical-section db
-    (let ((rows (sqlite-exec db "
-SELECT MIN(rowid) FROM Builds WHERE nix_name LIKE " (string-append query "-%"))))
-      (and=> (expect-one-row rows) vector->list))))
+    (let* ((stmt-text "SELECT MIN(Builds.rowid) FROM Builds
+INNER JOIN Evaluations ON Builds.evaluation = Evaluations.id
+INNER JOIN Specifications ON Evaluations.specification = Specifications.name
+WHERE (Builds.nix_name LIKE :query)
+AND (:spec IS NULL
+ OR (Specifications.name = :spec))
+AND (:system IS NULL
+ OR (Builds.system = :system));")
+           (stmt (sqlite-prepare db stmt-text #:cache? #t)))
+      (apply sqlite-bind-arguments stmt
+             (query->bind-arguments query))
+      (sqlite-reset stmt)
+      (let ((rows (sqlite-fold-right cons '() stmt)))
+        (sqlite-finalize stmt)
+        (and=> (expect-one-row rows) vector->list)))))
 
 (define (db-get-builds-query-max query)
   "Return the largest build row identifier matching QUERY."
   (with-db-critical-section db
-    (let ((rows (sqlite-exec db "
-SELECT MAX(rowid) FROM Builds WHERE nix_name LIKE " (string-append query "-%"))))
-      (and=> (expect-one-row rows) vector->list))))
+    (let* ((stmt-text "SELECT MAX(Builds.rowid) FROM Builds
+INNER JOIN Evaluations ON Builds.evaluation = Evaluations.id
+INNER JOIN Specifications ON Evaluations.specification = Specifications.name
+WHERE (Builds.nix_name LIKE :query)
+AND (:spec IS NULL
+ OR (Specifications.name = :spec))
+AND (:system IS NULL
+ OR (Builds.system = :system));")
+           (stmt (sqlite-prepare db stmt-text #:cache? #t)))
+      (apply sqlite-bind-arguments stmt
+             (query->bind-arguments query))
+      (sqlite-reset stmt)
+      (let ((rows (sqlite-fold-right cons '() stmt)))
+        (sqlite-finalize stmt)
+        (and=> (expect-one-row rows) vector->list)))))
 
 (define (db-get-builds-min eval status)
   "Return the min build (stoptime, rowid) pair for the given evaluation EVAL
