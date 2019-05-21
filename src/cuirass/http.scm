@@ -351,9 +351,9 @@ Hydra format."
 
     (("search")
      (let* ((params (request-parameters request))
-            (query (assq-ref params 'query))
-            (builds-id-min (db-get-builds-query-min query))
-            (builds-id-max (db-get-builds-query-max query))
+            (query (and=> (assq-ref params 'query) uri-decode))
+            (builds-id-min (and=> query db-get-builds-query-min))
+            (builds-id-max (and=> query db-get-builds-query-max))
             (border-low-id (assq-ref params 'border-low-id))
             (border-high-id (assq-ref params 'border-high-id)))
        (if query
