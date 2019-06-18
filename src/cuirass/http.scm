@@ -245,7 +245,7 @@ Hydra format."
             (html-page (string-append "Build " build-id)
                        (build-details build)
                        `(((#:name . ,(assq-ref build #:specification))
-                          (#:link . ,(string-append "/spec/" (assq-ref build #:specification)))))))
+                          (#:link . ,(string-append "/jobset/" (assq-ref build #:specification)))))))
            (respond-build-not-found build-id))))
     (("build" build-id "log" "raw")
      (let ((build (db-get-build (string->number build-id))))
