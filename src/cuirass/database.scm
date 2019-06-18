@@ -353,7 +353,7 @@ package_path_inputs, proc_input, proc_file, proc, proc_args) \
 
 (define (db-get-specifications)
   (with-db-critical-section db
-    (let loop ((rows  (sqlite-exec db "SELECT * FROM Specifications;"))
+    (let loop ((rows  (sqlite-exec db "SELECT * FROM Specifications ORDER BY name DESC;"))
                (specs '()))
       (match rows
         (() specs)
