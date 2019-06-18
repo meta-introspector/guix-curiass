@@ -361,7 +361,9 @@ and BUILD-MAX are global minimal and maximal (stoptime, rowid) pairs."
                        (title "Failed")
                        (aria-hidden "true"))
                     ""))))
-      (th (@ (scope "row")),(assq-ref build #:id))
+      (th (@ (scope "row"))
+          (a (@ (href "/build/" ,(assq-ref build #:id) "/details"))
+             ,(assq-ref build #:id)))
       (td ,(assq-ref build #:jobset))
       (td ,(if completed?
                (time->string (assq-ref build #:stoptime))
@@ -477,7 +479,9 @@ and BUILD-MAX are global minimal and maximal row identifiers."
                        (title "Failed")
                        (aria-hidden "true"))
                     ""))))
-      (th (@ (scope "row")),(assq-ref build #:id))
+      (th (@ (scope "row"))
+          (a (@ (href "/build/" ,(assq-ref build #:id) "/details"))
+             ,(assq-ref build #:id)))
       (td ,(assq-ref build #:jobset))
       (td ,(if completed?
                (time->string (assq-ref build #:stoptime))
