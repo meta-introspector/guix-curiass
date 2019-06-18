@@ -238,6 +238,15 @@ Hydra format."
        (if hydra-build
            (respond-json (object->json-string hydra-build))
            (respond-build-not-found build-id))))
+    (("build" build-id "details")
+     (let ((build (db-get-build (string->number build-id))))
+       (if build
+           (respond-html
+            (html-page (string-append "Build " build-id)
+                       (build-details build)
+                       `(((#:name . ,(assq-ref build #:specification))
+                          (#:link . ,(string-append "/spec/" (assq-ref build #:specification)))))))
+           (respond-build-not-found build-id))))
     (("build" build-id "log" "raw")
      (let ((build (db-get-build (string->number build-id))))
        (if build

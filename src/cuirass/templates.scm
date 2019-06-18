@@ -22,6 +22,7 @@
   #:use-module (ice-9 format)
   #:use-module (ice-9 match)
   #:use-module (srfi srfi-1)
+  #:use-module (srfi srfi-2)
   #:use-module (srfi srfi-19)
   #:use-module (srfi srfi-26)
   #:use-module ((cuirass database) #:select (build-status))
@@ -29,7 +30,8 @@
             specifications-table
             evaluation-info-table
             build-eval-table
-            build-search-results-table))
+            build-search-results-table
+            build-details))
 
 (define (navigation-items navigation)
   (match navigation
@@ -117,6 +119,69 @@
                                              (assq-ref input #:branch)))
                                    (assq-ref spec #:inputs)) ", "))))
                  specs)))))))
+
+(define (build-details build)
+  "Return HTML showing details for the BUILD."
+  (define status (assq-ref build #:status))
+  (define display-status
+    (cond
+     ((= (build-status succeeded) status)
+      `(span (@ (class "oi oi-check text-success")
+                (title "Succeeded"))
+             " Success"))
+     ((= (build-status scheduled) status)
+      `(span (@ (class "oi oi-clock text-warning")
+                (title "Scheduled")
+                (aria-hidden "true"))
+             " Scheduled"))
+     ((= (build-status canceled) status)
+      `(span (@ (class "oi oi-question-mark text-warning")
+                (title "Canceled"))
+             " Canceled"))
+     ((= (build-status failed-dependency) status)
+      `(span (@ (class "oi oi-warning text-danger")
+                (title "Dependency failed"))
+             " Dependency failed"))
+     (else
+      `(span (@ (class "oi oi-x text-danger")
+                (title "Failed"))
+             " Failed"))))
+  (define completed?
+    (or (= (build-status succeeded) status)
+        (= (build-status failed) status)))
+  `((p (@ (class "lead")) "Build details")
+    (table
+     (@ (class "table table-sm table-hover"))
+     (tbody
+      (tr (th "Build ID")
+          (td ,(assq-ref build #:id)))
+      (tr (th "Status")
+          (td ,display-status))
+      (tr (th "System")
+          (td ,(assq-ref build #:system)))
+      (tr (th "Name")
+          (td ,(assq-ref build #:nix-name)))
+      (tr (th "Duration")
+          (td ,(or (and-let* ((start (assq-ref build #:starttime))
+                              (stop  (assq-ref build #:stoptime)))
+                     (string-append (number->string (- stop start))
+                                    " seconds"))
+                   "—")))
+      (tr (th "Finished")
+          (td ,(if completed?
+                   (time->string (assq-ref build #:stoptime))
+                   "—")))
+      (tr (th "Log file")
+          (td ,(if completed?
+               `(a (@ (href "/build/" ,(assq-ref build #:id) "/log/raw"))
+                   "raw")
+               "—")))
+      (tr (th "Derivation")
+          (td (pre ,(assq-ref build #:derivation))))
+      (tr (th "Outputs")
+          (td ,(map (match-lambda ((out (#:path . path))
+                                   `(pre ,path)))
+                    (assq-ref build #:outputs))))))))
 
 (define (pagination first-link prev-link next-link last-link)
   "Return html page navigation buttons with LINKS."
