@@ -45,7 +45,7 @@
                    ,(assq-ref item #:name)))
            (navigation-items rest)))))
 
-(define search-form
+(define (search-form query)
   `(form (@ (id "search")
             (class "form-inline")
             (action "/search"))
@@ -55,14 +55,16 @@
                     (class "form-control")
                     (id   "query")
                     (name "query")
-                    (placeholder "search for builds")))
+                    ,(if query
+                         `(value ,query)
+                         '(placeholder "search for builds"))))
           (span (@ (class "input-group-append"))
                 (button
                  (@ (type "submit")
                     (class "btn btn-primary"))
                  "Search")))))
 
-(define (html-page title body navigation)
+(define* (html-page title body navigation #:optional query)
   "Return HTML page with given TITLE and BODY."
   `(html (@ (xmlns "http://www.w3.org/1999/xhtml")
             (xml:lang "en")
@@ -95,7 +97,7 @@
                                        (href "/"))
                                     Home))
                              ,@(navigation-items navigation)))
-               ,search-form)
+               ,(search-form query))
           (main (@ (role "main") (class "container pt-4 px-1"))
                 ,body
                 (hr)))))

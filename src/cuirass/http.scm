@@ -440,7 +440,8 @@ Hydra format."
                  (border-high-id . ,border-high-id)))
               builds-id-min
               builds-id-max)
-             '()))
+             '()
+             query))
            (respond-json-with-error 500 "Query parameter not provided!"))))
 
     (("static" path ...)
