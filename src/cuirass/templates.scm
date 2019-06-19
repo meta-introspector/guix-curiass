@@ -317,14 +317,14 @@ and BUILD-MAX are global minimal and maximal (stoptime, rowid) pairs."
   (define (table-header)
     `(thead
       (tr
-       (th (@ (scope "col")) '())
-       (th (@ (scope "col")) "ID")
-       (th (@ (scope "col")) "Specification")
-       (th (@ (scope "col")) "Completion time")
-       (th (@ (scope "col")) "Job")
-       (th (@ (scope "col")) "Name")
-       (th (@ (scope "col")) "System")
-       (th (@ (scope "col")) "Log"))))
+       (th (@ (scope "col") (class "border-0")) '())
+       (th (@ (scope "col") (class "border-0")) "ID")
+       (th (@ (scope "col") (class "border-0")) "Specification")
+       (th (@ (scope "col") (class "border-0")) "Completion time")
+       (th (@ (scope "col") (class "border-0")) "Job")
+       (th (@ (scope "col") (class "border-0")) "Name")
+       (th (@ (scope "col") (class "border-0")) "System")
+       (th (@ (scope "col") (class "border-0")) "Log"))))
 
   (define (table-row build)
     (define status
@@ -384,15 +384,10 @@ and BUILD-MAX are global minimal and maximal (stoptime, rowid) pairs."
     (match build
       ((stoptime id) stoptime)))
 
-  `((p (@ (class "lead"))
-       ,(format #f "~@[~a~] ~:[B~;b~]uilds of evaluation #~a"
-                (and=> status string-capitalize)
-                status
-                eval-id))
-    (table
+  `((table
      (@ (class "table table-sm table-hover table-striped"))
      ,@(if (null? builds)
-           `((th (@ (scope "col")) "No elements here."))
+           `((th (@ (scope "col") (class "border-0")) "No elements here."))
            `(,(table-header)
              (tbody ,@(map table-row builds)))))
     ,(if (null? builds)
