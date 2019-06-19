@@ -25,6 +25,8 @@
   #:use-module (srfi srfi-2)
   #:use-module (srfi srfi-19)
   #:use-module (srfi srfi-26)
+  #:use-module (guix derivations)
+  #:use-module (guix store)
   #:use-module ((cuirass database) #:select (build-status))
   #:export (html-page
             specifications-table
@@ -146,6 +148,17 @@
       `(span (@ (class "oi oi-x text-danger")
                 (title "Failed"))
              " Failed"))))
+  (define blocking-outputs
+    (or (and-let* (((= (build-status failed-dependency) status))
+                   (drv (false-if-exception
+                         (read-derivation-from-file
+                          (assq-ref build #:derivation)))))
+          (append-map derivation-input-output-paths
+                      (filter (compose derivation-log-file derivation-input-path)
+                              (with-store store
+                                (derivation-prerequisites-to-build
+                                 store drv #:substitutable-info (const #f))))))
+        '()))
   (define completed?
     (or (= (build-status succeeded) status)
         (= (build-status failed) status)))
@@ -156,7 +169,12 @@
       (tr (th "Build ID")
           (td ,(assq-ref build #:id)))
       (tr (th "Status")
-          (td ,display-status))
+          (td ,display-status
+              ,@(map (lambda (output)
+                       `((br)
+                         (a (@ (href ,(string-append "/log/" (basename output))))
+                            ,output)))
+                     blocking-outputs)))
       (tr (th "System")
           (td ,(assq-ref build #:system)))
       (tr (th "Name")
