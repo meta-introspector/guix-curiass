@@ -210,7 +210,8 @@
         (nav
          (@ (class "mx-auto") (aria-label "Page navigation"))
          (ul (@ (class "pagination"))
-             (li (@ (class "page-item"))
+             (li (@ (class "page-item"
+                      ,(if (string-null? prev-link) " disabled")))
                  (a (@ (class "page-link")
                        (href ,first-link))
                     "<< First"))
@@ -224,7 +225,8 @@
                  (a (@ (class "page-link")
                        (href ,next-link))
                     "Next >"))
-             (li (@ (class "page-item"))
+             (li (@ (class "page-item"
+                      ,(if (string-null? next-link) " disabled")))
                  (a (@ (class "page-link")
                        (href ,last-link))
                     "Last >>"))))))
