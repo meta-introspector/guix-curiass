@@ -80,6 +80,7 @@
                    (href "/static/css/bootstrap.css")))
           (link (@ (rel "stylesheet")
                    (href "/static/css/open-iconic-bootstrap.css")))
+          (style "#search input:focus { width: 500px; }")
           (title ,title))
          (body
           (nav (@ (class "navbar navbar-expand navbar-light bg-light"))
