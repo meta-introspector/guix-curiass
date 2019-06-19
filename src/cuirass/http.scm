@@ -383,40 +383,7 @@ Hydra format."
                                    (title "Failed")
                                    (aria-hidden "true"))
                                 "")
-                          " Failed"))
-                   (li (@ (class "nav-item"))
-                       (a (@ (class ,(string-append "nav-link "
-                                                    (match status
-                                                      ("failed-dependency" "active")
-                                                      (_ ""))))
-                             (href "?status=failed-dependency"))
-                          (span (@ (class "oi oi-warning text-danger")
-                                   (title "Dependency failed")
-                                   (aria-hidden "true"))
-                                "")
-                          " Dependency failed"))
-                   (li (@ (class "nav-item"))
-                       (a (@ (class ,(string-append "nav-link "
-                                                    (match status
-                                                      ("failed-other" "active")
-                                                      (_ ""))))
-                             (href "?status=failed-other"))
-                          (span (@ (class "oi oi-x text-danger")
-                                   (title "Failed")
-                                   (aria-hidden "true"))
-                                "")
-                          " Other failed"))
-                   (li (@ (class "nav-item"))
-                       (a (@ (class ,(string-append "nav-link "
-                                                    (match status
-                                                      ("canceled" "active")
-                                                      (_ ""))))
-                             (href "?status=canceled"))
-                          (span (@ (class "oi oi-question-mark text-warning")
-                                   (title "Canceled")
-                                   (aria-hidden "true"))
-                                "")
-                          " Canceled")))
+                          " Failed")))
                (div (@ (class "tab-content pt-3"))
                     (div (@ (class "tab-pane show active"))
                          ,(build-eval-table
