@@ -333,77 +333,90 @@ Hydra format."
             (border-low-time (assq-ref params 'border-low-time))
             (border-high-id (assq-ref params 'border-high-id))
             (border-low-id (assq-ref params 'border-low-id))
-            (specification (db-get-evaluation-specification id)))
+            (specification (db-get-evaluation-specification id))
+            (evaluation (db-get-evaluation-summary id)))
        (if specification
-           (respond-html
-            (html-page
-             "Evaluation"
-             `((p (@ (class "lead"))
-                  ,(format #f "~@[~a~] ~:[B~;b~]uilds of evaluation #~a"
-                           (and=> status string-capitalize)
-                           status
-                           id))
-               (ul (@ (class "nav nav-tabs"))
-                   (li (@ (class "nav-item"))
-                       (a (@ (class ,(string-append "nav-link "
-                                                    (match status
-                                                      (#f "active")
-                                                      (_ ""))))
-                             (href "?all="))
-                          "All"))
-                   (li (@ (class "nav-item"))
-                       (a (@ (class ,(string-append "nav-link "
-                                                    (match status
-                                                      ("pending" "active")
-                                                      (_ ""))))
-                             (href "?status=pending"))
-                          (span (@ (class "oi oi-clock text-warning")
-                                   (title "Scheduled")
-                                   (aria-hidden "true"))
-                                "")
-                          " Scheduled"))
-                   (li (@ (class "nav-item"))
-                       (a (@ (class ,(string-append "nav-link "
-                                                    (match status
-                                                      ("succeeded" "active")
-                                                      (_ ""))))
-                             (href "?status=succeeded"))
-                          (span (@ (class "oi oi-check text-success")
-                                (title "Succeeded")
-                                (aria-hidden "true"))
-                             "")
-                          " Succeeded"))
-                   (li (@ (class "nav-item"))
-                       (a (@ (class ,(string-append "nav-link "
-                                                    (match status
-                                                      ("failed" "active")
-                                                      (_ ""))))
-                             (href "?status=failed"))
-                          (span (@ (class "oi oi-x text-danger")
-                                   (title "Failed")
-                                   (aria-hidden "true"))
-                                "")
-                          " Failed")))
-               (div (@ (class "tab-content pt-3"))
-                    (div (@ (class "tab-pane show active"))
-                         ,(build-eval-table
-                           id
-                           (handle-builds-request
-                            `((evaluation . ,id)
-                              (status . ,(and=> status string->symbol))
-                              (nr . ,%page-size)
-                              (order . finish-time+build-id)
-                              (border-high-time . ,border-high-time)
-                              (border-low-time . ,border-low-time)
-                              (border-high-id . ,border-high-id)
-                              (border-low-id . ,border-low-id)))
-                           builds-id-min
-                           builds-id-max
-                           status))))
-             `(((#:name . ,specification)
-                (#:link . ,(string-append "/jobset/" specification)))
-               ((#:name . ,(string-append "Evaluation " id))
-                (#:link . ,(string-append "/eval/" id))))))
+           (let ((total     (assq-ref evaluation #:total))
+                 (succeeded (assq-ref evaluation #:succeeded))
+                 (failed    (assq-ref evaluation #:failed))
+                 (scheduled (assq-ref evaluation #:scheduled)))
+             (respond-html
+              (html-page
+               "Evaluation"
+               `((p (@ (class "lead"))
+                    ,(format #f "~@[~a~] ~:[B~;b~]uilds of evaluation #~a"
+                             (and=> status string-capitalize)
+                             status
+                             id))
+                 (ul (@ (class "nav nav-tabs"))
+                     (li (@ (class "nav-item"))
+                         (a (@ (class ,(string-append "nav-link "
+                                                      (match status
+                                                        (#f "active")
+                                                        (_ ""))))
+                               (href "?all="))
+                            "All "
+                            (span (@ (class "badge badge-light badge-pill"))
+                                  ,total)))
+                     (li (@ (class "nav-item"))
+                         (a (@ (class ,(string-append "nav-link "
+                                                      (match status
+                                                        ("pending" "active")
+                                                        (_ ""))))
+                               (href "?status=pending"))
+                            (span (@ (class "oi oi-clock text-warning")
+                                     (title "Scheduled")
+                                     (aria-hidden "true"))
+                                  "")
+                            " Scheduled "
+                            (span (@ (class "badge badge-light badge-pill"))
+                                  ,scheduled)))
+                     (li (@ (class "nav-item"))
+                         (a (@ (class ,(string-append "nav-link "
+                                                      (match status
+                                                        ("succeeded" "active")
+                                                        (_ ""))))
+                               (href "?status=succeeded"))
+                            (span (@ (class "oi oi-check text-success")
+                                     (title "Succeeded")
+                                     (aria-hidden "true"))
+                                  "")
+                            " Succeeded "
+                            (span (@ (class "badge badge-light badge-pill"))
+                                  ,succeeded)))
+                     (li (@ (class "nav-item"))
+                         (a (@ (class ,(string-append "nav-link "
+                                                      (match status
+                                                        ("failed" "active")
+                                                        (_ ""))))
+                               (href "?status=failed"))
+                            (span (@ (class "oi oi-x text-danger")
+                                     (title "Failed")
+                                     (aria-hidden "true"))
+                                  "")
+                            " Failed "
+                            (span (@ (class "badge badge-light badge-pill"))
+                                  ,failed))))
+                 (div (@ (class "tab-content pt-3"))
+                      (div (@ (class "tab-pane show active"))
+                           ,(build-eval-table
+                             id
+                             (handle-builds-request
+                              `((evaluation . ,id)
+                                (status . ,(and=> status string->symbol))
+                                (nr . ,%page-size)
+                                (order . finish-time+build-id)
+                                (border-high-time . ,border-high-time)
+                                (border-low-time . ,border-low-time)
+                                (border-high-id . ,border-high-id)
+                                (border-low-id . ,border-low-id)))
+                             builds-id-min
+                             builds-id-max
+                             status))))
+               `(((#:name . ,specification)
+                  (#:link . ,(string-append "/jobset/" specification)))
+                 ((#:name . ,(string-append "Evaluation " id))
+                  (#:link . ,(string-append "/eval/" id)))))))
            (respond-html-eval-not-found id))))
 
     (("search")

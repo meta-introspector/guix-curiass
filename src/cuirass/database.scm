@@ -58,6 +58,7 @@
             db-get-evaluations-id-min
             db-get-evaluations-id-max
             db-get-evaluation-specification
+            db-get-evaluation-summary
             read-sql-file
             read-quoted-string
             sqlite-exec
@@ -801,6 +802,31 @@ WHERE specification=" spec)))
 SELECT MAX(id) FROM Evaluations
 WHERE specification=" spec)))
       (and=> (expect-one-row rows) (cut vector-ref <> 0)))))
+
+(define (db-get-evaluation-summary id)
+  (with-db-critical-section db
+    (let ((rows (sqlite-exec db "
+SELECT E.id, E.in_progress, B.total, B.succeeded, B.failed, B.scheduled
+FROM
+ (SELECT id, in_progress
+FROM Evaluations
+WHERE (id=" id ")) E
+LEFT JOIN
+ (SELECT rowid, evaluation, SUM(status=0) as succeeded,
+SUM(status>0) as failed, SUM(status<0) as scheduled, SUM(status>-100) as total
+FROM Builds
+GROUP BY evaluation) B
+ON B.evaluation=E.id
+ORDER BY E.id ASC;")))
+      (and=> (expect-one-row rows)
+             (match-lambda
+               (#(id in-progress total succeeded failed scheduled)
+                `((#:id . ,id)
+                  (#:in-progress . ,in-progress)
+                  (#:total . ,(or total 0))
+                  (#:succeeded . ,(or succeeded 0))
+                  (#:failed . ,(or failed 0))
+                  (#:scheduled . ,(or scheduled 0)))))))))
 
 (define (db-get-builds-query-min query)
   "Return the smallest build row identifier matching QUERY."
