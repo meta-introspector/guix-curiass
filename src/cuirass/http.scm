@@ -354,9 +354,9 @@ Hydra format."
                    (li (@ (class "nav-item"))
                        (a (@ (class ,(string-append "nav-link "
                                                     (match status
-                                                      ("scheduled" "active")
+                                                      ("pending" "active")
                                                       (_ ""))))
-                             (href "?status=scheduled"))
+                             (href "?status=pending"))
                           (span (@ (class "oi oi-clock text-warning")
                                    (title "Scheduled")
                                    (aria-hidden "true"))
