@@ -565,6 +565,7 @@ WHERE derivation =" derivation ";"))
                                `(#:system ,system))
                               (("spec" spec)
                                `(#:spec ,spec))
+                              ((_ invalid) '()) ; ignore
                               ((query)
                                `(#:query ,(string-append query "-%")))))
                           (string-tokenize query-string))))
