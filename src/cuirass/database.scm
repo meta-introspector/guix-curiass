@@ -559,16 +559,30 @@ WHERE derivation =" derivation ";"))
 
 (define (query->bind-arguments query-string)
   "Return a list of keys to query strings by parsing QUERY-STRING."
-  (let ((args (append-map (lambda (token)
-                            (match (string-split token #\:)
-                              (("system" system)
-                               `(#:system ,system))
-                              (("spec" spec)
-                               `(#:spec ,spec))
-                              ((_ invalid) '()) ; ignore
-                              ((query)
-                               `(#:query ,(string-append query "-%")))))
-                          (string-tokenize query-string))))
+  (let ((args (append-map
+               (lambda (token)
+                 (match (string-split token #\:)
+                   (("system" system)
+                    `(#:system ,system))
+                   (("spec" spec)
+                    `(#:spec ,spec))
+                   ((_ invalid) '())    ; ignore
+                   ((query)
+                    `(#:query
+                      ,(fold
+                        (lambda (transform val)
+                          (match transform
+                            ((pred modify-true modify-false)
+                             ((if (pred val) modify-true modify-false) val))))
+                        query
+                        ;; Process special characters ^ and $.
+                        (list (list (cut string-prefix? "^" <>)
+                                    (cut string-drop <> 1)
+                                    (cut string-append "%" <>))
+                              (list (cut string-suffix? "$" <>)
+                                    (cut string-drop-right <> 1)
+                                    (cut string-append <> "%"))))))))
+               (string-tokenize query-string))))
     ;; Normalize arguments
     (fold (lambda (key acc)
             (if (member key acc)
