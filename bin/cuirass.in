@@ -49,6 +49,7 @@ exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
                             Add specifications from SPECFILE to database.
   -D  --database=DB         Use DB to store build results.
       --ttl=DURATION        Keep build results live for at least DURATION.
+      --web                 Start the web interface
   -p  --port=NUM            Port of the HTTP server.
       --listen=HOST         Listen on the network interface for HOST
   -I, --interval=N          Wait N seconds between each poll
@@ -61,6 +62,7 @@ exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
 
 (define %options
   '((one-shot                         (value #f))
+    (web                              (value #f))
     (cache-directory                  (value #t))
     (specifications (single-char #\S) (value #t))
     (database       (single-char #\D) (value #t))
@@ -123,58 +125,59 @@ exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
           (run-fibers
            (lambda ()
              (with-database
-               (and specfile
-                    (let ((new-specs (save-module-excursion
-                                      (lambda ()
-                                        (set-current-module (make-user-module '()))
-                                        (primitive-load specfile)))))
-                      (for-each (lambda (spec) (db-add-specification spec))
-                                new-specs)))
-               (if one-shot?
-                   (process-specs (db-get-specifications))
-                   (let ((exit-channel (make-channel)))
+                 (and specfile
+                      (let ((new-specs (save-module-excursion
+                                        (lambda ()
+                                          (set-current-module (make-user-module '()))
+                                          (primitive-load specfile)))))
+                        (for-each (lambda (spec) (db-add-specification spec))
+                                  new-specs)))
+                 (if one-shot?
+                     (process-specs (db-get-specifications))
+                     (let ((exit-channel (make-channel)))
 
-                     (clear-build-queue)
+                       (if (option-ref opts 'web #f)
+                           (spawn-fiber
+                            (essential-task
+                             'web exit-channel
+                             (lambda ()
+                               (run-cuirass-server #:host host #:port port)))
+                            #:parallel? #t)
+                           (begin
 
-                     ;; If Cuirass was stopped during an evaluation, consider
-                     ;; it done.  Builds that were not registered during this
-                     ;; evaluation will be registered during the next
-                     ;; evaluation.
-                     (db-set-evaluations-done)
+                             (clear-build-queue)
 
-                     ;; First off, restart builds that had not completed or
-                     ;; were not even started on a previous run.
-                     (spawn-fiber
-                      (essential-task
-                       'restart-builds exit-channel
-                       (lambda ()
-                         (restart-builds))))
+                             ;; If Cuirass was stopped during an evaluation, consider
+                             ;; it done.  Builds that were not registered during this
+                             ;; evaluation will be registered during the next
+                             ;; evaluation.
+                             (db-set-evaluations-done)
 
-                     (spawn-fiber
-                      (essential-task
-                       'build exit-channel
-                       (lambda ()
-                         (while #t
-                           (process-specs (db-get-specifications))
-                           (log-message "next evaluation in ~a seconds" interval)
-                           (sleep interval)))))
+                             ;; First off, restart builds that had not completed or
+                             ;; were not even started on a previous run.
+                             (spawn-fiber
+                              (essential-task
+                               'restart-builds exit-channel
+                               (lambda ()
+                                 (restart-builds))))
 
-                     (spawn-fiber
-                      (essential-task
-                       'web-server exit-channel
-                       (lambda ()
-                         (run-cuirass-server #:host host #:port port)))
-                      #:parallel? #t)
+                             (spawn-fiber
+                              (essential-task
+                               'build exit-channel
+                               (lambda ()
+                                 (while #t
+                                   (process-specs (db-get-specifications))
+                                   (log-message "next evaluation in ~a seconds" interval)
+                                   (sleep interval)))))
 
-                     (spawn-fiber
-                      (essential-task
-                       'monitor exit-channel
-                       (lambda ()
-                         (while #t
-                           (log-monitoring-stats)
-                           (sleep 600)))))
-
-                     (primitive-exit (get-message exit-channel))))))
+                             (spawn-fiber
+                              (essential-task
+                               'monitor exit-channel
+                               (lambda ()
+                                 (while #t
+                                   (log-monitoring-stats)
+                                   (sleep 600)))))))
+                       (primitive-exit (get-message exit-channel))))))
 
            ;; Most of our code is I/O so preemption doesn't matter much (it
            ;; could help while we're doing SQL requests, for instance, but it
