@@ -1,6 +1,6 @@
 ;;; http.scm -- tests for (cuirass http) module
 ;;; Copyright © 2016 Mathieu Lirzin <mthl@gnu.org>
-;;; Copyright © 2017, 2018 Ludovic Courtès <ludo@gnu.org>
+;;; Copyright © 2017, 2018, 2019 Ludovic Courtès <ludo@gnu.org>
 ;;; Copyright © 2017 Mathieu Othacehe <m.othacehe@gmail.com>
 ;;; Copyright © 2018 Clément Lassieur <clement@lassieur.org>
 ;;;
@@ -31,29 +31,6 @@
              (srfi srfi-1)
              (srfi srfi-64)
              (ice-9 match))
-
-(define (hash-table-keys table)
-  (hash-fold (lambda (key value rest)
-               (cons key rest))
-             '()
-             table))
-
-(define (hash-table=? t1 t2)
-  (and (lset= equal?
-              (hash-table-keys t1)
-              (hash-table-keys t2))
-       (hash-fold (lambda (key value result)
-                    (and result
-                         (let ((equal?
-                                (match value
-                                  ((? hash-table?) hash-table=?)
-                                  (((? hash-table?) ...)
-                                   (cut every hash-table=? <> <>))
-                                  (_ equal?))))
-                           (equal? value
-                                   (hash-ref t2 key)))))
-                  #t
-                  t1)))
 
 (define (http-get-body uri)
   (call-with-values (lambda () (http-get uri))
@@ -98,37 +75,34 @@
     (#:buildinputs_builds . #nil)))
 
 (define evaluations-query-result
-  '(((#:id . 2)
+  #(((#:id . 2)
      (#:specification . "guix")
      (#:in-progress . 1)
-     (#:checkouts . (((#:commit . "fakesha2")
-                      (#:input . "savannah")
-                      (#:directory . "dir3")))))))
+     (#:checkouts . #(((#:commit . "fakesha2")
+                       (#:input . "savannah")
+                       (#:directory . "dir3")))))))
 
 (test-group-with-cleanup "http"
   (test-assert "object->json-string"
-    ;; Note: We cannot compare the strings directly because field ordering
-    ;; depends on the hash algorithm used in Guile's hash tables, and that
-    ;; algorithm changed in Guile 2.2.
-    (hash-table=?
-     (call-with-input-string
-         (string-append "{"
-                        "\"boolean\" : false,"
-                        "\"string\" : \"guix\","
-                        "\"alist\" : {\"subset\" : \"hello\"},"
-                        "\"list\" : [1, \"2\", \"three\"],"
-                        "\"symbol\" : \"hydra-jobs\","
-                        "\"number\" : 1"
-                        "}")
-       json->scm)
-     (call-with-input-string
-         (object->json-string '((#:number . 1)
-                                (string . "guix")
-                                ("symbol" . hydra-jobs)
-                                (#:alist (subset . "hello"))
-                                (list 1 "2" #:three)
-                                ("boolean" . #f)))
-       json->scm)))
+    (lset= equal?
+           (call-with-input-string
+               (string-append "{"
+                              "\"boolean\" : false,"
+                              "\"string\" : \"guix\","
+                              "\"alist\" : {\"subset\" : \"hello\"},"
+                              "\"list\" : [1, \"2\", \"three\"],"
+                              "\"symbol\" : \"hydra-jobs\","
+                              "\"number\" : 1"
+                              "}")
+             json->scm)
+           (call-with-input-string
+               (object->json-string '((#:number . 1)
+                                      (string . "guix")
+                                      ("symbol" . hydra-jobs)
+                                      (#:alist . ((subset . "hello")))
+                                      (list . #(1 "2" #:three))
+                                      ("boolean" . #f)))
+             json->scm)))
 
   (test-assert "db-init"
     (begin
@@ -215,7 +189,7 @@
       (db-add-evaluation "guix" checkouts2)))
 
   (test-assert "/build/1"
-    (hash-table=?
+    (lset= equal?
      (call-with-input-string
          (utf8->string
           (http-get-body (test-cuirass-uri "/build/1")))
@@ -247,54 +221,40 @@
     (response-code (http-get (test-cuirass-uri "/api/latestbuilds"))))
 
   (test-assert "/api/latestbuilds?nr=1&jobset=guix"
-    (let ((hash-list
-           (call-with-input-string
-               (utf8->string
-                (http-get-body
-                 (test-cuirass-uri
-                  "/api/latestbuilds?nr=1&jobset=guix")))
-             json->scm)))
-      (and (= (length hash-list) 1)
-           (hash-table=?
-            (car hash-list)
-            (call-with-input-string
-                (object->json-string build-query-result)
-              json->scm)))))
+    (match (json-string->scm
+            (utf8->string
+             (http-get-body
+              (test-cuirass-uri
+               "/api/latestbuilds?nr=1&jobset=guix"))))
+      (#(build)
+       (lset= equal? build
+              (json-string->scm
+               (object->json-string build-query-result))))))
 
-  (test-assert "/api/latestbuilds?nr=1&jobset=gnu"
-    ;; The result should be an empty JSON array.
-    (let ((hash-list
-           (call-with-input-string
-               (utf8->string
-                (http-get-body
-                 (test-cuirass-uri
-                  "/api/latestbuilds?nr=1&jobset=gnu")))
-             json->scm)))
-      (= (length hash-list) 0)))
+  (test-equal "/api/latestbuilds?nr=1&jobset=gnu"
+    #()                              ;the result should be an empty JSON array
+    (json-string->scm
+     (utf8->string
+      (http-get-body
+       (test-cuirass-uri
+        "/api/latestbuilds?nr=1&jobset=gnu")))))
 
   (test-equal "/api/queue?nr=100"
     `("fake-2.0" ,(build-status scheduled))
-    (match (call-with-input-string
-               (utf8->string
-                (http-get-body
-                 (test-cuirass-uri "/api/queue?nr=100")))
-             json->scm)
-      ((dictionary)
-       (list (hash-ref dictionary "nixname")
-             (hash-ref dictionary "buildstatus")))))
+    (match (json-string->scm
+            (utf8->string
+             (http-get-body
+              (test-cuirass-uri "/api/queue?nr=100"))))
+      (#(dictionary)
+       (list (assoc-ref dictionary "nixname")
+             (assoc-ref dictionary "buildstatus")))))
 
-  (test-assert "/api/evaluations?nr=1"
-    (let ((hash-list
-           (call-with-input-string
-               (utf8->string
-                (http-get-body (test-cuirass-uri "/api/evaluations?nr=1")))
-             json->scm)))
-      (and (= (length hash-list) 1)
-           (hash-table=?
-            (car hash-list)
-            (car (call-with-input-string
-                     (object->json-string evaluations-query-result)
-                   json->scm))))))
+  (test-equal "/api/evaluations?nr=1"
+    (json-string->scm
+     (object->json-string evaluations-query-result))
+    (json-string->scm
+     (utf8->string
+      (http-get-body (test-cuirass-uri "/api/evaluations?nr=1")))))
 
   (test-assert "db-close"
     (db-close (%db)))

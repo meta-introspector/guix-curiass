@@ -105,6 +105,14 @@
     (#:releasename . #nil)
     (#:buildinputs_builds . #nil)))
 
+(define (evaluation->json-object evaluation)
+  "Turn EVALUATION into a representation suitable for 'json->scm'."
+  ;; XXX: Since #:checkouts is a list of alists, we must turn it into a vector
+  ;; so that 'json->scm' converts it to a JSON array.
+  `(,@(alist-delete #:checkouts evaluation eq?)
+    (#:checkouts . ,(list->vector
+                     (assq-ref evaluation #:checkouts)))))
+
 (define (handle-build-request build-id)
   "Retrieve build identified by BUILD-ID over the database and convert it to
 hydra format. Return #f is not build was found."
@@ -116,14 +124,14 @@ hydra format. Return #f is not build was found."
 Hydra format."
   (let ((builds (with-time-logging "builds request"
                                    (db-get-builds filters))))
-    (map build->hydra-build builds)))
+    (list->vector (map build->hydra-build builds))))
 
 (define (handle-builds-search-request filters)
   "Retrieve all builds matched by FILTERS in the database and convert them to
 Hydra format."
   (let ((builds (with-time-logging "builds search request"
                                    (db-get-builds-by-search filters))))
-    (map build->hydra-build builds)))
+    (list->vector (map build->hydra-build builds))))
 
 (define (request-parameters request)
   "Parse the REQUEST query parameters and return them under the form
@@ -233,7 +241,8 @@ Hydra format."
              (request-path-components request)
              'method-not-allowed)
     (((or "jobsets" "specifications") . rest)
-     (respond-json (object->json-string (db-get-specifications))))
+     (respond-json (object->json-string
+                    (list->vector (db-get-specifications)))))
     (("build" build-id)
      (let ((hydra-build (handle-build-request (string->number build-id))))
        (if hydra-build
@@ -274,7 +283,10 @@ Hydra format."
             ;; 'nr parameter is mandatory to limit query size.
             (nr (assq-ref params 'nr)))
        (if nr
-           (respond-json (object->json-string (db-get-evaluations nr)))
+           (respond-json (object->json-string
+                          (list->vector
+                           (map evaluation->json-object
+                                (db-get-evaluations nr)))))
            (respond-json-with-error 500 "Parameter not defined!"))))
     (("api" "latestbuilds")
      (let* ((params (request-parameters request))
@@ -304,7 +316,8 @@ Hydra format."
     ('()
      (respond-html (html-page
                     "Cuirass"
-                    (specifications-table (db-get-specifications))
+                    (specifications-table
+                     (list->vector (db-get-specifications)))
                     '())))
 
     (("jobset" name)

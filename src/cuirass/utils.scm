@@ -1,5 +1,5 @@
 ;;; utils.scm -- helper procedures
-;;; Copyright © 2012, 2013, 2016, 2018 Ludovic Courtès <ludo@gnu.org>
+;;; Copyright © 2012, 2013, 2016, 2018, 2019 Ludovic Courtès <ludo@gnu.org>
 ;;; Copyright © 2015 David Thompson <davet@gnu.org>
 ;;; Copyright © 2016 Mathieu Lirzin <mthl@gnu.org>
 ;;; Copyright © 2018 Clément Lassieur <clement@lassieur.org>
@@ -57,6 +57,8 @@
         ((null? obj)    obj)
         ((symbol? obj)  (symbol->string obj))
         ((keyword? obj) (object->json-scm (keyword->symbol obj)))
+        ((vector? obj)  (list->vector
+                         (map object->json-scm (vector->list obj))))
         ((alist? obj)   (map object->json-scm obj))
         ((pair? obj)    (cons (object->json-scm (car obj))
                               (object->json-scm (cdr obj))))

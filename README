@@ -9,7 +9,7 @@ Cuirass currently depends on the following packages:
   - GNU Guile 2.0.9 or later
   - GNU Guix (and all its development dependencies)
   - GNU Make
-  - Guile-JSON
+  - Guile-JSON 3.x
   - Guile-SQLite3
   - Guile-Git
   - Fibers
