@@ -1,6 +1,6 @@
 ;;; templates.scm -- HTTP API
 ;;; Copyright © 2018 Tatiana Sholokhova <tanja201396@gmail.com>
-;;; Copyright © 2018 Ludovic Courtès <ludo@gnu.org>
+;;; Copyright © 2018, 2019 Ludovic Courtès <ludo@gnu.org>
 ;;; Copyright © 2019 Ricardo Wurmus <rekado@elephly.net>
 ;;;
 ;;; This file is part of Cuirass.
@@ -158,8 +158,9 @@
           (append-map derivation-input-output-paths
                       (filter (compose derivation-log-file derivation-input-path)
                               (with-store store
-                                (derivation-prerequisites-to-build
-                                 store drv #:substitutable-info (const #f))))))
+                                (derivation-build-plan
+                                 store (list (derivation-input drv))
+                                 #:substitutable-info (const #f))))))
         '()))
   (define completed?
     (or (= (build-status succeeded) status)
