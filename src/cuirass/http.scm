@@ -1,7 +1,7 @@
 ;;;; http.scm -- HTTP API
 ;;; Copyright © 2016 Mathieu Lirzin <mthl@gnu.org>
 ;;; Copyright © 2017 Mathieu Othacehe <m.othacehe@gmail.com>
-;;; Copyright © 2018 Ludovic Courtès <ludo@gnu.org>
+;;; Copyright © 2018, 2019 Ludovic Courtès <ludo@gnu.org>
 ;;; Copyright © 2018 Clément Lassieur <clement@lassieur.org>
 ;;; Copyright © 2018 Tatiana Sholokhova <tanja201396@gmail.com>
 ;;; Copyright © 2019 Ricardo Wurmus <rekado@elephly.net>
@@ -31,6 +31,7 @@
   #:use-module (srfi srfi-26)
   #:use-module (ice-9 binary-ports)
   #:use-module (ice-9 match)
+  #:use-module (ice-9 format)
   #:use-module (json)
   #:use-module (web request)
   #:use-module (web response)
