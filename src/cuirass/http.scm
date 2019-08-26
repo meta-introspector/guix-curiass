@@ -317,7 +317,7 @@ Hydra format."
      (respond-html (html-page
                     "Cuirass"
                     (specifications-table
-                     (list->vector (db-get-specifications)))
+                     (db-get-specifications))
                     '())))
 
     (("jobset" name)
