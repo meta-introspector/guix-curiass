@@ -447,12 +447,13 @@ Hydra format."
              "Search results"
              (build-search-results-table
               query
-              (handle-builds-search-request
-               `((query . ,query)
-                 (nr . ,%page-size)
-                 (order . finish-time+build-id)
-                 (border-low-id . ,border-low-id)
-                 (border-high-id . ,border-high-id)))
+              (vector->list
+               (handle-builds-search-request
+                `((query . ,query)
+                  (nr . ,%page-size)
+                  (order . finish-time+build-id)
+                  (border-low-id . ,border-low-id)
+                  (border-high-id . ,border-high-id))))
               builds-id-min
               builds-id-max)
              '()
