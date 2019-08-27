@@ -415,15 +415,16 @@ Hydra format."
                       (div (@ (class "tab-pane show active"))
                            ,(build-eval-table
                              id
-                             (handle-builds-request
-                              `((evaluation . ,id)
-                                (status . ,(and=> status string->symbol))
-                                (nr . ,%page-size)
-                                (order . finish-time+build-id)
-                                (border-high-time . ,border-high-time)
-                                (border-low-time . ,border-low-time)
-                                (border-high-id . ,border-high-id)
-                                (border-low-id . ,border-low-id)))
+                             (vector->list
+                              (handle-builds-request
+                               `((evaluation . ,id)
+                                 (status . ,(and=> status string->symbol))
+                                 (nr . ,%page-size)
+                                 (order . finish-time+build-id)
+                                 (border-high-time . ,border-high-time)
+                                 (border-low-time . ,border-low-time)
+                                 (border-high-id . ,border-high-id)
+                                 (border-low-id . ,border-low-id))))
                              builds-id-min
                              builds-id-max
                              status))))
