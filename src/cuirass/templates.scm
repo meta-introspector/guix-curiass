@@ -155,8 +155,12 @@
                    (drv (false-if-exception
                          (read-derivation-from-file
                           (assq-ref build #:derivation)))))
-          (append-map derivation-input-output-paths
-                      (filter (compose derivation-log-file derivation-input-path)
+          (append-map (lambda (drv)
+                        (match (derivation->output-paths drv)
+                          (((_ . items) ...)
+                           items)))
+                      (filter (compose derivation-log-file
+                                       derivation-file-name)
                               (with-store store
                                 (derivation-build-plan
                                  store (list (derivation-input drv))
