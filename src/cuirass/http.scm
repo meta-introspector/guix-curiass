@@ -42,6 +42,7 @@
   #:use-module (sxml simple)
   #:use-module (cuirass templates)
   #:use-module (guix utils)
+  #:use-module ((guix store) #:select (%store-prefix))
   #:use-module (guix build union)
   #:export (run-cuirass-server))
 
@@ -243,11 +244,14 @@ Hydra format."
     (((or "jobsets" "specifications") . rest)
      (respond-json (object->json-string
                     (list->vector (db-get-specifications)))))
-    (("build" build-id)
-     (let ((hydra-build (handle-build-request (string->number build-id))))
+    (("build" id)
+     (let ((hydra-build (handle-build-request
+                         (if (string-suffix? ".drv" id)
+                             (string-append (%store-prefix) "/" id)
+                             (string->number id)))))
        (if hydra-build
            (respond-json (object->json-string hydra-build))
-           (respond-build-not-found build-id))))
+           (respond-build-not-found id))))
     (("build" build-id "details")
      (let ((build (db-get-build (string->number build-id))))
        (if build
