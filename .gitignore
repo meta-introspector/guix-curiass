@@ -10,6 +10,7 @@
 /aclocal.m4
 /autom4te.cache/
 /bin/cuirass
+/bin/cuirass-send-events
 /bin/evaluate
 /build-aux/config.guess
 /build-aux/config.sub

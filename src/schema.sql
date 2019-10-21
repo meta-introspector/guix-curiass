@@ -64,6 +64,13 @@ CREATE TABLE Builds (
   FOREIGN KEY (evaluation) REFERENCES Evaluations (id)
 );
 
+CREATE TABLE Events (
+  id            INTEGER PRIMARY KEY,
+  type          TEXT NOT NULL,
+  timestamp     INTEGER NOT NULL,
+  event_json    TEXT NOT NULL
+);
+
 -- Create indexes to speed up common queries, in particular those
 -- corresponding to /api/latestbuilds and /api/queue HTTP requests.
 CREATE INDEX Builds_index ON Builds(job_name, system, status ASC, timestamp ASC, derivation, evaluation, stoptime DESC);

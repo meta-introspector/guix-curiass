@@ -21,7 +21,7 @@
 # You should have received a copy of the GNU General Public License
 # along with Cuirass.  If not, see <http://www.gnu.org/licenses/>.
 
-bin_SCRIPTS = bin/cuirass bin/evaluate
+bin_SCRIPTS = bin/cuirass bin/cuirass-send-events bin/evaluate
 noinst_SCRIPTS = pre-inst-env
 
 guilesitedir = $(datarootdir)/guile/site/@GUILE_EFFECTIVE_VERSION@
@@ -45,6 +45,7 @@ dist_pkgmodule_DATA =				\
   src/cuirass/database.scm			\
   src/cuirass/http.scm				\
   src/cuirass/logging.scm			\
+  src/cuirass/send-events.scm			\
   src/cuirass/ui.scm				\
   src/cuirass/utils.scm             \
   src/cuirass/templates.scm
@@ -68,7 +69,8 @@ dist_sql_DATA = 				\
   src/sql/upgrade-1.sql				\
   src/sql/upgrade-2.sql				\
   src/sql/upgrade-3.sql				\
-  src/sql/upgrade-4.sql
+  src/sql/upgrade-4.sql				\
+  src/sql/upgrade-5.sql
 
 dist_css_DATA =					\
   src/static/css/bootstrap.css			\
@@ -143,6 +145,7 @@ sql-check: src/schema.sql
 EXTRA_DIST = \
   .dir-locals.el \
   bin/cuirass.in \
+  bin/cuirass-send-events.in \
   bin/evaluate.in \
   bootstrap \
   build-aux/guix.scm \
@@ -202,6 +205,7 @@ generate_file = \
 # These files depend on Makefile so they are rebuilt if $(VERSION),
 # $(datadir) or other do_subst'ituted variables change.
 bin/cuirass: $(srcdir)/bin/cuirass.in
+bin/cuirass-send-events: $(srcdir)/bin/cuirass-send-events.in
 bin/evaluate: $(srcdir)/bin/evaluate.in
 $(bin_SCRIPTS): Makefile
 	$(generate_file); chmod +x $@

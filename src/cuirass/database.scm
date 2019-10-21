@@ -54,6 +54,9 @@
             db-get-builds-max
             db-get-builds-query-min
             db-get-builds-query-max
+            db-add-event
+            db-get-events
+            db-delete-events-with-ids-<=-to
             db-get-evaluations
             db-get-evaluations-build-summary
             db-get-evaluations-id-min
@@ -67,6 +70,7 @@
             %package-database
             %package-schema-file
             %db-channel
+            %record-events?
             ;; Macros.
             with-db-critical-section
             with-database))
@@ -162,6 +166,9 @@ specified."
                                  "/sql")))
 
 (define %db-channel
+  (make-parameter #f))
+
+(define %record-events?
   (make-parameter #f))
 
 (define-syntax-rule (with-db-critical-section db exp ...)
@@ -268,6 +275,12 @@ database object."
 
 (define (last-insert-rowid db)
   (vector-ref (car (sqlite-exec db "SELECT last_insert_rowid();"))
+              0))
+
+(define (changes-count db)
+  "The number of database rows that were changed or inserted or deleted by the
+most recently completed INSERT, DELETE, or UPDATE statement."
+  (vector-ref (car (sqlite-exec db "SELECT changes();"))
               0))
 
 (define (expect-one-row rows)
@@ -504,7 +517,15 @@ VALUES ("
        (if (null? new-outputs)
            (begin (sqlite-exec db "ROLLBACK;")
                   #f)
-           (begin (sqlite-exec db "COMMIT;")
+           (begin (db-add-event 'build
+                                (assq-ref build #:timestamp)
+                                `((#:derivation . ,(assq-ref build #:derivation))
+                                  ;; TODO Ideally this would use the value
+                                  ;; from build, with a default of scheduled,
+                                  ;; but it's hard to convert to the symbol,
+                                  ;; so just hard code scheduled for now.
+                                  (#:event       . scheduled)))
+                  (sqlite-exec db "COMMIT;")
                   derivation)))
 
      ;; If we get a unique-constraint-failed error, that means we have
@@ -521,23 +542,42 @@ log file for DRV."
   (define now
     (time-second (current-time time-utc)))
 
+  (define status-names
+    `((,(build-status succeeded)         . "succeeded")
+      (,(build-status failed)            . "failed")
+      (,(build-status failed-dependency) . "failed (dependency)")
+      (,(build-status failed-other)      . "failed (other)")
+      (,(build-status canceled)          . "canceled")))
+
   (with-db-critical-section db
     (if (= status (build-status started))
-        (sqlite-exec db "UPDATE Builds SET starttime=" now ", status="
-                     status "WHERE derivation=" drv ";")
+        (begin
+          (sqlite-exec db "UPDATE Builds SET starttime=" now ", status="
+                       status "WHERE derivation=" drv ";")
+          (db-add-event 'build
+                        now
+                        `((#:derivation . ,drv)
+                          (#:event      . started))))
 
         ;; Update only if we're switching to a different status; otherwise
         ;; leave things unchanged.  This ensures that 'stoptime' remains valid
         ;; and doesn't change every time we mark DRV as 'succeeded' several
         ;; times in a row, for instance.
-        (if log-file
-            (sqlite-exec db "UPDATE Builds SET stoptime=" now
-                         ", status=" status ", log=" log-file
-                         "WHERE derivation=" drv "AND status != " status ";")
-            (sqlite-exec db "UPDATE Builds SET stoptime=" now
-                         ", status=" status
-                         "WHERE derivation=" drv " AND status != " status
-                         ";")))))
+        (begin
+          (if log-file
+              (sqlite-exec db "UPDATE Builds SET stoptime=" now
+                           ", status=" status ", log=" log-file
+                           "WHERE derivation=" drv "AND status != " status ";")
+              (sqlite-exec db "UPDATE Builds SET stoptime=" now
+                           ", status=" status
+                           "WHERE derivation=" drv " AND status != " status
+                           ";"))
+          (when (positive? (changes-count db))
+            (db-add-event 'build
+                          now
+                          `((#:derivation . ,drv)
+                            (#:event      . ,(assq-ref status-names
+                                                       status)))))))))
 
 (define (db-get-outputs derivation)
   "Retrieve the OUTPUTS of the build identified by DERIVATION in the
@@ -740,6 +780,63 @@ ORDER BY ~a, rowid ASC;" order))
   (with-db-critical-section db
     (let ((key (if (number? derivation-or-id) 'id 'derivation)))
       (expect-one-row (db-get-builds `((,key . ,derivation-or-id)))))))
+
+(define (db-add-event type timestamp details)
+  (when (%record-events?)
+    (with-db-critical-section db
+      (sqlite-exec db "\
+INSERT INTO Events (type, timestamp, event_json) VALUES ("
+                   (symbol->string type) ", "
+                   timestamp ", "
+                   (object->json-string details)
+                   ");")
+      #t)))
+
+(define (db-get-events filters)
+  (with-db-critical-section db
+    (let* ((stmt-text "\
+SELECT Events.id,
+       Events.type,
+       Events.timestamp,
+       Events.event_json
+FROM Events
+WHERE (:type IS NULL OR (:type = Events.type))
+  AND (:borderlowtime IS NULL OR
+       :borderlowid IS NULL OR
+       ((:borderlowtime, :borderlowid) <
+        (Events.timestamp, Events.id)))
+  AND (:borderhightime IS NULL OR
+       :borderhighid IS NULL OR
+       ((:borderhightime, :borderhighid) >
+        (Events.timestamp, Events.id)))
+ORDER BY Events.id ASC
+LIMIT :nr;")
+           (stmt (sqlite-prepare db stmt-text #:cache? #t)))
+      (sqlite-bind-arguments
+       stmt
+       #:type (and=> (assq-ref filters 'type)
+                     symbol->string)
+       #:nr (match (assq-ref filters 'nr)
+              (#f -1)
+              (x x)))
+      (sqlite-reset stmt)
+      (let loop ((rows (sqlite-fold-right cons '() stmt))
+                 (events '()))
+        (match rows
+          (() (reverse events))
+          ((#(id type timestamp event_json) . rest)
+           (loop rest
+                 (cons `((#:id . ,id)
+                         (#:type . ,type)
+                         (#:timestamp . ,timestamp)
+                         (#:event_json . ,event_json))
+                       events))))))))
+
+(define (db-delete-events-with-ids-<=-to id)
+  (with-db-critical-section db
+    (sqlite-exec
+     db
+     "DELETE FROM Events WHERE id <= " id ";")))
 
 (define (db-get-pending-derivations)
   "Return the list of derivation file names corresponding to pending builds in

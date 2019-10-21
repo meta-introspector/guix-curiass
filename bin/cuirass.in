@@ -54,6 +54,7 @@ exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
       --listen=HOST         Listen on the network interface for HOST
   -I, --interval=N          Wait N seconds between each poll
       --use-substitutes     Allow usage of pre-built substitutes
+      --record-events       Record events for distribution
       --threads=N           Use up to N kernel threads
   -V, --version             Display version
   -h, --help                Display this help message")
@@ -72,6 +73,7 @@ exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
     (use-substitutes                  (value #f))
     (threads                          (value #t))
     (fallback                         (value #f))
+    (record-events                    (value #f))
     (ttl                              (value #t))
     (version        (single-char #\V) (value #f))
     (help           (single-char #\h) (value #f))))
@@ -95,6 +97,7 @@ exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
           (option-ref opts 'cache-directory (%package-cachedir)))
          (%use-substitutes? (option-ref opts 'use-substitutes #f))
          (%fallback? (option-ref opts 'fallback #f))
+         (%record-events? (option-ref opts 'record-events #f))
          (%gc-root-ttl
           (time-second (string->duration (option-ref opts 'ttl "30d")))))
       (cond

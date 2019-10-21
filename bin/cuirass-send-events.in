@@ -1,0 +1,80 @@
+#!/bin/sh
+# -*- scheme -*-
+# @configure_input@
+#GUILE_LOAD_PATH="@PACKAGE_LOAD_PATH@${GUILE_LOAD_PATH:+:}$GUILE_LOAD_PATH"
+#GUILE_LOAD_COMPILED_PATH="@PACKAGE_LOAD_COMPILED_PATH@${GUILE_LOAD_COMPILED_PATH:+:}$GUILE_LOAD_COMPILED_PATH"
+exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
+!#
+;;;; cuirass -- continuous integration tool
+;;; Copyright © 2016 Mathieu Lirzin <mthl@gnu.org>
+;;; Copyright © 2017 Mathieu Othacehe <m.othacehe@gmail.com>
+;;; Copyright © 2018 Ludovic Courtès <ludo@gnu.org>
+;;; Copyright © 2018 Clément Lassieur <clement@lassieur.org>
+;;; Copyright © 2019 Christopher Baines <mail@cbaines.net>
+;;;
+;;; This file is part of Cuirass.
+;;;
+;;; Cuirass is free software: you can redistribute it and/or modify
+;;; it under the terms of the GNU General Public License as published by
+;;; the Free Software Foundation, either version 3 of the License, or
+;;; (at your option) any later version.
+;;;
+;;; Cuirass is distributed in the hope that it will be useful,
+;;; but WITHOUT ANY WARRANTY; without even the implied warranty of
+;;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+;;; GNU General Public License for more details.
+;;;
+;;; You should have received a copy of the GNU General Public License
+;;; along with Cuirass.  If not, see <http://www.gnu.org/licenses/>.
+
+(use-modules (cuirass)
+             (cuirass ui)
+             (cuirass logging)
+             (cuirass utils)
+             (cuirass send-events)
+             (guix ui)
+             (fibers)
+             (fibers channels)
+             (srfi srfi-19)
+             (ice-9 getopt-long))
+
+(define (show-help)
+  (format #t "Usage: ~a [OPTIONS]~%" (%program-name))
+  (display "Send events to the target URL.
+
+  -T  --target-url=URL      Send events to URL.
+  -D  --database=DB         Use DB to store build results.
+  -h, --help                Display this help message")
+  (newline)
+  (show-package-information))
+
+(define %options
+  '((target-url     (single-char #\T) (value #t))
+    (database       (single-char #\D) (value #t))
+    (help           (single-char #\h) (value #f))))
+
+
+;;;
+;;; Entry point.
+;;;
+
+(define* (main #:optional (args (command-line)))
+
+  ;; Always have stdout/stderr line-buffered.
+  (setvbuf (current-output-port) 'line)
+  (setvbuf (current-error-port) 'line)
+
+  (let ((opts (getopt-long args %options)))
+    (parameterize
+        ((%program-name     (car args))
+         (%package-database (option-ref opts 'database (%package-database)))
+         (%package-cachedir
+          (option-ref opts 'cache-directory (%package-cachedir))))
+      (cond
+       ((option-ref opts 'help #f)
+        (show-help)
+        (exit 0))
+       (else
+        (while #t
+          (send-events (option-ref opts 'target-url #f))
+          (sleep 5)))))))
