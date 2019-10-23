@@ -25,12 +25,14 @@
   #:use-module (cuirass logging)
   #:use-module (cuirass database)
   #:use-module (cuirass utils)
+  #:use-module ((cuirass config) #:select (%localstatedir))
   #:use-module (gnu packages)
   #:use-module (guix build utils)
   #:use-module (guix derivations)
   #:use-module (guix store)
   #:use-module (guix git)
   #:use-module (guix cache)
+  #:use-module (guix zlib)
   #:use-module ((guix config) #:select (%state-directory))
   #:use-module (git)
   #:use-module (ice-9 binary-ports)
@@ -286,6 +288,17 @@ fibers."
                    (logior (@ (fibers epoll) EPOLLERR)
                            (@ (fibers epoll) EPOLLHUP)))))
 
+(define %cuirass-state-directory
+  ;; Directory where state files are stored, usually "/var".
+  (make-parameter (or (getenv "CUIRASS_STATE_DIRECTORY")
+                      %localstatedir)))
+
+(define (evaluation-log-file eval-id)
+  "Return the name of the file containing the output of evaluation EVAL-ID."
+  (string-append (%cuirass-state-directory)
+                 "/log/cuirass/evaluations/"
+                 (number->string eval-id) ".gz"))
+
 (define (evaluate store spec eval-id checkouts)
   "Evaluate and build package derivations defined in SPEC, using CHECKOUTS.
 Return a list of jobs that are associated to EVAL-ID."
@@ -297,20 +310,50 @@ Return a list of jobs that are associated to EVAL-ID."
         (#:system . ,(derivation-system drv))
         ,@job)))
 
+  (define log-file
+    (evaluation-log-file eval-id))
+
+  (define log-pipe
+    (pipe))
+
+  (mkdir-p (dirname log-file))
+
+  ;; Spawn a fiber that reads standard error from 'evaluate' and writes it to
+  ;; LOG-FILE.
+  (spawn-fiber
+   (lambda ()
+     (define input
+       (non-blocking-port (car log-pipe)))
+
+     (define output
+       ;; Note: Don't use 'call-with-gzip-output-port' as it doesn't play well
+       ;; with fibers (namely, its dynamic-wind handler would close the output
+       ;; port as soon as a context switch occurs.)
+       (make-gzip-output-port (open-output-file log-file)
+                              #:level 8 #:buffer-size 16384))
+
+     (dump-port input output)
+     (close-port input)
+     (close-port output)))
+
   (let* ((port (non-blocking-port
-                (open-pipe* OPEN_READ "evaluate"
-                            (object->string spec)
-                            (object->string checkouts))))
+                (with-error-to-port (cdr log-pipe)
+                  (lambda ()
+                    (open-pipe* OPEN_READ "evaluate"
+                                (object->string spec)
+                                (object->string checkouts))))))
          (result (match (read/non-blocking port)
                    ;; If an error occured during evaluation report it,
                    ;; otherwise, suppose that data read from port are
                    ;; correct and keep things going.
                    ((? eof-object?)
                     (db-set-evaluation-done eval-id) ;failed!
+                    (close-port (cdr log-pipe))
                     (raise (condition
                             (&evaluation-error
                              (name (assq-ref spec #:name))))))
                    (data data))))
+    (close-port (cdr log-pipe))
     (close-pipe port)
     (match result
       (('evaluation jobs)

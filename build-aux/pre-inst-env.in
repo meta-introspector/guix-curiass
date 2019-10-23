@@ -27,6 +27,9 @@ export GUILE_LOAD_COMPILED_PATH GUILE_LOAD_PATH
 CUIRASS_DATADIR="$abs_top_srcdir/src"
 export CUIRASS_DATADIR
 
+CUIRASS_STATE_DIRECTORY="${TMPDIR:-/tmp}/cuirass-tests/var"
+export CUIRASS_STATE_DIRECTORY
+
 PATH="$abs_top_builddir/bin:$PATH"
 export PATH
 
