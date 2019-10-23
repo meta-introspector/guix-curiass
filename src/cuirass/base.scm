@@ -258,7 +258,8 @@ TARGET beforehand if it exists.  Return TARGET."
 
 (define-condition-type &evaluation-error &error
   evaluation-error?
-  (name evaluation-error-spec-name))
+  (name evaluation-error-spec-name)
+  (id   evaluation-error-id))
 
 (define (non-blocking-port port)
   "Make PORT non-blocking and return it."
@@ -351,7 +352,8 @@ Return a list of jobs that are associated to EVAL-ID."
                     (close-port (cdr log-pipe))
                     (raise (condition
                             (&evaluation-error
-                             (name (assq-ref spec #:name))))))
+                             (name (assq-ref spec #:name))
+                             (id eval-id)))))
                    (data data))))
     (close-port (cdr log-pipe))
     (close-pipe port)
@@ -764,8 +766,10 @@ started)."
           (spawn-fiber
            (lambda ()
              (guard (c ((evaluation-error? c)
-                        (log-message "failed to evaluate spec '~a'"
-                                     (evaluation-error-spec-name c))
+                        (log-message "failed to evaluate spec '~a'; see ~a"
+                                     (evaluation-error-spec-name c)
+                                     (evaluation-log-file
+                                      (evaluation-error-id c)))
                         #f))
                (log-message "evaluating spec '~a'" name)
                (with-store store
