@@ -257,10 +257,11 @@
         ;; an evaluation failed, assume that it failed when it produced zero
         ;; build jobs.
         (if (zero? (+ succeeded failed scheduled))
-            `((span (@ (class "oi oi-x text-danger")
-                       (title "Failed")
-                       (aria-hidden "true"))
-                    ""))
+            `((a (@ (href "/eval/" ,(assq-ref evaluation #:id) "/log/raw")
+                    (class "oi oi-x text-danger")
+                    (title "Failed")
+                    (aria-hidden "true"))
+                 ""))
             `((a (@ (href "/eval/" ,(assq-ref evaluation #:id) "?status=succeeded")
                     (class "badge badge-success")
                     (title "Succeeded"))
