@@ -24,6 +24,7 @@
 (define-module (cuirass http)
   #:use-module (cuirass config)
   #:use-module (cuirass database)
+  #:use-module ((cuirass base) #:select (evaluation-log-file))
   #:use-module (cuirass utils)
   #:use-module (cuirass logging)
   #:use-module (srfi srfi-1)
@@ -210,6 +211,14 @@ Hydra format."
                                                  (file-extension file-path))))
                    #:body (call-with-input-file file-path get-bytevector-all))
           (respond-not-found file-name))))
+
+  (define (respond-gzipped-file file)
+    ;; Return FILE with 'gzip' content-encoding.
+    (respond `((content-type . (text/plain (charset . "UTF-8")))
+               (content-encoding . (gzip)))
+             ;; FIXME: FILE is potentially big so it'd be better to not load
+             ;; it in memory and instead 'sendfile' it.
+             #:body (call-with-input-file file get-bytevector-all)))
 
   (define (respond-build-not-found build-id)
     (respond-json-with-error
@@ -437,6 +446,12 @@ Hydra format."
                  ((#:name . ,(string-append "Evaluation " id))
                   (#:link . ,(string-append "/eval/" id)))))))
            (respond-html-eval-not-found id))))
+
+    (("eval" (= string->number id) "log" "raw")
+     (let ((log (and id (evaluation-log-file id))))
+       (if (and log (file-exists? log))
+           (respond-gzipped-file log)
+           (respond-not-found (uri->string (request-uri request))))))
 
     (("search")
      (let* ((params (request-parameters request))

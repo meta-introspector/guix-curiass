@@ -63,6 +63,8 @@
             build-packages
             prepare-git
             process-specs
+            evaluation-log-file
+
             ;; Parameters.
             %package-cachedir
             %gc-root-directory
