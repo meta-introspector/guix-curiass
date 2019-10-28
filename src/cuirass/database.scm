@@ -412,7 +412,12 @@ VALUES (" spec-name ", true);")
       (if (null? new-checkouts)
           (begin (sqlite-exec db "ROLLBACK;")
                  #f)
-          (begin (sqlite-exec db "COMMIT;")
+          (begin (db-add-event 'evaluation
+                               (time-second (current-time time-utc))
+                               `((#:evaluation    . ,eval-id)
+                                 (#:specification . ,spec-name)
+                                 (#:in_progress   . #t)))
+                 (sqlite-exec db "COMMIT;")
                  eval-id)))))
 
 (define (db-set-evaluations-done)
@@ -422,7 +427,11 @@ VALUES (" spec-name ", true);")
 (define (db-set-evaluation-done eval-id)
   (with-db-critical-section db
     (sqlite-exec db "UPDATE Evaluations SET in_progress = false
-WHERE id = " eval-id ";")))
+WHERE id = " eval-id ";")
+    (db-add-event 'evaluation
+                  (time-second (current-time time-utc))
+                  `((#:evaluation  . ,eval-id)
+                    (#:in_progress . #f)))))
 
 (define-syntax-rule (with-database body ...)
   "Run BODY with %DB-CHANNEL being dynamically bound to a channel implementing
