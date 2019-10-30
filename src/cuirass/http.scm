@@ -284,6 +284,12 @@ Hydra format."
                     "Cuirass [Admin]"
                     (specifications-table (db-get-specifications) 'admin)
                     '())))
+    (('GET "admin")
+     (respond-html (html-page
+                    "Cuirass [Admin]"
+                    `(ul (li (a (@ (href "/admin/specifications"))
+                                "Edit specifications")))
+                    '())))
     (('GET (or "jobsets" "specifications") . rest)
      (respond-json (object->json-string
                     (list->vector (db-get-specifications)))))
