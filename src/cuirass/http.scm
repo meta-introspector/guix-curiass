@@ -246,14 +246,12 @@ Hydra format."
   (log-message "~a ~a" (request-method request)
                (uri-path (request-uri request)))
 
-  ;; Reject OPTIONS, POST, etc.
-  (match (if (eq? 'GET (request-method request))
-             (request-path-components request)
-             'method-not-allowed)
-    (((or "jobsets" "specifications") . rest)
+  (match (cons (request-method request)
+               (request-path-components request))
+    (('GET (or "jobsets" "specifications") . rest)
      (respond-json (object->json-string
                     (list->vector (db-get-specifications)))))
-    (("build" id)
+    (('GET "build" id)
      (let ((hydra-build (handle-build-request
                          (if (string-suffix? ".drv" id)
                              (string-append (%store-prefix) "/" id)
@@ -261,7 +259,7 @@ Hydra format."
        (if hydra-build
            (respond-json (object->json-string hydra-build))
            (respond-build-not-found id))))
-    (("build" build-id "details")
+    (('GET "build" build-id "details")
      (let ((build (db-get-build (string->number build-id))))
        (if build
            (respond-html
@@ -270,7 +268,7 @@ Hydra format."
                        `(((#:name . ,(assq-ref build #:specification))
                           (#:link . ,(string-append "/jobset/" (assq-ref build #:specification)))))))
            (respond-build-not-found build-id))))
-    (("build" build-id "log" "raw")
+    (('GET "build" build-id "log" "raw")
      (let ((build (db-get-build (string->number build-id))))
        (if build
            (match (assq-ref build #:outputs)
@@ -291,7 +289,7 @@ Hydra format."
              (#f
               (respond-build-not-found build-id)))
            (respond-build-not-found build-id))))
-    (("api" "evaluations")
+    (('GET "api" "evaluations")
      (let* ((params (request-parameters request))
             ;; 'nr parameter is mandatory to limit query size.
             (nr (assq-ref params 'nr)))
@@ -301,7 +299,7 @@ Hydra format."
                            (map evaluation->json-object
                                 (db-get-evaluations nr)))))
            (respond-json-with-error 500 "Parameter not defined!"))))
-    (("api" "latestbuilds")
+    (('GET "api" "latestbuilds")
      (let* ((params (request-parameters request))
             ;; 'nr parameter is mandatory to limit query size.
             (valid-params? (assq-ref params 'nr)))
@@ -313,7 +311,7 @@ Hydra format."
                                       ,@params
                                       (order . finish-time)))))
            (respond-json-with-error 500 "Parameter not defined!"))))
-    (("api" "queue")
+    (('GET "api" "queue")
      (let* ((params (request-parameters request))
             ;; 'nr parameter is mandatory to limit query size.
             (valid-params? (assq-ref params 'nr)))
@@ -326,14 +324,14 @@ Hydra format."
                                       ,@params
                                       (order . status+submission-time)))))
            (respond-json-with-error 500 "Parameter not defined!"))))
-    ('()
+    (('GET)
      (respond-html (html-page
                     "Cuirass"
                     (specifications-table
                      (db-get-specifications))
                     '())))
 
-    (("jobset" name)
+    (('GET "jobset" name)
      (respond-html
       (let* ((evaluation-id-max (db-get-evaluations-id-max name))
              (evaluation-id-min (db-get-evaluations-id-min name))
@@ -351,7 +349,7 @@ Hydra format."
                    `(((#:name . ,name)
                       (#:link . ,(string-append "/jobset/" name))))))))
 
-    (("eval" id)
+    (('GET "eval" id)
      (let* ((params (request-parameters request))
             (status (assq-ref params 'status))
             (builds-id-max (db-get-builds-max id status))
@@ -447,13 +445,13 @@ Hydra format."
                   (#:link . ,(string-append "/eval/" id)))))))
            (respond-html-eval-not-found id))))
 
-    (("eval" (= string->number id) "log" "raw")
+    (('GET "eval" (= string->number id) "log" "raw")
      (let ((log (and id (evaluation-log-file id))))
        (if (and log (file-exists? log))
            (respond-gzipped-file log)
            (respond-not-found (uri->string (request-uri request))))))
 
-    (("search")
+    (('GET "search")
      (let* ((params (request-parameters request))
             (query (and=> (assq-ref params 'query) uri-decode))
             (builds-id-min (and=> query db-get-builds-query-min))
@@ -479,11 +477,8 @@ Hydra format."
              query))
            (respond-json-with-error 500 "Query parameter not provided!"))))
 
-    (("static" path ...)
+    (('GET "static" path ...)
      (respond-static-file path))
-    ('method-not-allowed
-     ;; 405 "Method Not Allowed"
-     (values (build-response #:code 405) #f #f))
     (_
      (respond-not-found (uri->string (request-uri request))))))
 
