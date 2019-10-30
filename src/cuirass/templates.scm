@@ -125,7 +125,7 @@
     ((= (build-status canceled)          status) "Canceled")
     (else                                        "Invalid status")))
 
-(define (specifications-table specs)
+(define* (specifications-table specs #:optional admin?)
   "Return HTML for the SPECS table."
   `((p (@ (class "lead")) "Specifications")
     (table
@@ -133,7 +133,10 @@
      ,@(if (null? specs)
            `((th (@ (scope "col")) "No elements here."))
            `((thead (tr (th (@ (scope "col")) Name)
-                        (th (@ (scope "col")) Inputs)))
+                        (th (@ (scope "col")) Inputs)
+                        ,@(if admin?
+                              '((th (@ (scope "col")) Action))
+                              '())))
              (tbody
               ,@(map
                  (lambda (spec)
@@ -144,8 +147,43 @@
                                      (format #f "~a (on ~a)"
                                              (assq-ref input #:name)
                                              (assq-ref input #:branch)))
-                                   (assq-ref spec #:inputs)) ", "))))
-                 specs)))))))
+                                   (assq-ref spec #:inputs)) ", "))
+                        ,@(if admin?
+                              `((form (@ (class "form")
+                                         (action ,(string-append "/admin/specifications/delete/"
+                                                                 (assq-ref spec #:name)))
+                                         (method "POST")
+                                         (onsubmit
+                                          ,(string-append "return confirm('Please confirm deletion of specification "
+                                                          (assq-ref spec #:name)
+                                                          ".');")))
+                                      `((div
+                                         (@ (class "input-group"))
+                                         (span (@ (class "input-group-append"))
+                                               (button
+                                                (@ (type "submit")
+                                                   (class "btn"))
+                                                "Remove"))))))
+                              '())))
+                 specs))))
+     ,@(if admin?
+           `((form (@ (id "add-specification")
+                       (class "form")
+                       (action "/admin/specifications/add/")
+                       (method "POST"))
+                    (div
+                     (@ (class "input-group"))
+                     (input (@ (type "text")
+                               (class "form-control")
+                               (id   "spec-name")
+                               (name "spec-name")
+                               (placeholder "specification / branch name")))
+                     (span (@ (class "input-group-append"))
+                           (button
+                            (@ (type "submit")
+                               (class "btn btn-primary"))
+                            "Add")))))
+           '()))))
 
 (define (build-details build)
   "Return HTML showing details for the BUILD."
