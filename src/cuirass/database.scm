@@ -38,6 +38,7 @@
             db-open
             db-close
             db-add-specification
+            db-remove-specification
             db-get-specifications
             db-add-evaluation
             db-set-evaluations-done
@@ -331,6 +332,16 @@ package_path_inputs, proc_input, proc_file, proc, proc_args) \
                   (db-add-input (assq-ref spec #:name) input))
                 (assq-ref spec #:inputs))
       spec-id)))
+
+(define (db-remove-specification name)
+  "Remove the specification matching NAME from the database and its inputs."
+  (with-db-critical-section db
+    (sqlite-exec db "BEGIN TRANSACTION;")
+    (sqlite-exec db "\
+DELETE FROM Inputs WHERE specification=" name ";")
+    (sqlite-exec db "\
+DELETE FROM Specifications WHERE name=" name ";")
+    (sqlite-exec db "COMMIT;")))
 
 (define (db-get-inputs spec-name)
   (with-db-critical-section db
