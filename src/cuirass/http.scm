@@ -40,6 +40,7 @@
   #:use-module (web uri)
   #:use-module (fibers)
   #:use-module (fibers channels)
+  #:use-module ((rnrs bytevectors) #:select (utf8->string))
   #:use-module (sxml simple)
   #:use-module (cuirass templates)
   #:use-module (guix utils)
@@ -248,6 +249,41 @@ Hydra format."
 
   (match (cons (request-method request)
                (request-path-components request))
+    (('POST "admin" "specifications" "add")
+     (match (string-split (utf8->string body) #\=)
+       (("spec-name" name)
+        (db-add-specification
+         `((#:name . ,name)
+           (#:load-path-inputs . ())
+           (#:package-path-inputs . ())
+           (#:proc . cuirass-jobs)
+           (#:proc-input . ,name)
+           (#:proc-file . "build-aux/cuirass/gnu-system.scm")
+           (#:proc-args . (systems "x86_64-linux"
+                                   "i686-linux"
+                                   "armhf-linux"
+                                   "aarch64-linux"))
+           (#:inputs .
+            '((#:name . ,name)
+              (#:url . "https://git.savannah.gnu.org/git/guix.git")
+              (#:load-path . ".")
+              (#:branch . ,name)
+              (#:no-compile? . #t)))))
+        (respond (build-response #:code 302
+                                 #:headers `((location . ,(string->uri-reference
+                                                           "/admin/specifications"))))
+                 #:body ""))))
+    (('POST "admin" "specifications" "delete" name)
+     (db-remove-specification name)
+     (respond (build-response #:code 302
+                              #:headers `((location . ,(string->uri-reference
+                                                        "/admin/specifications"))))
+              #:body ""))
+    (('GET "admin" "specifications" . rest)
+     (respond-html (html-page
+                    "Cuirass [Admin]"
+                    (specifications-table (db-get-specifications) 'admin)
+                    '())))
     (('GET (or "jobsets" "specifications") . rest)
      (respond-json (object->json-string
                     (list->vector (db-get-specifications)))))
