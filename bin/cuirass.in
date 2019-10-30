@@ -130,8 +130,7 @@ exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
                                         (lambda ()
                                           (set-current-module (make-user-module '()))
                                           (primitive-load specfile)))))
-                        (for-each (lambda (spec) (db-add-specification spec))
-                                  new-specs)))
+                        (for-each db-add-specification new-specs)))
                  (if one-shot?
                      (process-specs (db-get-specifications))
                      (let ((exit-channel (make-channel)))
