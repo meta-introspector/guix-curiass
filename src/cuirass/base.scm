@@ -423,7 +423,6 @@ Essentially this procedure inverts the inversion-of-control that
         (catch #t
           (lambda ()
             (guard (c ((store-error? c)
-                       (close-port output)
                        (atomic-box-set! result c)))
               (parameterize ((current-build-output-port output))
                 (let ((x (build-derivations store lst)))
