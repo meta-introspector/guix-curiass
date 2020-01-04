@@ -477,6 +477,10 @@ It is possible to query Cuirass web server for build informations. The
 dedicated API is "/build/@var{build-id}" where @var{build-id} is the
 unique id associated to the build in database.
 
+The build information can also be queried by output. For example,
+@samp{/output/kg9mirg6xbvzcp0a98v7326n1nvvwgsj-hello-2.10} will return
+the details of the output, along with the build if available.
+
 For instance, querying a local Cuirass web server can be done with
 @code{curl} and @code{jq} to format the JSON response :
 

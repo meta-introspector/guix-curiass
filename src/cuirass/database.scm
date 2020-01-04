@@ -47,6 +47,7 @@
             build-status
             db-add-build
             db-update-build-status!
+            db-get-output
             db-get-build
             db-get-builds
             db-get-builds-by-search
@@ -587,6 +588,20 @@ log file for DRV."
                           `((#:derivation . ,drv)
                             (#:event      . ,(assq-ref status-names
                                                        status)))))))))
+
+(define (db-get-output path)
+  "Retrieve the OUTPUT for PATH."
+  (with-db-critical-section db
+    ;; There isn't a unique index on path, but because Cuirass avoids adding
+    ;; derivations which introduce the same outputs, there should only be one
+    ;; result.
+    (match (sqlite-exec db "SELECT derivation, name FROM Outputs
+WHERE path =" path "
+LIMIT 1;")
+      (() #f)
+      ((#(derivation name))
+       `((#:derivation . ,derivation)
+         (#:name . ,name))))))
 
 (define (db-get-outputs derivation)
   "Retrieve the OUTPUTS of the build identified by DERIVATION in the

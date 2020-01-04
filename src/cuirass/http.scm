@@ -226,6 +226,11 @@ Hydra format."
      404
      (format #f "Build with ID ~a doesn't exist." build-id)))
 
+  (define (respond-output-not-found output-id)
+    (respond-json-with-error
+     404
+     (format #f "Output with ID ~a doesn't exist." output-id)))
+
   (define (respond-html-eval-not-found eval-id)
     (respond-html
      (html-page "Page not found"
@@ -331,6 +336,16 @@ Hydra format."
              (#f
               (respond-build-not-found build-id)))
            (respond-build-not-found build-id))))
+    (('GET "output" id)
+     (let ((output (db-get-output
+                    (string-append (%store-prefix) "/" id))))
+       (if output
+           (let ((build (db-get-build (assq-ref output #:derivation))))
+             (respond-json
+              (object->json-string
+               (append output
+                       `((#:build . ,(or build #nil)))))))
+           (respond-output-not-found id))))
     (('GET "api" "evaluations")
      (let* ((params (request-parameters request))
             ;; 'nr parameter is mandatory to limit query size.
