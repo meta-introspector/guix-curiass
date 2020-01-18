@@ -1,7 +1,7 @@
 ## Process this file with autoconf to produce a configure script.
 
 # Copyright © 2016, 2017 Mathieu Lirzin <mthl@gnu.org>
-# Copyright © 2017, 2018 Ludovic Courtès <ludo@gnu.org>
+# Copyright © 2017, 2018, 2020 Ludovic Courtès <ludo@gnu.org>
 # Copyright © 2017 Mathieu Othacehe <m.othacehe@gmail.com>
 #
 # This file is part of Cuirass.
@@ -36,7 +36,7 @@ AC_PROG_MKDIR_P
 AC_PROG_SED
 
 # We need Fibers, which requires 2.2+.
-GUILE_PKG([2.2])
+GUILE_PKG([3.0 2.2])
 
 AC_PATH_PROG([GUILE], [guile])
 AC_PATH_PROG([GUILD], [guild])
