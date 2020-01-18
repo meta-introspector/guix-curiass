@@ -1,6 +1,6 @@
 ;;; http.scm -- tests for (cuirass http) module
 ;;; Copyright © 2016 Mathieu Lirzin <mthl@gnu.org>
-;;; Copyright © 2017, 2018, 2019 Ludovic Courtès <ludo@gnu.org>
+;;; Copyright © 2017, 2018, 2019, 2020 Ludovic Courtès <ludo@gnu.org>
 ;;; Copyright © 2017 Mathieu Othacehe <m.othacehe@gmail.com>
 ;;; Copyright © 2018 Clément Lassieur <clement@lassieur.org>
 ;;;
@@ -30,6 +30,7 @@
              (rnrs bytevectors)
              (srfi srfi-1)
              (srfi srfi-64)
+             (ice-9 threads)
              (ice-9 match))
 
 (define (http-get-body uri)
