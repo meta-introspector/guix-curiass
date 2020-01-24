@@ -35,9 +35,9 @@
             define-enumeration
             unwind-protect
 
-            make-critical-section
-            call-with-critical-section
-            with-critical-section
+            make-worker-thread-channel
+            call-with-worker-thread
+            with-worker-thread
 
             %non-blocking
             non-blocking
@@ -96,21 +96,17 @@ delimited continuations and fibers."
         (conclusion)
         (apply throw args)))))
 
-(define %critical-section-args
+(define %worker-thread-args
   (make-parameter #f))
 
-(define (make-critical-section . args)
-  "Return a channel used to implement a critical section.  That channel can
-then be passed to 'join-critical-section', which will ensure sequential
-ordering.  ARGS are the arguments of the critical section.
-
-Critical sections are implemented by passing the procedure to execute to a
-dedicated thread."
+(define (make-worker-thread-channel . args)
+  "Return a channel used to offload work to a dedicated thread.  ARGS are the
+arguments of the worker thread procedure."
   (parameterize (((@@ (fibers internal) current-fiber) #f))
     (let ((channel (make-channel)))
       (call-with-new-thread
        (lambda ()
-         (parameterize ((%critical-section-args args))
+         (parameterize ((%worker-thread-args args))
            (let loop ()
              (match (get-message channel)
                (((? channel? reply) . (? procedure? proc))
@@ -118,21 +114,21 @@ dedicated thread."
              (loop)))))
       channel)))
 
-(define (call-with-critical-section channel proc)
-  "Send PROC to the critical section through CHANNEL.  Return the result of
-PROC.  If already in the critical section, call PROC immediately."
-  (let ((args (%critical-section-args)))
+(define (call-with-worker-thread channel proc)
+  "Send PROC to the worker thread through CHANNEL.  Return the result of PROC.
+If already in the worker thread, call PROC immediately."
+  (let ((args (%worker-thread-args)))
     (if args
         (apply proc args)
         (let ((reply (make-channel)))
           (put-message channel (cons reply proc))
           (get-message reply)))))
 
-(define-syntax-rule (with-critical-section channel (vars ...) exp ...)
-  "Evaluate EXP... in the critical section corresponding to CHANNEL.
-VARS... are bound to the arguments of the critical section."
-  (call-with-critical-section channel
-                              (lambda (vars ...) exp ...)))
+(define-syntax-rule (with-worker-thread channel (vars ...) exp ...)
+  "Evaluate EXP... in the worker thread corresponding to CHANNEL.
+VARS... are bound to the arguments of the worker thread."
+  (call-with-worker-thread channel
+                           (lambda (vars ...) exp ...)))
 
 (define (%non-blocking thunk)
   (parameterize (((@@ (fibers internal) current-fiber) #f))

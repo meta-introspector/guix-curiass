@@ -87,7 +87,7 @@
   (test-assert "db-init"
     (begin
       (%db (db-init database-name))
-      (%db-channel (make-critical-section (%db)))
+      (%db-channel (make-worker-thread-channel (%db)))
       #t))
 
   (test-assert "sqlite-exec"
