@@ -70,7 +70,8 @@ dist_sql_DATA = 				\
   src/sql/upgrade-2.sql				\
   src/sql/upgrade-3.sql				\
   src/sql/upgrade-4.sql				\
-  src/sql/upgrade-5.sql
+  src/sql/upgrade-5.sql				\
+  src/sql/upgrade-6.sql
 
 dist_css_DATA =					\
   src/static/css/bootstrap.css			\

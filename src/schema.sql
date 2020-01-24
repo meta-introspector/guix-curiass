@@ -51,7 +51,8 @@ CREATE TABLE Outputs (
 );
 
 CREATE TABLE Builds (
-  derivation    TEXT NOT NULL PRIMARY KEY,
+  id            INTEGER NOT NULL PRIMARY KEY,
+  derivation    TEXT NOT NULL UNIQUE,
   evaluation    INTEGER NOT NULL,
   job_name      TEXT NOT NULL,
   system        TEXT NOT NULL,

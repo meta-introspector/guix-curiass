@@ -540,7 +540,7 @@ VALUES ("
      ;; If we get a unique-constraint-failed error, that means we have
      ;; already inserted the same build.  That happens when several jobs
      ;; produce the same derivation, and we can ignore it.
-     (on SQLITE_CONSTRAINT_PRIMARYKEY
+     (on SQLITE_CONSTRAINT_UNIQUE
          =>
          (sqlite-exec db "ROLLBACK;") #f))))
 
