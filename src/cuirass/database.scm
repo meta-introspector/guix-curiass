@@ -434,24 +434,13 @@ WHERE id = " eval-id ";")
                     (#:in_progress . #f)))))
 
 (define-syntax-rule (with-database body ...)
-  "Run BODY with %DB-CHANNEL being dynamically bound to a channel implementing
-a critical section that allows database operations to be serialized."
-  ;; XXX: We don't install an unwind handler to play well with delimited
-  ;; continuations and fibers.  But as a consequence, we leak DB when BODY
-  ;; raises an exception.
-  (let ((db (db-open)))
-    (unwind-protect
-     ;; Process database queries sequentially in a thread.  We need this
-     ;; because otherwise we would need to use the SQLite multithreading
-     ;; feature for which it is required to wait until the database is
-     ;; available, and the waiting would happen in non-cooperative and
-     ;; non-resumable code that blocks the fibers scheduler.  Now the database
-     ;; access blocks on PUT-MESSAGE, which allows the scheduler to schedule
-     ;; another fiber.  Also, creating one new handle for each request would
-     ;; be costly and may defeat statement caching.
-     (parameterize ((%db-channel (make-worker-thread-channel db)))
-       body ...)
-     (db-close db))))
+  "Run BODY with %DB-CHANNEL being dynamically bound to a channel providing a
+worker thread that allows database operations to run without intefering with
+fibers."
+  (parameterize ((%db-channel (make-worker-thread-channel
+                               (lambda ()
+                                 (list (db-open))))))
+    body ...))
 
 (define* (read-quoted-string #:optional (port (current-input-port)))
   "Read all of the characters out of PORT and return them as a SQL quoted
