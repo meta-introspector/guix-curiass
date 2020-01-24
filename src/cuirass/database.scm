@@ -439,7 +439,9 @@ worker thread that allows database operations to run without intefering with
 fibers."
   (parameterize ((%db-channel (make-worker-thread-channel
                                (lambda ()
-                                 (list (db-open))))))
+                                 (list (db-open)))
+                               #:parallelism
+                               (min (current-processor-count) 4))))
     body ...))
 
 (define* (read-quoted-string #:optional (port (current-input-port)))
