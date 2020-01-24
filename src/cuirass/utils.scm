@@ -99,20 +99,24 @@ delimited continuations and fibers."
 (define %worker-thread-args
   (make-parameter #f))
 
-(define (make-worker-thread-channel initializer)
+(define* (make-worker-thread-channel initializer
+                                     #:key (parallelism 1))
   "Return a channel used to offload work to a dedicated thread.  ARGS are the
 arguments of the worker thread procedure."
   (parameterize (((@@ (fibers internal) current-fiber) #f))
     (let ((channel (make-channel)))
-      (let ((args (initializer)))
-        (call-with-new-thread
-         (lambda ()
-           (parameterize ((%worker-thread-args args))
-             (let loop ()
-               (match (get-message channel)
-                 (((? channel? reply) . (? procedure? proc))
-                  (put-message reply (apply proc args))))
-               (loop))))))
+      (for-each
+       (lambda _
+         (let ((args (initializer)))
+           (call-with-new-thread
+            (lambda ()
+              (parameterize ((%worker-thread-args args))
+                (let loop ()
+                  (match (get-message channel)
+                    (((? channel? reply) . (? procedure? proc))
+                     (put-message reply (apply proc args))))
+                  (loop)))))))
+       (iota parallelism))
       channel)))
 
 (define (call-with-worker-thread channel proc)
