@@ -303,8 +303,7 @@ tag, revision, no_compile_p) VALUES ("
                  (assq-ref input #:branch) ", "
                  (assq-ref input #:tag) ", "
                  (assq-ref input #:commit) ", "
-                 (if (assq-ref input #:no-compile?) 1 0) ");")
-    (last-insert-rowid db)))
+                 (if (assq-ref input #:no-compile?) 1 0) ");")))
 
 (define (db-add-checkout spec-name eval-id checkout)
   "Insert CHECKOUT associated with SPEC-NAME and EVAL-ID.  If a checkout with
