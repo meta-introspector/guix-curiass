@@ -114,7 +114,12 @@ arguments of the worker thread procedure."
                 (let loop ()
                   (match (get-message channel)
                     (((? channel? reply) . (? procedure? proc))
-                     (put-message reply (apply proc args))))
+                     (put-message reply
+                                  (catch #t
+                                    (lambda ()
+                                      (apply proc args))
+                                    (lambda (key . args)
+                                      (cons* 'worker-thread-error key args))))))
                   (loop)))))))
        (iota parallelism))
       channel)))
@@ -127,7 +132,10 @@ If already in the worker thread, call PROC immediately."
         (apply proc args)
         (let ((reply (make-channel)))
           (put-message channel (cons reply proc))
-          (get-message reply)))))
+          (match (get-message reply)
+            (('worker-thread-error key args ...)
+             (apply throw key args))
+            (result result))))))
 
 (define-syntax-rule (with-worker-thread channel (vars ...) exp ...)
   "Evaluate EXP... in the worker thread corresponding to CHANNEL.
