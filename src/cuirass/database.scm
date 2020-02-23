@@ -1,7 +1,7 @@
 ;;; database.scm -- store evaluation and build results
 ;;; Copyright © 2016, 2017 Mathieu Lirzin <mthl@gnu.org>
 ;;; Copyright © 2017 Mathieu Othacehe <m.othacehe@gmail.com>
-;;; Copyright © 2018 Ludovic Courtès <ludo@gnu.org>
+;;; Copyright © 2018, 2020 Ludovic Courtès <ludo@gnu.org>
 ;;; Copyright © 2018 Clément Lassieur <clement@lassieur.org>
 ;;; Copyright © 2018 Tatiana Sholokhova <tanja201396@gmail.com>
 ;;; Copyright © 2019 Ricardo Wurmus <rekado@elephly.net>
@@ -721,7 +721,7 @@ FILTERS is an assoc list whose possible keys are 'derivation | 'id | 'jobset |
            (stmt-text (format #f "SELECT * FROM (
 SELECT Builds.derivation, Builds.rowid, Builds.timestamp, Builds.starttime,
 Builds.stoptime, Builds.log, Builds.status, Builds.job_name, Builds.system,
-Builds.nix_name, Specifications.name
+Builds.nix_name, Builds.evaluation, Specifications.name
 FROM Builds
 INNER JOIN Evaluations ON Builds.evaluation = Evaluations.id
 INNER JOIN Specifications ON Evaluations.specification = Specifications.name
@@ -773,7 +773,7 @@ ORDER BY ~a, rowid ASC;" order))
         (match rows
           (() (reverse builds))
           ((#(derivation id timestamp starttime stoptime log status job-name
-                         system nix-name specification) . rest)
+                         system nix-name eval-id specification) . rest)
            (loop rest
                  (cons `((#:derivation . ,derivation)
                          (#:id . ,id)
@@ -785,6 +785,7 @@ ORDER BY ~a, rowid ASC;" order))
                          (#:job-name . ,job-name)
                          (#:system . ,system)
                          (#:nix-name . ,nix-name)
+                         (#:eval-id . ,eval-id)
                          (#:specification . ,specification)
                          (#:outputs . ,(db-get-outputs derivation)))
                        builds))))))))
