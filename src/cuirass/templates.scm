@@ -33,7 +33,8 @@
             evaluation-info-table
             build-eval-table
             build-search-results-table
-            build-details))
+            build-details
+            evaluation-build-table))
 
 (define (navigation-items navigation)
   (match navigation
@@ -481,6 +482,81 @@ and BUILD-MAX are global minimal and maximal (stoptime, rowid) pairs."
              (build-stoptime build-min)
              (1- (build-id build-min))
              status))))))
+
+(define* (evaluation-build-table evaluation
+                                 #:key
+                                 status builds
+                                 builds-id-min builds-id-max)
+  "Return HTML for an evaluation page, containing a table of builds for that
+evaluation."
+  (define id        (assq-ref evaluation #:id))
+  (define total     (assq-ref evaluation #:total))
+  (define succeeded (assq-ref evaluation #:succeeded))
+  (define failed    (assq-ref evaluation #:failed))
+  (define scheduled (assq-ref evaluation #:scheduled))
+
+  `((p (@ (class "lead"))
+       ,(format #f "~@[~a~] ~:[B~;b~]uilds of evaluation #~a"
+                (and=> status string-capitalize)
+                status
+                id))
+    (ul (@ (class "nav nav-tabs"))
+        (li (@ (class "nav-item"))
+            (a (@ (class ,(string-append "nav-link "
+                                         (match status
+                                           (#f "active")
+                                           (_ ""))))
+                  (href "?all="))
+               "All "
+               (span (@ (class "badge badge-light badge-pill"))
+                     ,total)))
+        (li (@ (class "nav-item"))
+            (a (@ (class ,(string-append "nav-link "
+                                         (match status
+                                           ("pending" "active")
+                                           (_ ""))))
+                  (href "?status=pending"))
+               (span (@ (class "oi oi-clock text-warning")
+                        (title "Scheduled")
+                        (aria-hidden "true"))
+                     "")
+               " Scheduled "
+               (span (@ (class "badge badge-light badge-pill"))
+                     ,scheduled)))
+        (li (@ (class "nav-item"))
+            (a (@ (class ,(string-append "nav-link "
+                                         (match status
+                                           ("succeeded" "active")
+                                           (_ ""))))
+                  (href "?status=succeeded"))
+               (span (@ (class "oi oi-check text-success")
+                        (title "Succeeded")
+                        (aria-hidden "true"))
+                     "")
+               " Succeeded "
+               (span (@ (class "badge badge-light badge-pill"))
+                     ,succeeded)))
+        (li (@ (class "nav-item"))
+            (a (@ (class ,(string-append "nav-link "
+                                         (match status
+                                           ("failed" "active")
+                                           (_ ""))))
+                  (href "?status=failed"))
+               (span (@ (class "oi oi-x text-danger")
+                        (title "Failed")
+                        (aria-hidden "true"))
+                     "")
+               " Failed "
+               (span (@ (class "badge badge-light badge-pill"))
+                     ,failed))))
+    (div (@ (class "tab-content pt-3"))
+         (div (@ (class "tab-pane show active"))
+              ,(build-eval-table
+                id
+                builds
+                builds-id-min
+                builds-id-max
+                status)))))
 
 (define (build-search-results-table query builds build-min build-max)
   "Return HTML for the BUILDS table evaluation matching QUERY.  BUILD-MIN

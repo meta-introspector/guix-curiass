@@ -1,7 +1,7 @@
 ;;;; http.scm -- HTTP API
 ;;; Copyright © 2016 Mathieu Lirzin <mthl@gnu.org>
 ;;; Copyright © 2017 Mathieu Othacehe <m.othacehe@gmail.com>
-;;; Copyright © 2018, 2019 Ludovic Courtès <ludo@gnu.org>
+;;; Copyright © 2018, 2019, 2020 Ludovic Courtès <ludo@gnu.org>
 ;;; Copyright © 2018 Clément Lassieur <clement@lassieur.org>
 ;;; Copyright © 2018 Tatiana Sholokhova <tanja201396@gmail.com>
 ;;; Copyright © 2019 Ricardo Wurmus <rekado@elephly.net>
@@ -153,6 +153,46 @@ Hydra format."
                             (_   param)))))))
              (string-split query #\&))
         '())))
+
+
+;;;
+;;; HTML rendering.
+;;;
+
+(define* (evaluation-html-page evaluation
+                               #:key
+                               status
+                               border-high-time border-low-time
+                               border-high-id border-low-id)
+  "Return the HTML page representing EVALUATION."
+  (define id             (assq-ref evaluation #:id))
+  (define builds-id-max (db-get-builds-max id status))
+  (define builds-id-min (db-get-builds-min id status))
+  (define specification (db-get-evaluation-specification id))
+
+  (define builds
+    (vector->list
+     (handle-builds-request
+      `((evaluation . ,id)
+        (status . ,(and=> status string->symbol))
+        (nr . ,%page-size)
+        (order . finish-time+build-id)
+        (border-high-time . ,border-high-time)
+        (border-low-time . ,border-low-time)
+        (border-high-id . ,border-high-id)
+        (border-low-id . ,border-low-id)))))
+
+  (html-page
+   "Evaluation"
+   (evaluation-build-table evaluation
+                           #:status status
+                           #:builds builds
+                           #:builds-id-min builds-id-min
+                           #:builds-id-max builds-id-max)
+   `(((#:name . ,specification)
+      (#:link . ,(string-append "/jobset/" specification)))
+     ((#:name . ,(string-append "Evaluation " (number->string id)))
+      (#:link . ,(string-append "/eval/" (number->string id)))))))
 
 
 ;;;
@@ -409,8 +449,6 @@ Hydra format."
     (('GET "eval" id)
      (let* ((params (request-parameters request))
             (status (assq-ref params 'status))
-            (builds-id-max (db-get-builds-max id status))
-            (builds-id-min (db-get-builds-min id status))
             (border-high-time (assq-ref params 'border-high-time))
             (border-low-time (assq-ref params 'border-low-time))
             (border-high-id (assq-ref params 'border-high-id))
@@ -418,88 +456,16 @@ Hydra format."
             (specification (db-get-evaluation-specification id))
             (evaluation (db-get-evaluation-summary id)))
        (if specification
-           (let ((total     (assq-ref evaluation #:total))
-                 (succeeded (assq-ref evaluation #:succeeded))
-                 (failed    (assq-ref evaluation #:failed))
-                 (scheduled (assq-ref evaluation #:scheduled)))
-             (respond-html
-              (html-page
-               "Evaluation"
-               `((p (@ (class "lead"))
-                    ,(format #f "~@[~a~] ~:[B~;b~]uilds of evaluation #~a"
-                             (and=> status string-capitalize)
-                             status
-                             id))
-                 (ul (@ (class "nav nav-tabs"))
-                     (li (@ (class "nav-item"))
-                         (a (@ (class ,(string-append "nav-link "
-                                                      (match status
-                                                        (#f "active")
-                                                        (_ ""))))
-                               (href "?all="))
-                            "All "
-                            (span (@ (class "badge badge-light badge-pill"))
-                                  ,total)))
-                     (li (@ (class "nav-item"))
-                         (a (@ (class ,(string-append "nav-link "
-                                                      (match status
-                                                        ("pending" "active")
-                                                        (_ ""))))
-                               (href "?status=pending"))
-                            (span (@ (class "oi oi-clock text-warning")
-                                     (title "Scheduled")
-                                     (aria-hidden "true"))
-                                  "")
-                            " Scheduled "
-                            (span (@ (class "badge badge-light badge-pill"))
-                                  ,scheduled)))
-                     (li (@ (class "nav-item"))
-                         (a (@ (class ,(string-append "nav-link "
-                                                      (match status
-                                                        ("succeeded" "active")
-                                                        (_ ""))))
-                               (href "?status=succeeded"))
-                            (span (@ (class "oi oi-check text-success")
-                                     (title "Succeeded")
-                                     (aria-hidden "true"))
-                                  "")
-                            " Succeeded "
-                            (span (@ (class "badge badge-light badge-pill"))
-                                  ,succeeded)))
-                     (li (@ (class "nav-item"))
-                         (a (@ (class ,(string-append "nav-link "
-                                                      (match status
-                                                        ("failed" "active")
-                                                        (_ ""))))
-                               (href "?status=failed"))
-                            (span (@ (class "oi oi-x text-danger")
-                                     (title "Failed")
-                                     (aria-hidden "true"))
-                                  "")
-                            " Failed "
-                            (span (@ (class "badge badge-light badge-pill"))
-                                  ,failed))))
-                 (div (@ (class "tab-content pt-3"))
-                      (div (@ (class "tab-pane show active"))
-                           ,(build-eval-table
-                             id
-                             (vector->list
-                              (handle-builds-request
-                               `((evaluation . ,id)
-                                 (status . ,(and=> status string->symbol))
-                                 (nr . ,%page-size)
-                                 (order . finish-time+build-id)
-                                 (border-high-time . ,border-high-time)
-                                 (border-low-time . ,border-low-time)
-                                 (border-high-id . ,border-high-id)
-                                 (border-low-id . ,border-low-id))))
-                             builds-id-min
-                             builds-id-max
-                             status))))
-               `(((#:name . ,specification)
-                  (#:link . ,(string-append "/jobset/" specification)))
-                 ((#:name . ,(string-append "Evaluation " id))
-                  (#:link . ,(string-append "/eval/" id)))))))
+           (respond-html (evaluation-html-page evaluation
+                                               #:status status
+                                               #:border-high-time
+                                               border-high-time
+                                               #:border-low-time
+                                               border-low-time
+                                               #:border-high-id
+                                               border-high-id
+                                               #:border-low-id
+                                               border-low-id))
            (respond-html-eval-not-found id))))
 
     (('GET "eval" (= string->number id) "log" "raw")
