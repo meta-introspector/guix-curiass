@@ -1,6 +1,6 @@
 ;;; templates.scm -- HTTP API
 ;;; Copyright © 2018 Tatiana Sholokhova <tanja201396@gmail.com>
-;;; Copyright © 2018, 2019 Ludovic Courtès <ludo@gnu.org>
+;;; Copyright © 2018, 2019, 2020 Ludovic Courtès <ludo@gnu.org>
 ;;; Copyright © 2019 Ricardo Wurmus <rekado@elephly.net>
 ;;;
 ;;; This file is part of Cuirass.
@@ -204,15 +204,24 @@
                                  store (list (derivation-input drv))
                                  #:substitutable-info (const #f))))))
         '()))
+
   (define completed?
     (or (= (build-status succeeded) status)
         (= (build-status failed) status)))
+
+  (define evaluation
+    (assq-ref build #:eval-id))
+
   `((p (@ (class "lead")) "Build details")
     (table
      (@ (class "table table-sm table-hover"))
      (tbody
       (tr (th "Build ID")
           (td ,(assq-ref build #:id)))
+      (tr (th "Evaluation")
+          (td (a (@ (href ,(string-append "/eval/"
+                                          (number->string evaluation))))
+                 ,(number->string evaluation))))
       (tr (th "Status")
           (td (span (@ (class ,(status-class status))
                        (title ,(status-title status)))
