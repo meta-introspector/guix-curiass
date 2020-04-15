@@ -4,7 +4,7 @@
 ;;; Copyright © 2018, 2020 Ludovic Courtès <ludo@gnu.org>
 ;;; Copyright © 2018 Clément Lassieur <clement@lassieur.org>
 ;;; Copyright © 2018 Tatiana Sholokhova <tanja201396@gmail.com>
-;;; Copyright © 2019 Ricardo Wurmus <rekado@elephly.net>
+;;; Copyright © 2019, 2020 Ricardo Wurmus <rekado@elephly.net>
 ;;;
 ;;; This file is part of Cuirass.
 ;;;
@@ -624,6 +624,12 @@ WHERE derivation =" derivation ";"))
 
 (define (query->bind-arguments query-string)
   "Return a list of keys to query strings by parsing QUERY-STRING."
+  (define status-values
+    `(("success" . ,(build-status succeeded))
+      ("failed"  . ,(build-status failed))
+      ("failed-dependency" . ,(build-status failed-dependency))
+      ("failed-other" . ,(build-status failed-other))
+      ("canceled" . ,(build-status canceled))))
   (let ((args (append-map
                (lambda (token)
                  (match (string-split token #\:)
@@ -631,6 +637,8 @@ WHERE derivation =" derivation ";"))
                     `(#:system ,system))
                    (("spec" spec)
                     `(#:spec ,spec))
+                   (("status" status)
+                    `(#:status ,(assoc-ref status-values status)))
                    ((_ invalid) '())    ; ignore
                    ((query)
                     `(#:query
@@ -668,6 +676,8 @@ FROM Builds
 INNER JOIN Evaluations ON Builds.evaluation = Evaluations.id
 INNER JOIN Specifications ON Evaluations.specification = Specifications.name
 WHERE (Builds.nix_name LIKE :query)
+AND (:status IS NULL
+ OR (Builds.status = :status))
 AND (:spec IS NULL
  OR (Specifications.name = :spec))
 AND (:system IS NULL
@@ -973,6 +983,8 @@ ORDER BY E.id ASC;")))
 INNER JOIN Evaluations ON Builds.evaluation = Evaluations.id
 INNER JOIN Specifications ON Evaluations.specification = Specifications.name
 WHERE (Builds.nix_name LIKE :query)
+AND (:status IS NULL
+ OR (Builds.status = :status))
 AND (:spec IS NULL
  OR (Specifications.name = :spec))
 AND (:system IS NULL
@@ -992,6 +1004,8 @@ AND (:system IS NULL
 INNER JOIN Evaluations ON Builds.evaluation = Evaluations.id
 INNER JOIN Specifications ON Evaluations.specification = Specifications.name
 WHERE (Builds.nix_name LIKE :query)
+AND (:status IS NULL
+ OR (Builds.status = :status))
 AND (:spec IS NULL
  OR (Specifications.name = :spec))
 AND (:system IS NULL
