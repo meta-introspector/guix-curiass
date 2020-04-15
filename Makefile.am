@@ -74,6 +74,7 @@ dist_sql_DATA = 				\
   src/sql/upgrade-6.sql
 
 dist_css_DATA =					\
+  src/static/css/cuirass.css			\
   src/static/css/bootstrap.css			\
   src/static/css/open-iconic-bootstrap.css
 dist_fonts_DATA =				\

@@ -4,7 +4,7 @@
 ;;; Copyright © 2018, 2019, 2020 Ludovic Courtès <ludo@gnu.org>
 ;;; Copyright © 2018 Clément Lassieur <clement@lassieur.org>
 ;;; Copyright © 2018 Tatiana Sholokhova <tanja201396@gmail.com>
-;;; Copyright © 2019 Ricardo Wurmus <rekado@elephly.net>
+;;; Copyright © 2019, 2020 Ricardo Wurmus <rekado@elephly.net>
 ;;;
 ;;; This file is part of Cuirass.
 ;;;
@@ -68,6 +68,7 @@
 
 (define %file-white-list
   '("css/bootstrap.css"
+    "css/cuirass.css"
     "css/open-iconic-bootstrap.css"
     "fonts/open-iconic.otf"
     "fonts/open-iconic.woff"

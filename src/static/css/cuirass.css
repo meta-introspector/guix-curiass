@@ -1,0 +1,17 @@
+#search input:focus {
+    width: 500px;
+}
+#search #search-hints {
+    display: none;
+    position: absolute;
+    top: 3em;
+    background: white;
+    border: 1px solid #ced4da;
+    border-top: none;
+    width: 500px;
+    box-shadow: 3px 3px 10px #ddd;
+    padding: 1em;
+}
+#search:focus-within #search-hints {
+    display: block;
+}

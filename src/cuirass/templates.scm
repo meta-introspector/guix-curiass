@@ -1,7 +1,7 @@
 ;;; templates.scm -- HTTP API
 ;;; Copyright © 2018 Tatiana Sholokhova <tanja201396@gmail.com>
 ;;; Copyright © 2018, 2019, 2020 Ludovic Courtès <ludo@gnu.org>
-;;; Copyright © 2019 Ricardo Wurmus <rekado@elephly.net>
+;;; Copyright © 2019, 2020 Ricardo Wurmus <rekado@elephly.net>
 ;;;
 ;;; This file is part of Cuirass.
 ;;;
@@ -63,7 +63,30 @@
                 (button
                  (@ (type "submit")
                     (class "btn btn-primary"))
-                 "Search")))))
+                 "Search")))
+         (div
+          (@ (id "search-hints"))
+          (p "You can limit the search results with the following keywords:")
+          (ul
+           (li (code "spec")
+               ", a " (em "specification") " such as " (code "guix-master"))
+           (li (code "system")
+               ", a build for the given " (em "target system")
+               " such as " (code "x86_64-linux"))
+           (li (code "status")
+               ", to limit the results to builds with the given status.  "
+               "This should be one of "
+               (code "success") ", "
+               (code "failed") ", "
+               (code "failed-dependency") ", "
+               (code "failed-other") ", or "
+               (code "canceled") "."))
+          (p "You can also use the anchors " (code "^") " and " (code "$") "
+for matching the beginning and the end of a name, respectively.")
+          (p "For example, the following query will list successful builds of
+the " (code "guix-master") " specification for the " (code "i686-linux") "
+system whose names start with " (code "guile-") ":" (br)
+(code "spec:guix-master system:i686-linux status:success ^guile-")))))
 
 (define* (html-page title body navigation #:optional query)
   "Return HTML page with given TITLE and BODY."
@@ -81,7 +104,8 @@
                    (href "/static/css/bootstrap.css")))
           (link (@ (rel "stylesheet")
                    (href "/static/css/open-iconic-bootstrap.css")))
-          (style "#search input:focus { width: 500px; }")
+          (link (@ (rel "stylesheet")
+                   (href "/static/css/cuirass.css")))
           (title ,title))
          (body
           (nav (@ (class "navbar navbar-expand navbar-light bg-light"))
