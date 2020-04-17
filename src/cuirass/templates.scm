@@ -411,7 +411,7 @@ system whose names start with " (code "guile-") ":" (br)
                 (date    (time-utc->date time))
                 (year    (date-year date))
                 (current (date-year (time-utc->date now*)))
-                (format  (if (= year )
+                (format  (if (= year current)
                              "~e ~b ~H:~M ~z"
                              "~e ~b ~Y ~H:~M ~z")))
            (date->string date format)))))
