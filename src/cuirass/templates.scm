@@ -413,7 +413,7 @@ system whose names start with " (code "guile-") ":" (br)
                 (current (date-year (time-utc->date now*)))
                 (format  (if (= year current)
                              "~e ~b ~H:~M ~z"
-                             "~e ~b ~Y ~H:~M ~z")))
+                             "~e ~b ~Y ~H:~M")))
            (date->string date format)))))
 
 (define (build-eval-table eval-id builds build-min build-max status)
