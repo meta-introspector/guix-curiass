@@ -170,6 +170,8 @@ Hydra format."
   (define builds-id-max (db-get-builds-max id status))
   (define builds-id-min (db-get-builds-min id status))
   (define specification (db-get-evaluation-specification id))
+  (define checkouts     (db-get-checkouts id))
+  (define inputs        (db-get-inputs specification))
 
   (define builds
     (vector->list
@@ -186,6 +188,8 @@ Hydra format."
   (html-page
    "Evaluation"
    (evaluation-build-table evaluation
+                           #:checkouts checkouts
+                           #:inputs inputs
                            #:status status
                            #:builds builds
                            #:builds-id-min builds-id-min

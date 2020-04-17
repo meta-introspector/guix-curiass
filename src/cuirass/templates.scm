@@ -509,6 +509,8 @@ and BUILD-MAX are global minimal and maximal (stoptime, rowid) pairs."
 
 (define* (evaluation-build-table evaluation
                                  #:key
+                                 (checkouts '())
+                                 (inputs '())
                                  status builds
                                  builds-id-min builds-id-max)
   "Return HTML for an evaluation page, containing a table of builds for that
@@ -518,8 +520,26 @@ evaluation."
   (define succeeded (assq-ref evaluation #:succeeded))
   (define failed    (assq-ref evaluation #:failed))
   (define scheduled (assq-ref evaluation #:scheduled))
+  (define spec      (assq-ref evaluation #:spec))
 
   `((p (@ (class "lead"))
+       ,(format #f "Evaluation #~a" id))
+    (table (@ (class "table table-sm table-hover"))
+           (thead
+            (tr (th (@ (class "border-0") (scope "col")) "Input")
+                (th (@ (class "border-0") (scope "col")) "Commit")))
+           (tbody
+            ,@(map (lambda (checkout)
+                     (let* ((name  (assq-ref checkout #:input))
+                            (input (find (lambda (input)
+                                           (string=? (assq-ref input #:name)
+                                                     name))
+                                         inputs)))
+                       `(tr (td ,(assq-ref input #:url))
+                            (td (code ,(assq-ref checkout #:commit))))))
+                   checkouts)))
+
+    (p (@ (class "lead"))
        ,(format #f "~@[~a~] ~:[B~;b~]uilds of evaluation #~a"
                 (and=> status string-capitalize)
                 status

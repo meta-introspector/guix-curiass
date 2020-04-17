@@ -49,6 +49,7 @@
             db-add-build
             db-update-build-status!
             db-get-output
+            db-get-inputs
             db-get-build
             db-get-builds
             db-get-builds-by-search
@@ -65,6 +66,7 @@
             db-get-evaluations-id-max
             db-get-evaluation-specification
             db-get-evaluation-summary
+            db-get-checkouts
             read-sql-file
             read-quoted-string
             sqlite-exec
