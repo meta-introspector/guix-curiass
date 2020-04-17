@@ -25,8 +25,10 @@
   #:use-module (srfi srfi-2)
   #:use-module (srfi srfi-19)
   #:use-module (srfi srfi-26)
+  #:use-module (web uri)
   #:use-module (guix derivations)
   #:use-module (guix store)
+  #:use-module ((guix utils) #:select (string-replace-substring))
   #:use-module ((cuirass database) #:select (build-status))
   #:export (html-page
             specifications-table
@@ -507,6 +509,35 @@ and BUILD-MAX are global minimal and maximal (stoptime, rowid) pairs."
              (1- (build-id build-min))
              status))))))
 
+;; FIXME: Copied from (guix scripts describe).
+(define %vcs-web-views
+  ;; Hard-coded list of host names and corresponding web view URL templates.
+  ;; TODO: Allow '.guix-channel' files to specify a URL template.
+  (let ((labhub-url (lambda (repository-url commit)
+                      (string-append
+                       (if (string-suffix? ".git" repository-url)
+                           (string-drop-right repository-url 4)
+                           repository-url)
+                       "/commit/" commit))))
+    `(("git.savannah.gnu.org"
+       ,(lambda (repository-url commit)
+          (string-append (string-replace-substring repository-url
+                                                   "/git/" "/cgit/")
+                         "/log/?id=" commit)))
+      ("notabug.org" ,labhub-url)
+      ("framagit.org" ,labhub-url)
+      ("gitlab.com" ,labhub-url)
+      ("gitlab.inria.fr" ,labhub-url)
+      ("github.com" ,labhub-url))))
+
+(define (commit-hyperlink url commit)
+  "Return, if possibly, a hyperlink for COMMIT of the repository at URL."
+  (let* ((uri  (string->uri url))
+         (host (uri-host uri)))
+    (match (assoc-ref %vcs-web-views host)
+      (#f     commit)
+      ((link) `(a (@ (href ,(link url commit))) ,commit)))))
+
 (define* (evaluation-build-table evaluation
                                  #:key
                                  (checkouts '())
@@ -534,9 +565,11 @@ evaluation."
                             (input (find (lambda (input)
                                            (string=? (assq-ref input #:name)
                                                      name))
-                                         inputs)))
-                       `(tr (td ,(assq-ref input #:url))
-                            (td (code ,(assq-ref checkout #:commit))))))
+                                         inputs))
+                            (url   (assq-ref input #:url))
+                            (commit (assq-ref checkout #:commit)))
+                       `(tr (td ,url)
+                            (td (code ,(commit-hyperlink url commit))))))
                    checkouts)))
 
     (p (@ (class "lead"))
