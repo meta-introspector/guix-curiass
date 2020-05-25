@@ -38,6 +38,7 @@
             db-init
             db-open
             db-close
+            db-optimize
             db-add-specification
             db-remove-specification
             db-get-specifications
@@ -276,6 +277,13 @@ database object."
 (define (db-close db)
   "Close database object DB."
   (sqlite-close db))
+
+(define* (db-optimize #:optional (db-file (%package-database)))
+  "Open the database and perform optimizations."
+  (let ((db (db-open db-file)))
+    (sqlite-exec db "PRAGMA optimize;")
+    (sqlite-exec db "PRAGMA wal_checkpoint(TRUNCATE);")
+    (db-close db)))
 
 (define (last-insert-rowid db)
   (vector-ref (car (sqlite-exec db "SELECT last_insert_rowid();"))

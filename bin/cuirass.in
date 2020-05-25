@@ -124,6 +124,10 @@ exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
                              (min (current-processor-count) 4))))
           (prepare-git)
 
+          (unless (option-ref opts 'web #f)
+            (log-message "performing database optimizations")
+            (db-optimize))
+
           (log-message "running Fibers on ~a kernel threads" threads)
           (run-fibers
            (lambda ()
