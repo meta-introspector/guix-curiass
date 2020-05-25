@@ -620,19 +620,6 @@ WHERE derivation =" derivation ";"))
                (cons `(,name . ((#:path . ,path)))
                      outputs)))))))
 
-(define (filters->order filters)
-  (match (assq 'order filters)
-    (('order . 'build-id) "rowid ASC")
-    (('order . 'decreasing-build-id) "rowid DESC")
-    (('order . 'finish-time) "stoptime DESC")
-    (('order . 'finish-time+build-id) "stoptime DESC, rowid DESC")
-    (('order . 'start-time) "starttime DESC")
-    (('order . 'submission-time) "timestamp DESC")
-    ;; With this order, builds in 'running' state (-1) appear
-    ;; before those in 'scheduled' state (-2).
-    (('order . 'status+submission-time) "status DESC, timestamp DESC")
-    (_ "rowid DESC")))
-
 (define (query->bind-arguments query-string)
   "Return a list of keys to query strings by parsing QUERY-STRING."
   (define status-values
@@ -737,57 +724,94 @@ ORDER BY rowid DESC;"))
   "Retrieve all builds in the database which are matched by given FILTERS.
 FILTERS is an assoc list whose possible keys are 'derivation | 'id | 'jobset |
 'job | 'system | 'nr | 'order | 'status | 'evaluation."
+
+  (define (filters->order filters)
+    (match (assq 'order filters)
+      (('order . 'build-id) "Builds.id ASC")
+      (('order . 'decreasing-build-id) "Builds.id DESC")
+      (('order . 'finish-time) "stoptime DESC")
+      (('order . 'finish-time+build-id) "stoptime DESC, Builds.id DESC")
+      (('order . 'start-time) "starttime DESC")
+      (('order . 'submission-time) "timestamp DESC")
+      ;; With this order, builds in 'running' state (-1) appear
+      ;; before those in 'scheduled' state (-2).
+      (('order . 'status+submission-time)
+       "status DESC, timestamp DESC, Builds.id ASC")
+      (_ "Builds.id DESC")))
+
+  (define (where-conditions filters)
+    (define filter-name->sql
+      `((id              . "Builds.id = :id")
+        (jobset          . "Specifications.name = :jobset")
+        (derivation      . "Builds.derivation = :derivation")
+        (job             . "Builds.job_name = :job")
+        (system          . "Builds.system = :system")
+        (evaluation      . "Builds.evaluation = :evaluation")
+        (status          . ,(match (assq-ref filters 'status)
+                              (#f         #f)
+                              ('done      "Builds.status >= 0")
+                              ('pending   "Builds.status < 0")
+                              ('succeeded "Builds.status = 0")
+                              ('failed    "Builds.status > 0")))
+        (border-low-time  . "Builds.stoptime > :borderlowtime")
+        (border-high-time . "Builds.stoptime < :borderhightime")
+        (border-low-id    . "Builds.id > :borderlowid")
+        (border-high-id   . "Builds.id < :borderhighid")))
+
+    (filter
+     string?
+     (fold
+      (lambda (filter-name where-condition-parts)
+        (if (assq-ref filters filter-name)
+            (cons (assq-ref filter-name->sql filter-name)
+                  where-condition-parts)
+            where-condition-parts))
+      '()
+      (map car filters))))
+
   (with-db-worker-thread db
     (let* ((order (filters->order filters))
-           (stmt-text (format #f "SELECT * FROM (
+           (where (match (where-conditions filters)
+                    (() "")
+                    ((condition)
+                     (string-append "WHERE " condition "\n"))
+                    ((first-condition rest ...)
+                     (string-append "WHERE " first-condition "\n  AND "
+                                    (string-join rest " AND ")))))
+           (stmt-text
+            (format #f "
 SELECT Builds.derivation, Builds.rowid, Builds.timestamp, Builds.starttime,
-Builds.stoptime, Builds.log, Builds.status, Builds.job_name, Builds.system,
-Builds.nix_name, Builds.evaluation, Specifications.name
+       Builds.stoptime, Builds.log, Builds.status, Builds.job_name,
+       Builds.system, Builds.nix_name, Builds.evaluation, Specifications.name
 FROM Builds
 INNER JOIN Evaluations ON Builds.evaluation = Evaluations.id
 INNER JOIN Specifications ON Evaluations.specification = Specifications.name
-WHERE (:id IS NULL OR (:id = Builds.rowid))
-AND (:derivation IS NULL OR (:derivation = Builds.derivation))
-AND (:jobset IS NULL OR (:jobset = Specifications.name))
-AND (:job IS NULL OR (:job = Builds.job_name))
-AND (:system IS NULL OR (:system = Builds.system))
-AND (:evaluation IS NULL OR (:evaluation = Builds.evaluation))
-AND (:status IS NULL OR (:status = 'done' AND Builds.status >= 0)
-                     OR (:status = 'pending' AND Builds.status < 0)
-                     OR (:status = 'succeeded' AND Builds.status = 0)
-                     OR (:status = 'failed' AND Builds.status > 0))
-AND (:borderlowtime IS NULL OR :borderlowid IS NULL
- OR ((:borderlowtime, :borderlowid) < (Builds.stoptime, Builds.rowid)))
-AND (:borderhightime IS NULL OR :borderhighid IS NULL
- OR ((:borderhightime, :borderhighid) > (Builds.stoptime, Builds.rowid)))
-ORDER BY
-CASE WHEN :borderlowtime IS NULL
-       OR :borderlowid IS NULL THEN Builds.stoptime
-                               ELSE -Builds.stoptime
-END DESC,
-CASE WHEN :borderlowtime IS NULL
-       OR :borderlowid IS NULL THEN Builds.rowid
-                               ELSE -Builds.rowid
-END DESC
-LIMIT :nr)
-ORDER BY ~a, rowid ASC;" order))
+~a
+ORDER BY ~a
+LIMIT :nr"
+                    where order))
            (stmt (sqlite-prepare db stmt-text #:cache? #t)))
-      (sqlite-bind-arguments
-       stmt
-       #:derivation (assq-ref filters 'derivation)
-       #:id (assq-ref filters 'id)
-       #:jobset (assq-ref filters 'jobset)
-       #:job (assq-ref filters 'job)
-       #:evaluation (assq-ref filters 'evaluation)
-       #:system (assq-ref filters 'system)
-       #:status (and=> (assq-ref filters 'status) object->string)
-       #:borderlowid (assq-ref filters 'border-low-id)
-       #:borderhighid (assq-ref filters 'border-high-id)
-       #:borderlowtime (assq-ref filters 'border-low-time)
-       #:borderhightime (assq-ref filters 'border-high-time)
-       #:nr (match (assq-ref filters 'nr)
-              (#f -1)
-              (x x)))
+
+      (sqlite-bind stmt 'nr (match (assq-ref filters 'nr)
+                              (#f -1)
+                              (x x)))
+      (for-each (match-lambda
+                  (('nr . _) #f)        ; Handled above
+                  (('order . _) #f)     ; Doesn't need binding
+                  (('status . _) #f)    ; Doesn't need binding
+                  ((name . value)
+                   (when value
+                     (sqlite-bind stmt
+                                  (or (assq-ref
+                                       '((border-low-time  . borderlowtime)
+                                         (border-high-time . borderhightime)
+                                         (border-low-id    . borderlowid)
+                                         (border-high-id   . borderhighid))
+                                       name)
+                                      name)
+                                  value))))
+                filters)
+
       (sqlite-reset stmt)
       (let loop ((rows (sqlite-fold-right cons '() stmt))
                  (builds '()))
