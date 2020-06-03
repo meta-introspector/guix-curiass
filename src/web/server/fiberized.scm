@@ -31,8 +31,12 @@
 ;;; Code:
 
 (define-module (web server fiberized)
-  #:use-module ((srfi srfi-1) #:select (fold))
+  #:use-module (guix build utils)
+  #:use-module ((srfi srfi-1) #:select (fold
+                                        alist-delete
+                                        alist-cons))
   #:use-module (srfi srfi-9)
+  #:use-module (srfi srfi-9 gnu)
   #:use-module (web http)
   #:use-module (web request)
   #:use-module (web response)
@@ -41,7 +45,8 @@
   #:use-module (ice-9 match)
   #:use-module (fibers)
   #:use-module (fibers channels)
-  #:use-module (cuirass logging))
+  #:use-module (cuirass logging)
+  #:use-module (cuirass utils))
 
 (define (make-default-socket family addr port)
   (let ((sock (socket PF_INET SOCK_STREAM 0)))
@@ -92,6 +97,19 @@
               ((0) (memq 'keep-alive (response-connection response)))))
            (else #f)))))
 
+;; This procedure and the next one are copied from (guix scripts publish).
+(define (strip-headers response)
+  "Return RESPONSE's headers minus 'Content-Length' and our internal headers."
+  (fold alist-delete
+        (response-headers response)
+        '(content-length x-raw-file x-nar-compression)))
+
+(define (with-content-length response length)
+  "Return RESPONSE with a 'content-length' header set to LENGTH."
+  (set-field response (response-headers)
+             (alist-cons 'content-length length
+                         (strip-headers response))))
+
 (define (client-loop client have-request)
   ;; Always disable Nagle's algorithm, as we handle buffering
   ;; ourselves.
@@ -119,14 +137,32 @@
                                               #:headers '((content-length . 0)))
                               #vu8()))))
               (lambda (response body)
-                (write-response response client)
-                (when body
-                  (put-bytevector client body))
-                (force-output client)
-                (if (and (keep-alive? response)
-                         (not (eof-object? (peek-char client))))
-                    (loop)
-                    (close-port client)))))))))
+                (match (assoc-ref (response-headers response) 'x-raw-file)
+                  ((? string? file)
+                   (non-blocking
+                    (call-with-input-file file
+                      (lambda (input)
+                        (let* ((size     (stat:size (stat input)))
+                               (response (write-response
+                                          (with-content-length response size)
+                                          client))
+                               (output   (response-port response)))
+                          (setsockopt client SOL_SOCKET SO_SNDBUF
+                                      (* 128 1024))
+                          (if (file-port? output)
+                              (sendfile output input size)
+                              (dump-port input output))
+                          (close-port output)
+                          (values))))))
+                  (#f (begin
+                        (write-response response client)
+                        (when body
+                          (put-bytevector client body))
+                        (force-output client))
+                      (if (and (keep-alive? response)
+                               (not (eof-object? (peek-char client))))
+                          (loop)
+                          (close-port client)))))))))))
     (lambda (k . args)
       (catch #t
         (lambda () (close-port client))

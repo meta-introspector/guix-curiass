@@ -246,19 +246,14 @@ Hydra format."
         "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd")
        (sxml->xml body port))))
 
-  (define* (respond-file file
-                         #:key name)
+  (define* (respond-file file)
     (let ((content-type (or (assoc-ref %file-mime-types
                                        (file-extension file))
                             '(application/octet-stream))))
       (respond `((content-type . ,content-type)
-                 ,@(if name
-                       `((content-disposition
-                          . (form-data (filename . ,name))))
-                       '()))
-               ;; FIXME: FILE is potentially big so it'd be better to not load
-               ;; it in memory and instead 'sendfile' it.
-               #:body (call-with-input-file file get-bytevector-all))))
+                 (content-disposition
+                  . (form-data (filename . ,(basename file))))
+                 (x-raw-file . ,file)))))
 
   (define (respond-static-file path)
     ;; PATH is a list of path components
@@ -273,10 +268,9 @@ Hydra format."
   (define (respond-gzipped-file file)
     ;; Return FILE with 'gzip' content-encoding.
     (respond `((content-type . (text/plain (charset . "UTF-8")))
-               (content-encoding . (gzip)))
-             ;; FIXME: FILE is potentially big so it'd be better to not load
-             ;; it in memory and instead 'sendfile' it.
-             #:body (call-with-input-file file get-bytevector-all)))
+               (content-encoding . (gzip))
+               (content-disposition . (form-data (filename . ,file)))
+               (x-raw-file . ,file))))
 
   (define (respond-build-not-found build-id)
     (respond-json-with-error
@@ -521,7 +515,7 @@ Hydra format."
 
     (('GET "download" id)
      (let ((path (db-get-build-product-path id)))
-       (respond-file path #:name (basename path))))
+       (respond-file path)))
 
     (('GET "static" path ...)
      (respond-static-file path))
