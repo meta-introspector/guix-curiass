@@ -85,7 +85,8 @@ CREATE TABLE Events (
 
 -- Create indexes to speed up common queries, in particular those
 -- corresponding to /api/latestbuilds and /api/queue HTTP requests.
-CREATE INDEX Builds_index ON Builds(job_name, system, status ASC, timestamp ASC, derivation, evaluation, stoptime DESC);
+CREATE INDEX Builds_status_index ON Builds (status);
+CREATE INDEX Outputs_derivation_index ON Outputs (derivation);
 CREATE INDEX Inputs_index ON Inputs(specification, name, branch);
 
 COMMIT;
