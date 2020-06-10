@@ -1,6 +1,6 @@
 ;;;; http.scm -- HTTP API
 ;;; Copyright © 2016 Mathieu Lirzin <mthl@gnu.org>
-;;; Copyright © 2017 Mathieu Othacehe <m.othacehe@gmail.com>
+;;; Copyright © 2017, 2020 Mathieu Othacehe <m.othacehe@gmail.com>
 ;;; Copyright © 2018, 2019, 2020 Ludovic Courtès <ludo@gnu.org>
 ;;; Copyright © 2018 Clément Lassieur <clement@lassieur.org>
 ;;; Copyright © 2018 Tatiana Sholokhova <tanja201396@gmail.com>
@@ -246,17 +246,29 @@ Hydra format."
         "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd")
        (sxml->xml body port))))
 
+  (define* (respond-file file
+                         #:key name)
+    (let ((content-type (or (assoc-ref %file-mime-types
+                                       (file-extension file))
+                            '(application/octet-stream))))
+      (respond `((content-type . ,content-type)
+                 ,@(if name
+                       `((content-disposition
+                          . (form-data (filename . ,name))))
+                       '()))
+               ;; FIXME: FILE is potentially big so it'd be better to not load
+               ;; it in memory and instead 'sendfile' it.
+               #:body (call-with-input-file file get-bytevector-all))))
+
   (define (respond-static-file path)
     ;; PATH is a list of path components
     (let ((file-name (string-join path "/"))
           (file-path (string-join (cons* (%static-directory) path) "/")))
-      (if (and (member file-name %file-white-list)
+    (if (and (member file-name %file-white-list)
                (file-exists? file-path)
                (not (file-is-directory? file-path)))
-          (respond `((content-type . ,(assoc-ref %file-mime-types
-                                                 (file-extension file-path))))
-                   #:body (call-with-input-file file-path get-bytevector-all))
-          (respond-not-found file-name))))
+        (respond-file file-path)
+        (respond-not-found file-name))))
 
   (define (respond-gzipped-file file)
     ;; Return FILE with 'gzip' content-encoding.
@@ -318,7 +330,8 @@ Hydra format."
               (#:url . "https://git.savannah.gnu.org/git/guix.git")
               (#:load-path . ".")
               (#:branch . ,name)
-              (#:no-compile? . #t)))))
+              (#:no-compile? . #t)))
+           (#:build-outputs . ())))
         (respond (build-response #:code 302
                                  #:headers `((location . ,(string->uri-reference
                                                            "/admin/specifications"))))
@@ -352,11 +365,12 @@ Hydra format."
            (respond-json (object->json-string hydra-build))
            (respond-build-not-found id))))
     (('GET "build" build-id "details")
-     (let ((build (db-get-build (string->number build-id))))
+     (let ((build (db-get-build (string->number build-id)))
+           (products (db-get-build-products build-id)))
        (if build
            (respond-html
             (html-page (string-append "Build " build-id)
-                       (build-details build)
+                       (build-details build products)
                        `(((#:name . ,(assq-ref build #:specification))
                           (#:link . ,(string-append "/jobset/" (assq-ref build #:specification)))))))
            (respond-build-not-found build-id))))
@@ -504,6 +518,10 @@ Hydra format."
              '()
              query))
            (respond-json-with-error 500 "Query parameter not provided!"))))
+
+    (('GET "download" id)
+     (let ((path (db-get-build-product-path id)))
+       (respond-file path #:name (basename path))))
 
     (('GET "static" path ...)
      (respond-static-file path))

@@ -2,6 +2,7 @@
 ;;; Copyright © 2018 Tatiana Sholokhova <tanja201396@gmail.com>
 ;;; Copyright © 2018, 2019, 2020 Ludovic Courtès <ludo@gnu.org>
 ;;; Copyright © 2019, 2020 Ricardo Wurmus <rekado@elephly.net>
+;;; Copyright © 2020 Mathieu Othacehe <m.othacehe@gmail.com>
 ;;;
 ;;; This file is part of Cuirass.
 ;;;
@@ -27,6 +28,7 @@
   #:use-module (srfi srfi-26)
   #:use-module (web uri)
   #:use-module (guix derivations)
+  #:use-module (guix progress)
   #:use-module (guix store)
   #:use-module ((guix utils) #:select (string-replace-substring))
   #:use-module ((cuirass database) #:select (build-status))
@@ -212,7 +214,7 @@ system whose names start with " (code "guile-") ":" (br)
                             "Add")))))
            '()))))
 
-(define (build-details build)
+(define (build-details build products)
   "Return HTML showing details for the BUILD."
   (define status (assq-ref build #:status))
   (define blocking-outputs
@@ -282,7 +284,38 @@ system whose names start with " (code "guile-") ":" (br)
       (tr (th "Outputs")
           (td ,(map (match-lambda ((out (#:path . path))
                                    `(pre ,path)))
-                    (assq-ref build #:outputs))))))))
+                    (assq-ref build #:outputs))))
+      ,@(if (null? products)
+            '()
+            (let ((product-items
+                   (map
+                    (lambda (product)
+                      (let* ((id (assq-ref product #:id))
+                             (size (assq-ref product #:file-size))
+                             (type (assq-ref product #:type))
+                             (path (assq-ref product #:path))
+                             (href (format #f "/download/~a" id)))
+                        `(a (@ (href ,href))
+                            (li (@ (class "list-group-item"))
+                                (div
+                                 (@ (class "container"))
+                                 (div
+                                  (@ (class "row"))
+                                  (div
+                                   (@ (class "col-md-auto"))
+                                   (span
+                                    (@ (class "oi oi-data-transfer-download")
+                                       (title "Download")
+                                       (aria-hidden "true"))))
+                                  (div (@ (class "col-md-auto"))
+                                       ,path)
+                                  (div (@ (class "col-md-auto"))
+                                   "(" ,(byte-count->string size) ")")))))))
+                    products)))
+              `((tr (th "Build outputs")
+                    (td
+                     (ul (@ (class "list-group d-flex flex-row"))
+                         ,product-items))))))))))
 
 (define (pagination first-link prev-link next-link last-link)
   "Return html page navigation buttons with LINKS."

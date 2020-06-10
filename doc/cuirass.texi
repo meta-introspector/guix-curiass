@@ -11,7 +11,7 @@ This manual is for Cuirass version @value{VERSION}, a build automation
 server.
 
 Copyright @copyright{} 2016, 2017 Mathieu Lirzin@*
-Copyright @copyright{} 2017 Mathieu Othacehe@*
+Copyright @copyright{} 2017, 2020 Mathieu Othacehe@*
 Copyright @copyright{} 2018 Ludovic Courtès@*
 Copyright @copyright{} 2018 Clément Lassieur
 
@@ -137,7 +137,12 @@ a specification might look like:
                  (#:url . "git://my-custom-packages.git")
                  (#:load-path . ".")
                  (#:branch . "master")
-                 (#:no-compile? . #t)))))
+                 (#:no-compile? . #t))))
+   (#:build-outputs .
+    (((#:job . "hello*")
+      (#:type . "license")
+      (#:output . "out")
+      (#:path . "share/doc/hello-2.10/COPYING")))))
 @end lisp
 
 In this specification the keys are Scheme keywords which have the nice
@@ -149,6 +154,11 @@ repository containing the @code{proc}, and one tracking the repository
 containing the custom packages (see @code{GUIX_PACKAGE_PATH}).
 @code{#:load-path-inputs}, @code{#:package-path-inputs} and
 @code{#:proc-input} refer to these inputs by their name.
+
+The @code{#:build-outputs} list specifies the files that will be made
+available for download, through the Web interface. Here, the
+@code{COPYING} file, in the @code{"out"} output, for all jobs whose name
+matches @code{"hello*"} regex.
 
 @quotation Note
 @c This refers to

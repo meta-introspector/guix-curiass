@@ -5,6 +5,7 @@
 # Copyright © 2018 Ludovic Courtès <ludo@gnu.org>
 # Copyright © 2018 Clément Lassieur <clement@lassieur.org>
 # Copyright © 2018 Tatiana Sholokhova <tanja201396@gmail.com>
+# Copyright © 2020 Mathieu Othacehe <m.othacehe@gmail.com>
 #
 # This file is part of Cuirass.
 #
@@ -71,7 +72,8 @@ dist_sql_DATA = 				\
   src/sql/upgrade-3.sql				\
   src/sql/upgrade-4.sql				\
   src/sql/upgrade-5.sql				\
-  src/sql/upgrade-6.sql
+  src/sql/upgrade-6.sql 			\
+  src/sql/upgrade-7.sql
 
 dist_css_DATA =					\
   src/static/css/cuirass.css			\

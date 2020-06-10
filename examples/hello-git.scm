@@ -2,6 +2,7 @@
 ;;; Copyright © 2016 Mathieu Lirzin <mthl@gnu.org>
 ;;; Copyright © 2016 Jan Nieuwenhuizen <janneke@gnu.org>
 ;;; Copyright © 2018 Clément Lassieur <clement@lassieur.org>
+;;; Copyright © 2020 Mathieu Othacehe <m.othacehe@gmail.com>
 ;;;
 ;;; This file is part of Cuirass.
 ;;;
@@ -43,4 +44,5 @@
                    (#:url . ,(string-append "file://" top-srcdir))
                    (#:load-path . ".")
                    (#:branch . "master")
-                   (#:no-compile? . #t)))))))
+                   (#:no-compile? . #t))))
+     (#:build-outputs . ()))))

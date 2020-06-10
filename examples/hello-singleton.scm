@@ -1,6 +1,7 @@
 ;;; hello-singleton.scm -- job specification test for hello in master
 ;;; Copyright © 2016 Mathieu Lirzin <mthl@gnu.org>
 ;;; Copyright © 2018 Clément Lassieur <clement@lassieur.org>
+;;; Copyright © 2020 Mathieu Othacehe <m.othacehe@gmail.com>
 ;;;
 ;;; This file is part of Cuirass.
 ;;;
@@ -34,6 +35,7 @@
                   (#:url . "https://git.savannah.gnu.org/git/guix/guix-cuirass.git")
                   (#:load-path . ".")
                   (#:branch . "master")
-                  (#:no-compile? . #t))))))
+                  (#:no-compile? . #t))))
+    (#:build-outputs . ())))
 
 (list hello-master)

@@ -1,6 +1,6 @@
 ;;; database.scm -- store evaluation and build results
 ;;; Copyright © 2016, 2017 Mathieu Lirzin <mthl@gnu.org>
-;;; Copyright © 2017 Mathieu Othacehe <m.othacehe@gmail.com>
+;;; Copyright © 2017, 2020 Mathieu Othacehe <m.othacehe@gmail.com>
 ;;; Copyright © 2018, 2020 Ludovic Courtès <ludo@gnu.org>
 ;;; Copyright © 2018 Clément Lassieur <clement@lassieur.org>
 ;;; Copyright © 2018 Tatiana Sholokhova <tanja201396@gmail.com>
@@ -48,6 +48,7 @@
             db-get-pending-derivations
             build-status
             db-add-build
+            db-add-build-product
             db-update-build-status!
             db-get-output
             db-get-inputs
@@ -66,6 +67,8 @@
             db-get-evaluations-id-min
             db-get-evaluations-id-max
             db-get-evaluation-specification
+            db-get-build-product-path
+            db-get-build-products
             db-get-evaluation-summary
             db-get-checkouts
             read-sql-file
@@ -342,7 +345,8 @@ table."
   (with-db-worker-thread db
     (sqlite-exec db "\
 INSERT OR IGNORE INTO Specifications (name, load_path_inputs, \
-package_path_inputs, proc_input, proc_file, proc, proc_args) \
+package_path_inputs, proc_input, proc_file, proc, proc_args, \
+build_outputs) \
   VALUES ("
                  (assq-ref spec #:name) ", "
                  (assq-ref spec #:load-path-inputs) ", "
@@ -350,7 +354,8 @@ package_path_inputs, proc_input, proc_file, proc, proc_args) \
                  (assq-ref spec #:proc-input) ", "
                  (assq-ref spec #:proc-file) ", "
                  (symbol->string (assq-ref spec #:proc)) ", "
-                 (assq-ref spec #:proc-args) ");")
+                 (assq-ref spec #:proc-args) ", "
+                 (assq-ref spec #:build-outputs) ");")
     (let ((spec-id (last-insert-rowid db)))
       (for-each (lambda (input)
                   (db-add-input (assq-ref spec #:name) input))
@@ -394,7 +399,7 @@ DELETE FROM Specifications WHERE name=" name ";")
       (match rows
         (() specs)
         ((#(name load-path-inputs package-path-inputs proc-input proc-file proc
-                 proc-args)
+                 proc-args build-outputs)
            . rest)
          (loop rest
                (cons `((#:name . ,name)
@@ -406,7 +411,9 @@ DELETE FROM Specifications WHERE name=" name ";")
                        (#:proc-file . ,proc-file)
                        (#:proc . ,(with-input-from-string proc read))
                        (#:proc-args . ,(with-input-from-string proc-args read))
-                       (#:inputs . ,(db-get-inputs name)))
+                       (#:inputs . ,(db-get-inputs name))
+                       (#:build-outputs .
+                        ,(with-input-from-string build-outputs read)))
                      specs)))))))
 
 (define (db-add-evaluation spec-name checkouts)
@@ -545,6 +552,19 @@ VALUES ("
      (on SQLITE_CONSTRAINT_UNIQUE
          =>
          (sqlite-exec db "ROLLBACK;") #f))))
+
+(define (db-add-build-product product)
+  "Insert PRODUCT into BuildProducts table."
+  (with-db-worker-thread db
+    (sqlite-exec db "\
+INSERT INTO BuildProducts (build, type, file_size, checksum,
+path) VALUES ("
+                 (assq-ref product #:build) ", "
+                 (assq-ref product #:type) ", "
+                 (assq-ref product #:file-size) ", "
+                 (assq-ref product #:checksum) ", "
+                 (assq-ref product #:path) ");")
+    (last-insert-rowid db)))
 
 (define* (db-update-build-status! drv status #:key log-file)
   "Update the database so that DRV's status is STATUS.  This also updates the
@@ -1098,3 +1118,30 @@ AND (" status " IS NULL OR (" status " = 'pending'
 SELECT specification FROM Evaluations
 WHERE id = " eval)))
       (and=> (expect-one-row rows) (cut vector-ref <> 0)))))
+
+(define (db-get-build-product-path id)
+  "Return the build product with the given ID."
+  (with-db-worker-thread db
+    (let ((rows (sqlite-exec db "
+SELECT path FROM BuildProducts
+WHERE rowid = " id)))
+      (and=> (expect-one-row rows) (cut vector-ref <> 0)))))
+
+(define (db-get-build-products build-id)
+  "Return the build products associated to the given BUILD-ID."
+  (with-db-worker-thread db
+    (let loop ((rows  (sqlite-exec db "
+SELECT rowid, type, file_size, checksum, path from BuildProducts
+WHERE build = " build-id))
+               (products '()))
+      (match rows
+        (() (reverse products))
+        ((#(id type file-size checksum path)
+           . rest)
+         (loop rest
+               (cons `((#:id . ,id)
+                       (#:type . ,type)
+                       (#:file-size . ,file-size)
+                       (#:checksum . ,checksum)
+                       (#:path . ,path))
+                     products)))))))

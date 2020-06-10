@@ -1,7 +1,7 @@
 ;;; base.scm -- Cuirass base module
 ;;; Copyright © 2016, 2017, 2018, 2019 Ludovic Courtès <ludo@gnu.org>
 ;;; Copyright © 2016, 2017 Mathieu Lirzin <mthl@gnu.org>
-;;; Copyright © 2017 Mathieu Othacehe <m.othacehe@gmail.com>
+;;; Copyright © 2017, 2020 Mathieu Othacehe <m.othacehe@gmail.com>
 ;;; Copyright © 2017 Ricardo Wurmus <rekado@elephly.net>
 ;;; Copyright © 2018 Clément Lassieur <clement@lassieur.org>
 ;;;
@@ -41,6 +41,7 @@
   #:use-module (ice-9 popen)
   #:use-module (ice-9 rdelim)
   #:use-module (ice-9 receive)
+  #:use-module (ice-9 regex)
   #:use-module (ice-9 atomic)
   #:use-module (ice-9 ftw)
   #:use-module (ice-9 threads)
@@ -638,7 +639,42 @@ started)."
       (spawn-builds store valid)
       (log-message "done with restarted builds"))))
 
-(define (build-packages store jobs eval-id)
+(define (create-build-outputs builds product-specs)
+  "Given BUILDS a list of built derivations, save the build products described
+by PRODUCT-SPECS."
+  (define (find-build job-regex)
+    (find (lambda (build)
+            (let ((job-name (assq-ref build #:job-name)))
+              (string-match job-regex job-name)))
+          builds))
+
+  (define* (find-product build spec)
+    (let* ((outputs (assq-ref build #:outputs))
+           (output (assq-ref spec #:output))
+           (path (assq-ref spec #:path))
+           (root (and=> (assoc-ref outputs output)
+                        (cut assq-ref <> #:path))))
+      (and root
+           (if (string=? path "")
+               root
+               (string-append root "/" path)))))
+
+  (define (file-size file)
+    (stat:size (stat file)))
+
+  (for-each (lambda (spec)
+              (let* ((build (find-build (assq-ref spec #:job)))
+                     (product (find-product build spec)))
+                (when (and product (file-exists? product))
+                  (db-add-build-product `((#:build . ,(assq-ref build #:id))
+                                          (#:type . ,(assq-ref spec #:type))
+                                          (#:file-size . ,(file-size product))
+                                          ;; TODO: Implement it.
+                                          (#:checksum . "")
+                                          (#:path . ,product))))))
+            product-specs))
+
+(define (build-packages store spec jobs eval-id)
   "Build JOBS and return a list of Build results."
   (define (register job)
     (let* ((name     (assq-ref job #:job-name))
@@ -692,6 +728,8 @@ started)."
                               outputs))
                            outputs))
          (fail (- (length derivations) success)))
+
+    (create-build-outputs results (assq-ref spec #:build-outputs))
     (log-message "outputs:\n~a" (string-join outs "\n"))
     (log-message "success: ~a, fail: ~a" success fail)
     results))
@@ -777,7 +815,7 @@ started)."
                  (let ((jobs (evaluate store spec eval-id checkouts)))
                    (log-message "building ~a jobs for '~a'"
                                 (length jobs) name)
-                   (build-packages store jobs eval-id))))))
+                   (build-packages store spec jobs eval-id))))))
 
           ;; 'spawn-fiber' returns zero values but we need one.
           *unspecified*))))

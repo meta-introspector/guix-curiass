@@ -7,7 +7,8 @@ CREATE TABLE Specifications (
   proc_input    TEXT NOT NULL, -- name of the input containing the proc that does the evaluation
   proc_file     TEXT NOT NULL, -- file containing the procedure that does the evaluation, relative to proc_input
   proc          TEXT NOT NULL, -- defined in proc_file
-  proc_args     TEXT NOT NULL  -- passed to proc
+  proc_args     TEXT NOT NULL,  -- passed to proc
+  build_outputs TEXT NOT NULL --specify what build outputs should be made available for download
 );
 
 CREATE TABLE Inputs (
@@ -63,6 +64,16 @@ CREATE TABLE Builds (
   starttime     INTEGER NOT NULL,
   stoptime      INTEGER NOT NULL,
   FOREIGN KEY (evaluation) REFERENCES Evaluations (id)
+);
+
+CREATE TABLE BuildProducts (
+  build         INTEGER NOT NULL,
+  type          TEXT NOT NULL,
+  file_size     BIGINT NOT NULL,
+  checksum      TEXT NOT NULL,
+  path          TEXT NOT NULL,
+  PRIMARY KEY (build, path)
+  FOREIGN KEY (build) REFERENCES Builds (id) ON DELETE CASCADE
 );
 
 CREATE TABLE Events (

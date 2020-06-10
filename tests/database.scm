@@ -3,6 +3,7 @@
 ;;; Copyright © 2016 Mathieu Lirzin <mthl@gnu.org>
 ;;; Copyright © 2018 Ludovic Courtès <ludo@gnu.org>
 ;;; Copyright © 2018 Clément Lassieur <clement@lassieur.org>
+;;; Copyright © 2020 Mathieu Othacehe <m.othacehe@gmail.com>
 ;;;
 ;;; This file is part of Cuirass.
 ;;;
@@ -45,7 +46,8 @@
                   (#:branch . "master")
                   (#:tag . #f)
                   (#:commit . #f)
-                  (#:no-compile? . #f))))))
+                  (#:no-compile? . #f))))
+    (#:build-outputs . ())))
 
 (define (make-dummy-checkouts fakesha1 fakesha2)
   `(((#:commit . ,fakesha1)

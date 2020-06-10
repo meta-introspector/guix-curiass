@@ -1,6 +1,7 @@
 ;;; random.scm -- Job specification that creates random build jobs
 ;;; Copyright © 2018 Ludovic Courtès <ludo@gnu.org>
 ;;; Copyright © 2018 Clément Lassieur <clement@lassieur.org>
+;;; Copyright © 2020 Mathieu Othacehe <m.othacehe@gmail.com>
 ;;;
 ;;; This file is part of Cuirass.
 ;;;
@@ -31,4 +32,5 @@
                    (#:url . ,(string-append "file://" top-srcdir))
                    (#:load-path . ".")
                    (#:branch . "master")
-                   (#:no-compile? . #t)))))))
+                   (#:no-compile? . #t))))
+     (#:build-outputs . ()))))
