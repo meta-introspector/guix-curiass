@@ -84,6 +84,9 @@
                (list (build-status scheduled)
                      (build-status started)))))
 
+  (define build-products
+    (db-get-build-products (assq-ref build #:id)))
+
   `((#:id . ,(assq-ref build #:id))
     (#:jobset . ,(assq-ref build #:specification))
     (#:job . ,(assq-ref build #:job-name))
@@ -105,7 +108,7 @@
                                 (assq-ref build #:status))))
     (#:priority . 0)
     (#:finished . ,(bool->int finished?))
-    (#:buildproducts . #nil)
+    (#:buildproducts . ,(list->vector build-products))
     (#:releasename . #nil)
     (#:buildinputs_builds . #nil)))
 

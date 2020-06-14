@@ -71,7 +71,7 @@
     (#:busy . 0)
     (#:priority . 0)
     (#:finished . 1)
-    (#:buildproducts . #nil)
+    (#:buildproducts . #())
     (#:releasename . #nil)
     (#:buildinputs_builds . #nil)))
 
