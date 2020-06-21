@@ -516,6 +516,60 @@ Hydra format."
              query))
            (respond-json-with-error 500 "Query parameter not provided!"))))
 
+    (('GET "search" "latest")
+     (let* ((params (request-parameters request))
+            (query (and=> (assq-ref params 'query) uri-decode)))
+       (if query
+           (match (vector->list
+                   (handle-builds-search-request
+                    `((query . ,query)
+                      (nr . 1)
+                      (order . finish-time+build-id))))
+             ((build)
+              (let ((uri (string->uri-reference
+                          (string-append "/build/"
+                                         (number->string
+                                          (assoc-ref build #:id))
+                                         "/details"))))
+                (respond (build-response #:code 302
+                                         #:headers `((location . ,uri)))
+                         #:body "")))
+             (_
+              (respond-json-with-error 500 "No build found.")))
+           (respond-json-with-error 500 "Query parameter not provided."))))
+
+    (('GET "search" "latest" product-type)
+     (let* ((params (request-parameters request))
+            (query (and=> (assq-ref params 'query) uri-decode)))
+       (if query
+           (match (vector->list
+                   (handle-builds-search-request
+                    `((query . ,query)
+                      (nr . 1)
+                      (order . finish-time+build-id))))
+             ((build)
+              (let* ((build-id (assoc-ref build #:id))
+                     (products (db-get-build-products build-id))
+                     (product (find (lambda (product)
+                                      (string=? (assoc-ref product #:type)
+                                                product-type))
+                                    products))
+                     (product-id (assoc-ref product #:id))
+                     (uri (and product-id
+                               (string->uri-reference
+                                (string-append "/download/"
+                                               (number->string product-id))))))
+                (if uri
+                    (respond (build-response #:code 302
+                                             #:headers `((location . ,uri)))
+                             #:body "")
+                    (respond-json-with-error
+                     500
+                     "Could not find the request build product."))))
+             (_
+              (respond-json-with-error 500 "No build found.")))
+           (respond-json-with-error 500 "Query parameter not provided."))))
+
     (('GET "download" id)
      (let ((path (db-get-build-product-path id)))
        (respond-file path)))
