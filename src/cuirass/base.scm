@@ -478,7 +478,9 @@ and returns the values RESULTS."
        (apply values results)))))
 
 (define* (spawn-builds store drv
-                       #:key (max-batch-size 200))
+                       #:key
+                       (max-batch-size 200)
+                       spec)
   "Build the derivations listed in DRV, updating the database as builds
 complete.  Derivations are submitted in batches of at most MAX-BATCH-SIZE
 items."
@@ -529,7 +531,7 @@ items."
                                    ;; from PORT and eventually close it.
                                    (catch #t
                                      (lambda ()
-                                       (handle-build-event event))
+                                       (handle-build-event spec event))
                                      (exception-reporter state)))
                                  #t)
               (close-port port)
@@ -545,7 +547,7 @@ items."
 
           (loop rest (max (- count max-batch-size) 0))))))
 
-(define* (handle-build-event event)
+(define* (handle-build-event spec event)
   "Handle EVENT, a build event sexp as produced by 'build-event-output-port',
 updating the database accordingly."
   (define (valid? file)
@@ -575,6 +577,9 @@ updating the database accordingly."
      (if (valid? drv)
          (begin
            (log-message "build succeeded: '~a'" drv)
+           (when spec
+             (create-build-outputs (db-get-build drv)
+                                   (assq-ref spec #:build-outputs)))
            (db-update-build-status! drv (build-status succeeded))
 
            (for-each (match-lambda
@@ -639,14 +644,12 @@ started)."
       (spawn-builds store valid)
       (log-message "done with restarted builds"))))
 
-(define (create-build-outputs builds product-specs)
+(define (create-build-outputs build product-specs)
   "Given BUILDS a list of built derivations, save the build products described
 by PRODUCT-SPECS."
-  (define (find-build job-regex)
-    (find (lambda (build)
-            (let ((job-name (assq-ref build #:job-name)))
-              (string-match job-regex job-name)))
-          builds))
+  (define (build-has-products? job-regex)
+    (let ((job-name (assq-ref build #:job-name)))
+      (string-match job-regex job-name)))
 
   (define* (find-product build spec)
     (let* ((outputs (assq-ref build #:outputs))
@@ -663,8 +666,8 @@ by PRODUCT-SPECS."
     (stat:size (stat file)))
 
   (for-each (lambda (spec)
-              (let* ((build (find-build (assq-ref spec #:job)))
-                     (product (find-product build spec)))
+              (let ((product (and (build-has-products? (assq-ref spec #:job))
+                                  (find-product build spec))))
                 (when (and product (file-exists? product))
                   (db-add-build-product `((#:build . ,(assq-ref build #:id))
                                           (#:type . ,(assq-ref spec #:type))
@@ -715,7 +718,8 @@ by PRODUCT-SPECS."
                eval-id (length derivations))
   (db-set-evaluation-done eval-id)
 
-  (spawn-builds store derivations)
+  (spawn-builds store derivations
+                #:spec spec)
 
   (let* ((results (filter-map (cut db-get-build <>) derivations))
          (status (map (cut assq-ref <> #:status) results))
@@ -729,7 +733,6 @@ by PRODUCT-SPECS."
                            outputs))
          (fail (- (length derivations) success)))
 
-    (create-build-outputs results (assq-ref spec #:build-outputs))
     (log-message "outputs:\n~a" (string-join outs "\n"))
     (log-message "success: ~a, fail: ~a" success fail)
     results))
