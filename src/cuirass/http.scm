@@ -272,7 +272,7 @@ Hydra format."
     ;; Return FILE with 'gzip' content-encoding.
     (respond `((content-type . (text/plain (charset . "UTF-8")))
                (content-encoding . (gzip))
-               (content-disposition . (form-data (filename . ,file)))
+               (content-disposition . (inline))
                (x-raw-file . ,file))))
 
   (define (respond-build-not-found build-id)
