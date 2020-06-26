@@ -577,9 +577,10 @@ updating the database accordingly."
      (if (valid? drv)
          (begin
            (log-message "build succeeded: '~a'" drv)
-           (when spec
-             (create-build-outputs (db-get-build drv)
-                                   (assq-ref spec #:build-outputs)))
+           (let ((build (db-get-build drv)))
+             (when (and spec build)
+               (create-build-outputs build
+                                     (assq-ref spec #:build-outputs))))
            (db-update-build-status! drv (build-status succeeded))
 
            (for-each (match-lambda
