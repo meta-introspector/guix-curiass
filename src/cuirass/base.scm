@@ -449,7 +449,16 @@ Essentially this procedure inverts the inversion-of-control that
   ;; Our shuffling algorithm is simple: we sort by .drv file name.  :-)
   (sort drv string<?))
 
-(define (update-build-statuses! store lst)
+(define (set-build-successful! spec drv)
+  "Update the build status of DRV as successful and register any eventual
+build products according to SPEC."
+  (let ((build (db-get-build drv)))
+    (when (and spec build)
+      (create-build-outputs build
+                            (assq-ref spec #:build-outputs))))
+  (db-update-build-status! drv (build-status succeeded)))
+
+(define (update-build-statuses! store spec lst)
   "Update the build status of the derivations listed in LST, which have just
 been passed to 'build-derivations' (meaning that we can assume that, if their
 outputs are invalid, that they failed to build.)"
@@ -457,7 +466,7 @@ outputs are invalid, that they failed to build.)"
     (match (derivation-path->output-paths drv)
       (((_ . outputs) ...)
        (if (any (cut valid-path? store <>) outputs)
-           (db-update-build-status! drv (build-status succeeded))
+           (set-build-successful! spec drv)
            (db-update-build-status! drv
                                     (if (log-file store drv)
                                         (build-status failed)
@@ -543,7 +552,7 @@ items."
           ;; 'build-derivations' doesn't actually do anything and
           ;; 'handle-build-event' doesn't see any event.  Because of that,
           ;; adjust the database here.
-          (update-build-statuses! store batch)
+          (update-build-statuses! store spec batch)
 
           (loop rest (max (- count max-batch-size) 0))))))
 
@@ -577,11 +586,7 @@ updating the database accordingly."
      (if (valid? drv)
          (begin
            (log-message "build succeeded: '~a'" drv)
-           (let ((build (db-get-build drv)))
-             (when (and spec build)
-               (create-build-outputs build
-                                     (assq-ref spec #:build-outputs))))
-           (db-update-build-status! drv (build-status succeeded))
+           (set-build-successful! spec drv)
 
            (for-each (match-lambda
                        ((name . output)
