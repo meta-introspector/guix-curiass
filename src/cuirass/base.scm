@@ -675,6 +675,7 @@ by PRODUCT-SPECS."
               (let ((product (and (build-has-products? (assq-ref spec #:job))
                                   (find-product build spec))))
                 (when (and product (file-exists? product))
+                  (log-message "Adding build product ~a" product)
                   (db-add-build-product `((#:build . ,(assq-ref build #:id))
                                           (#:type . ,(assq-ref spec #:type))
                                           (#:file-size . ,(file-size product))
