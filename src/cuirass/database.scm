@@ -557,7 +557,7 @@ VALUES ("
   "Insert PRODUCT into BuildProducts table."
   (with-db-worker-thread db
     (sqlite-exec db "\
-INSERT INTO BuildProducts (build, type, file_size, checksum,
+INSERT OR IGNORE INTO BuildProducts (build, type, file_size, checksum,
 path) VALUES ("
                  (assq-ref product #:build) ", "
                  (assq-ref product #:type) ", "
