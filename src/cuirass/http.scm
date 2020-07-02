@@ -570,6 +570,15 @@ Hydra format."
               (respond-json-with-error 500 "No build found.")))
            (respond-json-with-error 500 "Query parameter not provided."))))
 
+    (('GET "status")
+     (respond-html
+      (html-page
+       "Running builds"
+       (running-builds-table
+        (db-get-builds `((status . started)
+                         (order . status+submission-time))))
+       '())))
+
     (('GET "download" id)
      (let ((path (db-get-build-product-path id)))
        (respond-file path)))

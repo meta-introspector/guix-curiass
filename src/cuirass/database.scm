@@ -770,6 +770,7 @@ FILTERS is an assoc list whose possible keys are 'derivation | 'id | 'jobset |
         (status          . ,(match (assq-ref filters 'status)
                               (#f         #f)
                               ('done      "Builds.status >= 0")
+                              ('started   "Builds.status = -1")
                               ('pending   "Builds.status < 0")
                               ('succeeded "Builds.status = 0")
                               ('failed    "Builds.status > 0")))

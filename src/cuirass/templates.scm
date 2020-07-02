@@ -38,7 +38,8 @@
             build-eval-table
             build-search-results-table
             build-details
-            evaluation-build-table))
+            evaluation-build-table
+            running-builds-table))
 
 (define (navigation-items navigation)
   (match navigation
@@ -112,15 +113,28 @@ system whose names start with " (code "guile-") ":" (br)
                    (href "/static/css/cuirass.css")))
           (title ,title))
          (body
-          (nav (@ (class "navbar navbar-expand navbar-light bg-light"))
+          (nav (@ (class "navbar navbar-expand-lg navbar-light bg-light"))
                (a (@ (class "navbar-brand pt-0")
                      (href "/"))
                   (img (@ (src "/static/images/logo.png")
                           (alt "logo")
                           (height "25")
                           (style "margin-top: -12px"))))
-               (div (@ (class "navbar-collapse"))
-                    (ul (@ (class "navbar-nav"))
+               (div (@ (class "collapse navbar-collapse"))
+                    (ul (@ (class "navbar-nav mr-auto"))
+                        (li (@ (class "nav-item dropdown"))
+                            (a (@ (class "nav-link dropdown-toggle")
+                                  (data-toggle "dropdown")
+                                  (href "#")
+                                  (role "button")
+                                  (aria-haspopup "true")
+                                  (aria-expanded "false"))
+                               "Status")
+                            (div (@ (class "dropdown-menu")
+                                    (aria-labelledby "navbarDropdow"))
+                                 (a (@ (class "dropdown-item")
+                                       (href "/status"))
+                                    "Latest builds")))
                         (li (@ (class "nav-item"))
                             (a (@ (class "nav-link" ,(if (null? navigation)
                                                          " active" ""))
@@ -748,3 +762,27 @@ and BUILD-MAX are global minimal and maximal row identifiers."
              #f "?query=~a&border-low-id=~d"
              query
              (1- (first build-min))))))))
+
+(define (running-builds-table builds)
+  "Return HTML for the running builds table."
+  (define (build-row build)
+    `(tr
+      (th (@ (scope "row"))
+          (a (@ (href "/build/" ,(assq-ref build #:id) "/details"))
+             ,(assq-ref build #:id)))
+      (td ,(assq-ref build #:job-name))
+      (td ,(time->string
+            (assq-ref build #:starttime)))
+      (td ,(assq-ref build #:system))))
+
+  `((p (@ (class "lead")) "Running builds")
+    (table
+     (@ (class "table table-sm table-hover table-striped"))
+     ,@(if (null? builds)
+           `((th (@ (scope "col")) "No elements here."))
+           `((thead (tr (th (@ (scope "col")) "ID")
+                        (th (@ (scope "col")) "Job")
+                        (th (@ (scope "col")) "Queued at")
+                        (th (@ (scope "col")) "System")))
+             (tbody
+              ,(map build-row builds)))))))

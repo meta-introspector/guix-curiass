@@ -15,3 +15,25 @@
 #search:focus-within #search-hints {
     display: block;
 }
+
+/*
+ This is taken from: https://gist.github.com/YushengLi/824d3317f36c31f3d3e9 to
+ allow bootstrap dropdown menus to work without the associated javascript
+ plugin.
+ */
+a.dropdown-toggle:focus {
+    pointer-events: none;
+}
+
+a.dropdown-toggle:focus + .dropdown-menu {
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+}
+
+.dropdown-menu {
+    opacity: 0;
+    display: block;
+    visibility: hidden;
+    transition: visibility 0.5s;
+}
