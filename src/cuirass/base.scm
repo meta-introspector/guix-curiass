@@ -449,16 +449,19 @@ Essentially this procedure inverts the inversion-of-control that
   ;; Our shuffling algorithm is simple: we sort by .drv file name.  :-)
   (sort drv string<?))
 
-(define (set-build-successful! spec drv)
+(define (set-build-successful! drv)
   "Update the build status of DRV as successful and register any eventual
-build products according to SPEC."
-  (let ((build (db-get-build drv)))
+build products."
+  (let* ((build (db-get-build drv))
+         (spec  (and build
+                     (db-get-specification
+                      (assq-ref build #:specification)))))
     (when (and spec build)
       (create-build-outputs build
                             (assq-ref spec #:build-outputs))))
   (db-update-build-status! drv (build-status succeeded)))
 
-(define (update-build-statuses! store spec lst)
+(define (update-build-statuses! store lst)
   "Update the build status of the derivations listed in LST, which have just
 been passed to 'build-derivations' (meaning that we can assume that, if their
 outputs are invalid, that they failed to build.)"
@@ -466,7 +469,7 @@ outputs are invalid, that they failed to build.)"
     (match (derivation-path->output-paths drv)
       (((_ . outputs) ...)
        (if (any (cut valid-path? store <>) outputs)
-           (set-build-successful! spec drv)
+           (set-build-successful! drv)
            (db-update-build-status! drv
                                     (if (log-file store drv)
                                         (build-status failed)
@@ -488,8 +491,7 @@ and returns the values RESULTS."
 
 (define* (spawn-builds store drv
                        #:key
-                       (max-batch-size 200)
-                       spec)
+                       (max-batch-size 200))
   "Build the derivations listed in DRV, updating the database as builds
 complete.  Derivations are submitted in batches of at most MAX-BATCH-SIZE
 items."
@@ -540,7 +542,7 @@ items."
                                    ;; from PORT and eventually close it.
                                    (catch #t
                                      (lambda ()
-                                       (handle-build-event spec event))
+                                       (handle-build-event event))
                                      (exception-reporter state)))
                                  #t)
               (close-port port)
@@ -552,11 +554,11 @@ items."
           ;; 'build-derivations' doesn't actually do anything and
           ;; 'handle-build-event' doesn't see any event.  Because of that,
           ;; adjust the database here.
-          (update-build-statuses! store spec batch)
+          (update-build-statuses! store batch)
 
           (loop rest (max (- count max-batch-size) 0))))))
 
-(define* (handle-build-event spec event)
+(define* (handle-build-event event)
   "Handle EVENT, a build event sexp as produced by 'build-event-output-port',
 updating the database accordingly."
   (define (valid? file)
@@ -586,7 +588,7 @@ updating the database accordingly."
      (if (valid? drv)
          (begin
            (log-message "build succeeded: '~a'" drv)
-           (set-build-successful! spec drv)
+           (set-build-successful! drv)
 
            (for-each (match-lambda
                        ((name . output)
@@ -684,7 +686,7 @@ by PRODUCT-SPECS."
                                           (#:path . ,product))))))
             product-specs))
 
-(define (build-packages store spec jobs eval-id)
+(define (build-packages store jobs eval-id)
   "Build JOBS and return a list of Build results."
   (define (register job)
     (let* ((name     (assq-ref job #:job-name))
@@ -725,8 +727,7 @@ by PRODUCT-SPECS."
                eval-id (length derivations))
   (db-set-evaluation-done eval-id)
 
-  (spawn-builds store derivations
-                #:spec spec)
+  (spawn-builds store derivations)
 
   (let* ((results (filter-map (cut db-get-build <>) derivations))
          (status (map (cut assq-ref <> #:status) results))
@@ -825,7 +826,7 @@ by PRODUCT-SPECS."
                  (let ((jobs (evaluate store spec eval-id checkouts)))
                    (log-message "building ~a jobs for '~a'"
                                 (length jobs) name)
-                   (build-packages store spec jobs eval-id))))))
+                   (build-packages store jobs eval-id))))))
 
           ;; 'spawn-fiber' returns zero values but we need one.
           *unspecified*))))

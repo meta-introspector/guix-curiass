@@ -41,6 +41,7 @@
             db-optimize
             db-add-specification
             db-remove-specification
+            db-get-specification
             db-get-specifications
             db-add-evaluation
             db-set-evaluations-done
@@ -392,29 +393,39 @@ DELETE FROM Specifications WHERE name=" name ";")
                        (#:no-compile? . ,(positive? no-compile-p)))
                      inputs)))))))
 
-(define (db-get-specifications)
+(define (db-get-specification name)
+  "Retrieve a specification in the database with the given NAME."
   (with-db-worker-thread db
-    (let loop ((rows  (sqlite-exec db "SELECT * FROM Specifications ORDER BY name DESC;"))
-               (specs '()))
-      (match rows
-        (() specs)
-        ((#(name load-path-inputs package-path-inputs proc-input proc-file proc
-                 proc-args build-outputs)
-           . rest)
-         (loop rest
-               (cons `((#:name . ,name)
-                       (#:load-path-inputs .
-                                           ,(with-input-from-string load-path-inputs read))
-                       (#:package-path-inputs .
-                                              ,(with-input-from-string package-path-inputs read))
-                       (#:proc-input . ,proc-input)
-                       (#:proc-file . ,proc-file)
-                       (#:proc . ,(with-input-from-string proc read))
-                       (#:proc-args . ,(with-input-from-string proc-args read))
-                       (#:inputs . ,(db-get-inputs name))
-                       (#:build-outputs .
-                        ,(with-input-from-string build-outputs read)))
-                     specs)))))))
+    (expect-one-row (db-get-specifications name))))
+
+(define* (db-get-specifications #:optional name)
+  (with-db-worker-thread db
+    (let loop
+        ((rows  (if name
+                    (sqlite-exec db "
+SELECT * FROM Specifications WHERE name =" name ";")
+                    (sqlite-exec db "
+SELECT * FROM Specifications ORDER BY name DESC;")))
+         (specs '()))
+         (match rows
+           (() specs)
+           ((#(name load-path-inputs package-path-inputs proc-input proc-file proc
+                    proc-args build-outputs)
+             . rest)
+            (loop rest
+                  (cons `((#:name . ,name)
+                          (#:load-path-inputs .
+                           ,(with-input-from-string load-path-inputs read))
+                          (#:package-path-inputs .
+                           ,(with-input-from-string package-path-inputs read))
+                          (#:proc-input . ,proc-input)
+                          (#:proc-file . ,proc-file)
+                          (#:proc . ,(with-input-from-string proc read))
+                          (#:proc-args . ,(with-input-from-string proc-args read))
+                          (#:inputs . ,(db-get-inputs name))
+                          (#:build-outputs .
+                           ,(with-input-from-string build-outputs read)))
+                        specs)))))))
 
 (define (db-add-evaluation spec-name checkouts)
   "Add a new evaluation for SPEC-NAME only if one of the CHECKOUTS is new.

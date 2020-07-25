@@ -110,6 +110,10 @@ INSERT INTO Evaluations (specification, in_progress) VALUES (3, false);")
       (db-add-specification example-spec)
       (car (db-get-specifications))))
 
+  (test-equal "db-get-specification"
+    example-spec
+    (db-get-specification "guix"))
+
   (test-equal "db-add-build"
     #f
     (let ((build (make-dummy-build "/foo.drv")))
