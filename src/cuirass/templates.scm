@@ -617,8 +617,12 @@ evaluation."
                                          inputs))
                             (url   (assq-ref input #:url))
                             (commit (assq-ref checkout #:commit)))
-                       `(tr (td ,url)
-                            (td (code ,(commit-hyperlink url commit))))))
+                       ;; Some checkout entries may refer to removed
+                       ;; inputs.
+                       (if input
+                           `(tr (td ,url)
+                                (td (code ,(commit-hyperlink url commit))))
+                           '())))
                    checkouts)))
 
     (p (@ (class "lead"))
