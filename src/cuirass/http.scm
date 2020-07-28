@@ -581,7 +581,11 @@ Hydra format."
 
     (('GET "download" id)
      (let ((path (db-get-build-product-path id)))
-       (respond-file path)))
+       (if path
+           (respond-file path)
+           (respond-json-with-error
+            500
+            "Could not find the request build product."))))
 
     (('GET "static" path ...)
      (respond-static-file path))
