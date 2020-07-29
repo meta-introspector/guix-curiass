@@ -150,7 +150,13 @@
                           (setsockopt client SOL_SOCKET SO_SNDBUF
                                       (* 128 1024))
                           (if (file-port? output)
-                              (sendfile output input size)
+                              (catch 'system-error
+                                (lambda ()
+                                  (sendfile output input size))
+                                (lambda args
+                                  (unless (memv (system-error-errno args)
+                                                (list EPIPE ECONNRESET))
+                                    (apply throw args))))
                               (dump-port input output))
                           (close-port output)
                           (values))))))
