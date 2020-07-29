@@ -144,23 +144,23 @@ VARS... are bound to the arguments of the worker thread."
                            (lambda (vars ...) exp ...)))
 
 (define (%non-blocking thunk)
-  (parameterize (((@@ (fibers internal) current-fiber) #f))
-    (let ((channel (make-channel)))
-      (call-with-new-thread
-       (lambda ()
+  (let ((channel (make-channel)))
+    (call-with-new-thread
+     (lambda ()
+       (parameterize (((@@ (fibers internal) current-fiber) #f))
          (catch #t
            (lambda ()
              (call-with-values thunk
                (lambda values
                  (put-message channel `(values ,@values)))))
            (lambda args
-             (put-message channel `(exception ,@args))))))
+             (put-message channel `(exception ,@args)))))))
 
-      (match (get-message channel)
-        (('values . results)
-         (apply values results))
-        (('exception . args)
-         (apply throw args))))))
+    (match (get-message channel)
+      (('values . results)
+       (apply values results))
+      (('exception . args)
+       (apply throw args)))))
 
 (define-syntax-rule (non-blocking exp ...)
   "Evalaute EXP... in a separate thread so that it doesn't block the execution
