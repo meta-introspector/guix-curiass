@@ -143,12 +143,21 @@ exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
                      (let ((exit-channel (make-channel)))
 
                        (if (option-ref opts 'web #f)
-                           (spawn-fiber
-                            (essential-task
-                             'web exit-channel
-                             (lambda ()
-                               (run-cuirass-server #:host host #:port port)))
-                            #:parallel? #t)
+                           (begin
+                             (spawn-fiber
+                              (essential-task
+                               'web exit-channel
+                               (lambda ()
+                                 (run-cuirass-server #:host host #:port port)))
+                              #:parallel? #t)
+
+                             (spawn-fiber
+                              (essential-task
+                               'monitor exit-channel
+                               (lambda ()
+                                 (while #t
+                                   (log-monitoring-stats)
+                                   (sleep 600))))))
                            (begin
 
                              (clear-build-queue)
