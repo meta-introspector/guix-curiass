@@ -110,6 +110,17 @@
              (alist-cons 'content-length length
                          (strip-headers response))))
 
+(define-syntax-rule (with-ignored-disconnects exp ...)
+  "Run EXP and ignore silently any exceptions caused by a premature client
+disconnection. Re-raise any other kind of exceptions."
+  (catch 'system-error
+    (lambda ()
+      exp ...)
+    (lambda args
+      (unless (memv (system-error-errno args)
+                    (list EPIPE ECONNRESET))
+        (apply throw args)))))
+
 (define (client-loop client have-request)
   ;; Always disable Nagle's algorithm, as we handle buffering
   ;; ourselves.
@@ -150,20 +161,16 @@
                           (setsockopt client SOL_SOCKET SO_SNDBUF
                                       (* 128 1024))
                           (if (file-port? output)
-                              (catch 'system-error
-                                (lambda ()
-                                  (sendfile output input size))
-                                (lambda args
-                                  (unless (memv (system-error-errno args)
-                                                (list EPIPE ECONNRESET))
-                                    (apply throw args))))
+                              (with-ignored-disconnects
+                               (sendfile output input size))
                               (dump-port input output))
                           (close-port output)
                           (values))))))
                   (#f (begin
                         (write-response response client)
                         (when body
-                          (put-bytevector client body))
+                          (with-ignored-disconnects
+                           (put-bytevector client body)))
                         (force-output client))
                       (if (and (keep-alive? response)
                                (not (eof-object? (peek-char client))))
