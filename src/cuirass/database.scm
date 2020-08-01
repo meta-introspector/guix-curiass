@@ -22,6 +22,7 @@
 ;;; along with Cuirass.  If not, see <http://www.gnu.org/licenses/>.
 
 (define-module (cuirass database)
+  #:use-module (cuirass logging)
   #:use-module (cuirass config)
   #:use-module (cuirass utils)
   #:use-module (ice-9 match)
@@ -184,8 +185,16 @@ specified."
   "Evaluate EXP... in the critical section corresponding to %DB-CHANNEL.
 DB is bound to the argument of that critical section: the database
 connection."
-  (call-with-worker-thread (%db-channel)
-                           (lambda (db) exp ...)))
+  (let ((timeout 5))
+    (call-with-worker-thread
+     (%db-channel)
+     (lambda (db) exp ...)
+     #:timeout timeout
+     #:timeout-proc
+     (lambda ()
+       (log-message
+        (format #f "Database worker unresponsive for ~a seconds."
+                (number->string timeout)))))))
 
 (define (read-sql-file file-name)
   "Return a list of string containing SQL instructions from FILE-NAME."

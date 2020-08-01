@@ -29,6 +29,8 @@
   #:use-module (json)
   #:use-module (fibers)
   #:use-module (fibers channels)
+  #:use-module (fibers operations)
+  #:use-module (fibers timers)
   #:export (alist?
             object->json-scm
             object->json-string
@@ -124,15 +126,58 @@ arguments of the worker thread procedure."
        (iota parallelism))
       channel)))
 
-(define (call-with-worker-thread channel proc)
+(define* (with-timeout op #:key (seconds 0.05) (wrap values))
+  "Return an operation that succeeds if the given OP succeeds or if SECONDS
+have elapsed.  In the first case, the result of OP is returned and in the
+second case, the wrapping procedure WRAP is called and its result returned."
+  (choice-operation op
+                    (wrap-operation (sleep-operation seconds) wrap)))
+
+(define* (get-message-with-timeout channel
+                                   #:key
+                                   seconds
+                                   (retry? #t)
+                                   timeout-proc)
+  "Perform a get-operation on CHANNEL with a timeout set to SECONDS.  If the
+timout expires and RETRY? is set to false, return 'timeout.  If RETRY is true,
+call the TIMEOUT-PROC procedure on timeout and retry the get-operation until
+it succeeds."
+  (define (get-message*)
+    (perform-operation
+     (with-timeout
+      (get-operation channel)
+      #:seconds seconds
+      #:wrap (const 'timeout))))
+
+  (let ((res (get-message*)))
+    (if retry?
+        (begin
+          (let loop ((res res))
+            (if (eq? res 'timeout)
+                (begin
+                  (and timeout-proc (timeout-proc))
+                  (loop (get-message*)))
+                res)))
+        res)))
+
+(define* (call-with-worker-thread channel proc
+                                  #:key
+                                  timeout
+                                  timeout-proc)
   "Send PROC to the worker thread through CHANNEL.  Return the result of PROC.
-If already in the worker thread, call PROC immediately."
+If already in the worker thread, call PROC immediately.  If TIMEOUT is set to
+a duration in seconds, TIMEOUT-PROC is called every time a delay of TIMEOUT
+seconds expires, without a response from the worker thread."
   (let ((args (%worker-thread-args)))
     (if args
         (apply proc args)
         (let ((reply (make-channel)))
           (put-message channel (cons reply proc))
-          (match (get-message reply)
+          (match (if (and timeout (current-fiber))
+                     (get-message-with-timeout reply
+                                               #:seconds timeout
+                                               #:timeout-proc timeout-proc)
+                     (get-message reply))
             (('worker-thread-error key args ...)
              (apply throw key args))
             (result result))))))
