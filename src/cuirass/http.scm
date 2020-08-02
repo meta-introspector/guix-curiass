@@ -354,10 +354,11 @@ Hydra format."
      (respond-json (object->json-string
                     (list->vector (db-get-specifications)))))
     (('GET "build" id)
-     (let ((hydra-build (handle-build-request
-                         (if (string-suffix? ".drv" id)
-                             (string-append (%store-prefix) "/" id)
-                             (string->number id)))))
+     (let* ((build (if (string-suffix? ".drv" id)
+                       (string-append (%store-prefix) "/" id)
+                       (string->number id)))
+            (hydra-build (and build
+                              (handle-build-request build))))
        (if hydra-build
            (respond-json (object->json-string hydra-build))
            (respond-build-not-found id))))
