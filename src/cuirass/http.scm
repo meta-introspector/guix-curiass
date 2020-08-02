@@ -362,20 +362,18 @@ Hydra format."
        (if hydra-build
            (respond-json (object->json-string hydra-build))
            (respond-build-not-found id))))
-    (('GET "build" build-id "details")
-     (let* ((id (string->number build-id))
-            (build (and id (db-get-build id)))
-            (products (and build (db-get-build-products build-id))))
+    (('GET "build" (= string->number id) "details")
+     (let* ((build (and id (db-get-build id)))
+            (products (and build (db-get-build-products id))))
        (if build
            (respond-html
-            (html-page (string-append "Build " build-id)
+            (html-page (string-append "Build " id)
                        (build-details build products)
                        `(((#:name . ,(assq-ref build #:specification))
                           (#:link . ,(string-append "/jobset/" (assq-ref build #:specification)))))))
-           (respond-build-not-found build-id))))
-    (('GET "build" build-id "log" "raw")
-     (let* ((id (string->number build-id))
-            (build (and id (db-get-build id))))
+           (respond-build-not-found id))))
+    (('GET "build" (= string->number id) "log" "raw")
+     (let ((build (and id (db-get-build id))))
        (if build
            (match (assq-ref build #:outputs)
              (((_ (#:path . (? string? output))) _ ...)
@@ -388,13 +386,13 @@ Hydra format."
                                          #:headers `((location . ,uri)))
                          #:body "")))
              (()
-              ;; Not entry for BUILD-ID in the 'Outputs' table.
+              ;; Not entry for ID in the 'Outputs' table.
               (respond-json-with-error
                500
-               (format #f "Outputs of build ~a are unknown." build-id)))
+               (format #f "Outputs of build ~a are unknown." id)))
              (#f
-              (respond-build-not-found build-id)))
-           (respond-build-not-found build-id))))
+              (respond-build-not-found id)))
+           (respond-build-not-found id))))
     (('GET "output" id)
      (let ((output (db-get-output
                     (string-append (%store-prefix) "/" id))))
