@@ -363,8 +363,9 @@ Hydra format."
            (respond-json (object->json-string hydra-build))
            (respond-build-not-found id))))
     (('GET "build" build-id "details")
-     (let ((build (db-get-build (string->number build-id)))
-           (products (db-get-build-products build-id)))
+     (let* ((id (string->number build-id))
+            (build (and id (db-get-build id)))
+            (products (and build (db-get-build-products build-id))))
        (if build
            (respond-html
             (html-page (string-append "Build " build-id)
