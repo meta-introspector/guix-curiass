@@ -374,7 +374,8 @@ Hydra format."
                           (#:link . ,(string-append "/jobset/" (assq-ref build #:specification)))))))
            (respond-build-not-found build-id))))
     (('GET "build" build-id "log" "raw")
-     (let ((build (db-get-build (string->number build-id))))
+     (let* ((id (string->number build-id))
+            (build (and id (db-get-build id))))
        (if build
            (match (assq-ref build #:outputs)
              (((_ (#:path . (? string? output))) _ ...)
