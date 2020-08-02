@@ -367,7 +367,7 @@ Hydra format."
             (products (and build (db-get-build-products id))))
        (if build
            (respond-html
-            (html-page (string-append "Build " id)
+            (html-page (string-append "Build " (number->string id))
                        (build-details build products)
                        `(((#:name . ,(assq-ref build #:specification))
                           (#:link . ,(string-append "/jobset/" (assq-ref build #:specification)))))))
