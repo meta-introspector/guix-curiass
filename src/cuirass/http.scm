@@ -146,16 +146,19 @@ Hydra format."
   (let* ((uri (request-uri request))
          (query (uri-query uri)))
     (if query
-        (map (lambda (param)
+        (fold (lambda (param params)
                (match (string-split param #\=)
                  ((key param)
                   (let ((key-symbol (string->symbol key)))
-                    (cons key-symbol
-                          (match key-symbol
-                            ('id (string->number param))
-                            ('nr (string->number param))
-                            (_   param)))))))
-             (string-split query #\&))
+                    (cons (cons key-symbol
+                                (match key-symbol
+                                  ('id (string->number param))
+                                  ('nr (string->number param))
+                                  (_   param)))
+                          params)))
+                 (_ #f)))
+              '()
+              (string-split query #\&))
         '())))
 
 

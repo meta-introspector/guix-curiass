@@ -255,6 +255,13 @@
        (test-cuirass-uri
         "/api/latestbuilds?nr=1&jobset=gnu")))))
 
+  (test-equal "/api/latestbuilds?nr&jobset=gnu"
+    500
+    (response-code
+     (http-get
+      (test-cuirass-uri
+       "/api/latestbuilds?nr&jobset=gnu"))))
+
   (test-equal "/api/queue?nr=100"
     `("fake-2.0" ,(build-status scheduled))
     (match (json-string->scm
