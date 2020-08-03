@@ -212,9 +212,25 @@
     404
     (response-code (http-get (test-cuirass-uri "/build/42"))))
 
+  (test-equal "/build/42)"
+    404
+    (response-code (http-get (test-cuirass-uri "/build/42)"))))
+
   (test-equal "/build/42/log/raw"
     404
     (response-code (http-get (test-cuirass-uri "/build/42/log/raw"))))
+
+  (test-equal "/build/42xx/log/raw"
+    404
+    (response-code (http-get (test-cuirass-uri "/build/42xx/log/raw"))))
+
+  (test-equal "/build/42/details"
+    404
+    (response-code (http-get (test-cuirass-uri "/build/42/details"))))
+
+  (test-equal "/build/42xx/details"
+    404
+    (response-code (http-get (test-cuirass-uri "/build/42xx/details"))))
 
   (test-equal "/api/latestbuilds"
     500
