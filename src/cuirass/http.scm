@@ -156,7 +156,7 @@ Hydra format."
                                   ('nr (string->number param))
                                   (_   param)))
                           params)))
-                 (_ #f)))
+                 (_ params)))
               '()
               (string-split query #\&))
         '())))
