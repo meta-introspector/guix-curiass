@@ -110,79 +110,72 @@
              (alist-cons 'content-length length
                          (strip-headers response))))
 
-(define-syntax-rule (with-ignored-disconnects exp ...)
-  "Run EXP and ignore silently any exceptions caused by a premature client
-disconnection. Re-raise any other kind of exceptions."
-  (catch 'system-error
-    (lambda ()
-      exp ...)
-    (lambda args
-      (unless (memv (system-error-errno args)
-                    (list EPIPE ECONNRESET))
-        (apply throw args)))))
-
 (define (client-loop client have-request)
   ;; Always disable Nagle's algorithm, as we handle buffering
   ;; ourselves.
   (setsockopt client IPPROTO_TCP TCP_NODELAY 1)
   (setvbuf client 'block 1024)
-  (with-ignored-disconnects
-   (with-throw-handler #t
-     (lambda ()
-       (let ((response-channel (make-channel)))
-         (let loop ()
-           (cond
-            ((eof-object? (lookahead-u8 client))
-             (close-port client))
-            (else
-             (call-with-values
-                 (lambda ()
-                   (catch #t
-                     (lambda ()
-                       (let* ((request (read-request client))
-                              (body (read-request-body request)))
-                         (have-request response-channel request body)))
-                     (lambda (key . args)
-                       (display "While reading request:\n"
-                                (current-error-port))
-                       (print-exception (current-error-port) #f key args)
-                       (values (build-response #:version '(1 . 0) #:code 400
-                                               #:headers
-                                               '((content-length . 0)))
-                               #vu8()))))
-               (lambda (response body)
-                 (match (assoc-ref (response-headers response) 'x-raw-file)
-                   ((? string? file)
-                    (non-blocking
-                     (call-with-input-file file
-                       (lambda (input)
-                         (let* ((size     (stat:size (stat input)))
-                                (response (write-response
-                                           (with-content-length response size)
-                                           client))
-                                (output   (response-port response)))
-                           (setsockopt client SOL_SOCKET SO_SNDBUF
-                                       (* 128 1024))
-                           (if (file-port? output)
-                               (sendfile output input size)
-                               (dump-port input output))
-                           (close-port output)
-                           (values))))))
-                   (#f (begin
-                         (write-response response client)
-                         (when body
-                           (put-bytevector client body))
-                         (force-output client))
-                       (if (and (keep-alive? response)
-                                (not (eof-object? (peek-char client))))
-                           (loop)
-                           (close-port client)))))))))))
-     (lambda (k . args)
-       (catch #t
-         (lambda () (close-port client))
-         (lambda (k . args)
-           (display "While closing port:\n" (current-error-port))
-           (print-exception (current-error-port) #f k args)))))))
+  (catch #t
+    (lambda ()
+      (let ((response-channel (make-channel)))
+        (let loop ()
+          (cond
+           ((eof-object? (lookahead-u8 client))
+            (close-port client))
+           (else
+            (call-with-values
+                (lambda ()
+                  (catch #t
+                    (lambda ()
+                      (let* ((request (read-request client))
+                             (body (read-request-body request)))
+                        (have-request response-channel request body)))
+                    (lambda (key . args)
+                      (display "While reading request:\n"
+                               (current-error-port))
+                      (print-exception (current-error-port) #f key args)
+                      (values (build-response #:version '(1 . 0) #:code 400
+                                              #:headers
+                                              '((content-length . 0)))
+                              #vu8()))))
+              (lambda (response body)
+                (match (assoc-ref (response-headers response) 'x-raw-file)
+                  ((? string? file)
+                   (non-blocking
+                    (call-with-input-file file
+                      (lambda (input)
+                        (let* ((size     (stat:size (stat input)))
+                               (response (write-response
+                                          (with-content-length response size)
+                                          client))
+                               (output   (response-port response)))
+                          (setsockopt client SOL_SOCKET SO_SNDBUF
+                                      (* 128 1024))
+                          (if (file-port? output)
+                              (sendfile output input size)
+                              (dump-port input output))
+                          (close-port output)
+                          (values))))))
+                  (#f (begin
+                        (write-response response client)
+                        (when body
+                          (put-bytevector client body))
+                        (force-output client))
+                      (if (and (keep-alive? response)
+                               (not (eof-object? (peek-char client))))
+                          (loop)
+                          (close-port client)))))))))))
+    (lambda args
+      ;; Ignore premature client disconnections.
+      (unless (memv (system-error-errno args)
+                    (list EPIPE ECONNRESET))
+        (apply throw args)))
+    (lambda (k . args)
+      (catch #t
+        (lambda () (close-port client))
+        (lambda (k . args)
+          (display "While closing port:\n" (current-error-port))
+          (print-exception (current-error-port) #f k args))))))
 
 (define (socket-loop socket request-channel)
   (define (have-request response-channel request body)
