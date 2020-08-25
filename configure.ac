@@ -49,6 +49,7 @@ GUILE_MODULE_REQUIRED([git])
 GUILE_MODULE_REQUIRED([json])
 GUILE_MODULE_REQUIRED([sqlite3])
 GUILE_MODULE_REQUIRED([fibers])
+GUILE_MODULE_REQUIRED([zlib])
 
 # We depend on new Guile-Git errors.
 GUILE_MODULE_REQUIRED_EXPORT([(git)], git-error-message)
