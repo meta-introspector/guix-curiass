@@ -32,7 +32,7 @@
   #:use-module (guix store)
   #:use-module (guix git)
   #:use-module (guix cache)
-  #:use-module (guix zlib)
+  #:use-module (zlib)
   #:use-module ((guix config) #:select (%state-directory))
   #:use-module (git)
   #:use-module (ice-9 binary-ports)

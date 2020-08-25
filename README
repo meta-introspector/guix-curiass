@@ -12,6 +12,7 @@ Cuirass currently depends on the following packages:
   - Guile-JSON 3.x
   - Guile-SQLite3
   - Guile-Git
+  - Guile-zlib
   - Fibers
 
 A convenient way to install those dependencies is to install Guix and execute

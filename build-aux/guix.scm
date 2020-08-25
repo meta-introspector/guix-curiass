@@ -68,9 +68,11 @@
            (let* ((out    (assoc-ref outputs "out"))
                   (json   (assoc-ref inputs "guile-json"))
                   (sqlite (assoc-ref inputs "guile-sqlite3"))
+                  (zlib   (assoc-ref inputs "guile-zlib"))
                   (guix   (assoc-ref inputs "guix"))
                   (mods   (string-append json "/share/guile/site/3.0:"
                                          sqlite "/share/guile/site/3.0:"
+                                         zlib "/share/guile/site/3.0:"
                                          guix "/share/guile/site/3.0")))
              (wrap-program (string-append out "/bin/cuirass")
                `("GUILE_LOAD_PATH" ":" prefix (,mods))
@@ -82,6 +84,7 @@
           "guile-json"
           "guile-sqlite3"
           "guile-git"
+          "guile-zlib"
           "guix")))
   (native-inputs
    (map spec+package-list
