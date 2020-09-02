@@ -120,6 +120,34 @@
     (#:checkouts . ,(list->vector
                      (assq-ref evaluation #:checkouts)))))
 
+(define (specification->json-object spec)
+  "Turn SPEC into a representation suitable for 'json->scm'."
+  (define (atom? x)
+    (not (pair? x)))
+
+  (define (atom-list? obj)
+    (and (list? obj)
+         (every atom? obj)))
+
+  `((#:name . ,(assq-ref spec #:name))
+    (#:load-path-inputs . ,(list->vector
+                            (assq-ref spec #:load-path-inputs)))
+    (#:package-path-inputs . ,(list->vector
+                               (assq-ref spec #:package-path-inputs)))
+    (#:proc-input . ,(assq-ref spec #:proc-input))
+    (#:proc-file . ,(assq-ref spec #:proc-file))
+    (#:proc . ,(assq-ref spec #:proc))
+    (#:proc-args . ,(map (match-lambda
+                           ((key . arg)
+                            (cons key (if (atom-list? arg)
+                                          (list->vector arg)
+                                          arg))))
+                         (assq-ref spec #:proc-args)))
+    (#:inputs . ,(list->vector
+                  (assq-ref spec #:inputs)))
+    (#:build-outputs . ,(list->vector
+                         (assq-ref spec #:build-outputs)))))
+
 (define (handle-build-request build-id)
   "Retrieve build identified by BUILD-ID over the database and convert it to
 hydra format. Return #f is not build was found."
@@ -355,7 +383,9 @@ Hydra format."
                     '())))
     (('GET (or "jobsets" "specifications") . rest)
      (respond-json (object->json-string
-                    (list->vector (db-get-specifications)))))
+                    (list->vector
+                     (map specification->json-object
+                          (db-get-specifications))))))
     (('GET "build" id)
      (let* ((build (if (string-suffix? ".drv" id)
                        (string-append (%store-prefix) "/" id)

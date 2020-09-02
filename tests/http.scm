@@ -192,6 +192,15 @@
       (db-add-evaluation "guix" checkouts1)
       (db-add-evaluation "guix" checkouts2)))
 
+  (test-assert "/specifications"
+    (match (call-with-input-string
+               (utf8->string
+                (http-get-body (test-cuirass-uri "/specifications")))
+             json->scm)
+      (#(spec)
+       (and (string=? (assoc-ref spec "name") "guix")
+            (vector? (assoc-ref spec "package-path-inputs"))))))
+
   (test-assert "/build/1"
     (lset= equal?
      (call-with-input-string
