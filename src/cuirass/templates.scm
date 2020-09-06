@@ -619,12 +619,14 @@ evaluation."
 
   `((p (@ (class "lead"))
        ,(format #f "Evaluation #~a" id))
-    ,(if (= evaltime 0)
-         `(p ,(format #f "Evaluation started ~a."
-                      (time->string timestamp)))
-         `(p ,(format #f "Evaluation completed ~a in ~a."
-                      (time->string evaltime)
-                      (seconds->string duration))))
+    ,@(if (= timestamp 0)
+          '()
+          `((p ,(if (= evaltime 0)
+                     (format #f "Evaluation started ~a."
+                             (time->string timestamp))
+                     (format #f "Evaluation completed ~a in ~a."
+                             (time->string evaltime)
+                             (seconds->string duration))))))
     (table (@ (class "table table-sm table-hover"))
            (thead
             (tr (th (@ (class "border-0") (scope "col")) "Input")
