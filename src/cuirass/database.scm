@@ -47,6 +47,7 @@
             db-add-evaluation
             db-set-evaluations-done
             db-set-evaluation-done
+            db-set-evaluation-time
             db-get-pending-derivations
             build-status
             db-add-build
@@ -336,12 +337,13 @@ the same revision already exists for SPEC-NAME, return #f."
     (catch-sqlite-error
      (sqlite-exec db "\
 INSERT INTO Checkouts (specification, revision, evaluation, input,
-directory) VALUES ("
+directory, timestamp) VALUES ("
                   spec-name ", "
                   (assq-ref checkout #:commit) ", "
                   eval-id ", "
                   (assq-ref checkout #:input) ", "
-                  (assq-ref checkout #:directory) ");")
+                  (assq-ref checkout #:directory) ", "
+                  (or (assq-ref checkout #:timestamp) 0) ");")
      (last-insert-rowid db)
 
      ;; If we get a unique-constraint-failed error, that means we have
@@ -436,13 +438,21 @@ SELECT * FROM Specifications ORDER BY name DESC;")))
                            ,(with-input-from-string build-outputs read)))
                         specs)))))))
 
-(define (db-add-evaluation spec-name checkouts)
+(define* (db-add-evaluation spec-name checkouts
+                            #:key
+                            (checkouttime 0)
+                            (evaltime 0)
+                            timestamp)
   "Add a new evaluation for SPEC-NAME only if one of the CHECKOUTS is new.
 Otherwise, return #f."
+  (define now
+    (or timestamp (time-second (current-time time-utc))))
+
   (with-db-worker-thread db
     (sqlite-exec db "BEGIN TRANSACTION;")
-    (sqlite-exec db "INSERT INTO Evaluations (specification, in_progress)
-VALUES (" spec-name ", true);")
+    (sqlite-exec db "INSERT INTO Evaluations (specification, in_progress,
+timestamp, checkouttime, evaltime)
+VALUES (" spec-name ", true, " now "," checkouttime "," evaltime ");")
     (let* ((eval-id (last-insert-rowid db))
            (new-checkouts (filter-map
                            (cut db-add-checkout spec-name eval-id <>)
@@ -470,6 +480,15 @@ WHERE id = " eval-id ";")
                   (time-second (current-time time-utc))
                   `((#:evaluation  . ,eval-id)
                     (#:in_progress . #f)))))
+
+(define (db-set-evaluation-time eval-id)
+  (define now
+    (time-second (current-time time-utc)))
+
+  (with-db-worker-thread
+   db
+   (sqlite-exec db "UPDATE Evaluations SET evaltime = " now
+                "WHERE id = " eval-id ";")))
 
 (define-syntax-rule (with-database body ...)
   "Run BODY with %DB-CHANNEL being dynamically bound to a channel providing a
@@ -772,11 +791,11 @@ FILTERS is an assoc list whose possible keys are 'derivation | 'id | 'jobset |
       (('order . 'finish-time) "stoptime DESC")
       (('order . 'finish-time+build-id) "stoptime DESC, Builds.id DESC")
       (('order . 'start-time) "starttime DESC")
-      (('order . 'submission-time) "timestamp DESC")
+      (('order . 'submission-time) "Builds.timestamp DESC")
       ;; With this order, builds in 'running' state (-1) appear
       ;; before those in 'scheduled' state (-2).
       (('order . 'status+submission-time)
-       "status DESC, timestamp DESC, Builds.id ASC")
+       "status DESC, Builds.timestamp DESC, Builds.id ASC")
       (_ "Builds.id DESC")))
 
   (define (where-conditions filters)

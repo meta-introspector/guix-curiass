@@ -31,6 +31,7 @@ CREATE TABLE Checkouts (
   evaluation    INTEGER NOT NULL,
   input         TEXT NOT NULL,
   directory     TEXT NOT NULL,
+  timestamp     INTEGER NOT NULL,
   PRIMARY KEY (specification, revision),
   FOREIGN KEY (evaluation) REFERENCES Evaluations (id),
   FOREIGN KEY (specification) REFERENCES Specifications (name),
@@ -41,6 +42,9 @@ CREATE TABLE Evaluations (
   id            INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
   specification TEXT NOT NULL,
   in_progress   INTEGER NOT NULL,
+  timestamp     INTEGER NOT NULL,
+  checkouttime  INTEGER NOT NULL,
+  evaltime      INTEGER NOT NULL,
   FOREIGN KEY (specification) REFERENCES Specifications (name)
 );
 

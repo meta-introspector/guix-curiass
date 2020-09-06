@@ -198,6 +198,10 @@ read-only directory."
         branch
         (string-append "origin/" branch)))
 
+  (define (commit-timestamp directory commit)
+    (with-repository directory repository
+      (commit-time (commit-lookup repository (string->oid commit)))))
+
   (let ((name   (assq-ref input #:name))
         (url    (assq-ref input #:url))
         (branch (and=> (assq-ref input #:branch)
@@ -209,10 +213,15 @@ read-only directory."
         (tag    (and=> (assq-ref input #:tag)
                        (lambda (t)
                          `(tag . ,t)))))
-    (let-values (((directory commit)
-                  (latest-repository-commit store url
-                                            #:cache-directory (%package-cachedir)
-                                            #:ref (or branch commit tag))))
+    (let*-values (((directory commit)
+                   (latest-repository-commit store url
+                                             #:cache-directory
+                                             (%package-cachedir)
+                                             #:ref (or branch commit tag)))
+                  ((timestamp)
+                   (commit-timestamp
+                    (url-cache-directory url (%package-cachedir))
+                    commit)))
       ;; TODO: When WRITABLE-COPY? is true, we could directly copy the
       ;; checkout directly in a writable location instead of copying it to the
       ;; store first.
@@ -224,6 +233,7 @@ read-only directory."
         `((#:input . ,name)
           (#:directory . ,directory)
           (#:commit . ,commit)
+          (#:timestamp . ,timestamp)
           (#:load-path . ,(assq-ref input #:load-path))
           (#:no-compile? . ,(assq-ref input #:no-compile?)))))))
 
@@ -809,8 +819,12 @@ by PRODUCT-SPECS."
   (define (process spec)
     (with-store store
       (let* ((name (assoc-ref spec #:name))
+             (timestamp (time-second (current-time time-utc)))
              (checkouts (fetch-inputs spec))
-             (eval-id (db-add-evaluation name checkouts)))
+             (checkouttime (time-second (current-time time-utc)))
+             (eval-id (db-add-evaluation name checkouts
+                                         #:timestamp timestamp
+                                         #:checkouttime checkouttime)))
         (when eval-id
           (compile-checkouts spec (filter compile? checkouts))
           (spawn-fiber
@@ -824,6 +838,7 @@ by PRODUCT-SPECS."
                (log-message "evaluating spec '~a'" name)
                (with-store store
                  (let ((jobs (evaluate store spec eval-id checkouts)))
+                   (db-set-evaluation-time eval-id)
                    (log-message "building ~a jobs for '~a'"
                                 (length jobs) name)
                    (build-packages store jobs eval-id))))))

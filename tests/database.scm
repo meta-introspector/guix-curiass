@@ -97,11 +97,14 @@
   (test-assert "sqlite-exec"
     (begin
       (sqlite-exec (%db) "\
-INSERT INTO Evaluations (specification, in_progress) VALUES (1, false);")
+INSERT INTO Evaluations (specification, in_progress,
+timestamp, checkouttime, evaltime) VALUES (1, false, 0, 0, 0);")
       (sqlite-exec (%db) "\
-INSERT INTO Evaluations (specification, in_progress) VALUES (2, false);")
+INSERT INTO Evaluations (specification, in_progress,
+timestamp, checkouttime, evaltime) VALUES (2, false, 0, 0, 0);")
       (sqlite-exec (%db) "\
-INSERT INTO Evaluations (specification, in_progress) VALUES (3, false);")
+INSERT INTO Evaluations (specification, in_progress,
+timestamp, checkouttime, evaltime) VALUES (3, false, 0, 0, 0);")
       (sqlite-exec (%db) "SELECT * FROM Evaluations;")))
 
   (test-equal "db-add-specification"
