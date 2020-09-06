@@ -587,6 +587,17 @@ and BUILD-MAX are global minimal and maximal (stoptime, rowid) pairs."
       (#f     commit)
       ((link) `(a (@ (href ,(link url commit))) ,commit)))))
 
+(define (nearest-exact-integer x)
+  "Given a real number X, return the nearest exact integer, with ties going to
+the nearest exact even integer."
+  (inexact->exact (round x)))
+
+(define (seconds->string duration)
+  (if (< duration 60)
+      (format #f "~a second~:p" duration)
+      (format #f "~a minute~:p" (nearest-exact-integer
+                                 (/ duration 60)))))
+
 (define* (evaluation-build-table evaluation
                                  #:key
                                  (checkouts '())
@@ -598,12 +609,22 @@ evaluation."
   (define id        (assq-ref evaluation #:id))
   (define total     (assq-ref evaluation #:total))
   (define succeeded (assq-ref evaluation #:succeeded))
+  (define timestamp (assq-ref evaluation #:timestamp))
+  (define evaltime  (assq-ref evaluation #:evaltime))
   (define failed    (assq-ref evaluation #:failed))
   (define scheduled (assq-ref evaluation #:scheduled))
   (define spec      (assq-ref evaluation #:spec))
 
+  (define duration  (- evaltime timestamp))
+
   `((p (@ (class "lead"))
        ,(format #f "Evaluation #~a" id))
+    ,(if (= evaltime 0)
+         `(p ,(format #f "Evaluation started ~a."
+                      (time->string timestamp)))
+         `(p ,(format #f "Evaluation completed ~a in ~a."
+                      (time->string evaltime)
+                      (seconds->string duration))))
     (table (@ (class "table table-sm table-hover"))
            (thead
             (tr (th (@ (class "border-0") (scope "col")) "Input")

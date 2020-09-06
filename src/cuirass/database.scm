@@ -984,17 +984,21 @@ WHERE evaluation =" eval-id ";"))
 
 (define (db-get-evaluations limit)
   (with-db-worker-thread db
-    (let loop ((rows  (sqlite-exec db "SELECT id, specification, in_progress
+    (let loop ((rows  (sqlite-exec db "SELECT id, specification, in_progress,
+timestamp, checkouttime, evaltime
 FROM Evaluations ORDER BY id DESC LIMIT " limit ";"))
                (evaluations '()))
       (match rows
         (() (reverse evaluations))
-        ((#(id specification in-progress)
+        ((#(id specification in-progress timestamp checkouttime evaltime)
            . rest)
          (loop rest
                (cons `((#:id . ,id)
                        (#:specification . ,specification)
                        (#:in-progress . ,in-progress)
+                       (#:timestamp . ,timestamp)
+                       (#:checkouttime . ,checkouttime)
+                       (#:evaltime . ,evaltime)
                        (#:checkouts . ,(db-get-checkouts id)))
                      evaluations)))))))
 
@@ -1049,9 +1053,10 @@ WHERE specification=" spec)))
 (define (db-get-evaluation-summary id)
   (with-db-worker-thread db
     (let ((rows (sqlite-exec db "
-SELECT E.id, E.in_progress, B.total, B.succeeded, B.failed, B.scheduled
+SELECT E.id, E.in_progress, E.timestamp, E.checkouttime, E.evaltime,
+B.total, B.succeeded, B.failed, B.scheduled
 FROM
- (SELECT id, in_progress
+ (SELECT id, in_progress, timestamp, checkouttime, evaltime
 FROM Evaluations
 WHERE (id=" id ")) E
 LEFT JOIN
@@ -1063,10 +1068,14 @@ ON B.evaluation=E.id
 ORDER BY E.id ASC;")))
       (and=> (expect-one-row rows)
              (match-lambda
-               (#(id in-progress total succeeded failed scheduled)
+               (#(id in-progress timestamp checkouttime evaltime
+                     total succeeded failed scheduled)
                 `((#:id . ,id)
                   (#:in-progress . ,in-progress)
                   (#:total . ,(or total 0))
+                  (#:timestamp . ,timestamp)
+                  (#:checkouttime . ,checkouttime)
+                  (#:evaltime . ,evaltime)
                   (#:succeeded . ,(or succeeded 0))
                   (#:failed . ,(or failed 0))
                   (#:scheduled . ,(or scheduled 0)))))))))
