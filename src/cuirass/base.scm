@@ -198,10 +198,6 @@ read-only directory."
         branch
         (string-append "origin/" branch)))
 
-  (define (commit-timestamp directory commit)
-    (with-repository directory repository
-      (commit-time (commit-lookup repository (string->oid commit)))))
-
   (let ((name   (assq-ref input #:name))
         (url    (assq-ref input #:url))
         (branch (and=> (assq-ref input #:branch)
@@ -219,9 +215,7 @@ read-only directory."
                                              (%package-cachedir)
                                              #:ref (or branch commit tag)))
                   ((timestamp)
-                   (commit-timestamp
-                    (url-cache-directory url (%package-cachedir))
-                    commit)))
+                   (time-second (current-time time-utc))))
       ;; TODO: When WRITABLE-COPY? is true, we could directly copy the
       ;; checkout directly in a writable location instead of copying it to the
       ;; store first.
