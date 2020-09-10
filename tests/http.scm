@@ -79,6 +79,9 @@
   #(((#:id . 2)
      (#:specification . "guix")
      (#:status . -1)
+     (#:timestamp . 1501347493)
+     (#:checkouttime . 0)
+     (#:evaltime . 0)
      (#:checkouts . #(((#:commit . "fakesha2")
                        (#:input . "savannah")
                        (#:directory . "dir3")))))))
@@ -189,8 +192,10 @@
       (db-add-build build1)
       (db-add-build build2)
       (db-add-specification specification)
-      (db-add-evaluation "guix" checkouts1)
-      (db-add-evaluation "guix" checkouts2)))
+      (db-add-evaluation "guix" checkouts1
+                         #:timestamp 1501347493)
+      (db-add-evaluation "guix" checkouts2
+                         #:timestamp 1501347493)))
 
   (test-assert "/specifications"
     (match (call-with-input-string
