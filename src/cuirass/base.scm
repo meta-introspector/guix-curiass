@@ -355,7 +355,8 @@ Return a list of jobs that are associated to EVAL-ID."
                    ;; otherwise, suppose that data read from port are
                    ;; correct and keep things going.
                    ((? eof-object?)
-                    (db-set-evaluation-done eval-id) ;failed!
+                    (db-set-evaluation-status eval-id
+                                              (evaluation-status failed))
                     (close-port (cdr log-pipe))
                     (raise (condition
                             (&evaluation-error
@@ -729,7 +730,8 @@ by PRODUCT-SPECS."
 
   (log-message "evaluation ~a registered ~a new derivations"
                eval-id (length derivations))
-  (db-set-evaluation-done eval-id)
+  (db-set-evaluation-status eval-id
+                            (evaluation-status succeeded))
 
   (spawn-builds store derivations)
 

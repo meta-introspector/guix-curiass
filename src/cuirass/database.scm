@@ -44,9 +44,10 @@
             db-remove-specification
             db-get-specification
             db-get-specifications
+            evaluation-status
             db-add-evaluation
-            db-set-evaluations-done
-            db-set-evaluation-done
+            db-abort-pending-evaluations
+            db-set-evaluation-status
             db-set-evaluation-time
             db-get-pending-derivations
             build-status
@@ -438,6 +439,12 @@ SELECT * FROM Specifications ORDER BY name DESC;")))
                            ,(with-input-from-string build-outputs read)))
                         specs)))))))
 
+(define-enumeration evaluation-status
+  (started          -1)
+  (succeeded         0)
+  (failed            1)
+  (aborted           2))
+
 (define* (db-add-evaluation spec-name checkouts
                             #:key
                             (checkouttime 0)
@@ -450,9 +457,10 @@ Otherwise, return #f."
 
   (with-db-worker-thread db
     (sqlite-exec db "BEGIN TRANSACTION;")
-    (sqlite-exec db "INSERT INTO Evaluations (specification, in_progress,
+    (sqlite-exec db "INSERT INTO Evaluations (specification, status,
 timestamp, checkouttime, evaltime)
-VALUES (" spec-name ", true, " now "," checkouttime "," evaltime ");")
+VALUES (" spec-name "," (evaluation-status started) ","
+now "," checkouttime "," evaltime ");")
     (let* ((eval-id (last-insert-rowid db))
            (new-checkouts (filter-map
                            (cut db-add-checkout spec-name eval-id <>)
@@ -468,18 +476,16 @@ VALUES (" spec-name ", true, " now "," checkouttime "," evaltime ");")
                  (sqlite-exec db "COMMIT;")
                  eval-id)))))
 
-(define (db-set-evaluations-done)
+(define (db-abort-pending-evaluations)
   (with-db-worker-thread db
-    (sqlite-exec db "UPDATE Evaluations SET in_progress = false;")))
+    (sqlite-exec db "UPDATE Evaluations SET status =
+" (evaluation-status aborted) " WHERE status = "
+(evaluation-status started))))
 
-(define (db-set-evaluation-done eval-id)
+(define (db-set-evaluation-status eval-id status)
   (with-db-worker-thread db
-    (sqlite-exec db "UPDATE Evaluations SET in_progress = false
-WHERE id = " eval-id ";")
-    (db-add-event 'evaluation
-                  (time-second (current-time time-utc))
-                  `((#:evaluation  . ,eval-id)
-                    (#:in_progress . #f)))))
+    (sqlite-exec db "UPDATE Evaluations SET status =
+" status " WHERE id = " eval-id ";")))
 
 (define (db-set-evaluation-time eval-id)
   (define now
@@ -795,7 +801,7 @@ FILTERS is an assoc list whose possible keys are 'derivation | 'id | 'jobset |
       ;; With this order, builds in 'running' state (-1) appear
       ;; before those in 'scheduled' state (-2).
       (('order . 'status+submission-time)
-       "status DESC, Builds.timestamp DESC, Builds.id ASC")
+       "Builds.status DESC, Builds.timestamp DESC, Builds.id ASC")
       (_ "Builds.id DESC")))
 
   (define (where-conditions filters)
@@ -984,18 +990,18 @@ WHERE evaluation =" eval-id ";"))
 
 (define (db-get-evaluations limit)
   (with-db-worker-thread db
-    (let loop ((rows  (sqlite-exec db "SELECT id, specification, in_progress,
+    (let loop ((rows  (sqlite-exec db "SELECT id, specification, status,
 timestamp, checkouttime, evaltime
 FROM Evaluations ORDER BY id DESC LIMIT " limit ";"))
                (evaluations '()))
       (match rows
         (() (reverse evaluations))
-        ((#(id specification in-progress timestamp checkouttime evaltime)
+        ((#(id specification status timestamp checkouttime evaltime)
            . rest)
          (loop rest
                (cons `((#:id . ,id)
                        (#:specification . ,specification)
-                       (#:in-progress . ,in-progress)
+                       (#:status . ,status)
                        (#:timestamp . ,timestamp)
                        (#:checkouttime . ,checkouttime)
                        (#:evaltime . ,evaltime)
@@ -1005,9 +1011,9 @@ FROM Evaluations ORDER BY id DESC LIMIT " limit ";"))
 (define (db-get-evaluations-build-summary spec limit border-low border-high)
   (with-db-worker-thread db
     (let loop ((rows (sqlite-exec db "
-SELECT E.id, E.in_progress, B.succeeded, B.failed, B.scheduled
+SELECT E.id, E.status, B.succeeded, B.failed, B.scheduled
 FROM
-(SELECT id, in_progress
+(SELECT id, status
 FROM Evaluations
 WHERE (specification=" spec ")
 AND (" border-low "IS NULL OR (id >" border-low "))
@@ -1024,10 +1030,10 @@ ORDER BY E.id ASC;"))
                (evaluations '()))
       (match rows
         (() evaluations)
-        ((#(id in-progress succeeded failed scheduled) . rest)
+        ((#(id status succeeded failed scheduled) . rest)
          (loop rest
                (cons `((#:id . ,id)
-                       (#:in-progress . ,in-progress)
+                       (#:status . ,status)
                        (#:checkouts . ,(db-get-checkouts id))
                        (#:succeeded . ,(or succeeded 0))
                        (#:failed . ,(or failed 0))
@@ -1053,10 +1059,10 @@ WHERE specification=" spec)))
 (define (db-get-evaluation-summary id)
   (with-db-worker-thread db
     (let ((rows (sqlite-exec db "
-SELECT E.id, E.in_progress, E.timestamp, E.checkouttime, E.evaltime,
+SELECT E.id, E.status, E.timestamp, E.checkouttime, E.evaltime,
 B.total, B.succeeded, B.failed, B.scheduled
 FROM
- (SELECT id, in_progress, timestamp, checkouttime, evaltime
+ (SELECT id, status, timestamp, checkouttime, evaltime
 FROM Evaluations
 WHERE (id=" id ")) E
 LEFT JOIN
@@ -1068,10 +1074,10 @@ ON B.evaluation=E.id
 ORDER BY E.id ASC;")))
       (and=> (expect-one-row rows)
              (match-lambda
-               (#(id in-progress timestamp checkouttime evaltime
+               (#(id status timestamp checkouttime evaltime
                      total succeeded failed scheduled)
                 `((#:id . ,id)
-                  (#:in-progress . ,in-progress)
+                  (#:status . ,status)
                   (#:total . ,(or total 0))
                   (#:timestamp . ,timestamp)
                   (#:checkouttime . ,checkouttime)

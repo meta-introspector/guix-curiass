@@ -41,7 +41,7 @@ CREATE TABLE Checkouts (
 CREATE TABLE Evaluations (
   id            INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
   specification TEXT NOT NULL,
-  in_progress   INTEGER NOT NULL,
+  status        INTEGER NOT NULL,
   timestamp     INTEGER NOT NULL,
   checkouttime  INTEGER NOT NULL,
   evaltime      INTEGER NOT NULL,

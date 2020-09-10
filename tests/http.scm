@@ -78,7 +78,7 @@
 (define evaluations-query-result
   #(((#:id . 2)
      (#:specification . "guix")
-     (#:in-progress . 1)
+     (#:status . -1)
      (#:checkouts . #(((#:commit . "fakesha2")
                        (#:input . "savannah")
                        (#:directory . "dir3")))))))
