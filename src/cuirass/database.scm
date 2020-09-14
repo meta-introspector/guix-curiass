@@ -45,6 +45,8 @@
             db-get-specification
             db-get-specifications
             evaluation-status
+            last-insert-rowid
+            expect-one-row
             db-add-evaluation
             db-abort-pending-evaluations
             db-set-evaluation-status
@@ -77,6 +79,7 @@
             db-get-checkouts
             read-sql-file
             read-quoted-string
+            %sqlite-exec
             sqlite-exec
             ;; Parameters.
             %package-database
