@@ -40,12 +40,14 @@ staticdir = $(pkgdatadir)/static
 cssdir = $(staticdir)/css
 fontsdir = $(staticdir)/fonts
 imagesdir = $(staticdir)/images
+jsdir = $(staticdir)/js
 
 dist_pkgmodule_DATA =				\
   src/cuirass/base.scm				\
   src/cuirass/database.scm			\
   src/cuirass/http.scm				\
   src/cuirass/logging.scm			\
+  src/cuirass/metrics.scm			\
   src/cuirass/send-events.scm			\
   src/cuirass/ui.scm				\
   src/cuirass/utils.scm             \
@@ -76,7 +78,8 @@ dist_sql_DATA = 				\
   src/sql/upgrade-7.sql				\
   src/sql/upgrade-8.sql				\
   src/sql/upgrade-9.sql				\
-  src/sql/upgrade-10.sql
+  src/sql/upgrade-10.sql			\
+  src/sql/upgrade-11.sql
 
 dist_css_DATA =					\
   src/static/css/cuirass.css			\
@@ -90,6 +93,8 @@ dist_fonts_DATA =				\
   src/static/fonts/open-iconic.woff
 dist_images_DATA =				\
   src/static/images/logo.png
+dist_js_DATA =					\
+  src/static/js/chart.js
 
 TEST_EXTENSIONS = .scm .sh
 AM_TESTS_ENVIRONMENT = \

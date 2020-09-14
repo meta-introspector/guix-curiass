@@ -29,6 +29,7 @@ exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
 (use-modules (cuirass)
              (cuirass ui)
              (cuirass logging)
+             (cuirass metrics)
              (cuirass utils)
              (guix ui)
              ((guix build utils) #:select (mkdir-p))
@@ -183,8 +184,17 @@ exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
                                (lambda ()
                                  (while #t
                                    (process-specs (db-get-specifications))
-                                   (log-message "next evaluation in ~a seconds" interval)
+                                   (log-message
+                                    "next evaluation in ~a seconds" interval)
                                    (sleep interval)))))
+
+                             (spawn-fiber
+                              (essential-task
+                               'metrics exit-channel
+                               (lambda ()
+                                 (while #t
+                                   (db-update-metrics)
+                                   (sleep 3600)))))
 
                              (spawn-fiber
                               (essential-task

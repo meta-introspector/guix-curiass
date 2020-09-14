@@ -25,6 +25,7 @@
   #:use-module (cuirass config)
   #:use-module (cuirass database)
   #:use-module ((cuirass base) #:select (evaluation-log-file))
+  #:use-module (cuirass metrics)
   #:use-module (cuirass utils)
   #:use-module (cuirass logging)
   #:use-module (srfi srfi-1)
@@ -72,7 +73,8 @@
     "css/open-iconic-bootstrap.css"
     "fonts/open-iconic.otf"
     "fonts/open-iconic.woff"
-    "images/logo.png"))
+    "images/logo.png"
+    "js/chart.js"))
 
 (define (build->hydra-build build)
   "Convert BUILD to an assoc list matching hydra API format."
@@ -603,6 +605,27 @@ Hydra format."
              (_
               (respond-json-with-error 500 "No build found.")))
            (respond-json-with-error 500 "Query parameter not provided."))))
+
+    (('GET "metrics")
+     (respond-html
+      (html-page
+       "Global metrics"
+       (let ((builds-per-day
+              (db-get-metrics-with-id 'builds-previous-day
+                                      #:limit 10
+                                      #:order "field"))
+             (avg-eval-durations
+              (list
+               (db-get-metrics-with-id
+                'average-10-last-eval-duration-per-spec)
+               (db-get-metrics-with-id
+                'average-100-last-eval-duration-per-spec)
+               (db-get-metrics-with-id
+                'average-eval-duration-per-spec))))
+         (global-metrics-content
+          #:avg-eval-durations avg-eval-durations
+          #:builds-per-day builds-per-day))
+       '())))
 
     (('GET "status")
      (respond-html

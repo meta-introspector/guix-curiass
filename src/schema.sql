@@ -70,6 +70,14 @@ CREATE TABLE Builds (
   FOREIGN KEY (evaluation) REFERENCES Evaluations (id)
 );
 
+CREATE TABLE Metrics (
+  field         INTEGER NOT NULL,
+  type          INTEGER NOT NULL,
+  value         DOUBLE PRECISION NOT NULL,
+  timestamp     INTEGER NOT NULL,
+  PRIMARY KEY (field, type)
+);
+
 CREATE TABLE BuildProducts (
   build         INTEGER NOT NULL,
   type          TEXT NOT NULL,

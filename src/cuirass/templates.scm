@@ -26,6 +26,7 @@
   #:use-module (srfi srfi-2)
   #:use-module (srfi srfi-19)
   #:use-module (srfi srfi-26)
+  #:use-module (json)
   #:use-module (web uri)
   #:use-module (guix derivations)
   #:use-module (guix progress)
@@ -40,7 +41,8 @@
             build-search-results-table
             build-details
             evaluation-build-table
-            running-builds-table))
+            running-builds-table
+            global-metrics-content))
 
 (define (navigation-items navigation)
   (match navigation
@@ -133,6 +135,9 @@ system whose names start with " (code "guile-") ":" (br)
                                "Status")
                             (div (@ (class "dropdown-menu")
                                     (aria-labelledby "navbarDropdow"))
+                                 (a (@ (class "dropdown-item")
+                                       (href "/metrics"))
+                                    "Global metrics")
                                  (a (@ (class "dropdown-item")
                                        (href "/status"))
                                     "Running builds")))
@@ -820,3 +825,74 @@ and BUILD-MAX are global minimal and maximal row identifiers."
                         (th (@ (scope "col")) "System")))
              (tbody
               ,(map build-row builds)))))))
+
+(define* (make-line-chart id data
+                          #:key
+                          title
+                          color)
+  (let* ((scales  `((xAxes
+                     . ,(vector '((type . "time")
+                                  (time . ((unit . "day")))
+                                  (display . #t)
+                                  (distribution . "series")
+                                  (scaleLabel
+                                   . ((display . #t)
+                                      (labelString . "Day"))))))
+                    (yAxes
+                     . ,(vector '((display . #t)
+                                  (scaleLabel
+                                   . ((display . #t)
+                                      (labelString . "Builds"))))))))
+         (chart `((type . "line")
+                  (data . ((datasets . ,(vector `((fill . #f)
+                                                  (borderColor . ,color)
+                                                  (data . ,data))))))
+                  (options . ((responsive . #t)
+                               (tooltips . ((enabled . #f)))
+                               (legend . ((display . #f)))
+                               (title . ((display . #t)
+                                         (text . ,title)))
+                               (scales . ,scales))))))
+    `((script ,(format #f "window.onload = function() {\
+window.~a = new Chart\
+(document.getElementById('~a').getContext('2d'), ~a);\
+};" id id (scm->json-string chart))))))
+
+(define* (global-metrics-content #:key
+                                 builds-per-day
+                                 avg-eval-durations)
+  (define (avg-eval-duration-row . eval-durations)
+    (let ((spec (match eval-durations
+                  (((spec . _) . rest) spec))))
+      `(tr (td ,spec)
+           ,@(map (lambda (duration)
+                    `(td ,(number->string
+                           (nearest-exact-integer duration))))
+                  (map cdr eval-durations)))))
+
+  (define builds-json-scm
+    (apply vector
+           (map (match-lambda
+                  ((field . value)
+                   `((x . ,(* field 1000)) (y . ,value))))
+                builds-per-day)))
+
+  (let ((builds-chart "builds_per_day"))
+    `((div
+       (p (@ (class "lead")) "Global metrics")
+       (h6 "Average evaluation duration per specification (seconds).")
+       (table
+        (@ (class "table table-sm table-hover table-striped"))
+        (thead (tr (th (@ (scope "col")) "Specification")
+                   (th (@ (scope "col")) "10 last evaluations")
+                   (th (@ (scope "col")) "100 last evaluations")
+                   (th (@ (scope "col")) "All evaluations")))
+        (tbody
+         ,(apply map avg-eval-duration-row avg-eval-durations)))
+       (br)
+       (h6 "Build speed.")
+       (canvas (@ (id ,builds-chart)))
+       (script (@ (src "/static/js/chart.js")))
+       ,@(make-line-chart builds-chart builds-json-scm
+                          #:title "Builds per day"
+                          #:color "#3e95cd")))))
