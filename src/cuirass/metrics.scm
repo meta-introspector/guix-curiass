@@ -66,7 +66,9 @@ FROM Evaluations WHERE specification = " spec
   "Return the builds count of the previous day."
   (with-db-worker-thread db
     (let ((rows (sqlite-exec db "SELECT COUNT(*) from Builds
-WHERE date(stoptime, 'unixepoch') = date('now', '-1 day');")))
+WHERE date(timestamp, 'unixepoch') = date('now', '-1 day') AND
+date(stoptime, 'unixepoch') = date('now', '-1 day');")))
+      (and=> (expect-one-row rows) (cut vector-ref <> 0)))))
       (and=> (expect-one-row rows) (cut vector-ref <> 0)))))
 
 (define (db-pending-builds _)
