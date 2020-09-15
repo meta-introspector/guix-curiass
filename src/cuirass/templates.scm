@@ -853,10 +853,11 @@ and BUILD-MAX are global minimal and maximal row identifiers."
                                (title . ((display . #t)
                                          (text . ,title)))
                                (scales . ,scales))))))
-    `((script ,(format #f "window.onload = function() {\
+    `((script ,(format #f "window.addEventListener(\"load\",
+function(event) {\
 window.~a = new Chart\
 (document.getElementById('~a').getContext('2d'), ~a);\
-};" id id (scm->json-string chart))))))
+});" id id (scm->json-string chart))))))
 
 (define* (global-metrics-content #:key
                                  builds-per-day
