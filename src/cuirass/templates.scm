@@ -860,8 +860,9 @@ window.~a = new Chart\
 });" id id (scm->json-string chart))))))
 
 (define* (global-metrics-content #:key
+                                 avg-eval-durations
                                  builds-per-day
-                                 avg-eval-durations)
+                                 pending-builds)
   (define (avg-eval-duration-row . eval-durations)
     (let ((spec (match eval-durations
                   (((spec . _) . rest) spec))))
@@ -871,14 +872,15 @@ window.~a = new Chart\
                            (nearest-exact-integer duration))))
                   (map cdr eval-durations)))))
 
-  (define builds-json-scm
+  (define (builds->json-scm builds)
     (apply vector
            (map (match-lambda
                   ((field . value)
                    `((x . ,(* field 1000)) (y . ,value))))
-                builds-per-day)))
+                builds)))
 
-  (let ((builds-chart "builds_per_day"))
+  (let ((builds-chart "builds_per_day")
+        (pending-builds-chart "pending_builds"))
     `((div
        (p (@ (class "lead")) "Global metrics")
        (h6 "Average evaluation duration per specification (seconds).")
@@ -893,7 +895,16 @@ window.~a = new Chart\
        (br)
        (h6 "Build speed.")
        (canvas (@ (id ,builds-chart)))
+       (br)
+       (h6 "Pending builds.")
+       (canvas (@ (id ,pending-builds-chart)))
+       ;; Scripts.
        (script (@ (src "/static/js/chart.js")))
-       ,@(make-line-chart builds-chart builds-json-scm
+       ,@(make-line-chart builds-chart
+                          (builds->json-scm builds-per-day)
                           #:title "Builds per day"
+                          #:color "#3e95cd")
+       ,@(make-line-chart pending-builds-chart
+                          (builds->json-scm pending-builds)
+                          #:title "Pending builds"
                           #:color "#3e95cd")))))

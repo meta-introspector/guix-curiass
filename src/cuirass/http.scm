@@ -613,6 +613,9 @@ Hydra format."
        (let ((builds-per-day
               (db-get-metrics-with-id 'builds-per-day
                                       #:limit 10))
+             (pending-builds
+              (db-get-metrics-with-id 'pending-builds
+                                      #:limit 10))
              (avg-eval-durations
               (list
                (db-get-metrics-with-id
@@ -623,7 +626,8 @@ Hydra format."
                 'average-eval-duration-per-spec))))
          (global-metrics-content
           #:avg-eval-durations avg-eval-durations
-          #:builds-per-day builds-per-day))
+          #:builds-per-day builds-per-day
+          #:pending-builds pending-builds))
        '())))
 
     (('GET "status")
