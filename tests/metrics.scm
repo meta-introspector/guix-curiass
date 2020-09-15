@@ -23,11 +23,6 @@
              ((guix utils) #:select (call-with-temporary-output-file))
              (srfi srfi-64))
 
-(define (nearest-exact-integer x)
-  "Given a real number X, return the nearest exact integer, with ties going to
-the nearest exact even integer."
-  (inexact->exact (round x)))
-
 (define-syntax-rule (with-temporary-database body ...)
   (call-with-temporary-output-file
    (lambda (file port)
@@ -117,13 +112,15 @@ nix_name, log, status, timestamp, starttime, stoptime) VALUES
       (db-update-metric 'percentage-failed-eval-per-spec "guix")
       (db-get-metrics-with-id 'percentage-failed-eval-per-spec)))
 
-  (test-assert "db-update-metrics"
+  (test-equal "db-update-metrics"
+    `((,today . 2.0))
     (begin
+      (sqlite-exec (%db) (format #f "\
+INSERT INTO Builds (id, derivation, evaluation, job_name, system,
+nix_name, log, status, timestamp, starttime, stoptime) VALUES
+(3, '/gnu/store/zzz.drv', 1, '', '', '', '', -2, 0, 0, 0);"))
       (db-update-metrics)
-      (equal? (db-get-metric 'average-10-last-eval-duration-per-spec
-                             "guix")
-              (db-get-metric 'average-100-last-eval-duration-per-spec
-                             "guix"))))
+      (db-get-metrics-with-id 'pending-builds)))
 
   (test-assert "db-close"
     (db-close (%db)))
