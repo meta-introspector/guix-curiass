@@ -54,12 +54,14 @@
 ;;;
 
 (define* (db-average-eval-duration-per-spec spec #:key limit)
-  "Return the evaluation duration of EVAL."
+  "Return the average evaluation duration for SPEC.  Limit the average
+computation to the most recent LIMIT records if this argument is set."
   (with-db-worker-thread db
     (let ((rows (sqlite-exec db "SELECT AVG(duration) FROM
 (SELECT (evaltime - timestamp) as duration
 FROM Evaluations WHERE specification = " spec
-" AND evaltime != 0 LIMIT " (or limit -1) ");")))
+" AND evaltime != 0 ORDER BY rowid DESC
+LIMIT " (or limit -1) ");")))
       (and=> (expect-one-row rows) (cut vector-ref <> 0)))))
 
 (define (db-builds-previous-day _)
