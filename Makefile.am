@@ -115,6 +115,7 @@ TESTS = \
 ## tests/basic.sh # takes too long to execute
   tests/database.scm \
   tests/http.scm \
+  tests/metrics.scm \
   tests/ui.scm \
   tests/utils.scm
 
