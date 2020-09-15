@@ -611,7 +611,7 @@ Hydra format."
       (html-page
        "Global metrics"
        (let ((builds-per-day
-              (db-get-metrics-with-id 'builds-previous-day
+              (db-get-metrics-with-id 'builds-per-day
                                       #:limit 10))
              (avg-eval-durations
               (list

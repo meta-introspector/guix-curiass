@@ -96,9 +96,9 @@ date('now', '-1 day'));")))
     (id 'average-eval-duration-per-spec)
     (compute-proc db-average-eval-duration-per-spec))
 
-   ;; Builds count over last 24 hours.
+   ;; Builds count per day.
    (metric
-    (id 'builds-previous-day)
+    (id 'builds-per-day)
     (compute-proc db-builds-previous-day)
     (field-proc db-previous-day-timestamp))))
 
@@ -186,7 +186,7 @@ timestamp) VALUES ("
   (define specifications
     (map (cut assq-ref <> #:name) (db-get-specifications)))
 
-  (db-update-metric 'builds-previous-day)
+  (db-update-metric 'builds-per-day)
 
   ;; Update specification related metrics.
   (for-each (lambda (spec)
