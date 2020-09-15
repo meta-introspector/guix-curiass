@@ -133,7 +133,7 @@ WHERE type = " type " AND field = " field ";")))
 (define* (db-get-metrics-with-id id
                                  #:key
                                  limit
-                                 (order "timestamp"))
+                                 (order "rowid DESC"))
   "Return the metrics with the given ID.  If LIMIT is set, the resulting list
 if restricted to LIMIT records."
   (let* ((metric (find-metric id))

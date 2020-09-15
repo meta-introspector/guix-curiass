@@ -612,8 +612,7 @@ Hydra format."
        "Global metrics"
        (let ((builds-per-day
               (db-get-metrics-with-id 'builds-previous-day
-                                      #:limit 10
-                                      #:order "field"))
+                                      #:limit 10))
              (avg-eval-durations
               (list
                (db-get-metrics-with-id
