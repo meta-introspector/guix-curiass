@@ -826,10 +826,13 @@ and BUILD-MAX are global minimal and maximal row identifiers."
              (tbody
               ,(map build-row builds)))))))
 
-(define* (make-line-chart id data
+(define* (make-line-chart id datasets
                           #:key
+                          (interpolation? #t)
+                          (legend? #f)
                           title
-                          color)
+                          labels
+                          colors)
   (let* ((scales  `((xAxes
                      . ,(vector '((type . "time")
                                   (time . ((unit . "day")))
@@ -844,12 +847,20 @@ and BUILD-MAX are global minimal and maximal row identifiers."
                                    . ((display . #t)
                                       (labelString . "Builds"))))))))
          (chart `((type . "line")
-                  (data . ((datasets . ,(vector `((fill . #f)
-                                                  (borderColor . ,color)
-                                                  (data . ,data))))))
+                  (data . ((datasets
+                            . ,(apply vector
+                                      (map (lambda (dataset label color)
+                                             `((fill . #f)
+                                               (label . ,label)
+                                               ,@(if interpolation?
+                                                     '()
+                                                     '((lineTension . 0)))
+                                               (borderColor . ,color)
+                                               (data . ,dataset)))
+                                           datasets labels colors)))))
                   (options . ((responsive . #t)
                                (tooltips . ((enabled . #f)))
-                               (legend . ((display . #f)))
+                               (legend . ((display . ,legend?)))
                                (title . ((display . #t)
                                          (text . ,title)))
                                (scales . ,scales))))))
@@ -862,6 +873,7 @@ window.~a = new Chart\
 (define* (global-metrics-content #:key
                                  avg-eval-durations
                                  builds-per-day
+                                 new-derivations-per-day
                                  pending-builds)
   (define (avg-eval-duration-row . eval-durations)
     (let ((spec (match eval-durations
@@ -901,10 +913,16 @@ window.~a = new Chart\
        ;; Scripts.
        (script (@ (src "/static/js/chart.js")))
        ,@(make-line-chart builds-chart
-                          (builds->json-scm builds-per-day)
+                          (list (builds->json-scm new-derivations-per-day)
+                                (builds->json-scm builds-per-day))
+                          #:interpolation? #f
                           #:title "Builds per day"
-                          #:color "#3e95cd")
+                          #:legend? #t
+                          #:labels '("New derivations"
+                                     "Builds completed")
+                          #:colors (list "#f6dd27" "#3e95cd"))
        ,@(make-line-chart pending-builds-chart
-                          (builds->json-scm pending-builds)
+                          (list (builds->json-scm pending-builds))
                           #:title "Pending builds"
-                          #:color "#3e95cd")))))
+                          #:labels '("Pending builds")
+                          #:colors (list "#3e95cd"))))))

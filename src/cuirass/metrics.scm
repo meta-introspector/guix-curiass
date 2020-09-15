@@ -69,6 +69,12 @@ FROM Evaluations WHERE specification = " spec
 WHERE date(timestamp, 'unixepoch') = date('now', '-1 day') AND
 date(stoptime, 'unixepoch') = date('now', '-1 day');")))
       (and=> (expect-one-row rows) (cut vector-ref <> 0)))))
+
+(define (db-new-derivations-previous-day _)
+  "Return the new derivations count of the previous day."
+  (with-db-worker-thread db
+    (let ((rows (sqlite-exec db "SELECT COUNT(*) from Builds
+WHERE date(timestamp, 'unixepoch') = date('now', '-1 day');")))
       (and=> (expect-one-row rows) (cut vector-ref <> 0)))))
 
 (define (db-pending-builds _)
@@ -122,7 +128,13 @@ date('now'));")))
    (metric
     (id 'pending-builds)
     (compute-proc db-pending-builds)
-    (field-proc db-current-day-timestamp))))
+    (field-proc db-current-day-timestamp))
+
+   ;; New derivations per day.
+   (metric
+    (id 'new-derivations-per-day)
+    (compute-proc db-new-derivations-previous-day)
+    (field-proc db-previous-day-timestamp))))
 
 (define (metric->type metric)
   "Return the index of the given METRIC in %metrics list.  This index is used
@@ -209,6 +221,7 @@ timestamp) VALUES ("
     (map (cut assq-ref <> #:name) (db-get-specifications)))
 
   (db-update-metric 'builds-per-day)
+  (db-update-metric 'new-derivations-per-day)
   (db-update-metric 'pending-builds)
 
   ;; Update specification related metrics.

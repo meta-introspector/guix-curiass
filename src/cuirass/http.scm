@@ -613,6 +613,9 @@ Hydra format."
        (let ((builds-per-day
               (db-get-metrics-with-id 'builds-per-day
                                       #:limit 10))
+             (new-derivations-per-day
+              (db-get-metrics-with-id 'new-derivations-per-day
+                                      #:limit 10))
              (pending-builds
               (db-get-metrics-with-id 'pending-builds
                                       #:limit 10))
@@ -627,6 +630,7 @@ Hydra format."
          (global-metrics-content
           #:avg-eval-durations avg-eval-durations
           #:builds-per-day builds-per-day
+          #:new-derivations-per-day new-derivations-per-day
           #:pending-builds pending-builds))
        '())))
 
