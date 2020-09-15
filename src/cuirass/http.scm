@@ -626,12 +626,21 @@ Hydra format."
                (db-get-metrics-with-id
                 'average-100-last-eval-duration-per-spec)
                (db-get-metrics-with-id
-                'average-eval-duration-per-spec))))
+                'average-eval-duration-per-spec)))
+            (percentage-failed-eval
+              (list
+               (db-get-metrics-with-id
+                'percentage-failure-10-last-eval-per-spec)
+               (db-get-metrics-with-id
+                'percentage-failure-100-last-eval-per-spec)
+               (db-get-metrics-with-id
+                'percentage-failed-eval-per-spec))) )
          (global-metrics-content
           #:avg-eval-durations avg-eval-durations
           #:builds-per-day builds-per-day
           #:new-derivations-per-day new-derivations-per-day
-          #:pending-builds pending-builds))
+          #:pending-builds pending-builds
+          #:percentage-failed-eval percentage-failed-eval))
        '())))
 
     (('GET "status")

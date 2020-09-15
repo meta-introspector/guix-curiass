@@ -86,6 +86,16 @@ WHERE date(timestamp, 'unixepoch') = date('now', '-1 day');")))
 WHERE status < 0;")))
       (and=> (expect-one-row rows) (cut vector-ref <> 0)))))
 
+(define* (db-percentage-failed-eval-per-spec spec #:key limit)
+  "Return the failed evaluation percentage for SPEC.  If LIMIT is set, limit
+the percentage computation to the most recent LIMIT records."
+  (with-db-worker-thread db
+    (let ((rows (sqlite-exec db "\
+SELECT 100 * CAST(SUM(status > 0) as float) / COUNT(*) FROM
+(SELECT status from Evaluations WHERE specification = " spec
+" ORDER BY rowid DESC LIMIT " (or limit -1) ");")))
+      (and=> (expect-one-row rows) (cut vector-ref <> 0)))))
+
 (define (db-previous-day-timestamp)
   "Return the timestamp of the previous day."
   (with-db-worker-thread db
@@ -140,7 +150,22 @@ date('now'));")))
    (metric
     (id 'new-derivations-per-day)
     (compute-proc db-new-derivations-previous-day)
-    (field-proc db-previous-day-timestamp))))
+    (field-proc db-previous-day-timestamp))
+
+   ;; Percentage of failed evaluations per specification.
+   (metric
+    (id 'percentage-failure-10-last-eval-per-spec)
+    (compute-proc
+     (cut db-percentage-failed-eval-per-spec <> #:limit 10)))
+
+   (metric
+    (id 'percentage-failure-100-last-eval-per-spec)
+    (compute-proc
+     (cut db-percentage-failed-eval-per-spec <> #:limit 100)))
+
+   (metric
+    (id 'percentage-failed-eval-per-spec)
+    (compute-proc db-percentage-failed-eval-per-spec))))
 
 (define (metric->type metric)
   "Return the index of the given METRIC in %metrics list.  This index is used
@@ -237,5 +262,12 @@ timestamp) VALUES ("
               (db-update-metric
                'average-100-last-eval-duration-per-spec spec)
               (db-update-metric
-               'average-eval-duration-per-spec spec))
+               'average-eval-duration-per-spec spec)
+
+              (db-update-metric
+               'percentage-failure-10-last-eval-per-spec spec)
+              (db-update-metric
+               'percentage-failure-100-last-eval-per-spec spec)
+              (db-update-metric
+               'percentage-failed-eval-per-spec spec))
             specifications))

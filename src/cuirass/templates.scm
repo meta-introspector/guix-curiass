@@ -874,7 +874,8 @@ window.~a = new Chart\
                                  avg-eval-durations
                                  builds-per-day
                                  new-derivations-per-day
-                                 pending-builds)
+                                 pending-builds
+                                 percentage-failed-eval)
   (define (avg-eval-duration-row . eval-durations)
     (let ((spec (match eval-durations
                   (((spec . _) . rest) spec))))
@@ -883,6 +884,16 @@ window.~a = new Chart\
                     `(td ,(number->string
                            (nearest-exact-integer duration))))
                   (map cdr eval-durations)))))
+
+  (define (percentage-failed-eval-row . percentages)
+    (let ((spec (match percentages
+                  (((spec . _) . rest) spec))))
+      `(tr (td ,spec)
+           ,@(map (lambda (duration)
+                    `(td ,(number->string
+                           (nearest-exact-integer duration))
+                         "%"))
+                  (map cdr percentages)))))
 
   (define (builds->json-scm builds)
     (apply vector
@@ -893,36 +904,45 @@ window.~a = new Chart\
 
   (let ((builds-chart "builds_per_day")
         (pending-builds-chart "pending_builds"))
-    `((div
-       (p (@ (class "lead")) "Global metrics")
-       (h6 "Average evaluation duration per specification (seconds).")
-       (table
-        (@ (class "table table-sm table-hover table-striped"))
-        (thead (tr (th (@ (scope "col")) "Specification")
-                   (th (@ (scope "col")) "10 last evaluations")
-                   (th (@ (scope "col")) "100 last evaluations")
-                   (th (@ (scope "col")) "All evaluations")))
-        (tbody
-         ,(apply map avg-eval-duration-row avg-eval-durations)))
-       (br)
-       (h6 "Build speed.")
-       (canvas (@ (id ,builds-chart)))
-       (br)
-       (h6 "Pending builds.")
-       (canvas (@ (id ,pending-builds-chart)))
-       ;; Scripts.
-       (script (@ (src "/static/js/chart.js")))
-       ,@(make-line-chart builds-chart
-                          (list (builds->json-scm new-derivations-per-day)
-                                (builds->json-scm builds-per-day))
-                          #:interpolation? #f
-                          #:title "Builds per day"
-                          #:legend? #t
-                          #:labels '("New derivations"
-                                     "Builds completed")
-                          #:colors (list "#f6dd27" "#3e95cd"))
-       ,@(make-line-chart pending-builds-chart
-                          (list (builds->json-scm pending-builds))
-                          #:title "Pending builds"
-                          #:labels '("Pending builds")
-                          #:colors (list "#3e95cd"))))))
+    `((p (@ (class "lead")) "Global metrics")
+      (h6 "Average evaluation duration per specification (seconds).")
+      (table
+       (@ (class "table table-sm table-hover table-striped"))
+       (thead (tr (th (@ (scope "col")) "Specification")
+                  (th (@ (scope "col")) "10 last evaluations")
+                  (th (@ (scope "col")) "100 last evaluations")
+                  (th (@ (scope "col")) "All evaluations")))
+       (tbody
+        ,(apply map avg-eval-duration-row avg-eval-durations)))
+      (br)
+      (h6 "Build speed.")
+      (canvas (@ (id ,builds-chart)))
+      (br)
+      (h6 "Pending builds.")
+      (canvas (@ (id ,pending-builds-chart)))
+      (br)
+      (h6 "Percentage of failed evaluations.")
+      (table
+       (@ (class "table table-sm table-hover table-striped"))
+       (thead (tr (th (@ (scope "col")) "Specification")
+                  (th (@ (scope "col")) "10 last evaluations")
+                  (th (@ (scope "col")) "100 last evaluations")
+                  (th (@ (scope "col")) "All evaluations")))
+       (tbody
+        ,(apply map percentage-failed-eval-row percentage-failed-eval)))
+      ;; Scripts.
+      (script (@ (src "/static/js/chart.js")))
+      ,@(make-line-chart builds-chart
+                         (list (builds->json-scm new-derivations-per-day)
+                               (builds->json-scm builds-per-day))
+                         #:interpolation? #f
+                         #:title "Builds per day"
+                         #:legend? #t
+                         #:labels '("New derivations"
+                                    "Builds completed")
+                         #:colors (list "#f6dd27" "#3e95cd"))
+      ,@(make-line-chart pending-builds-chart
+                         (list (builds->json-scm pending-builds))
+                         #:title "Pending builds"
+                         #:labels '("Pending builds")
+                         #:colors (list "#3e95cd")))))
