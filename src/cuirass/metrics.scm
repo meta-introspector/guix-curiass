@@ -103,6 +103,8 @@ date('now'));")))
 ;;; Definitions.
 ;;;
 
+;; XXX: Make sure to add new metrics at the *end of the list* only, as they
+;; are indexed by position in database.
 (define %metrics
   (list
    ;; Average evaluation duration per specification.
@@ -110,10 +112,12 @@ date('now'));")))
     (id 'average-10-last-eval-duration-per-spec)
     (compute-proc
      (cut db-average-eval-duration-per-spec <> #:limit 10)))
+
    (metric
     (id 'average-100-last-eval-duration-per-spec)
     (compute-proc
      (cut db-average-eval-duration-per-spec <> #:limit 100)))
+
    (metric
     (id 'average-eval-duration-per-spec)
     (compute-proc db-average-eval-duration-per-spec))
