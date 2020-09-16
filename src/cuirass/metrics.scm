@@ -96,6 +96,58 @@ SELECT 100 * CAST(SUM(status > 0) as float) / COUNT(*) FROM
 " ORDER BY rowid DESC LIMIT " (or limit -1) ");")))
       (and=> (expect-one-row rows) (cut vector-ref <> 0)))))
 
+(define* (db-average-build-start-time-per-eval eval)
+  "Return the average build start time for the given EVAL."
+  (with-db-worker-thread db
+    (let ((rows (sqlite-exec db "\
+SELECT AVG(B.starttime - E.evaltime) FROM
+(SELECT id, evaltime
+FROM Evaluations WHERE id = " eval ") E
+LEFT JOIN
+(SELECT id, evaluation, starttime FROM Builds) B
+ON E.id = B.evaluation and B.starttime > 0
+GROUP BY E.id;")))
+      (and=> (expect-one-row rows) (cut vector-ref <> 0)))))
+
+(define* (db-average-build-complete-time-per-eval eval)
+  "Return the average build complete time for the given EVAL."
+  (with-db-worker-thread db
+    (let ((rows (sqlite-exec db "\
+SELECT AVG(B.stoptime - E.evaltime) FROM
+(SELECT id, evaltime
+FROM Evaluations WHERE id = " eval ") E
+LEFT JOIN
+(SELECT id, evaluation, stoptime FROM Builds) B
+ON E.id = B.evaluation and B.stoptime > 0
+GROUP BY E.id;")))
+      (and=> (expect-one-row rows) (cut vector-ref <> 0)))))
+
+(define* (db-evaluation-completion-speed eval)
+  "Return the evaluation completion speed of the given EVAL. The speed is
+expressed in builds per minute."
+  ;; completion_speed = 60 * completed_builds / eval_duration.
+  ;;
+  ;; evaluation_duration (seconds) = current_time - eval_start_time
+  ;; If some evaluations builds are not completed.
+  ;;
+  ;; evaluation_duration (seconds) = max(build_stop_time) - eval_start_time
+  ;; If the evaluation builds are all completed.
+  (with-db-worker-thread db
+    (let ((rows (sqlite-exec db "\
+SELECT
+60.0 * SUM(B.status = 0) /
+(CASE SUM(status < 0)
+   WHEN 0 THEN MAX(stoptime)
+   ELSE strftime('%s', 'now')
+END - E.evaltime) FROM
+(SELECT id, evaltime
+FROM Evaluations WHERE id = " eval ") E
+LEFT JOIN
+(SELECT id, evaluation, status, stoptime FROM Builds) B
+ON E.id = B.evaluation and B.stoptime > 0
+GROUP BY E.id;")))
+      (and=> (expect-one-row rows) (cut vector-ref <> 0)))))
+
 (define (db-previous-day-timestamp)
   "Return the timestamp of the previous day."
   (with-db-worker-thread db
@@ -109,6 +161,20 @@ date('now', '-1 day'));")))
     (let ((rows (sqlite-exec db "SELECT strftime('%s',
 date('now'));")))
       (and=> (expect-one-row rows) (cut vector-ref <> 0)))))
+
+(define* (db-latest-evaluations #:key (days 3))
+  "Return the successful evaluations added during the previous DAYS."
+  (with-db-worker-thread db
+    (let ((query (format #f "SELECT id from Evaluations
+WHERE date(timestamp, 'unixepoch') > date('now', '-~a day') AND
+status = 0 ORDER BY rowid DESC" days)))
+      (let loop ((rows (sqlite-exec db query))
+                 (evaluations '()))
+        (match rows
+          (() (reverse evaluations))
+          ((#(id) . rest)
+           (loop rest
+                 (cons id evaluations))))))))
 
 
 ;;;
@@ -165,7 +231,22 @@ date('now'));")))
 
    (metric
     (id 'percentage-failed-eval-per-spec)
-    (compute-proc db-percentage-failed-eval-per-spec))))
+    (compute-proc db-percentage-failed-eval-per-spec))
+
+   ;; Average time to start a build for an evaluation.
+   (metric
+    (id 'average-eval-build-start-time)
+    (compute-proc db-average-build-start-time-per-eval))
+
+   ;; Average time to complete a build for an evaluation.
+   (metric
+    (id 'average-eval-build-complete-time)
+    (compute-proc db-average-build-complete-time-per-eval))
+
+   ;; Evaluation completion speed in builds/minute.
+   (metric
+    (id 'evaluation-completion-speed)
+    (compute-proc db-evaluation-completion-speed))))
 
 (define (metric->type metric)
   "Return the index of the given METRIC in %metrics list.  This index is used
@@ -251,6 +332,11 @@ timestamp) VALUES ("
   (define specifications
     (map (cut assq-ref <> #:name) (db-get-specifications)))
 
+  ;; We can not update all evaluations metrics for performance reasons. Limit
+  ;; to the evaluations that were added during the past three days.
+  (define evaluations
+    (db-latest-evaluations))
+
   (db-update-metric 'builds-per-day)
   (db-update-metric 'new-derivations-per-day)
   (db-update-metric 'pending-builds)
@@ -270,4 +356,14 @@ timestamp) VALUES ("
                'percentage-failure-100-last-eval-per-spec spec)
               (db-update-metric
                'percentage-failed-eval-per-spec spec))
-            specifications))
+            specifications)
+
+  ;; Update evaluation related metrics.
+  (for-each (lambda (evaluation)
+              (db-update-metric
+               'average-eval-build-start-time evaluation)
+              (db-update-metric
+               'average-eval-build-complete-time evaluation)
+              (db-update-metric
+               'evaluation-completion-speed evaluation))
+            evaluations))

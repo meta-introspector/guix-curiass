@@ -60,36 +60,41 @@
       (sqlite-exec (%db) "\
 INSERT INTO Evaluations (specification, status,
 timestamp, checkouttime, evaltime) VALUES ('guix', -1, 1600174547, 0, 0);")
-      (sqlite-exec (%db) "\
+      (sqlite-exec (%db) (format #f "\
 INSERT INTO Evaluations (specification, status,
-timestamp, checkouttime, evaltime) VALUES ('guix', 0, 1600174547, 1600174548,
-1600260947);")
+timestamp, checkouttime, evaltime) VALUES ('guix', 0, ~a, ~a, ~a);\
+" yesterday (+ yesterday 100) (+ yesterday 600)))
       (sqlite-exec (%db) "\
 INSERT INTO Evaluations (specification, status,
 timestamp, checkouttime, evaltime) VALUES ('guix', 1, 1600174547,
 1600174548, 0);")
       (sqlite-exec (%db) "\
 INSERT INTO Evaluations (specification, status,
-timestamp, checkouttime, evaltime) VALUES ('guix', 2, 1600174547,
-1600174548, 0);")
+timestamp, checkouttime, evaltime) VALUES ('guix', 1, 1600174547,
+1600174548, 1600174647);")
       (sqlite-exec (%db) (format #f "\
 INSERT INTO Builds (id, derivation, evaluation, job_name, system,
 nix_name, log, status, timestamp, starttime, stoptime) VALUES
-(1, '/gnu/store/xxx.drv', 1, '', '', '', '', 0, ~a, ~a, ~a);\
-" yesterday (+ yesterday 500) (+ yesterday 1500)))
+(1, '/gnu/store/1.drv', 2, '', '', '', '', 0, ~a, ~a, ~a);\
+" yesterday (+ yesterday 1600) (+ yesterday 2600)))
       (sqlite-exec (%db) (format #f "\
 INSERT INTO Builds (id, derivation, evaluation, job_name, system,
 nix_name, log, status, timestamp, starttime, stoptime) VALUES
-(2, '/gnu/store/yyy.drv', 1, '', '', '', '', -2, 0, 0, 0);"))))
+(2, '/gnu/store/2.drv', 2, '', '', '', '', -2, 0, 0, 0);"))
+      (sqlite-exec (%db) (format #f "\
+INSERT INTO Builds (id, derivation, evaluation, job_name, system,
+nix_name, log, status, timestamp, starttime, stoptime) VALUES
+(3, '/gnu/store/3.drv', 4, '', '', '', '', 0, 1600174451, 1600174451,
+ 1600174651);"))))
 
   (test-equal "average-eval-duration-per-spec"
-    `(("guix" . 86400.0))
+    `(("guix" . 350.0))
     (begin
       (db-update-metric 'average-eval-duration-per-spec "guix")
       (db-get-metrics-with-id 'average-eval-duration-per-spec)))
 
   (test-equal "builds-per-day"
-    1.0
+    2.0
     (begin
       (db-update-metric 'builds-per-day)
       (db-get-metric 'builds-per-day yesterday)))
@@ -101,7 +106,7 @@ nix_name, log, status, timestamp, starttime, stoptime) VALUES
       (db-get-metrics-with-id 'pending-builds)))
 
   (test-equal "new-derivations-per-day"
-    `((,yesterday . 1.0))
+    `((,yesterday . 2.0))
     (begin
       (db-update-metric 'new-derivations-per-day)
       (db-get-metrics-with-id 'new-derivations-per-day)))
@@ -118,9 +123,27 @@ nix_name, log, status, timestamp, starttime, stoptime) VALUES
       (sqlite-exec (%db) (format #f "\
 INSERT INTO Builds (id, derivation, evaluation, job_name, system,
 nix_name, log, status, timestamp, starttime, stoptime) VALUES
-(3, '/gnu/store/zzz.drv', 1, '', '', '', '', -2, 0, 0, 0);"))
+(4, '/gnu/store/4.drv', 1, '', '', '', '', -2, 0, 0, 0);"))
       (db-update-metrics)
       (db-get-metrics-with-id 'pending-builds)))
+
+  (test-equal "average-eval-build-start-time"
+    `((2 . 1000.0))
+    (begin
+      (db-update-metric 'average-eval-build-start-time 2)
+      (db-get-metrics-with-id 'average-eval-build-start-time)))
+
+  (test-equal "average-eval-build-complete-time"
+    `((2 . 2000.0))
+    (begin
+      (db-update-metric 'average-eval-build-complete-time 2)
+      (db-get-metrics-with-id 'average-eval-build-complete-time)))
+
+  (test-equal "evaluation-completion-speed"
+    15.0
+    (begin
+      (db-update-metric 'evaluation-completion-speed 4)
+      (db-get-metric 'evaluation-completion-speed 4)))
 
   (test-assert "db-close"
     (db-close (%db)))
