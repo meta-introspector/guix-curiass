@@ -193,7 +193,9 @@ exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
                                'metrics exit-channel
                                (lambda ()
                                  (while #t
-                                   (db-update-metrics)
+                                   (with-time-logging
+                                    "Metrics update"
+                                    (db-update-metrics))
                                    (sleep 3600)))))
 
                              (spawn-fiber
