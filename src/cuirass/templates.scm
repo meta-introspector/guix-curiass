@@ -871,11 +871,11 @@ and BUILD-MAX are global minimal and maximal row identifiers."
                                                (data . ,dataset)))
                                            datasets labels colors)))))
                   (options . ((responsive . #t)
-                               (tooltips . ((enabled . #f)))
-                               (legend . ((display . ,legend?)))
-                               (title . ((display . #t)
-                                         (text . ,title)))
-                               (scales . ,scales))))))
+                              (tooltips . ((enabled . #f)))
+                              (legend . ((display . ,legend?)))
+                              (title . ((display . #f)
+                                        (text . ,title)))
+                              (scales . ,scales))))))
     `((script ,(format #f "window.addEventListener(\"load\",
 function(event) {\
 window.~a = new Chart\
