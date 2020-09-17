@@ -249,13 +249,15 @@ Hydra format."
       'average-eval-duration-per-spec))
     #:avg-eval-build-start-time
     (db-get-metrics-with-id 'average-eval-build-start-time
-                            #:limit 100)
+                            #:limit 100
+                            #:order "field ASC")
     #:builds-per-day
     (db-get-metrics-with-id 'builds-per-day
                             #:limit 100)
     #:eval-completion-speed
     (db-get-metrics-with-id 'evaluation-completion-speed
-                            #:limit 100)
+                            #:limit 100
+                            #:order "field ASC")
     #:new-derivations-per-day
     (db-get-metrics-with-id 'new-derivations-per-day
                             #:limit 100)
