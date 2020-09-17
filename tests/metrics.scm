@@ -94,7 +94,7 @@ nix_name, log, status, timestamp, starttime, stoptime) VALUES
       (db-get-metrics-with-id 'average-eval-duration-per-spec)))
 
   (test-equal "builds-per-day"
-    2.0
+    1.0
     (begin
       (db-update-metric 'builds-per-day)
       (db-get-metric 'builds-per-day yesterday)))
@@ -106,7 +106,7 @@ nix_name, log, status, timestamp, starttime, stoptime) VALUES
       (db-get-metrics-with-id 'pending-builds)))
 
   (test-equal "new-derivations-per-day"
-    `((,yesterday . 2.0))
+    `((,yesterday . 1.0))
     (begin
       (db-update-metric 'new-derivations-per-day)
       (db-get-metrics-with-id 'new-derivations-per-day)))
@@ -140,7 +140,7 @@ nix_name, log, status, timestamp, starttime, stoptime) VALUES
       (db-get-metrics-with-id 'average-eval-build-complete-time)))
 
   (test-equal "evaluation-completion-speed"
-    15.0
+    900.0
     (begin
       (db-update-metric 'evaluation-completion-speed 4)
       (db-get-metric 'evaluation-completion-speed 4)))
