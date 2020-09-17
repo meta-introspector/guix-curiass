@@ -235,6 +235,43 @@ Hydra format."
      ((#:name . ,(string-append "Evaluation " (number->string id)))
       (#:link . ,(string-append "/eval/" (number->string id)))))))
 
+(define* (metrics-page)
+  (html-page
+   "Global metrics"
+   (global-metrics-content
+    #:avg-eval-durations
+    (list
+     (db-get-metrics-with-id
+      'average-10-last-eval-duration-per-spec)
+     (db-get-metrics-with-id
+      'average-100-last-eval-duration-per-spec)
+     (db-get-metrics-with-id
+      'average-eval-duration-per-spec))
+    #:avg-eval-build-start-time
+    (db-get-metrics-with-id 'average-eval-build-start-time
+                            #:limit 100)
+    #:builds-per-day
+    (db-get-metrics-with-id 'builds-per-day
+                            #:limit 100)
+    #:eval-completion-speed
+    (db-get-metrics-with-id 'evaluation-completion-speed
+                            #:limit 100)
+    #:new-derivations-per-day
+    (db-get-metrics-with-id 'new-derivations-per-day
+                            #:limit 100)
+    #:pending-builds
+    (db-get-metrics-with-id 'pending-builds
+                            #:limit 100)
+    #:percentage-failed-eval
+    (list
+     (db-get-metrics-with-id
+      'percentage-failure-10-last-eval-per-spec)
+     (db-get-metrics-with-id
+      'percentage-failure-100-last-eval-per-spec)
+     (db-get-metrics-with-id
+      'percentage-failed-eval-per-spec)))
+   '()))
+
 
 ;;;
 ;;; Web server.
@@ -608,40 +645,7 @@ Hydra format."
 
     (('GET "metrics")
      (respond-html
-      (html-page
-       "Global metrics"
-       (let ((builds-per-day
-              (db-get-metrics-with-id 'builds-per-day
-                                      #:limit 10))
-             (new-derivations-per-day
-              (db-get-metrics-with-id 'new-derivations-per-day
-                                      #:limit 10))
-             (pending-builds
-              (db-get-metrics-with-id 'pending-builds
-                                      #:limit 10))
-             (avg-eval-durations
-              (list
-               (db-get-metrics-with-id
-                'average-10-last-eval-duration-per-spec)
-               (db-get-metrics-with-id
-                'average-100-last-eval-duration-per-spec)
-               (db-get-metrics-with-id
-                'average-eval-duration-per-spec)))
-            (percentage-failed-eval
-              (list
-               (db-get-metrics-with-id
-                'percentage-failure-10-last-eval-per-spec)
-               (db-get-metrics-with-id
-                'percentage-failure-100-last-eval-per-spec)
-               (db-get-metrics-with-id
-                'percentage-failed-eval-per-spec))) )
-         (global-metrics-content
-          #:avg-eval-durations avg-eval-durations
-          #:builds-per-day builds-per-day
-          #:new-derivations-per-day new-derivations-per-day
-          #:pending-builds pending-builds
-          #:percentage-failed-eval percentage-failed-eval))
-       '())))
+      (metrics-page)))
 
     (('GET "status")
      (respond-html

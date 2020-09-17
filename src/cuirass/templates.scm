@@ -830,22 +830,34 @@ and BUILD-MAX are global minimal and maximal row identifiers."
                           #:key
                           (interpolation? #t)
                           (legend? #f)
+                          (time-x-axes? #f)
+                          xaxes-labels
+                          x-label
+                          y-label
                           title
                           labels
                           colors)
-  (let* ((scales  `((xAxes
-                     . ,(vector '((type . "time")
-                                  (time . ((unit . "day")))
-                                  (display . #t)
-                                  (distribution . "series")
-                                  (scaleLabel
-                                   . ((display . #t)
-                                      (labelString . "Day"))))))
+  (let* ((normal-xAxes (vector `((type . "category")
+                                 (labels . ,xaxes-labels)
+                                 (display . #t)
+                                 (scaleLabel
+                                  . ((display . #t)
+                                     (labelString . ,x-label))))))
+         (time-xAxes (vector `((type . "time")
+                               (time . ((unit . "day")))
+                               (display . #t)
+                               (distribution . "series")
+                               (scaleLabel
+                                . ((display . #t)
+                                   (labelString . ,x-label))))))
+         (scales  `((xAxes . ,(if time-x-axes?
+                                  time-xAxes
+                                  normal-xAxes))
                     (yAxes
-                     . ,(vector '((display . #t)
+                     . ,(vector `((display . #t)
                                   (scaleLabel
                                    . ((display . #t)
-                                      (labelString . "Builds"))))))))
+                                      (labelString . ,y-label))))))))
          (chart `((type . "line")
                   (data . ((datasets
                             . ,(apply vector
@@ -872,7 +884,9 @@ window.~a = new Chart\
 
 (define* (global-metrics-content #:key
                                  avg-eval-durations
+                                 avg-eval-build-start-time
                                  builds-per-day
+                                 eval-completion-speed
                                  new-derivations-per-day
                                  pending-builds
                                  percentage-failed-eval)
@@ -902,7 +916,22 @@ window.~a = new Chart\
                    `((x . ,(* field 1000)) (y . ,value))))
                 builds)))
 
+  (define (evals->json-scm evals)
+    (apply vector
+           (map (match-lambda
+                  ((field . value)
+                   `((x . ,(number->string field)) (y . ,value))))
+                evals)))
+
+  (define (evals->labels evals)
+    (apply vector
+           (map (match-lambda
+                  ((field . value) field))
+                evals)))
+
   (let ((builds-chart "builds_per_day")
+        (build-start-chart "avg_eval_build_start_time")
+        (evaluation-speed-chart "eval_speed_chart")
         (pending-builds-chart "pending_builds"))
     `((p (@ (class "lead")) "Global metrics")
       (h6 "Average evaluation duration per specification (seconds).")
@@ -917,6 +946,12 @@ window.~a = new Chart\
       (br)
       (h6 "Build speed.")
       (canvas (@ (id ,builds-chart)))
+      (br)
+      (h6 "Evaluation average build start time.")
+      (canvas (@ (id ,build-start-chart)))
+      (br)
+      (h6 "Evaluation completion speed.")
+      (canvas (@ (id ,evaluation-speed-chart)))
       (br)
       (h6 "Pending builds.")
       (canvas (@ (id ,pending-builds-chart)))
@@ -936,13 +971,37 @@ window.~a = new Chart\
                          (list (builds->json-scm new-derivations-per-day)
                                (builds->json-scm builds-per-day))
                          #:interpolation? #f
+                         #:time-x-axes? #t
+                         #:x-label "Day"
+                         #:y-label "Builds"
                          #:title "Builds per day"
                          #:legend? #t
                          #:labels '("New derivations"
                                     "Builds completed")
                          #:colors (list "#f6dd27" "#3e95cd"))
+      ,@(make-line-chart build-start-chart
+                         (list (evals->json-scm avg-eval-build-start-time))
+                         #:xaxes-labels (evals->labels
+                                         avg-eval-build-start-time)
+                         #:x-label "Evaluations"
+                         #:y-label "Time (s)"
+                         #:title "Evaluation average build start time"
+                         #:labels '("Build start time")
+                         #:colors (list "#3e95cd"))
+      ,@(make-line-chart evaluation-speed-chart
+                         (list (evals->json-scm eval-completion-speed))
+                         #:xaxes-labels (evals->labels
+                                         eval-completion-speed)
+                         #:x-label "Evaluations"
+                         #:y-label "Speed (builds/hour)"
+                         #:title "Evaluation completion speed"
+                         #:labels '("Completion speed")
+                         #:colors (list "#3e95cd"))
       ,@(make-line-chart pending-builds-chart
                          (list (builds->json-scm pending-builds))
+                         #:time-x-axes? #t
+                         #:x-label "Day"
+                         #:y-label "Builds"
                          #:title "Pending builds"
                          #:labels '("Pending builds")
                          #:colors (list "#3e95cd")))))
