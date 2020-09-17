@@ -944,7 +944,7 @@ window.~a = new Chart\
        (tbody
         ,(apply map avg-eval-duration-row avg-eval-durations)))
       (br)
-      (h6 "Build speed.")
+      (h6 "Builds completion.")
       (p "This shows the difference between newly added derivations and built
 derivations per day.")
       (canvas (@ (id ,builds-chart)))
