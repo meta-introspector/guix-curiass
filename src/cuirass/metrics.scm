@@ -124,7 +124,7 @@ GROUP BY E.id;")))
 
 (define* (db-evaluation-completion-speed eval)
   "Return the evaluation completion speed of the given EVAL. The speed is
-expressed in builds per minute."
+expressed in builds per hour."
   ;; completion_speed = 60 * completed_builds / eval_duration.
   ;;
   ;; evaluation_duration (seconds) = current_time - eval_start_time
@@ -135,7 +135,7 @@ expressed in builds per minute."
   (with-db-worker-thread db
     (let ((rows (sqlite-exec db "\
 SELECT
-60.0 * SUM(B.status = 0) /
+3600.0 * SUM(B.status = 0) /
 (CASE SUM(status < 0)
    WHEN 0 THEN MAX(stoptime)
    ELSE strftime('%s', 'now')
@@ -243,7 +243,7 @@ status = 0 ORDER BY rowid DESC" days)))
     (id 'average-eval-build-complete-time)
     (compute-proc db-average-build-complete-time-per-eval))
 
-   ;; Evaluation completion speed in builds/minute.
+   ;; Evaluation completion speed in builds/hour.
    (metric
     (id 'evaluation-completion-speed)
     (compute-proc db-evaluation-completion-speed))))
