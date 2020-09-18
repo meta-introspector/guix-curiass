@@ -471,14 +471,17 @@ build products."
 been passed to 'build-derivations' (meaning that we can assume that, if their
 outputs are invalid, that they failed to build.)"
   (define (update! drv)
-    (match (derivation-path->output-paths drv)
+    (match (false-if-exception
+            (derivation-path->output-paths drv))
       (((_ . outputs) ...)
        (if (any (cut valid-path? store <>) outputs)
            (set-build-successful! drv)
            (db-update-build-status! drv
                                     (if (log-file store drv)
                                         (build-status failed)
-                                        (build-status failed-dependency)))))))
+                                        (build-status failed-dependency)))))
+      (else
+       (db-update-build-status! drv (build-status failed)))))
 
   (for-each update! lst))
 
