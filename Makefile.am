@@ -50,8 +50,9 @@ dist_pkgmodule_DATA =				\
   src/cuirass/metrics.scm			\
   src/cuirass/send-events.scm			\
   src/cuirass/ui.scm				\
-  src/cuirass/utils.scm             \
-  src/cuirass/templates.scm
+  src/cuirass/utils.scm		                \
+  src/cuirass/templates.scm                     \
+  src/cuirass/watchdog.scm
 
 nodist_pkgmodule_DATA = \
   src/cuirass/config.scm

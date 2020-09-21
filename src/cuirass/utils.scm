@@ -37,6 +37,9 @@
             define-enumeration
             unwind-protect
 
+            with-timeout
+            get-message-with-timeout
+
             make-worker-thread-channel
             call-with-worker-thread
             with-worker-thread

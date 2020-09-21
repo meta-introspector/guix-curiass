@@ -32,6 +32,7 @@ exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
              (cuirass logging)
              (cuirass metrics)
              (cuirass utils)
+             (cuirass watchdog)
              (guix ui)
              ((guix build utils) #:select (mkdir-p))
              (fibers)
@@ -153,7 +154,7 @@ exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
                  (if one-shot?
                      (process-specs (db-get-specifications))
                      (let ((exit-channel (make-channel)))
-
+                       (start-watchdog)
                        (if (option-ref opts 'web #f)
                            (begin
                              (spawn-fiber
