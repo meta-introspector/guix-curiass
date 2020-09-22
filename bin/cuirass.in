@@ -27,6 +27,7 @@ exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
 ;;; along with Cuirass.  If not, see <http://www.gnu.org/licenses/>.
 
 (use-modules (cuirass)
+             (cuirass base)
              (cuirass ui)
              (cuirass logging)
              (cuirass metrics)
@@ -54,6 +55,7 @@ exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
   -p  --port=NUM            Port of the HTTP server.
       --listen=HOST         Listen on the network interface for HOST
   -I, --interval=N          Wait N seconds between each poll
+      --log-queries=FILE    Log SQL queries in FILE.
       --use-substitutes     Allow usage of pre-built substitutes
       --record-events       Record events for distribution
       --threads=N           Use up to N kernel threads
@@ -74,6 +76,7 @@ exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
     (use-substitutes                  (value #f))
     (threads                          (value #t))
     (fallback                         (value #f))
+    (log-queries                      (value #t))
     (record-events                    (value #f))
     (ttl                              (value #t))
     (version        (single-char #\V) (value #f))
@@ -111,10 +114,11 @@ exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
        (else
         (mkdir-p (%gc-root-directory))
         (let ((one-shot? (option-ref opts 'one-shot #f))
-              (port      (string->number (option-ref opts 'port "8080")))
-              (host      (option-ref opts 'listen "localhost"))
-              (interval  (string->number (option-ref opts 'interval "300")))
-              (specfile  (option-ref opts 'specifications #f))
+              (port (string->number (option-ref opts 'port "8080")))
+              (host (option-ref opts 'listen "localhost"))
+              (interval (string->number (option-ref opts 'interval "300")))
+              (specfile (option-ref opts 'specifications #f))
+              (queries-file (option-ref opts 'log-queries #f))
 
               ;; Since our work is mostly I/O-bound, default to a maximum of 4
               ;; kernel threads.  Going beyond that can increase overhead (GC
@@ -139,6 +143,11 @@ exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
                                           (set-current-module (make-user-module '()))
                                           (primitive-load specfile)))))
                         (for-each db-add-specification new-specs)))
+
+                 (when queries-file
+                   (log-message "Enable SQL query logging.")
+                   (db-log-queries queries-file))
+
                  (if one-shot?
                      (process-specs (db-get-specifications))
                      (let ((exit-channel (make-channel)))

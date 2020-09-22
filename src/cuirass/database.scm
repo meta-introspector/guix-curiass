@@ -34,12 +34,15 @@
   #:use-module (srfi srfi-1)
   #:use-module (srfi srfi-19)
   #:use-module (srfi srfi-26)
+  #:use-module (system foreign)
+  #:use-module (rnrs bytevectors)
   #:use-module (sqlite3)
   #:export (;; Procedures.
             db-init
             db-open
             db-close
             db-optimize
+            db-log-queries
             db-add-specification
             db-remove-specification
             db-get-specification
@@ -302,6 +305,21 @@ database object."
     (sqlite-exec db "PRAGMA optimize;")
     (sqlite-exec db "PRAGMA wal_checkpoint(TRUNCATE);")
     (db-close db)))
+
+(define (trace-callback trace p x)
+  (log-query (pointer->string
+              (sqlite-expanded-sql p))
+             (make-time 'time-duration
+                        (bytevector-uint-ref
+                         (pointer->bytevector x (sizeof uint64))
+                         0 (native-endianness)
+                         (sizeof uint64))
+                        0)))
+
+(define (db-log-queries file)
+  (with-db-worker-thread db
+    (query-logging-port (open-output-file file))
+    (sqlite-trace db SQLITE_TRACE_PROFILE trace-callback)))
 
 (define (last-insert-rowid db)
   (vector-ref (car (sqlite-exec db "SELECT last_insert_rowid();"))

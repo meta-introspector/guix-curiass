@@ -25,7 +25,9 @@
             current-logging-procedure
             log-message
             with-time-logging
-            log-monitoring-stats))
+            log-monitoring-stats
+            query-logging-port
+            log-query))
 
 (define current-logging-port
   (make-parameter (current-error-port)))
@@ -77,3 +79,16 @@
                              (lambda (file)
                                (not (member file '("." "..")))))
                     '()))))
+
+(define query-logging-port
+  (make-parameter #f))
+
+(define (log-query query time)
+  (format (query-logging-port) "~a ~,2f~%"
+          (string-join
+           (string-tokenize query
+                            (char-set-complement
+                             (char-set #\space #\newline #\;)))
+           " ")
+          (+ (time-second time)
+             (/ (time-nanosecond time) 1e9))))
