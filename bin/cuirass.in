@@ -112,7 +112,9 @@ exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
         (show-version)
         (exit 0))
        (else
-        (mkdir-p (%gc-root-directory))
+        ;; If we cannot create the gcroot directory, it should be done later
+        ;; on by guix-daemon itself.
+        (false-if-exception (mkdir-p (%gc-root-directory)))
         (let ((one-shot? (option-ref opts 'one-shot #f))
               (port (string->number (option-ref opts 'port "8080")))
               (host (option-ref opts 'listen "localhost"))
