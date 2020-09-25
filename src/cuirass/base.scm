@@ -694,6 +694,17 @@ by PRODUCT-SPECS."
                                           (#:path . ,product))))))
             product-specs))
 
+(define (new-outputs? outputs)
+  "Return #t if OUTPUTS contains at least one unregistered output and #f
+otherwise."
+  (let ((new-outputs
+         (filter-map (match-lambda
+                       ((name . path)
+                        (let ((drv (db-get-output path)))
+                          (and (not drv) path))))
+                     outputs)))
+    (not (null? new-outputs))))
+
 (define (build-packages store jobs eval-id)
   "Build JOBS and return a list of Build results."
   (define (register job)
@@ -711,25 +722,26 @@ by PRODUCT-SPECS."
                                       `(,name . ,path))))
                                  (derivation-path->output-paths drv)))
            (cur-time (time-second (current-time time-utc))))
-      (let ((build `((#:derivation . ,drv)
-                     (#:eval-id . ,eval-id)
-                     (#:job-name . ,job-name)
-                     (#:system . ,system)
-                     (#:nix-name . ,nix-name)
+      (and (new-outputs? outputs)
+           (let ((build `((#:derivation . ,drv)
+                          (#:eval-id . ,eval-id)
+                          (#:job-name . ,job-name)
+                          (#:system . ,system)
+                          (#:nix-name . ,nix-name)
 
-                     ;; XXX: We'd leave LOG to #f (i.e., NULL) but that
-                     ;; currently violates the non-NULL constraint.
-                     (#:log . ,(or log ""))
+                          ;; XXX: We'd leave LOG to #f (i.e., NULL) but that
+                          ;; currently violates the non-NULL constraint.
+                          (#:log . ,(or log ""))
 
-                     (#:status . ,(build-status scheduled))
-                     (#:outputs . ,outputs)
-                     (#:timestamp . ,cur-time)
-                     (#:starttime . 0)
-                     (#:stoptime . 0))))
-        (db-add-build build))))
+                          (#:status . ,(build-status scheduled))
+                          (#:outputs . ,outputs)
+                          (#:timestamp . ,cur-time)
+                          (#:starttime . 0)
+                          (#:stoptime . 0))))
+             (db-add-build build)))))
 
   (define derivations
-    (filter-map register jobs))
+    (with-time-logging "registration" (filter-map register jobs)))
 
   (log-message "evaluation ~a registered ~a new derivations"
                eval-id (length derivations))
