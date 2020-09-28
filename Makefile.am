@@ -79,7 +79,8 @@ dist_sql_DATA = 				\
   src/sql/upgrade-8.sql				\
   src/sql/upgrade-9.sql				\
   src/sql/upgrade-10.sql			\
-  src/sql/upgrade-11.sql
+  src/sql/upgrade-11.sql			\
+  src/sql/upgrade-12.sql
 
 dist_css_DATA =					\
   src/static/css/cuirass.css			\

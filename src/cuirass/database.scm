@@ -1032,21 +1032,17 @@ FROM Evaluations ORDER BY id DESC LIMIT " limit ";"))
 (define (db-get-evaluations-build-summary spec limit border-low border-high)
   (with-db-worker-thread db
     (let loop ((rows (sqlite-exec db "
-SELECT E.id, E.status, B.succeeded, B.failed, B.scheduled
-FROM
-(SELECT id, status
-FROM Evaluations
+SELECT E.id, E.status, SUM(B.status=0) as succeeded,
+SUM(B.status>0) as failed, SUM(B.status<0) as scheduled FROM
+(SELECT id, status FROM Evaluations
 WHERE (specification=" spec ")
 AND (" border-low "IS NULL OR (id >" border-low "))
 AND (" border-high "IS NULL OR (id <" border-high "))
 ORDER BY CASE WHEN " border-low "IS NULL THEN id ELSE -id END DESC
 LIMIT " limit ") E
-LEFT JOIN
-(SELECT rowid, evaluation, SUM(status=0) as succeeded,
-SUM(status>0) as failed, SUM(status<0) as scheduled
-FROM Builds
-GROUP BY evaluation) B
+LEFT JOIN Builds as B
 ON B.evaluation=E.id
+GROUP BY E.id
 ORDER BY E.id ASC;"))
                (evaluations '()))
       (match rows
@@ -1081,16 +1077,11 @@ WHERE specification=" spec)))
   (with-db-worker-thread db
     (let ((rows (sqlite-exec db "
 SELECT E.id, E.status, E.timestamp, E.checkouttime, E.evaltime,
-B.total, B.succeeded, B.failed, B.scheduled
-FROM
- (SELECT id, status, timestamp, checkouttime, evaltime
-FROM Evaluations
-WHERE (id=" id ")) E
-LEFT JOIN
- (SELECT rowid, evaluation, SUM(status=0) as succeeded,
-SUM(status>0) as failed, SUM(status<0) as scheduled, SUM(status>-100) as total
-FROM Builds
-GROUP BY evaluation) B
+SUM(B.status>-100) as total, SUM(B.status=0) as succeeded,
+SUM(B.status>0) as failed, SUM(B.status<0) as scheduled FROM
+(SELECT id, status, timestamp, checkouttime, evaltime FROM
+        Evaluations WHERE (id=" id ")) E
+LEFT JOIN Builds as B
 ON B.evaluation=E.id
 ORDER BY E.id ASC;")))
       (and=> (expect-one-row rows)

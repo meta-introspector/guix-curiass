@@ -95,9 +95,11 @@ CREATE TABLE Events (
   event_json    TEXT NOT NULL
 );
 
--- Create indexes to speed up common queries, in particular those
--- corresponding to /api/latestbuilds and /api/queue HTTP requests.
+-- Create indexes to speed up common queries.
 CREATE INDEX Builds_status_index ON Builds (status);
+CREATE INDEX Builds_evaluation_index ON Builds (evaluation, status);
+CREATE INDEX Evaluations_status_index ON Evaluations (id, status);
+CREATE INDEX Evaluations_specification_index ON Evaluations (specification, id DESC);
 CREATE INDEX Outputs_derivation_index ON Outputs (derivation);
 CREATE INDEX Inputs_index ON Inputs(specification, name, branch);
 
