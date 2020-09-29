@@ -22,6 +22,8 @@
 ;;; along with Cuirass.  If not, see <http://www.gnu.org/licenses/>.
 
 (define-module (cuirass database)
+  #:use-module (guix derivations)
+  #:use-module (guix store)
   #:use-module (cuirass logging)
   #:use-module (cuirass config)
   #:use-module (cuirass utils)
@@ -58,6 +60,7 @@
             build-status
             db-add-build
             db-add-build-product
+            db-register-builds
             db-update-build-status!
             db-get-output
             db-get-inputs
@@ -203,6 +206,14 @@ connection."
        (log-message
         (format #f "Database worker unresponsive for ~a seconds."
                 (number->string timeout)))))))
+
+(define-syntax-rule (with-db-worker-thread-no-timeout db exp ...)
+  "This is similar to WITH-DB-WORKER-THREAD but it does not setup a timeout.
+This should be used with care as blocking too long in EXP can lead to workers
+starvation."
+  (call-with-worker-thread
+   (%db-channel)
+   (lambda (db) exp ...)))
 
 (define (read-sql-file file-name)
   "Return a list of string containing SQL instructions from FILE-NAME."
@@ -631,6 +642,50 @@ path) VALUES ("
                  (assq-ref product #:checksum) ", "
                  (assq-ref product #:path) ");")
     (last-insert-rowid db)))
+
+(define (db-register-builds store jobs eval-id)
+  (define (new-outputs? outputs)
+    (let ((new-outputs
+           (filter-map (match-lambda
+                         ((name . path)
+                          (let ((drv (db-get-output path)))
+                            (and (not drv) path))))
+                       outputs)))
+      (not (null? new-outputs))))
+
+  (define (register job)
+    (let* ((name     (assq-ref job #:job-name))
+           (drv      (assq-ref job #:derivation))
+           (job-name (assq-ref job #:job-name))
+           (system   (assq-ref job #:system))
+           (nix-name (assq-ref job #:nix-name))
+           ;; XXX: How to keep logs from several attempts?
+           (log      (log-file store drv))
+           (outputs  (filter-map (lambda (res)
+                                   (match res
+                                     ((name . path)
+                                      `(,name . ,path))))
+                                 (derivation-path->output-paths drv)))
+           (cur-time (time-second (current-time time-utc))))
+      (and (new-outputs? outputs)
+           (let ((build `((#:derivation . ,drv)
+                          (#:eval-id . ,eval-id)
+                          (#:job-name . ,job-name)
+                          (#:system . ,system)
+                          (#:nix-name . ,nix-name)
+
+                          ;; XXX: We'd leave LOG to #f (i.e., NULL) but that
+                          ;; currently violates the non-NULL constraint.
+                          (#:log . ,(or log ""))
+
+                          (#:status . ,(build-status scheduled))
+                          (#:outputs . ,outputs)
+                          (#:timestamp . ,cur-time)
+                          (#:starttime . 0)
+                          (#:stoptime . 0))))
+             (db-add-build build)))))
+
+  (with-db-worker-thread-no-timeout db (filter-map register jobs)))
 
 (define* (db-update-build-status! drv status #:key log-file)
   "Update the database so that DRV's status is STATUS.  This also updates the
