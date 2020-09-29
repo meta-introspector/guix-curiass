@@ -103,8 +103,7 @@ SELECT 100 * CAST(SUM(status > 0) as float) / COUNT(*) FROM
 SELECT AVG(B.starttime - E.evaltime) FROM
 (SELECT id, evaltime
 FROM Evaluations WHERE id = " eval ") E
-LEFT JOIN
-(SELECT id, evaluation, starttime FROM Builds) B
+LEFT JOIN Builds as B
 ON E.id = B.evaluation and B.starttime > 0
 GROUP BY E.id;")))
       (and=> (expect-one-row rows) (cut vector-ref <> 0)))))
@@ -116,8 +115,7 @@ GROUP BY E.id;")))
 SELECT AVG(B.stoptime - E.evaltime) FROM
 (SELECT id, evaltime
 FROM Evaluations WHERE id = " eval ") E
-LEFT JOIN
-(SELECT id, evaluation, stoptime FROM Builds) B
+LEFT JOIN Builds as B
 ON E.id = B.evaluation and B.stoptime > 0
 GROUP BY E.id;")))
       (and=> (expect-one-row rows) (cut vector-ref <> 0)))))
@@ -142,8 +140,7 @@ SELECT
 END - E.evaltime) FROM
 (SELECT id, evaltime
 FROM Evaluations WHERE id = " eval ") E
-LEFT JOIN
-(SELECT id, evaluation, status, stoptime FROM Builds) B
+LEFT JOIN Builds as B
 ON E.id = B.evaluation and B.stoptime > 0
 GROUP BY E.id;")))
       (and=> (expect-one-row rows) (cut vector-ref <> 0)))))
