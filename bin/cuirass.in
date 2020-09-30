@@ -194,11 +194,12 @@ exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
                               (essential-task
                                'build exit-channel
                                (lambda ()
-                                 (while #t
-                                   (process-specs (db-get-specifications))
-                                   (log-message
-                                    "next evaluation in ~a seconds" interval)
-                                   (sleep interval)))))
+                                 (with-registration-workers
+                                  (while #t
+                                    (process-specs (db-get-specifications))
+                                    (log-message
+                                     "next evaluation in ~a seconds" interval)
+                                    (sleep interval))))))
 
                              (spawn-fiber
                               (essential-task

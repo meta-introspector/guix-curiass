@@ -94,7 +94,8 @@
             %record-events?
             ;; Macros.
             with-db-worker-thread
-            with-database))
+            with-database
+            with-registration-workers))
 
 (define (%sqlite-exec db sql . args)
   "Evaluate the given SQL query with the given ARGS.  Return the list of
@@ -189,6 +190,9 @@ specified."
 (define %db-channel
   (make-parameter #f))
 
+(define %db-registration-channel
+  (make-parameter #f))
+
 (define %record-events?
   (make-parameter #f))
 
@@ -207,12 +211,13 @@ connection."
         (format #f "Database worker unresponsive for ~a seconds."
                 (number->string timeout)))))))
 
-(define-syntax-rule (with-db-worker-thread-no-timeout db exp ...)
-  "This is similar to WITH-DB-WORKER-THREAD but it does not setup a timeout.
-This should be used with care as blocking too long in EXP can lead to workers
-starvation."
+(define-syntax-rule (with-db-registration-worker-thread db exp ...)
+  "Similar to WITH-DB-WORKER-THREAD but evaluates EXP in database workers
+dedicated to evaluation registration.  It is expected those workers to be busy
+for long durations as registration involves running a large number of SQL
+queries.  For this reason, do not setup a timeout here."
   (call-with-worker-thread
-   (%db-channel)
+   (%db-registration-channel)
    (lambda (db) exp ...)))
 
 (define (read-sql-file file-name)
@@ -530,13 +535,26 @@ now "," checkouttime "," evaltime ");")
 
 (define-syntax-rule (with-database body ...)
   "Run BODY with %DB-CHANNEL being dynamically bound to a channel providing a
-worker thread that allows database operations to run without intefering with
+worker thread that allows database operations to run without interfering with
 fibers."
-  (parameterize ((%db-channel (make-worker-thread-channel
-                               (lambda ()
-                                 (list (db-open)))
-                               #:parallelism
-                               (min (current-processor-count) 4))))
+  (parameterize ((%db-channel
+                  (make-worker-thread-channel
+                   (lambda ()
+                     (list (db-open)))
+                   #:parallelism
+                   (min (current-processor-count) 4))))
+    body ...))
+
+(define-syntax-rule (with-registration-workers body ...)
+  "Run BODY with %DB-REGISTRATION-CHANNEL being dynamically bound to a channel
+providing worker threads that allow registration database operations to run
+without interfering with fibers."
+  (parameterize ((%db-registration-channel
+                  (make-worker-thread-channel
+                   (lambda ()
+                     (list (db-open)))
+                   #:parallelism
+                   (min (current-processor-count) 4))))
     body ...))
 
 (define* (read-quoted-string #:optional (port (current-input-port)))
@@ -685,7 +703,10 @@ path) VALUES ("
                           (#:stoptime . 0))))
              (db-add-build build)))))
 
-  (with-db-worker-thread-no-timeout db (filter-map register jobs)))
+  ;; New builds registration involves running a large number of SQL queries.
+  ;; To keep database workers available, use specific database workers
+  ;; dedicated to evaluation registration.
+  (with-db-registration-worker-thread db (filter-map register jobs)))
 
 (define* (db-update-build-status! drv status #:key log-file)
   "Update the database so that DRV's status is STATUS.  This also updates the
