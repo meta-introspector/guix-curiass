@@ -661,7 +661,7 @@ path) VALUES ("
                  (assq-ref product #:path) ");")
     (last-insert-rowid db)))
 
-(define (db-register-builds store jobs eval-id)
+(define (db-register-builds jobs eval-id)
   (define (new-outputs? outputs)
     (let ((new-outputs
            (filter-map (match-lambda
@@ -677,13 +677,8 @@ path) VALUES ("
            (job-name (assq-ref job #:job-name))
            (system   (assq-ref job #:system))
            (nix-name (assq-ref job #:nix-name))
-           ;; XXX: How to keep logs from several attempts?
-           (log      (log-file store drv))
-           (outputs  (filter-map (lambda (res)
-                                   (match res
-                                     ((name . path)
-                                      `(,name . ,path))))
-                                 (derivation-path->output-paths drv)))
+           (log      (assq-ref job #:log))
+           (outputs  (assq-ref job #:outputs))
            (cur-time (time-second (current-time time-utc))))
       (and (new-outputs? outputs)
            (let ((build `((#:derivation . ,drv)
@@ -706,7 +701,9 @@ path) VALUES ("
   ;; New builds registration involves running a large number of SQL queries.
   ;; To keep database workers available, use specific database workers
   ;; dedicated to evaluation registration.
-  (with-db-registration-worker-thread db (filter-map register jobs)))
+  (with-db-registration-worker-thread db
+    (log-message "Registering builds for evaluation ~a." eval-id)
+    (filter-map register jobs)))
 
 (define* (db-update-build-status! drv status #:key log-file)
   "Update the database so that DRV's status is STATUS.  This also updates the
