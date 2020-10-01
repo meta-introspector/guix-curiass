@@ -310,14 +310,6 @@ fibers."
 (define (evaluate store spec eval-id checkouts)
   "Evaluate and build package derivations defined in SPEC, using CHECKOUTS.
 Return a list of jobs that are associated to EVAL-ID."
-  (define (augment-job job)
-    (let ((drv (read-derivation-from-file
-                (assq-ref job #:derivation))))
-      `((#:eval-id . ,eval-id)
-        (#:nix-name . ,(derivation-name drv))
-        (#:system . ,(derivation-system drv))
-        ,@job)))
-
   (define log-file
     (evaluation-log-file eval-id))
 
@@ -369,7 +361,7 @@ Return a list of jobs that are associated to EVAL-ID."
       (('evaluation jobs)
        (let* ((spec-name (assq-ref spec #:name)))
          (log-message "evaluation ~a for '~a' completed" eval-id spec-name)
-         (map augment-job jobs))))))
+         jobs)))))
 
 
 ;;;
@@ -710,7 +702,6 @@ otherwise."
   (define (register job)
     (let* ((name     (assq-ref job #:job-name))
            (drv      (assq-ref job #:derivation))
-           (eval-id  (assq-ref job #:eval-id))
            (job-name (assq-ref job #:job-name))
            (system   (assq-ref job #:system))
            (nix-name (assq-ref job #:nix-name))
