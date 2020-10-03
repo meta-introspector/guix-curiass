@@ -689,7 +689,7 @@ by PRODUCT-SPECS."
 (define (build-packages store jobs eval-id)
   "Build JOBS and return a list of Build results."
   (define derivations
-    (with-time-logging "registration"
+    (with-time-logging (format #f "~a registration" eval-id)
                        (db-register-builds jobs eval-id)))
 
   (log-message "evaluation ~a registered ~a new derivations"
