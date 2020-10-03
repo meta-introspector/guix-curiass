@@ -200,18 +200,25 @@ specified."
   "Evaluate EXP... in the critical section corresponding to %DB-CHANNEL.
 DB is bound to the argument of that critical section: the database
 connection."
-  (let ((timeout 5)
+  (let ((send-timeout 2)
+        (receive-timeout 5)
         (caller-name (frame-procedure-name
                       (stack-ref (make-stack #t) 1))))
     (call-with-worker-thread
      (%db-channel)
      (lambda (db) exp ...)
-     #:timeout timeout
-     #:timeout-proc
+     #:send-timeout send-timeout
+     #:send-timeout-proc
+     (lambda ()
+       (log-message
+        (format #f "No available database workers for ~a seconds."
+                (number->string send-timeout))))
+     #:receive-timeout receive-timeout
+     #:receive-timeout-proc
      (lambda ()
        (log-message
         (format #f "Database worker unresponsive for ~a seconds (~a)."
-                (number->string timeout)
+                (number->string receive-timeout)
                 caller-name))))))
 
 (define-syntax-rule (with-db-registration-worker-thread db exp ...)

@@ -39,6 +39,7 @@
 
             with-timeout
             get-message-with-timeout
+            put-message-with-timeout
 
             make-worker-thread-channel
             call-with-worker-thread
@@ -163,23 +164,66 @@ it succeeds."
                 res)))
         res)))
 
+
+(define* (put-message-with-timeout channel message
+                                   #:key
+                                   seconds
+                                   (retry? #t)
+                                   timeout-proc)
+  "Perform a put-operation sending MESSAGE on CHANNEL with a timeout set to
+SECONDS.  If the timout expires and RETRY? is set to false, return 'timeout.
+If RETRY is true, call the TIMEOUT-PROC procedure on timeout and retry the
+put-operation until it succeeds."
+  (define (put-message*)
+    (perform-operation
+     (with-timeout
+      (wrap-operation (put-operation channel message) (const #t))
+      #:seconds seconds
+      #:wrap (const 'timeout))))
+
+  (let ((res (put-message*)))
+    (if retry?
+        (begin
+          (let loop ((res res))
+            (if (eq? res 'timeout)
+                (begin
+                  (and timeout-proc (timeout-proc))
+                  (loop (put-message*)))
+                res)))
+        res)))
+
 (define* (call-with-worker-thread channel proc
                                   #:key
-                                  timeout
-                                  timeout-proc)
+                                  send-timeout
+                                  send-timeout-proc
+                                  receive-timeout
+                                  receive-timeout-proc)
   "Send PROC to the worker thread through CHANNEL.  Return the result of PROC.
-If already in the worker thread, call PROC immediately.  If TIMEOUT is set to
-a duration in seconds, TIMEOUT-PROC is called every time a delay of TIMEOUT
-seconds expires, without a response from the worker thread."
+If already in the worker thread, call PROC immediately.
+
+If SEND-TIMEOUT is set to a duration in seconds, SEND-TIMEOUT-PROC is called
+every time a delay of SEND-TIMEOUT seconds expires, when trying to send PROC
+to a worker thread.
+
+The same goes for RECEIVE-TIMEOUT and RECEIVE-TIMEOUT-PROC, except that the
+timer expires if there is no response from the database worker PROC was sent
+to."
   (let ((args (%worker-thread-args)))
     (if args
         (apply proc args)
-        (let ((reply (make-channel)))
-          (put-message channel (cons reply proc))
-          (match (if (and timeout (current-fiber))
+        (let* ((reply (make-channel))
+               (message (cons reply proc)))
+          (if (and send-timeout (current-fiber))
+              (put-message-with-timeout channel message
+                                        #:seconds send-timeout
+                                        #:timeout-proc send-timeout-proc)
+              (put-message channel message))
+          (match (if (and receive-timeout (current-fiber))
                      (get-message-with-timeout reply
-                                               #:seconds timeout
-                                               #:timeout-proc timeout-proc)
+                                               #:seconds
+                                               receive-timeout
+                                               #:timeout-proc
+                                               receive-timeout-proc)
                      (get-message reply))
             (('worker-thread-error key args ...)
              (apply throw key args))
