@@ -745,8 +745,7 @@ by PRODUCT-SPECS."
                  (fetch-input store input
                               #:writable-copy? (compile? input)))))
            inputs))
-         (results (non-blocking
-                   (par-map %non-blocking thunks))))
+         (results (map %non-blocking thunks)))
     (map (lambda (checkout)
            (log-message "fetched input '~a' of spec '~a' (commit ~s)"
                         (assq-ref checkout #:input)
@@ -767,7 +766,7 @@ by PRODUCT-SPECS."
                             (assq-ref checkout #:commit))
                (compile checkout)))
            checkouts))
-         (results (par-map %non-blocking thunks)))
+         (results (map %non-blocking thunks)))
     (map (lambda (checkout)
            (log-message "compiled input '~a' of spec '~a' (commit ~s)"
                         (assq-ref checkout #:input)
