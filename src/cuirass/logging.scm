@@ -84,7 +84,14 @@
   (make-parameter #f))
 
 (define (log-query query time)
-  (format (query-logging-port) "~a ~,2f~%"
+  (define now
+    (current-time time-utc))
+
+  (define date
+    (date->string (time-utc->date now) "~5"))
+
+  (format (query-logging-port) "~a ~a ~,2f~%"
+          date
           (string-join
            (string-tokenize query
                             (char-set-complement
