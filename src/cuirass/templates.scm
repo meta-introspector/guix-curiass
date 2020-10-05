@@ -89,12 +89,10 @@
                (code "failed-dependency") ", "
                (code "failed-other") ", or "
                (code "canceled") "."))
-          (p "You can also use the anchors " (code "^") " and " (code "$") "
-for matching the beginning and the end of a name, respectively.")
           (p "For example, the following query will list successful builds of
 the " (code "guix-master") " specification for the " (code "i686-linux") "
 system whose names start with " (code "guile-") ":" (br)
-(code "spec:guix-master system:i686-linux status:success ^guile-")))))
+(code "spec:guix-master system:i686-linux status:success guile-")))))
 
 (define* (html-page title body navigation #:optional query)
   "Return HTML page with given TITLE and BODY."

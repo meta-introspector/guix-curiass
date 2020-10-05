@@ -808,20 +808,13 @@ WHERE derivation =" derivation ";"))
                     `(#:status ,(assoc-ref status-values status)))
                    ((_ invalid) '())    ; ignore
                    ((query)
-                    `(#:query
-                      ,(fold
-                        (lambda (transform val)
-                          (match transform
-                            ((pred modify-true modify-false)
-                             ((if (pred val) modify-true modify-false) val))))
-                        query
-                        ;; Process special characters ^ and $.
-                        (list (list (cut string-prefix? "^" <>)
-                                    (cut string-drop <> 1)
-                                    (cut string-append "%" <>))
-                              (list (cut string-suffix? "$" <>)
-                                    (cut string-drop-right <> 1)
-                                    (cut string-append <> "%"))))))))
+                    ;; Remove any '%' that could make the search too slow and
+                    ;; add one at the end of the query.
+                    `(#:query ,(string-append
+                                (string-join
+                                 (string-split query #\%)
+                                 "")
+                                "%")))))
                (string-tokenize query-string))))
     ;; Normalize arguments
     (fold (lambda (key acc)
@@ -835,10 +828,9 @@ WHERE derivation =" derivation ";"))
 FILTERS is an assoc list whose possible keys are the symbols query,
 border-low-id, border-high-id, and nr."
   (with-db-worker-thread db
-    (let* ((stmt-text (format #f "SELECT * FROM (
-SELECT Builds.rowid, Builds.timestamp, Builds.starttime,
-Builds.stoptime, Builds.log, Builds.status, Builds.job_name, Builds.system,
-Builds.nix_name, Specifications.name
+    (let* ((stmt-text (format #f "SELECT Builds.rowid, Builds.timestamp,
+Builds.starttime,Builds.stoptime, Builds.log, Builds.status,
+Builds.job_name, Builds.system, Builds.nix_name, Specifications.name
 FROM Builds
 INNER JOIN Evaluations ON Builds.evaluation = Evaluations.id
 INNER JOIN Specifications ON Evaluations.specification = Specifications.name
@@ -857,8 +849,7 @@ ORDER BY
 CASE WHEN :borderlowid IS NULL THEN Builds.rowid
                                ELSE -Builds.rowid
 END DESC
-LIMIT :nr)
-ORDER BY rowid DESC;"))
+LIMIT :nr;"))
            (stmt (sqlite-prepare db stmt-text #:cache? #t)))
       (apply sqlite-bind-arguments
              stmt
