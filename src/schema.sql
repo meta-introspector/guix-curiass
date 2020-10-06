@@ -99,6 +99,7 @@ CREATE TABLE Events (
 CREATE INDEX Builds_status_index ON Builds (status);
 CREATE INDEX Builds_evaluation_index ON Builds (evaluation, status);
 CREATE INDEX Builds_nix_name ON Builds (nix_name COLLATE NOCASE);
+CREATE INDEX Builds_timestamp_stoptime on Builds(timestamp, stoptime);
 CREATE INDEX Evaluations_status_index ON Evaluations (id, status);
 CREATE INDEX Evaluations_specification_index ON Evaluations (specification, id DESC);
 CREATE INDEX Outputs_derivation_index ON Outputs (derivation);
