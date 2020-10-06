@@ -22,8 +22,6 @@
 ;;; along with Cuirass.  If not, see <http://www.gnu.org/licenses/>.
 
 (define-module (cuirass database)
-  #:use-module (guix derivations)
-  #:use-module (guix store)
   #:use-module (cuirass logging)
   #:use-module (cuirass config)
   #:use-module (cuirass utils)
