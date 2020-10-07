@@ -86,9 +86,6 @@
                (list (build-status scheduled)
                      (build-status started)))))
 
-  (define build-products
-    (db-get-build-products (assq-ref build #:id)))
-
   `((#:id . ,(assq-ref build #:id))
     (#:jobset . ,(assq-ref build #:specification))
     (#:job . ,(assq-ref build #:job-name))
@@ -110,7 +107,8 @@
                                 (assq-ref build #:status))))
     (#:priority . 0)
     (#:finished . ,(bool->int finished?))
-    (#:buildproducts . ,(list->vector build-products))
+    (#:buildproducts . ,(list->vector
+                         (assq-ref build #:buildproducts)))
     (#:releasename . #nil)
     (#:buildinputs_builds . #nil)))
 
@@ -438,7 +436,7 @@ Hydra format."
            (respond-build-not-found id))))
     (('GET "build" (= string->number id) "details")
      (let* ((build (and id (db-get-build id)))
-            (products (and build (db-get-build-products id))))
+            (products (and build (assoc-ref build #:buildproducts))))
        (if build
            (respond-html
             (html-page (string-append "Build " (number->string id))
@@ -490,28 +488,36 @@ Hydra format."
     (('GET "api" "latestbuilds")
      (let* ((params (request-parameters request))
             ;; 'nr parameter is mandatory to limit query size.
-            (valid-params? (assq-ref params 'nr)))
-       (if valid-params?
-           ;; Limit results to builds that are "done".
-           (respond-json
-            (object->json-string
-             (handle-builds-request `((status . done)
-                                      ,@params
-                                      (order . finish-time)))))
-           (respond-json-with-error 500 "Parameter not defined!"))))
+            (limit (assq-ref params 'nr)))
+       (cond
+        ((not limit)
+         (respond-json-with-error 500 "Parameter not defined"))
+        ((> limit 1000)
+         (respond-json-with-error 500 "Maximum limit exceeded"))
+        (else
+         ;; Limit results to builds that are "done".
+         (respond-json
+          (object->json-string
+           (handle-builds-request `((status . done)
+                                    ,@params
+                                    (order . finish-time)))))))))
     (('GET "api" "queue")
      (let* ((params (request-parameters request))
             ;; 'nr parameter is mandatory to limit query size.
-            (valid-params? (assq-ref params 'nr)))
-       (if valid-params?
-           (respond-json
-            (object->json-string
-             ;; Use the 'status+submission-time' order so that builds in
-             ;; 'running' state appear before builds in 'scheduled' state.
-             (handle-builds-request `((status . pending)
-                                      ,@params
-                                      (order . status+submission-time)))))
-           (respond-json-with-error 500 "Parameter not defined!"))))
+            (limit (assq-ref params 'nr)))
+       (cond
+        ((not limit)
+         (respond-json-with-error 500 "Parameter not defined"))
+        ((> limit 1000)
+         (respond-json-with-error 500 "Maximum limit exceeded"))
+        (else
+         (respond-json
+          (object->json-string
+           ;; Use the 'status+submission-time' order so that builds in
+           ;; 'running' state appear before builds in 'scheduled' state.
+           (handle-builds-request `((status . pending)
+                                    ,@params
+                                    (order . status+submission-time)))))))))
     (('GET)
      (respond-html (html-page
                     "Cuirass"
@@ -624,7 +630,8 @@ Hydra format."
                       (order . finish-time+build-id))))
              ((build)
               (let* ((build-id (assoc-ref build #:id))
-                     (products (db-get-build-products build-id))
+                     (products (vector->list
+                                (assoc-ref build #:buildproducts)))
                      (product (find (lambda (product)
                                       (string=? (assoc-ref product #:type)
                                                 product-type))

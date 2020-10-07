@@ -875,7 +875,8 @@ LIMIT :nr;"))
                          (#:job-name . ,job-name)
                          (#:system . ,system)
                          (#:nix-name . ,nix-name)
-                         (#:specification . ,specification))
+                         (#:specification . ,specification)
+                         (#:buildproducts . ,(db-get-build-products id)))
                        builds))))))))
 
 (define (db-get-builds filters)
@@ -883,20 +884,19 @@ LIMIT :nr;"))
 FILTERS is an assoc list whose possible keys are 'derivation | 'id | 'jobset |
 'job | 'system | 'nr | 'order | 'status | 'evaluation."
 
+  ;; XXX: Make sure that all filters are covered by an index.
   (define (filters->order filters)
     (match (assq 'order filters)
-      (('order . 'build-id) "Builds.id ASC")
-      (('order . 'decreasing-build-id) "Builds.id DESC")
+      (('order . 'build-id) "Builds.rowid ASC")
       (('order . 'finish-time) "stoptime DESC")
-      (('order . 'finish-time+build-id) "stoptime DESC, Builds.id DESC")
-      (('order . 'start-time) "starttime DESC")
-      (('order . 'submission-time) "Builds.timestamp DESC")
+      (('order . 'finish-time+build-id) "stoptime DESC, Builds.rowid DESC")
       ;; With this order, builds in 'running' state (-1) appear
       ;; before those in 'scheduled' state (-2).
       (('order . 'status+submission-time)
-       "Builds.status DESC, Builds.timestamp DESC, Builds.id ASC")
-      (_ "Builds.id DESC")))
+       "Builds.status DESC, Builds.timestamp DESC, Builds.rowid ASC")
+      (_ "Builds.rowid DESC")))
 
+  ;; XXX: Make sure that all filters are covered by an index.
   (define (where-conditions filters)
     (define filter-name->sql
       `((id              . "Builds.id = :id")
@@ -928,6 +928,30 @@ FILTERS is an assoc list whose possible keys are 'derivation | 'id | 'jobset |
       '()
       (map car filters))))
 
+  (define (format-outputs names paths)
+    (map (lambda (name path)
+           `(,name . ((#:path . ,path))))
+         (string-split names #\,)
+         (string-split paths #\,)))
+
+  (define (format-build-products ids types file-sizes checksums paths)
+    (define (split list)
+      (if list
+          (string-split list #\,)
+          '()))
+
+    (map (lambda (id type file-size checksum path)
+           `((#:id . ,(string->number id))
+             (#:type . ,type)
+             (#:file-size . ,(string->number file-size))
+             (#:checksum . ,checksum)
+             (#:path . ,path)))
+         (split ids)
+         (split types)
+         (split file-sizes)
+         (split checksums)
+         (split paths)))
+
   (with-db-worker-thread db
     (let* ((order (filters->order filters))
            (where (match (where-conditions filters)
@@ -939,16 +963,25 @@ FILTERS is an assoc list whose possible keys are 'derivation | 'id | 'jobset |
                                     (string-join rest " AND ")))))
            (stmt-text
             (format #f "
-SELECT Builds.derivation, Builds.rowid, Builds.timestamp, Builds.starttime,
-       Builds.stoptime, Builds.log, Builds.status, Builds.job_name,
-       Builds.system, Builds.nix_name, Builds.evaluation, Specifications.name
+SELECT Builds.*,
+GROUP_CONCAT(Outputs.name), GROUP_CONCAT(Outputs.path),
+GROUP_CONCAT(BP.rowid), GROUP_CONCAT(BP.type), GROUP_CONCAT(BP.file_size),
+GROUP_CONCAT(BP.checksum), GROUP_CONCAT(BP.path) FROM
+(SELECT Builds.derivation, Builds.rowid, Builds.timestamp, Builds.starttime,
+        Builds.stoptime, Builds.log, Builds.status, Builds.job_name,
+        Builds.system, Builds.nix_name, Builds.evaluation,
+        Specifications.name
 FROM Builds
 INNER JOIN Evaluations ON Builds.evaluation = Evaluations.id
 INNER JOIN Specifications ON Evaluations.specification = Specifications.name
 ~a
 ORDER BY ~a
-LIMIT :nr"
-                    where order))
+LIMIT :nr) Builds
+INNER JOIN Outputs ON Outputs.derivation = Builds.derivation
+LEFT JOIN BuildProducts as BP ON BP.build = Builds.rowid
+GROUP BY Builds.derivation
+ORDER BY ~a;"
+                    where order order))
            (stmt (sqlite-prepare db stmt-text #:cache? #t)))
 
       (sqlite-bind stmt 'nr (match (assq-ref filters 'nr)
@@ -977,7 +1010,10 @@ LIMIT :nr"
         (match rows
           (() (reverse builds))
           ((#(derivation id timestamp starttime stoptime log status job-name
-                         system nix-name eval-id specification) . rest)
+                         system nix-name eval-id specification
+                         outputs-name outputs-path
+                         products-id products-type products-file-size
+                         products-checksum products-path) . rest)
            (loop rest
                  (cons `((#:derivation . ,derivation)
                          (#:id . ,id)
@@ -991,7 +1027,14 @@ LIMIT :nr"
                          (#:nix-name . ,nix-name)
                          (#:eval-id . ,eval-id)
                          (#:specification . ,specification)
-                         (#:outputs . ,(db-get-outputs derivation)))
+                         (#:outputs . ,(format-outputs outputs-name
+                                                       outputs-path))
+                         (#:buildproducts .
+                          ,(format-build-products products-id
+                                                  products-type
+                                                  products-file-size
+                                                  products-checksum
+                                                  products-path)))
                        builds))))))))
 
 (define (db-get-build derivation-or-id)

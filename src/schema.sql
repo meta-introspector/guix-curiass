@@ -95,14 +95,21 @@ CREATE TABLE Events (
   event_json    TEXT NOT NULL
 );
 
--- Create indexes to speed up common queries.
+-- XXX: All queries targeting Builds and Outputs tables *must* be covered by
+-- an index.  It is also preferable for the other tables.
 CREATE INDEX Builds_status_index ON Builds (status);
 CREATE INDEX Builds_evaluation_index ON Builds (evaluation, status);
 CREATE INDEX Builds_nix_name ON Builds (nix_name COLLATE NOCASE);
 CREATE INDEX Builds_timestamp_stoptime on Builds(timestamp, stoptime);
+CREATE INDEX Builds_stoptime on Builds(stoptime DESC);
+CREATE INDEX Builds_stoptime_id on Builds(stoptime DESC, id DESC);
+CREATE INDEX Builds_status_ts_id on Builds(status DESC, timestamp DESC, id ASC);
+
 CREATE INDEX Evaluations_status_index ON Evaluations (id, status);
 CREATE INDEX Evaluations_specification_index ON Evaluations (specification, id DESC);
+
 CREATE INDEX Outputs_derivation_index ON Outputs (derivation);
+
 CREATE INDEX Inputs_index ON Inputs(specification, name, branch);
 
 COMMIT;
