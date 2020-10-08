@@ -256,6 +256,17 @@ dedicated to writing.  EXP evaluation is queued unless #:force? is set."
   ;;(sqlite-busy-timeout db (* 30 1000))
   (sqlite-exec db "PRAGMA busy_timeout = 30000;")
 
+  ;; The want to prioritize read operations over write operations as we can
+  ;; have a large number of clients, while the number of write operations is
+  ;; modest.  Use a small WAL journal to do that, and try to reduce disk I/O
+  ;; by increasing RAM usage as described here:
+  ;; https://wiki.mozilla.org/Performance/Avoid_SQLite_In_Your_Next_Firefox_Feature
+  (sqlite-exec db "PRAGMA wal_autocheckpoint = 16;")
+  (sqlite-exec db "PRAGMA journal_size_limit = 1536;")
+  (sqlite-exec db "PRAGMA page_size = 32768;")
+  (sqlite-exec db "PRAGMA cache_size = -500000;")
+  (sqlite-exec db "PRAGMA temp_store = MEMORY;")
+  (sqlite-exec db "PRAGMA synchronous = NORMAL;")
   db)
 
 (define (db-load db schema)
