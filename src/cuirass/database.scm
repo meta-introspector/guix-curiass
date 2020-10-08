@@ -614,47 +614,34 @@ INSERT INTO Outputs (derivation, name, path) VALUES ("
   "Store BUILD in database the database only if one of its outputs is new.
 Return #f otherwise.  BUILD outputs are stored in the OUTPUTS table."
   (with-db-worker-thread db
-    (catch-sqlite-error
-     (sqlite-exec db "BEGIN TRANSACTION;")
-     (sqlite-exec db "
+    (sqlite-exec db "
 INSERT INTO Builds (derivation, evaluation, job_name, system, nix_name, log,
 status, timestamp, starttime, stoptime)
 VALUES ("
-                  (assq-ref build #:derivation) ", "
-                  (assq-ref build #:eval-id) ", "
-                  (assq-ref build #:job-name) ", "
-                  (assq-ref build #:system) ", "
-                  (assq-ref build #:nix-name) ", "
-                  (assq-ref build #:log) ", "
-                  (or (assq-ref build #:status)
-                      (build-status scheduled)) ", "
-                  (or (assq-ref build #:timestamp) 0) ", "
-                  (or (assq-ref build #:starttime) 0) ", "
-                  (or (assq-ref build #:stoptime) 0) ");")
-     (let* ((derivation (assq-ref build #:derivation))
-            (outputs (assq-ref build #:outputs))
-            (new-outputs (filter-map (cut db-add-output derivation <>)
-                                     outputs)))
-       (if (null? new-outputs)
-           (begin (sqlite-exec db "ROLLBACK;")
-                  #f)
-           (begin (db-add-event 'build
-                                (assq-ref build #:timestamp)
-                                `((#:derivation . ,(assq-ref build #:derivation))
-                                  ;; TODO Ideally this would use the value
-                                  ;; from build, with a default of scheduled,
-                                  ;; but it's hard to convert to the symbol,
-                                  ;; so just hard code scheduled for now.
-                                  (#:event       . scheduled)))
-                  (sqlite-exec db "COMMIT;")
-                  derivation)))
-
-     ;; If we get a unique-constraint-failed error, that means we have
-     ;; already inserted the same build.  That happens when several jobs
-     ;; produce the same derivation, and we can ignore it.
-     (on SQLITE_CONSTRAINT_UNIQUE
-         =>
-         (sqlite-exec db "ROLLBACK;") #f))))
+                 (assq-ref build #:derivation) ", "
+                 (assq-ref build #:eval-id) ", "
+                 (assq-ref build #:job-name) ", "
+                 (assq-ref build #:system) ", "
+                 (assq-ref build #:nix-name) ", "
+                 (assq-ref build #:log) ", "
+                 (or (assq-ref build #:status)
+                     (build-status scheduled)) ", "
+                     (or (assq-ref build #:timestamp) 0) ", "
+                     (or (assq-ref build #:starttime) 0) ", "
+                     (or (assq-ref build #:stoptime) 0) ");")
+    (let* ((derivation (assq-ref build #:derivation))
+           (outputs (assq-ref build #:outputs))
+           (new-outputs (filter-map (cut db-add-output derivation <>)
+                                    outputs)))
+      (db-add-event 'build
+                    (assq-ref build #:timestamp)
+                    `((#:derivation . ,(assq-ref build #:derivation))
+                      ;; TODO Ideally this would use the value
+                      ;; from build, with a default of scheduled,
+                      ;; but it's hard to convert to the symbol,
+                      ;; so just hard code scheduled for now.
+                      (#:event       . scheduled)))
+      derivation)))
 
 (define (db-add-build-product product)
   "Insert PRODUCT into BuildProducts table."
@@ -711,7 +698,10 @@ path) VALUES ("
   ;; dedicated to evaluation registration.
   (with-db-registration-worker-thread db
     (log-message "Registering builds for evaluation ~a." eval-id)
-    (filter-map register jobs)))
+    (sqlite-exec db "BEGIN TRANSACTION;")
+    (let ((derivations (filter-map register jobs)))
+      (sqlite-exec db "COMMIT;")
+      derivations)))
 
 (define* (db-update-build-status! drv status #:key log-file)
   "Update the database so that DRV's status is STATUS.  This also updates the
