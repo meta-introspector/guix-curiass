@@ -1,4 +1,6 @@
 ;;; metrics.scm -- Compute and store metrics.
+;;; Copyright © 2020 Mathieu Othacehe <othacehe@gnu.org>
+;;;
 ;;; This file is part of Cuirass.
 ;;;
 ;;; Cuirass is free software: you can redistribute it and/or modify
