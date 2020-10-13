@@ -221,7 +221,7 @@ instructs it to keep those GC roots live for at least @var{duration}---e.g.,
 30 days.
 
 Those GC roots are typically stored in
-@file{/var/guix/gcroots/per-user/@var{user}/cuirass}, where @var{user} is the
+@file{/var/guix/gcroots/profiles/per-user/@var{user}/cuirass}, where @var{user} is the
 user under which Cuirass is running.
 
 @item --port=@var{num}
