@@ -171,53 +171,51 @@ exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
                                  (while #t
                                    (log-monitoring-stats)
                                    (sleep 600))))))
-                           (begin
+                           (with-queue-writer-worker
+                            (clear-build-queue)
 
-                             (clear-build-queue)
+                            ;; If Cuirass was stopped during an evaluation,
+                            ;; abort it. Builds that were not registered
+                            ;; during this evaluation will be registered
+                            ;; during the next evaluation.
+                            (db-abort-pending-evaluations)
 
-                             ;; If Cuirass was stopped during an evaluation,
-                             ;; abort it. Builds that were not registered
-                             ;; during this evaluation will be registered
-                             ;; during the next evaluation.
-                             (db-abort-pending-evaluations)
+                            ;; First off, restart builds that had not
+                            ;; completed or were not even started on a
+                            ;; previous run.
+                            (spawn-fiber
+                             (essential-task
+                              'restart-builds exit-channel
+                              (lambda ()
+                                (restart-builds))))
 
-                             ;; First off, restart builds that had not
-                             ;; completed or were not even started on a
-                             ;; previous run.
-                             (spawn-fiber
-                              (essential-task
-                               'restart-builds exit-channel
-                               (lambda ()
-                                 (restart-builds))))
+                            (spawn-fiber
+                             (essential-task
+                              'build exit-channel
+                              (lambda ()
+                                (while #t
+                                  (process-specs (db-get-specifications))
+                                  (log-message
+                                   "next evaluation in ~a seconds" interval)
+                                  (sleep interval)))))
 
-                             (spawn-fiber
-                              (essential-task
-                               'build exit-channel
-                               (lambda ()
-                                 (with-registration-workers
-                                  (while #t
-                                    (process-specs (db-get-specifications))
-                                    (log-message
-                                     "next evaluation in ~a seconds" interval)
-                                    (sleep interval))))))
+                            (spawn-fiber
+                             (essential-task
+                              'metrics exit-channel
+                              (lambda ()
+                                (while #t
+                                  (with-time-logging
+                                   "Metrics update"
+                                   (db-update-metrics))
+                                  (sleep 3600)))))
 
-                             (spawn-fiber
-                              (essential-task
-                               'metrics exit-channel
-                               (lambda ()
-                                 (while #t
-                                   (with-time-logging
-                                    "Metrics update"
-                                    (db-update-metrics))
-                                   (sleep 3600)))))
-
-                             (spawn-fiber
-                              (essential-task
-                               'monitor exit-channel
-                               (lambda ()
-                                 (while #t
-                                   (log-monitoring-stats)
-                                   (sleep 600)))))))
+                            (spawn-fiber
+                             (essential-task
+                              'monitor exit-channel
+                              (lambda ()
+                                (while #t
+                                  (log-monitoring-stats)
+                                  (sleep 600)))))))
                        (primitive-exit (get-message exit-channel))))))
 
            ;; Most of our code is I/O so preemption doesn't matter much (it

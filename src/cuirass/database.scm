@@ -93,7 +93,7 @@
             ;; Macros.
             with-db-worker-thread
             with-database
-            with-registration-workers))
+            with-queue-writer-worker))
 
 (define (%sqlite-exec db sql . args)
   "Evaluate the given SQL query with the given ARGS.  Return the list of
@@ -188,7 +188,7 @@ specified."
 (define %db-channel
   (make-parameter #f))
 
-(define %db-registration-channel
+(define %db-writer-channel
   (make-parameter #f))
 
 (define %record-events?
@@ -219,14 +219,17 @@ connection."
                 (number->string receive-timeout)
                 caller-name))))))
 
-(define-syntax-rule (with-db-registration-worker-thread db exp ...)
-  "Similar to WITH-DB-WORKER-THREAD but evaluates EXP in database workers
-dedicated to evaluation registration.  It is expected those workers to be busy
-for long durations as registration involves running a large number of SQL
-queries.  For this reason, do not setup a timeout here."
-  (call-with-worker-thread
-   (%db-registration-channel)
-   (lambda (db) exp ...)))
+(define-syntax with-db-writer-worker-thread
+  (syntax-rules ()
+    "Similar to WITH-DB-WORKER-THREAD but evaluates EXP in a database worker
+dedicated to writing.  EXP evaluation is queued unless #:force? is set."
+    ((_ db #:force? force exp ...)
+     (call-with-worker-thread
+      (%db-writer-channel)
+      (lambda (db) exp ...)
+      #:options `((#:force? . ,force))))
+    ((_ db exp ...)
+     (with-db-writer-worker-thread db #:force? #f exp ...))))
 
 (define (read-sql-file file-name)
   "Return a list of string containing SQL instructions from FILE-NAME."
@@ -553,16 +556,26 @@ fibers."
                    (min (current-processor-count) 4))))
     body ...))
 
-(define-syntax-rule (with-registration-workers body ...)
-  "Run BODY with %DB-REGISTRATION-CHANNEL being dynamically bound to a channel
-providing worker threads that allow registration database operations to run
-without interfering with fibers."
-  (parameterize ((%db-registration-channel
+(define-syntax-rule (with-queue-writer-worker body ...)
+  "Run BODY with %DB-WRITER-CHANNEL being dynamically bound to a channel
+providing a worker thread that allow database write operations to run
+without interfering with fibers.
+
+The worker will queue write operations and run them in a single transaction
+when the queue is full. As write operations are exclusive in SQLite, do not
+allocate more than one worker."
+  (parameterize ((%db-writer-channel
                   (make-worker-thread-channel
                    (lambda ()
                      (list (db-open)))
-                   #:parallelism
-                   (min (current-processor-count) 4))))
+                   #:parallelism 1
+                   #:queue-size 100
+                   #:queue-proc
+                   (lambda (db run-queue)
+                     (log-message "Running writer queue.")
+                     (sqlite-exec db "BEGIN TRANSACTION;")
+                     (run-queue)
+                     (sqlite-exec db "COMMIT;")))))
     body ...))
 
 (define* (read-quoted-string #:optional (port (current-input-port)))
@@ -693,10 +706,11 @@ path) VALUES ("
                           (#:stoptime . 0))))
              (db-add-build build)))))
 
-  ;; New builds registration involves running a large number of SQL queries.
-  ;; To keep database workers available, use specific database workers
-  ;; dedicated to evaluation registration.
-  (with-db-registration-worker-thread db
+  ;; Use the database worker dedicated to write queries.  We don't want this
+  ;; query to be queued as it is already a quite large transaction by itself,
+  ;; so pass the #:FORCE? option.
+  (with-db-writer-worker-thread db
+    #:force? #t
     (log-message "Registering builds for evaluation ~a." eval-id)
     (sqlite-exec db "BEGIN TRANSACTION;")
     (let ((derivations (filter-map register jobs)))
@@ -717,7 +731,7 @@ log file for DRV."
       (,(build-status failed-other)      . "failed (other)")
       (,(build-status canceled)          . "canceled")))
 
-  (with-db-worker-thread db
+  (with-db-writer-worker-thread db
     (if (= status (build-status started))
         (begin
           (sqlite-exec db "UPDATE Builds SET starttime=" now ", status="
