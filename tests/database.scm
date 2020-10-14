@@ -75,7 +75,8 @@
      (parameterize ((%package-database file))
        (db-init file)
        (with-database
-         body ...)))))
+         (parameterize ((%db-writer-channel (%db-channel)))
+           body ...))))))
 
 (define %db
   ;; Global Slot for a database object.
@@ -124,18 +125,9 @@ timestamp, checkouttime, evaltime) VALUES (3, 0, 0, 0, 0);")
 
       ;; Should return #f when adding a build whose derivation is already
       ;; there, see <https://bugs.gnu.org/28094>.
-      (db-add-build build)))
-
-  (test-equal "db-add-build-with-fixed-output"
-    #f
-    (let ((build1 (make-dummy-build "/fixed1.drv"
-                                    #:outputs '(("out" . "/fixed-output"))))
-          (build2 (make-dummy-build "/fixed2.drv"
-                                    #:outputs '(("out" . "/fixed-output")))))
-      (db-add-build build1)
-
-      ;; Should return #f because the outputs are the same.
-      (db-add-build build2)))
+      (catch-sqlite-error
+       (db-add-build build)
+       (on SQLITE_CONSTRAINT_UNIQUE => #f))))
 
   (test-equal "db-update-build-status!"
     (list (build-status scheduled)
@@ -206,16 +198,11 @@ timestamp, checkouttime, evaltime) VALUES (3, 0, 0, 0, 0);")
   (test-equal "db-get-pending-derivations"
     '("/bar.drv" "/foo.drv")
     (with-temporary-database
-      ;; Populate the 'Builds', 'Evaluations', and
-      ;; 'Specifications' tables.  Here, two builds map to the same derivation
-      ;; but the result of 'db-get-pending-derivations' must not contain any
-      ;; duplicate.
+      ;; Populate the 'Builds', 'Evaluations', and 'Specifications' tables.
       (db-add-build (make-dummy-build "/foo.drv" 1
                                       #:outputs `(("out" . "/foo"))))
       (db-add-build (make-dummy-build "/bar.drv" 2
                                       #:outputs `(("out" . "/bar"))))
-      (db-add-build (make-dummy-build "/foo.drv" 3
-                                      #:outputs `(("out" . "/foo"))))
       (db-add-evaluation "guix" (make-dummy-checkouts "fakesha1" "fakesha2"))
       (db-add-evaluation "guix" (make-dummy-checkouts "fakesha1" "fakesha3"))
       (db-add-evaluation "guix" (make-dummy-checkouts "fakssha2" "fakesha3"))

@@ -85,10 +85,15 @@
             read-quoted-string
             %sqlite-exec
             sqlite-exec
+            catch-sqlite-error
+            ;; Constants.
+            SQLITE_CONSTRAINT_PRIMARYKEY
+            SQLITE_CONSTRAINT_UNIQUE
             ;; Parameters.
             %package-database
             %package-schema-file
             %db-channel
+            %db-writer-channel
             %record-events?
             ;; Macros.
             with-db-worker-thread
