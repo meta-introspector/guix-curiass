@@ -624,14 +624,6 @@ This procedure is meant to be called at startup."
   (with-db-worker-thread db
     (sqlite-exec db "UPDATE Builds SET status = -2 WHERE status = -1;")))
 
-(define (cancel-old-builds age)
-  "Cancel builds older than AGE seconds."
-  (log-message "canceling builds older than ~a seconds..." age)
-  (with-db-worker-thread db
-    (sqlite-exec
-     db "UPDATE Builds SET status = 4 WHERE status = -2 AND timestamp < "
-     (- (time-second (current-time time-utc)) age) ";")))
-
 (define (restart-builds)
   "Restart builds whose status in the database is \"pending\" (scheduled or
 started)."
