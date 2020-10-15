@@ -736,8 +736,7 @@ path) VALUES ("
   ;; Use the database worker dedicated to write queries.  We don't want this
   ;; query to be queued as it is already a quite large transaction by itself,
   ;; so pass the #:FORCE? option.
-  (with-db-writer-worker-thread db
-    #:force? #t
+  (with-db-writer-worker-thread/force db
     (log-message "Registering builds for evaluation ~a." eval-id)
     (sqlite-exec db "BEGIN TRANSACTION;")
     (let ((derivations (filter-map register jobs)))
