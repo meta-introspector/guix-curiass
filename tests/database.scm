@@ -93,6 +93,7 @@
       (%db-channel (make-worker-thread-channel
                     (lambda ()
                       (list (%db)))))
+      (%db-writer-channel (%db-channel))
       #t))
 
   (test-assert "sqlite-exec"

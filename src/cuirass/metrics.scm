@@ -328,7 +328,7 @@ timestamp) VALUES ("
 
 (define (db-update-metrics)
   "Compute and update all available metrics in database."
-  (with-db-worker-thread db
+  (with-db-writer-worker-thread/force db
     ;; We can not update all evaluations metrics for performance reasons.
     ;; Limit to the evaluations that were added during the past three days.
     (let ((specifications

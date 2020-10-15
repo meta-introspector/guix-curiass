@@ -97,6 +97,8 @@
             %record-events?
             ;; Macros.
             with-db-worker-thread
+            with-db-writer-worker-thread
+            with-db-writer-worker-thread/force
             with-database
             with-queue-writer-worker))
 
@@ -201,8 +203,8 @@ specified."
 
 (define-syntax-rule (with-db-worker-thread db exp ...)
   "Evaluate EXP... in the critical section corresponding to %DB-CHANNEL.
-DB is bound to the argument of that critical section: the database
-connection."
+DB is bound to the argument of that critical section: the database connection.
+This must only be used for reading queries, i.e SELECT queries."
   (let ((send-timeout 2)
         (receive-timeout 5)
         (caller-name (frame-procedure-name
@@ -227,7 +229,10 @@ connection."
 (define-syntax with-db-writer-worker-thread
   (syntax-rules ()
     "Similar to WITH-DB-WORKER-THREAD but evaluates EXP in a database worker
-dedicated to writing.  EXP evaluation is queued unless #:force? is set."
+dedicated to writing.  EXP evaluation is deferred and will only be run once
+the worker evaluation queue in full.  To force an immediate evaluation the
+#:FORCE? option or the alias below may be used.  This macro is reserved for
+writing queries, i.e CREATE, DELETE, DROP, INSERT, or UPDATE queries."
     ((_ db #:force? force exp ...)
      (call-with-worker-thread
       (%db-writer-channel)
@@ -235,6 +240,12 @@ dedicated to writing.  EXP evaluation is queued unless #:force? is set."
       #:options `((#:force? . ,force))))
     ((_ db exp ...)
      (with-db-writer-worker-thread db #:force? #f exp ...))))
+
+(define-syntax with-db-writer-worker-thread/force
+  (syntax-rules ()
+    "Alias for WITH-DB-WRITER-WORKER-THREAD with FORCE? option set."
+    ((_ db exp ...)
+     (with-db-writer-worker-thread db #:force? #t exp ...))))
 
 (define (read-sql-file file-name)
   "Return a list of string containing SQL instructions from FILE-NAME."
@@ -382,7 +393,7 @@ of the list, and returns #f when there is no result."
     (() #f)))
 
 (define (db-add-input spec-name input)
-  (with-db-worker-thread db
+  (with-db-writer-worker-thread/force db
     (sqlite-exec db "\
 INSERT OR IGNORE INTO Inputs (specification, name, url, load_path, branch, \
 tag, revision, no_compile_p) VALUES ("
@@ -398,7 +409,7 @@ tag, revision, no_compile_p) VALUES ("
 (define (db-add-checkout spec-name eval-id checkout)
   "Insert CHECKOUT associated with SPEC-NAME and EVAL-ID.  If a checkout with
 the same revision already exists for SPEC-NAME, return #f."
-  (with-db-worker-thread db
+  (with-db-writer-worker-thread/force db
     (catch-sqlite-error
      (sqlite-exec db "\
 INSERT INTO Checkouts (specification, revision, evaluation, input,
@@ -419,7 +430,7 @@ directory, timestamp) VALUES ("
 (define (db-add-specification spec)
   "Store SPEC in database the database.  SPEC inputs are stored in the INPUTS
 table."
-  (with-db-worker-thread db
+  (with-db-writer-worker-thread/force db
     (sqlite-exec db "\
 INSERT OR IGNORE INTO Specifications (name, load_path_inputs, \
 package_path_inputs, proc_input, proc_file, proc, proc_args, \
@@ -441,7 +452,7 @@ build_outputs) \
 
 (define (db-remove-specification name)
   "Remove the specification matching NAME from the database and its inputs."
-  (with-db-worker-thread db
+  (with-db-writer-worker-thread/force db
     (sqlite-exec db "BEGIN TRANSACTION;")
     (sqlite-exec db "\
 DELETE FROM Inputs WHERE specification=" name ";")
@@ -519,7 +530,7 @@ Otherwise, return #f."
   (define now
     (or timestamp (time-second (current-time time-utc))))
 
-  (with-db-worker-thread db
+  (with-db-writer-worker-thread/force db
     (sqlite-exec db "BEGIN TRANSACTION;")
     (sqlite-exec db "INSERT INTO Evaluations (specification, status,
 timestamp, checkouttime, evaltime)
@@ -541,13 +552,13 @@ now "," checkouttime "," evaltime ");")
                  eval-id)))))
 
 (define (db-abort-pending-evaluations)
-  (with-db-worker-thread db
+  (with-db-writer-worker-thread/force db
     (sqlite-exec db "UPDATE Evaluations SET status =
 " (evaluation-status aborted) " WHERE status = "
 (evaluation-status started))))
 
 (define (db-set-evaluation-status eval-id status)
-  (with-db-worker-thread db
+  (with-db-writer-worker-thread/force db
     (sqlite-exec db "UPDATE Evaluations SET status =
 " status " WHERE id = " eval-id ";")))
 
@@ -555,7 +566,7 @@ now "," checkouttime "," evaltime ");")
   (define now
     (time-second (current-time time-utc)))
 
-  (with-db-worker-thread
+  (with-db-writer-worker-thread/force
    db
    (sqlite-exec db "UPDATE Evaluations SET evaltime = " now
                 "WHERE id = " eval-id ";")))
@@ -625,7 +636,7 @@ string."
 (define (db-add-output derivation output)
   "Insert OUTPUT associated with DERIVATION.  If an output with the same path
 already exists, return #f."
-  (with-db-worker-thread db
+  (with-db-writer-worker-thread/force db
     (catch-sqlite-error
      (match output
        ((name . path)
@@ -642,7 +653,7 @@ INSERT INTO Outputs (derivation, name, path) VALUES ("
 (define (db-add-build build)
   "Store BUILD in database the database only if one of its outputs is new.
 Return #f otherwise.  BUILD outputs are stored in the OUTPUTS table."
-  (with-db-worker-thread db
+  (with-db-writer-worker-thread/force db
     (sqlite-exec db "
 INSERT INTO Builds (derivation, evaluation, job_name, system, nix_name, log,
 status, timestamp, starttime, stoptime)
@@ -674,7 +685,7 @@ VALUES ("
 
 (define (db-add-build-product product)
   "Insert PRODUCT into BuildProducts table."
-  (with-db-worker-thread db
+  (with-db-writer-worker-thread/force db
     (sqlite-exec db "\
 INSERT OR IGNORE INTO BuildProducts (build, type, file_size, checksum,
 path) VALUES ("
@@ -1065,7 +1076,7 @@ ORDER BY ~a;"
 
 (define (db-add-event type timestamp details)
   (when (%record-events?)
-    (with-db-worker-thread db
+    (with-db-writer-worker-thread db
       (sqlite-exec db "\
 INSERT INTO Events (type, timestamp, event_json) VALUES ("
                    (symbol->string type) ", "
@@ -1115,7 +1126,7 @@ LIMIT :nr;")
                        events))))))))
 
 (define (db-delete-events-with-ids-<=-to id)
-  (with-db-worker-thread db
+  (with-db-writer-worker-thread db
     (sqlite-exec
      db
      "DELETE FROM Events WHERE id <= " id ";")))

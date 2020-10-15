@@ -13,6 +13,7 @@
   (eval put 'test-error 'scheme-indent-function 1)
   (eval put 'make-parameter 'scheme-indent-function 1)
   (eval put 'with-database 'scheme-indent-function 0)
+  (eval put 'with-queue-writer-worker 'scheme-indent-function 0)
   (eval put 'with-db-worker-thread 'scheme-indent-function 1)
   (eval put 'with-db-writer-worker-thread 'scheme-indent-function 1))
  (texinfo-mode

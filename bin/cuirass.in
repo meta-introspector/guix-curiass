@@ -140,38 +140,40 @@ exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
           (run-fibers
            (lambda ()
              (with-database
-                 (and specfile
-                      (let ((new-specs (save-module-excursion
-                                        (lambda ()
-                                          (set-current-module (make-user-module '()))
-                                          (primitive-load specfile)))))
-                        (for-each db-add-specification new-specs)))
+               (with-queue-writer-worker
+                (and specfile
+                     (let ((new-specs (save-module-excursion
+                                       (lambda ()
+                                         (set-current-module (make-user-module '()))
+                                         (primitive-load specfile)))))
+                       (for-each db-add-specification new-specs)))
 
-                 (when queries-file
-                   (log-message "Enable SQL query logging.")
-                   (db-log-queries queries-file))
+                (when queries-file
+                  (log-message "Enable SQL query logging.")
+                  (db-log-queries queries-file))
 
-                 (if one-shot?
-                     (process-specs (db-get-specifications))
-                     (let ((exit-channel (make-channel)))
-                       (start-watchdog)
-                       (if (option-ref opts 'web #f)
-                           (begin
-                             (spawn-fiber
-                              (essential-task
-                               'web exit-channel
-                               (lambda ()
-                                 (run-cuirass-server #:host host #:port port)))
-                              #:parallel? #t)
+                (if one-shot?
+                    (process-specs (db-get-specifications))
+                    (let ((exit-channel (make-channel)))
+                      (start-watchdog)
+                      (if (option-ref opts 'web #f)
+                          (begin
+                            (spawn-fiber
+                             (essential-task
+                              'web exit-channel
+                              (lambda ()
+                                (run-cuirass-server #:host host #:port port)))
+                             #:parallel? #t)
 
-                             (spawn-fiber
-                              (essential-task
-                               'monitor exit-channel
-                               (lambda ()
-                                 (while #t
-                                   (log-monitoring-stats)
-                                   (sleep 600))))))
-                           (with-queue-writer-worker
+                            (spawn-fiber
+                             (essential-task
+                              'monitor exit-channel
+                              (lambda ()
+                                (while #t
+                                  (log-monitoring-stats)
+                                  (sleep 600))))))
+
+                          (begin
                             (clear-build-queue)
 
                             ;; If Cuirass was stopped during an evaluation,
@@ -216,7 +218,7 @@ exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
                                 (while #t
                                   (log-monitoring-stats)
                                   (sleep 600)))))))
-                       (primitive-exit (get-message exit-channel))))))
+                      (primitive-exit (get-message exit-channel)))))))
 
            ;; Most of our code is I/O so preemption doesn't matter much (it
            ;; could help while we're doing SQL requests, for instance, but it
