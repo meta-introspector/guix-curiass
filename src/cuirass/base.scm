@@ -36,9 +36,6 @@
   #:use-module ((guix config) #:select (%state-directory))
   #:use-module (git)
   #:use-module (ice-9 binary-ports)
-  #:use-module ((ice-9 suspendable-ports)
-                #:select (current-read-waiter
-                          current-write-waiter))
   #:use-module (ice-9 format)
   #:use-module (ice-9 match)
   #:use-module (ice-9 popen)
@@ -82,12 +79,7 @@
   ;; currently closes in a 'dynamic-wind' handler, which means it would close
   ;; the store at each context switch.  Remove this when the real 'with-store'
   ;; has been fixed.
-  (let* ((store  (open-connection))
-         (socket (store-connection-socket store)))
-    ;; Mark SOCKET as non-blocking so Fibers can schedule the way it wants.
-    (let ((flags (fcntl socket F_GETFL)))
-      (fcntl socket F_SETFL (logior O_NONBLOCK flags)))
-
+  (let ((store (open-connection)))
     (unwind-protect
      ;; Always set #:keep-going? so we don't stop on the first build failure.
      ;; Set #:print-build-trace explicitly to make sure 'process-build-log'
@@ -430,12 +422,7 @@ Essentially this procedure inverts the inversion-of-control that
           (lambda ()
             (guard (c ((store-error? c)
                        (atomic-box-set! result c)))
-              (parameterize ((current-build-output-port output)
-
-                             ;; STORE's socket is O_NONBLOCK but since we're
-                             ;; not in a fiber, disable Fiber's handlers.
-                             (current-read-waiter #f)
-                             (current-write-waiter #f))
+              (parameterize ((current-build-output-port output))
                 (let ((x (build-derivations store lst)))
                   (atomic-box-set! result x))))
             (close-port output))
