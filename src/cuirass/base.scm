@@ -734,8 +734,10 @@ by PRODUCT-SPECS."
                  (log-message "fetching input '~a' of spec '~a'"
                               (assq-ref input #:name)
                               (assq-ref spec #:name))
-                 (fetch-input store input
-                              #:writable-copy? (compile? input)))))
+                 ;; XXX: Work around: https://issues.guix.gnu.org/44742.
+                 (parameterize ((current-error-port (%make-void-port "rw+")))
+                   (fetch-input store input
+                                #:writable-copy? (compile? input))))))
            inputs))
          (results (map %non-blocking thunks)))
     (map (lambda (checkout)
