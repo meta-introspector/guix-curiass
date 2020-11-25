@@ -99,6 +99,7 @@ CREATE TABLE Events (
 -- an index.  It is also preferable for the other tables.
 CREATE INDEX Builds_status_index ON Builds (status);
 CREATE INDEX Builds_evaluation_index ON Builds (evaluation, status);
+CREATE INDEX Builds_job_name_timestamp on Builds(job_name, timestamp);
 CREATE INDEX Builds_nix_name ON Builds (nix_name COLLATE NOCASE);
 CREATE INDEX Builds_timestamp_stoptime on Builds(timestamp, stoptime);
 CREATE INDEX Builds_stoptime on Builds(stoptime DESC);

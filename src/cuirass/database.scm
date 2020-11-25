@@ -734,7 +734,9 @@ path) VALUES ("
                           (#:starttime . 0)
                           (#:stoptime . 0))))
              (if period
-                 (let* ((time (db-get-time-since-previous-build job-name))
+                 (let* ((spec (db-get-evaluation-specification eval-id))
+                        (time
+                         (db-get-time-since-previous-build job-name spec))
                         (add-build? (cond
                                      ((not time) #t)
                                      ((> time period) #t)
@@ -1082,14 +1084,15 @@ ORDER BY ~a;"
     (let ((key (if (number? derivation-or-id) 'id 'derivation)))
       (expect-one-row (db-get-builds `((,key . ,derivation-or-id)))))))
 
-(define (db-get-time-since-previous-build job-name)
+(define (db-get-time-since-previous-build job-name specification)
   "Return the time difference in seconds between the current time and the
-registration time of the last build for JOB-NAME."
+registration time of the last build for JOB-NAME and SPECIFICATION."
   (with-db-worker-thread db
     (let ((rows (sqlite-exec db "
-SELECT strftime('%s', 'now') - timestamp FROM Builds
-WHERE job_name  = " job-name
-"ORDER BY timestamp DESC LIMIT 1")))
+SELECT strftime('%s', 'now') - Builds.timestamp FROM Builds
+INNER JOIN Evaluations on Builds.evaluation = Evaluations.id
+WHERE job_name  = " job-name "AND specification = " specification
+"ORDER BY Builds.timestamp DESC LIMIT 1")))
       (and=> (expect-one-row rows) (cut vector-ref <> 0)))))
 
 (define (db-add-event type timestamp details)
