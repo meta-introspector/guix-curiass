@@ -1312,18 +1312,16 @@ AND (:system IS NULL
 and STATUS."
   (with-db-worker-thread db
     (let ((rows (sqlite-exec db "
-SELECT stoptime, MIN(rowid) FROM
-(SELECT rowid, stoptime FROM Builds
+SELECT stoptime, rowid FROM Builds
 WHERE evaluation=" eval "
-AND stoptime = (SELECT MIN(stoptime)
-FROM Builds
-WHERE evaluation = " eval "
 AND (" status " IS NULL OR (" status " = 'pending'
                             AND Builds.status < 0)
                         OR (" status " = 'succeeded'
                             AND Builds.status = 0)
                         OR (" status " = 'failed'
-                            AND Builds.status > 0))))")))
+                            AND Builds.status > 0))
+ORDER BY stoptime ASC, rowid ASC
+LIMIT 1")))
       (and=> (expect-one-row rows) vector->list))))
 
 (define (db-get-builds-max eval status)
@@ -1331,18 +1329,16 @@ AND (" status " IS NULL OR (" status " = 'pending'
 and STATUS."
   (with-db-worker-thread db
     (let ((rows (sqlite-exec db "
-SELECT stoptime, MAX(rowid) FROM
-(SELECT rowid, stoptime FROM Builds
-WHERE evaluation=" eval " AND
-stoptime = (SELECT MAX(stoptime)
-FROM Builds
-WHERE evaluation = " eval "
+SELECT stoptime, rowid FROM Builds
+WHERE evaluation=" eval "
 AND (" status " IS NULL OR (" status " = 'pending'
                             AND Builds.status < 0)
                         OR (" status " = 'succeeded'
                             AND Builds.status = 0)
                         OR (" status " = 'failed'
-                            AND Builds.status > 0))))")))
+                            AND Builds.status > 0))
+ORDER BY stoptime DESC, rowid DESC
+LIMIT 1")))
       (and=> (expect-one-row rows) vector->list))))
 
 (define (db-get-evaluation-specification eval)
