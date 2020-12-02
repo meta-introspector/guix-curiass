@@ -927,15 +927,22 @@ FILTERS is an assoc list whose possible keys are 'derivation | 'id | 'jobset |
 
   ;; XXX: Make sure that all filters are covered by an index.
   (define (filters->order filters)
-    (match (assq 'order filters)
-      (('order . 'build-id) "Builds.rowid ASC")
-      (('order . 'finish-time) "stoptime DESC")
-      (('order . 'finish-time+build-id) "stoptime DESC, Builds.rowid DESC")
-      ;; With this order, builds in 'running' state (-1) appear
-      ;; before those in 'scheduled' state (-2).
-      (('order . 'status+submission-time)
-       "Builds.status DESC, Builds.timestamp DESC, Builds.rowid ASC")
-      (_ "Builds.rowid DESC")))
+    (lambda (inner)
+      (match (assq 'order filters)
+        (('order . 'build-id) "Builds.rowid ASC")
+        (('order . 'finish-time) "stoptime DESC")
+        (('order . 'finish-time+build-id)
+         (if inner
+             "CASE WHEN :borderlowid IS NULL THEN
+ stoptime ELSE -stoptime END DESC,
+CASE WHEN :borderlowid IS NULL THEN
+ Builds.rowid ELSE -Builds.rowid END DESC"
+             "stoptime DESC, Builds.rowid DESC"))
+        ;; With this order, builds in 'running' state (-1) appear
+        ;; before those in 'scheduled' state (-2).
+        (('order . 'status+submission-time)
+         "Builds.status DESC, Builds.timestamp DESC, Builds.rowid ASC")
+        (_ "Builds.rowid DESC"))))
 
   ;; XXX: Make sure that all filters are covered by an index.
   (define (where-conditions filters)
@@ -953,10 +960,12 @@ FILTERS is an assoc list whose possible keys are 'derivation | 'id | 'jobset |
                               ('pending   "Builds.status < 0")
                               ('succeeded "Builds.status = 0")
                               ('failed    "Builds.status > 0")))
-        (border-low-time  . "Builds.stoptime > :borderlowtime")
-        (border-high-time . "Builds.stoptime < :borderhightime")
-        (border-low-id    . "Builds.id > :borderlowid")
-        (border-high-id   . "Builds.id < :borderhighid")))
+        (border-low-time
+         . "(:borderlowtime IS NULL OR :borderlowid IS NULL OR
+ ((:borderlowtime, :borderlowid) < (Builds.stoptime, Builds.rowid)))")
+        (border-high-time
+         . "(:borderhightime IS NULL OR :borderhighid IS NULL OR
+ ((:borderhightime, :borderhighid) > (Builds.stoptime, Builds.rowid)))")))
 
     (filter
      string?
@@ -1022,7 +1031,7 @@ INNER JOIN Outputs ON Outputs.derivation = Builds.derivation
 LEFT JOIN BuildProducts as BP ON BP.build = Builds.rowid
 GROUP BY Builds.derivation
 ORDER BY ~a;"
-                    where order order))
+                    where (order #t) (order #f)))
            (stmt (sqlite-prepare db stmt-text #:cache? #t)))
 
       (sqlite-bind stmt 'nr (match (assq-ref filters 'nr)
