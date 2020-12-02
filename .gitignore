@@ -12,6 +12,8 @@
 /bin/cuirass
 /bin/cuirass-send-events
 /bin/evaluate
+/bin/remote-server
+/bin/remote-worker
 /build-aux/config.guess
 /build-aux/config.sub
 /build-aux/install-sh

@@ -47,7 +47,8 @@
                   (#:tag . #f)
                   (#:commit . #f)
                   (#:no-compile? . #f))))
-    (#:build-outputs . ())))
+    (#:build-outputs . ())
+    (#:priority . 9)))
 
 (define (make-dummy-checkouts fakesha1 fakesha2)
   `(((#:commit . ,fakesha1)

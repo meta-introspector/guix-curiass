@@ -1,0 +1,11 @@
+BEGIN TRANSACTION;
+
+ALTER TABLE Specifications ADD priority INTEGER NOT NULL DEFAULT 0;
+
+ALTER TABLE Builds ADD priority INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE Builds ADD max_silent INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE Builds ADD timeout INTEGER NOT NULL DEFAULT 0;
+
+CREATE INDEX Builds_priority_timestamp on Builds(priority DESC, timestamp ASC);
+
+COMMIT;

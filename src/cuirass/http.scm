@@ -28,6 +28,7 @@
   #:use-module (cuirass metrics)
   #:use-module (cuirass utils)
   #:use-module (cuirass logging)
+  #:use-module (cuirass remote)
   #:use-module (srfi srfi-1)
   #:use-module (srfi srfi-11)
   #:use-module (srfi srfi-26)
@@ -446,26 +447,11 @@ Hydra format."
                           (#:link . ,(string-append "/jobset/" (assq-ref build #:specification)))))))
            (respond-build-not-found id))))
     (('GET "build" (= string->number id) "log" "raw")
-     (let ((build (and id (db-get-build id))))
-       (if build
-           (match (assq-ref build #:outputs)
-             (((_ (#:path . (? string? output))) _ ...)
-              ;; Redirect to a /log URL, which is assumed to be served
-              ;; by 'guix publish'.
-              (let ((uri (string->uri-reference
-                          (string-append "/log/"
-                                         (basename output)))))
-                (respond (build-response #:code 302
-                                         #:headers `((location . ,uri)))
-                         #:body "")))
-             (()
-              ;; Not entry for ID in the 'Outputs' table.
-              (respond-json-with-error
-               500
-               (format #f "Outputs of build ~a are unknown." id)))
-             (#f
-              (respond-build-not-found id)))
-           (respond-build-not-found id))))
+     (let* ((build (and id (db-get-build id)))
+            (log   (and build (assq-ref build #:log))))
+       (if (and log (file-exists? log))
+           (respond-gzipped-file log)
+           (respond-not-found (uri->string (request-uri request))))))
     (('GET "output" id)
      (let ((output (db-get-output
                     (string-append (%store-prefix) "/" id))))
@@ -660,6 +646,21 @@ Hydra format."
              (_
               (respond-json-with-error 500 "No build found.")))
            (respond-json-with-error 500 "Query parameter not provided."))))
+
+    (('GET "workers")
+     (respond-html
+      (html-page
+       "Workers status"
+       (let ((workers (db-get-workers)))
+         (workers-status
+          workers
+          (map (lambda (worker)
+                 (let ((name (worker-name worker)))
+                   (db-get-builds `((worker . ,name)
+                                    (status . started)
+                                    (order . status+submission-time)))))
+               workers)))
+       '())))
 
     (('GET "metrics")
      (respond-html

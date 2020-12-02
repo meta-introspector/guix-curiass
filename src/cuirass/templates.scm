@@ -34,6 +34,7 @@
   #:use-module ((guix utils) #:select (string-replace-substring))
   #:use-module ((cuirass database) #:select (build-status
                                              evaluation-status))
+  #:use-module (cuirass remote)
   #:export (html-page
             specifications-table
             evaluation-info-table
@@ -42,7 +43,8 @@
             build-details
             evaluation-build-table
             running-builds-table
-            global-metrics-content))
+            global-metrics-content
+            workers-status))
 
 (define (navigation-items navigation)
   (match navigation
@@ -136,6 +138,9 @@ system whose names start with " (code "guile-") ":" (br)
                                  (a (@ (class "dropdown-item")
                                        (href "/metrics"))
                                     "Global metrics")
+                                 (a (@ (class "dropdown-item")
+                                       (href "/workers"))
+                                    "Workers status")
                                  (a (@ (class "dropdown-item")
                                        (href "/status"))
                                     "Running builds")))
@@ -293,10 +298,8 @@ system whose names start with " (code "guile-") ":" (br)
                    (time->string (assq-ref build #:stoptime))
                    "—")))
       (tr (th "Log file")
-          (td ,(if completed?
-               `(a (@ (href "/build/" ,(assq-ref build #:id) "/log/raw"))
-                   "raw")
-               "—")))
+          (td (a (@ (href "/build/" ,(assq-ref build #:id) "/log/raw"))
+                 "raw")))
       (tr (th "Derivation")
           (td (pre ,(assq-ref build #:derivation))))
       (tr (th "Outputs")
@@ -515,10 +518,8 @@ and BUILD-MAX are global minimal and maximal (stoptime, rowid) pairs."
       (td ,(assq-ref build #:job))
       (td ,(assq-ref build #:nixname))
       (td ,(assq-ref build #:system))
-      (td ,(if completed?
-               `(a (@ (href "/build/" ,(assq-ref build #:id) "/log/raw"))
-                   "raw")
-               "—"))))
+      (td (a (@ (href "/build/" ,(assq-ref build #:id) "/log/raw"))
+               "raw"))))
 
   (define (build-id build)
     (match build
@@ -810,7 +811,9 @@ and BUILD-MAX are global minimal and maximal row identifiers."
       (td ,(assq-ref build #:job-name))
       (td ,(time->string
             (assq-ref build #:starttime)))
-      (td ,(assq-ref build #:system))))
+      (td ,(assq-ref build #:system))
+      (td (a (@ (href "/build/" ,(assq-ref build #:id) "/log/raw"))
+             "raw"))))
 
   `((p (@ (class "lead")) "Running builds")
     (table
@@ -820,7 +823,8 @@ and BUILD-MAX are global minimal and maximal row identifiers."
            `((thead (tr (th (@ (scope "col")) "ID")
                         (th (@ (scope "col")) "Job")
                         (th (@ (scope "col")) "Queued at")
-                        (th (@ (scope "col")) "System")))
+                        (th (@ (scope "col")) "System")
+                        (th (@ (scope "col")) "Log")))
              (tbody
               ,(map build-row builds)))))))
 
@@ -1013,3 +1017,41 @@ completed builds divided by the time required to build them.")
                          #:title "Pending builds"
                          #:labels '("Pending builds")
                          #:colors (list "#3e95cd")))))
+
+(define (workers-status workers builds)
+  (define (build-row build)
+    `(tr
+      (th (@ (scope "row"))
+          (a (@ (href "/build/" ,(assq-ref build #:id) "/details"))
+             ,(assq-ref build #:id)))
+      (td ,(assq-ref build #:job-name))
+      (td ,(time->string
+            (assq-ref build #:starttime)))
+      (td ,(assq-ref build #:system))
+      (td (a (@ (href "/build/" ,(assq-ref build #:id) "/log/raw"))
+             "raw"))))
+
+  (define (worker-header worker)
+    `((p ,(integer->char 128994)
+         " "
+         (b ,(worker-name worker))
+         ,(format #f " (~a, ~{~a ~})"
+                  (worker-address worker)
+                  (worker-systems worker)))))
+
+  (define (worker-table worker builds)
+    `(,@(worker-header worker)
+      (table
+       (@ (class "table table-sm table-hover table-striped"))
+       ,@(if (null? builds)
+             `((th (@ (scope "col")) "Idle"))
+             `((thead (tr (th (@ (scope "col")) "ID")
+                          (th (@ (scope "col")) "Job")
+                          (th (@ (scope "col")) "Queued at")
+                          (th (@ (scope "col")) "System")
+                          (th (@ (scope "col")) "Log")))
+               (tbody
+                ,(map build-row builds)))))))
+
+  `((p (@ (class "lead")) "Workers status")
+    ,@(map worker-table workers builds)))

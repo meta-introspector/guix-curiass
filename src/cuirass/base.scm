@@ -22,8 +22,10 @@
 
 (define-module (cuirass base)
   #:use-module (fibers)
+  #:use-module (fibers channels)
   #:use-module (cuirass logging)
   #:use-module (cuirass database)
+  #:use-module (cuirass remote)
   #:use-module (cuirass utils)
   #:use-module ((cuirass config) #:select (%localstatedir))
   #:use-module (gnu packages)
@@ -36,9 +38,13 @@
   #:use-module ((guix config) #:select (%state-directory))
   #:use-module (git)
   #:use-module (ice-9 binary-ports)
+  #:use-module ((ice-9 suspendable-ports)
+                #:select (current-read-waiter
+                          current-write-waiter))
   #:use-module (ice-9 format)
   #:use-module (ice-9 match)
   #:use-module (ice-9 popen)
+  #:use-module (ice-9 ports internal)
   #:use-module (ice-9 rdelim)
   #:use-module (ice-9 receive)
   #:use-module (ice-9 regex)
@@ -58,6 +64,8 @@
             fetch-inputs
             compile
             evaluate
+            build-derivations&
+            set-build-successful!
             clear-build-queue
             cancel-old-builds
             restart-builds
@@ -70,6 +78,7 @@
             %package-cachedir
             %gc-root-directory
             %gc-root-ttl
+            %build-remote?
             %use-substitutes?
             %fallback?))
 
@@ -101,6 +110,10 @@
    ;; nanoseconds swapped (fixed in Guile commit 886ac3e).  Work around it.
    (define time-monotonic time-tai))
   (else #t))
+
+(define %build-remote?
+  ;; Define whether to use the remote build mechanism.
+  (make-parameter #f))
 
 (define %use-substitutes?
   ;; Define whether to use substitutes
@@ -429,7 +442,7 @@ Essentially this procedure inverts the inversion-of-control that
           (lambda _
             (close-port output)))))
 
-     (values (non-blocking-port input)
+     (values input
              (lambda ()
                (match (atomic-box-ref result)
                  ((? condition? c)
@@ -446,7 +459,7 @@ Essentially this procedure inverts the inversion-of-control that
   ;; Our shuffling algorithm is simple: we sort by .drv file name.  :-)
   (sort drv string<?))
 
-(define (set-build-successful! drv)
+(define* (set-build-successful! drv #:optional log)
   "Update the build status of DRV as successful and register any eventual
 build products."
   (let* ((build (db-get-build drv))
@@ -456,7 +469,8 @@ build products."
     (when (and spec build)
       (create-build-outputs build
                             (assq-ref spec #:build-outputs))))
-  (db-update-build-status! drv (build-status succeeded)))
+  (db-update-build-status! drv (build-status succeeded)
+                           #:log-file log))
 
 (define (update-build-statuses! store lst)
   "Update the build status of the derivations listed in LST, which have just
@@ -584,7 +598,7 @@ updating the database accordingly."
          (log-message "bogus build-started event for '~a'" drv)))
     (('build-remote drv host _ ...)
      (log-message "'~a' offloaded to '~a'" drv host)
-     (db-update-build-machine! drv host))
+     (db-update-build-worker! drv host))
     (('build-succeeded drv _ ...)
      (if (valid? drv)
          (begin
@@ -642,7 +656,8 @@ started)."
       ;; Those in VALID can be restarted.  If some of them were built in the
       ;; meantime behind our back, that's fine: 'spawn-builds' will DTRT.
       (log-message "restarting ~a pending builds" (length valid))
-      (spawn-builds store valid)
+      (unless (%build-remote?)
+        (spawn-builds store valid))
       (log-message "done with restarted builds"))))
 
 (define (create-build-outputs build product-specs)
@@ -682,16 +697,19 @@ by PRODUCT-SPECS."
 (define (build-packages store jobs eval-id)
   "Build JOBS and return a list of Build results."
   (define derivations
-    (with-time-logging
-     (format #f "evaluation ~a registration" eval-id)
-     (db-register-builds jobs eval-id)))
+    (let* ((name (db-get-evaluation-specification eval-id))
+           (specification (db-get-specification name)))
+      (with-time-logging
+       (format #f "evaluation ~a registration" eval-id)
+       (db-register-builds jobs eval-id specification))))
 
   (log-message "evaluation ~a registered ~a new derivations"
                eval-id (length derivations))
   (db-set-evaluation-status eval-id
                             (evaluation-status succeeded))
 
-  (spawn-builds store derivations)
+  (unless (%build-remote?)
+    (spawn-builds store derivations))
 
   (let* ((results (filter-map (cut db-get-build <>) derivations))
          (status (map (cut assq-ref <> #:status) results))

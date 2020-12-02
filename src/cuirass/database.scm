@@ -24,6 +24,7 @@
 (define-module (cuirass database)
   #:use-module (cuirass logging)
   #:use-module (cuirass config)
+  #:use-module (cuirass remote)
   #:use-module (cuirass utils)
   #:use-module (ice-9 match)
   #:use-module (ice-9 format)
@@ -60,7 +61,7 @@
             db-add-build-product
             db-register-builds
             db-update-build-status!
-            db-update-build-machine!
+            db-update-build-worker!
             db-get-output
             db-get-inputs
             db-get-build
@@ -82,6 +83,9 @@
             db-get-evaluation-specification
             db-get-build-product-path
             db-get-build-products
+            db-add-worker
+            db-get-workers
+            db-clear-workers
             db-get-evaluation-summary
             db-get-checkouts
             read-sql-file
@@ -92,6 +96,7 @@
             ;; Constants.
             SQLITE_CONSTRAINT_PRIMARYKEY
             SQLITE_CONSTRAINT_UNIQUE
+            SQLITE_BUSY_SNAPSHOT
             ;; Parameters.
             %package-database
             %package-schema-file
@@ -105,6 +110,9 @@
             with-db-writer-worker-thread/force
             with-database
             with-queue-writer-worker))
+
+;; Maximum priority for a Build or Specification.
+(define max-priority 9)
 
 (define (%sqlite-exec db sql . args)
   "Evaluate the given SQL query with the given ARGS.  Return the list of
@@ -441,7 +449,7 @@ table."
     (sqlite-exec db "\
 INSERT OR IGNORE INTO Specifications (name, load_path_inputs, \
 package_path_inputs, proc_input, proc_file, proc, proc_args, \
-build_outputs) \
+build_outputs, priority) \
   VALUES ("
                  (assq-ref spec #:name) ", "
                  (assq-ref spec #:load-path-inputs) ", "
@@ -450,7 +458,8 @@ build_outputs) \
                  (assq-ref spec #:proc-file) ", "
                  (symbol->string (assq-ref spec #:proc)) ", "
                  (assq-ref spec #:proc-args) ", "
-                 (assq-ref spec #:build-outputs) ");")
+                 (assq-ref spec #:build-outputs) ", "
+                 (or (assq-ref spec #:priority) max-priority) ");")
     (let ((spec-id (last-insert-rowid db)))
       (for-each (lambda (input)
                   (db-add-input (assq-ref spec #:name) input))
@@ -504,7 +513,7 @@ SELECT * FROM Specifications ORDER BY name DESC;")))
          (match rows
            (() specs)
            ((#(name load-path-inputs package-path-inputs proc-input proc-file proc
-                    proc-args build-outputs)
+                    proc-args build-outputs priority)
              . rest)
             (loop rest
                   (cons `((#:name . ,name)
@@ -518,7 +527,8 @@ SELECT * FROM Specifications ORDER BY name DESC;")))
                           (#:proc-args . ,(with-input-from-string proc-args read))
                           (#:inputs . ,(db-get-inputs name))
                           (#:build-outputs .
-                           ,(with-input-from-string build-outputs read)))
+                           ,(with-input-from-string build-outputs read))
+                          (#:priority . ,priority))
                         specs)))))))
 
 (define-enumeration evaluation-status
@@ -622,15 +632,19 @@ string."
 
 ;; Extended error codes (see <sqlite3.h>).
 ;; XXX: This should be defined by (sqlite3).
+(define SQLITE_BUSY 5)
 (define SQLITE_CONSTRAINT 19)
 (define SQLITE_CONSTRAINT_PRIMARYKEY
   (logior SQLITE_CONSTRAINT (ash 6 8)))
 (define SQLITE_CONSTRAINT_UNIQUE
   (logior SQLITE_CONSTRAINT (ash 8 8)))
+(define SQLITE_BUSY_SNAPSHOT
+  (logior SQLITE_BUSY (ash 2 8)))
 
 (define-enumeration build-status
   ;; Build status as expected by Hydra's API.  Note: the negative values are
   ;; Cuirass' own extensions.
+  (submitted        -3)
   (scheduled        -2)
   (started          -1)
   (succeeded         0)
@@ -662,7 +676,7 @@ Return #f otherwise.  BUILD outputs are stored in the OUTPUTS table."
   (with-db-writer-worker-thread/force db
     (sqlite-exec db "
 INSERT INTO Builds (derivation, evaluation, job_name, system, nix_name, log,
-status, timestamp, starttime, stoptime)
+status, priority, max_silent, timeout, timestamp, starttime, stoptime)
 VALUES ("
                  (assq-ref build #:derivation) ", "
                  (assq-ref build #:eval-id) ", "
@@ -672,9 +686,12 @@ VALUES ("
                  (assq-ref build #:log) ", "
                  (or (assq-ref build #:status)
                      (build-status scheduled)) ", "
-                     (or (assq-ref build #:timestamp) 0) ", "
-                     (or (assq-ref build #:starttime) 0) ", "
-                     (or (assq-ref build #:stoptime) 0) ");")
+                 (assq-ref build #:priority) ", "
+                 (or (assq-ref build #:max-silent) 0) ", "
+                 (or (assq-ref build #:timeout) 0) ", "
+                 (or (assq-ref build #:timestamp) 0) ", "
+                 (or (assq-ref build #:starttime) 0) ", "
+                 (or (assq-ref build #:stoptime) 0) ");")
     (let* ((derivation (assq-ref build #:derivation))
            (outputs (assq-ref build #:outputs))
            (new-outputs (filter-map (cut db-add-output derivation <>)
@@ -702,7 +719,7 @@ path) VALUES ("
                  (assq-ref product #:path) ");")
     (last-insert-rowid db)))
 
-(define (db-register-builds jobs eval-id)
+(define (db-register-builds jobs eval-id specification)
   (define (new-outputs? outputs)
     (let ((new-outputs
            (filter-map (match-lambda
@@ -712,16 +729,23 @@ path) VALUES ("
                        outputs)))
       (not (null? new-outputs))))
 
+  (define (build-priority priority)
+    (let ((spec-priority (assq-ref specification #:priority)))
+      (+ (* spec-priority 10) priority)))
+
   (define (register job)
-    (let* ((name     (assq-ref job #:job-name))
-           (drv      (assq-ref job #:derivation))
-           (job-name (assq-ref job #:job-name))
-           (system   (assq-ref job #:system))
-           (nix-name (assq-ref job #:nix-name))
-           (log      (assq-ref job #:log))
-           (period   (assq-ref job #:period))
-           (outputs  (assq-ref job #:outputs))
-           (cur-time (time-second (current-time time-utc))))
+    (let* ((name       (assq-ref job #:job-name))
+           (drv        (assq-ref job #:derivation))
+           (job-name   (assq-ref job #:job-name))
+           (system     (assq-ref job #:system))
+           (nix-name   (assq-ref job #:nix-name))
+           (log        (assq-ref job #:log))
+           (period     (assq-ref job #:period))
+           (priority   (or (assq-ref job #:priority) max-priority))
+           (max-silent (assq-ref job #:max-silent-time))
+           (timeout    (assq-ref job #:timeout))
+           (outputs    (assq-ref job #:outputs))
+           (cur-time   (time-second (current-time time-utc))))
       (and (new-outputs? outputs)
            (let ((build `((#:derivation . ,drv)
                           (#:eval-id . ,eval-id)
@@ -734,12 +758,15 @@ path) VALUES ("
                           (#:log . ,(or log ""))
 
                           (#:status . ,(build-status scheduled))
+                          (#:priority . ,(build-priority priority))
+                          (#:max-silent . ,max-silent)
+                          (#:timeout . ,timeout)
                           (#:outputs . ,outputs)
                           (#:timestamp . ,cur-time)
                           (#:starttime . 0)
                           (#:stoptime . 0))))
              (if period
-                 (let* ((spec (db-get-evaluation-specification eval-id))
+                 (let* ((spec (assq-ref specification #:name))
                         (time
                          (db-get-time-since-previous-build job-name spec))
                         (add-build? (cond
@@ -803,10 +830,10 @@ log file for DRV."
                             (#:event      . ,(assq-ref status-names
                                                        status)))))))))
 
-(define* (db-update-build-machine! drv machine)
-  "Update the database so that DRV's machine is MACHINE."
+(define* (db-update-build-worker! drv worker)
+  "Update the database so that DRV's worker is WORKER."
   (with-db-writer-worker-thread db
-    (sqlite-exec db "UPDATE Builds SET machine=" machine
+    (sqlite-exec db "UPDATE Builds SET worker=" worker
                  "WHERE derivation=" drv ";")))
 
 (define (db-get-output path)
@@ -955,6 +982,8 @@ CASE WHEN :borderlowid IS NULL THEN
         ;; before those in 'scheduled' state (-2).
         (('order . 'status+submission-time)
          "Builds.status DESC, Builds.timestamp DESC, Builds.rowid ASC")
+        (('order . 'priority+timestamp)
+         "Builds.priority DESC, Builds.timestamp ASC")
         (_ "Builds.rowid DESC"))))
 
   ;; XXX: Make sure that all filters are covered by an index.
@@ -965,10 +994,12 @@ CASE WHEN :borderlowid IS NULL THEN
         (derivation      . "Builds.derivation = :derivation")
         (job             . "Builds.job_name = :job")
         (system          . "Builds.system = :system")
+        (worker          . "Builds.worker = :worker")
         (evaluation      . "Builds.evaluation = :evaluation")
         (status          . ,(match (assq-ref filters 'status)
                               (#f         #f)
                               ('done      "Builds.status >= 0")
+                              ('scheduled "Builds.status = -2")
                               ('started   "Builds.status = -1")
                               ('pending   "Builds.status < 0")
                               ('succeeded "Builds.status = 0")
@@ -1031,7 +1062,8 @@ GROUP_CONCAT(Outputs.name), GROUP_CONCAT(Outputs.path),
 GROUP_CONCAT(BP.rowid), GROUP_CONCAT(BP.type), GROUP_CONCAT(BP.file_size),
 GROUP_CONCAT(BP.checksum), GROUP_CONCAT(BP.path) FROM
 (SELECT Builds.derivation, Builds.rowid, Builds.timestamp, Builds.starttime,
-        Builds.stoptime, Builds.log, Builds.status, Builds.job_name,
+        Builds.stoptime, Builds.log, Builds.status, Builds.priority,
+        Builds.max_silent, Builds.timeout, Builds.job_name,
         Builds.system, Builds.nix_name, Builds.evaluation,
         Specifications.name
 FROM Builds
@@ -1070,7 +1102,8 @@ ORDER BY ~a;"
              (sqlite-fold-right
               (lambda (row result)
                 (match row
-                  (#(derivation id timestamp starttime stoptime log status job-name
+                  (#(derivation id timestamp starttime stoptime log status
+                                priority max-silent timeout job-name
                                 system nix-name eval-id specification
                                 outputs-name outputs-path
                                 products-id products-type products-file-size
@@ -1082,6 +1115,9 @@ ORDER BY ~a;"
                            (#:stoptime . ,stoptime)
                            (#:log . ,log)
                            (#:status . ,status)
+                           (#:priority . ,priority)
+                           (#:max-silent . ,max-silent)
+                           (#:timeout . ,timeout)
                            (#:job-name . ,job-name)
                            (#:system . ,system)
                            (#:nix-name . ,nix-name)
@@ -1413,3 +1449,38 @@ WHERE build = " build-id))
                        (#:checksum . ,checksum)
                        (#:path . ,path))
                      products)))))))
+
+(define (db-add-worker worker)
+  "Insert WORKER into Worker table."
+  (with-db-writer-worker-thread db
+    (sqlite-exec db "\
+INSERT OR REPLACE INTO Workers (name, address, systems, last_seen)
+VALUES ("
+                 (worker-name worker) ", "
+                 (worker-address worker) ", "
+                 (string-join (worker-systems worker) ",") ", "
+                 (worker-last-seen worker) ");")
+    (last-insert-rowid db)))
+
+(define (db-get-workers)
+  "Return the workers in Workers table."
+  (with-db-worker-thread db
+    (let loop ((rows  (sqlite-exec db "
+SELECT name, address, systems, last_seen from Workers"))
+               (workers '()))
+      (match rows
+        (() (reverse workers))
+        ((#(name address systems last-seen)
+          . rest)
+         (loop rest
+               (cons (worker
+                      (name name)
+                      (address address)
+                      (systems (string-split systems #\,))
+                      (last-seen last-seen))
+                     workers)))))))
+
+(define (db-clear-workers)
+  "Remove all workers from Workers table."
+  (with-db-writer-worker-thread db
+    (sqlite-exec db "DELETE FROM Workers;")))

@@ -329,42 +329,44 @@ timestamp) VALUES ("
 (define (db-update-metrics)
   "Compute and update all available metrics in database."
   (with-db-writer-worker-thread/force db
-    ;; We can not update all evaluations metrics for performance reasons.
-    ;; Limit to the evaluations that were added during the past three days.
-    (let ((specifications
-           (map (cut assq-ref <> #:name) (db-get-specifications)))
-          (evaluations (db-latest-evaluations)))
-      (sqlite-exec db "BEGIN TRANSACTION;")
+    (catch-sqlite-error
+     ;; We can not update all evaluations metrics for performance reasons.
+     ;; Limit to the evaluations that were added during the past three days.
+     (let ((specifications
+            (map (cut assq-ref <> #:name) (db-get-specifications)))
+           (evaluations (db-latest-evaluations)))
+       (sqlite-exec db "BEGIN TRANSACTION;")
 
-      (db-update-metric 'builds-per-day)
-      (db-update-metric 'new-derivations-per-day)
-      (db-update-metric 'pending-builds)
+       (db-update-metric 'builds-per-day)
+       (db-update-metric 'new-derivations-per-day)
+       (db-update-metric 'pending-builds)
 
-      ;; Update specification related metrics.
-      (for-each (lambda (spec)
-                  (db-update-metric
-                   'average-10-last-eval-duration-per-spec spec)
-                  (db-update-metric
-                   'average-100-last-eval-duration-per-spec spec)
-                  (db-update-metric
-                   'average-eval-duration-per-spec spec)
+       ;; Update specification related metrics.
+       (for-each (lambda (spec)
+                   (db-update-metric
+                    'average-10-last-eval-duration-per-spec spec)
+                   (db-update-metric
+                    'average-100-last-eval-duration-per-spec spec)
+                   (db-update-metric
+                    'average-eval-duration-per-spec spec)
 
-                  (db-update-metric
-                   'percentage-failure-10-last-eval-per-spec spec)
-                  (db-update-metric
-                   'percentage-failure-100-last-eval-per-spec spec)
-                  (db-update-metric
-                   'percentage-failed-eval-per-spec spec))
-                specifications)
+                   (db-update-metric
+                    'percentage-failure-10-last-eval-per-spec spec)
+                   (db-update-metric
+                    'percentage-failure-100-last-eval-per-spec spec)
+                   (db-update-metric
+                    'percentage-failed-eval-per-spec spec))
+                 specifications)
 
-      ;; Update evaluation related metrics.
-      (for-each (lambda (evaluation)
-                  (db-update-metric
-                   'average-eval-build-start-time evaluation)
-                  (db-update-metric
-                   'average-eval-build-complete-time evaluation)
-                  (db-update-metric
-                   'evaluation-completion-speed evaluation))
-                evaluations)
+       ;; Update evaluation related metrics.
+       (for-each (lambda (evaluation)
+                   (db-update-metric
+                    'average-eval-build-start-time evaluation)
+                   (db-update-metric
+                    'average-eval-build-complete-time evaluation)
+                   (db-update-metric
+                    'evaluation-completion-speed evaluation))
+                 evaluations)
 
-      (sqlite-exec db "COMMIT;"))))
+       (sqlite-exec db "COMMIT;"))
+     (on SQLITE_BUSY_SNAPSHOT => #f))))

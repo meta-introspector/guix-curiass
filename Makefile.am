@@ -22,7 +22,13 @@
 # You should have received a copy of the GNU General Public License
 # along with Cuirass.  If not, see <http://www.gnu.org/licenses/>.
 
-bin_SCRIPTS = bin/cuirass bin/cuirass-send-events bin/evaluate
+bin_SCRIPTS =                    \
+  bin/cuirass      	  	 \
+  bin/cuirass-send-events 	 \
+  bin/evaluate      		 \
+  bin/remote-server		 \
+  bin/remote-worker
+
 noinst_SCRIPTS = pre-inst-env
 
 guilesitedir = $(datarootdir)/guile/site/@GUILE_EFFECTIVE_VERSION@
@@ -48,6 +54,9 @@ dist_pkgmodule_DATA =				\
   src/cuirass/http.scm				\
   src/cuirass/logging.scm			\
   src/cuirass/metrics.scm			\
+  src/cuirass/remote.scm			\
+  src/cuirass/remote-server.scm			\
+  src/cuirass/remote-worker.scm			\
   src/cuirass/send-events.scm			\
   src/cuirass/ui.scm				\
   src/cuirass/utils.scm		                \
@@ -86,7 +95,9 @@ dist_sql_DATA = 				\
   src/sql/upgrade-14.sql			\
   src/sql/upgrade-15.sql			\
   src/sql/upgrade-16.sql			\
-  src/sql/upgrade-17.sql
+  src/sql/upgrade-17.sql			\
+  src/sql/upgrade-18.sql			\
+  src/sql/upgrade-19.sql
 
 dist_css_DATA =					\
   src/static/css/cuirass.css			\
@@ -167,6 +178,8 @@ EXTRA_DIST = \
   bin/cuirass.in \
   bin/cuirass-send-events.in \
   bin/evaluate.in \
+  bin/remote-server.in \
+  bin/remote-worker.in \
   bootstrap \
   build-aux/guix.scm \
   src/cuirass/config.scm.in \
@@ -227,6 +240,9 @@ generate_file = \
 bin/cuirass: $(srcdir)/bin/cuirass.in
 bin/cuirass-send-events: $(srcdir)/bin/cuirass-send-events.in
 bin/evaluate: $(srcdir)/bin/evaluate.in
+bin/remote-server: $(srcdir)/bin/remote-server.in
+bin/remote-worker: $(srcdir)/bin/remote-worker.in
+
 $(bin_SCRIPTS): Makefile
 	$(generate_file); chmod +x $@
 src/cuirass/config.scm: $(srcdir)/src/cuirass/config.scm.in Makefile

@@ -7,8 +7,9 @@ CREATE TABLE Specifications (
   proc_input    TEXT NOT NULL, -- name of the input containing the proc that does the evaluation
   proc_file     TEXT NOT NULL, -- file containing the procedure that does the evaluation, relative to proc_input
   proc          TEXT NOT NULL, -- defined in proc_file
-  proc_args     TEXT NOT NULL,  -- passed to proc
-  build_outputs TEXT NOT NULL --specify what build outputs should be made available for download
+  proc_args     TEXT NOT NULL, -- passed to proc
+  build_outputs TEXT NOT NULL, --specify what build outputs should be made available for download
+  priority      INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE TABLE Inputs (
@@ -61,10 +62,13 @@ CREATE TABLE Builds (
   evaluation    INTEGER NOT NULL,
   job_name      TEXT NOT NULL,
   system        TEXT NOT NULL,
-  machine       TEXT, --optional, machine performing the build.
+  worker        TEXT, --optional, worker performing the build.
   nix_name      TEXT NOT NULL,
   log           TEXT NOT NULL,
   status        INTEGER NOT NULL,
+  priority      INTEGER NOT NULL DEFAULT 0,
+  max_silent    INTEGER NOT NULL DEFAULT 0,
+  timeout       INTEGER NOT NULL DEFAULT 0,
   timestamp     INTEGER NOT NULL,
   starttime     INTEGER NOT NULL,
   stoptime      INTEGER NOT NULL,
@@ -96,6 +100,13 @@ CREATE TABLE Events (
   event_json    TEXT NOT NULL
 );
 
+CREATE TABLE Workers (
+  name        TEXT NOT NULL PRIMARY KEY,
+  address     TEXT NOT NULL,
+  systems     TEXT NOT NULL,
+  last_seen   INTEGER NOT NULL
+);
+
 -- XXX: All queries targeting Builds and Outputs tables *must* be covered by
 -- an index.  It is also preferable for the other tables.
 CREATE INDEX Builds_status_index ON Builds (status);
@@ -106,6 +117,7 @@ CREATE INDEX Builds_timestamp_stoptime on Builds(timestamp, stoptime);
 CREATE INDEX Builds_stoptime on Builds(stoptime DESC);
 CREATE INDEX Builds_stoptime_id on Builds(stoptime DESC, id DESC);
 CREATE INDEX Builds_status_ts_id on Builds(status DESC, timestamp DESC, id ASC);
+CREATE INDEX Builds_priority_timestamp on Builds(priority DESC, timestamp ASC);
 
 CREATE INDEX Evaluations_status_index ON Evaluations (id, status);
 CREATE INDEX Evaluations_specification_index ON Evaluations (specification, id DESC);

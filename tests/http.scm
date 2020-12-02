@@ -218,12 +218,6 @@
          (object->json-string build-query-result)
        json->scm)))
 
-  (test-equal "/build/1/log/raw"
-    `(302 ,(string->uri-reference "/log/fake-1.0"))
-    (let ((response (http-get (test-cuirass-uri "/build/1/log/raw"))))
-      (list (response-code response)
-            (response-location response))))
-
   (test-equal "/build/42"
     404
     (response-code (http-get (test-cuirass-uri "/build/42"))))
