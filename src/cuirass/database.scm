@@ -117,7 +117,7 @@ rows."
                 (sqlite-bind stmt index (normalize arg)))
               args (iota (length args) 1))
     (let ((result (sqlite-fold-right cons '() stmt)))
-      (sqlite-finalize stmt)
+      (sqlite-reset stmt)
       result)))
 
 (define-syntax sqlite-exec/bind
@@ -1292,7 +1292,7 @@ AND (:system IS NULL
              (query->bind-arguments query))
       (sqlite-reset stmt)
       (let ((rows (sqlite-fold-right cons '() stmt)))
-        (sqlite-finalize stmt)
+        (sqlite-reset stmt)
         (and=> (expect-one-row rows) vector->list)))))
 
 (define (db-get-builds-query-max query)
@@ -1313,7 +1313,7 @@ AND (:system IS NULL
              (query->bind-arguments query))
       (sqlite-reset stmt)
       (let ((rows (sqlite-fold-right cons '() stmt)))
-        (sqlite-finalize stmt)
+        (sqlite-reset stmt)
         (and=> (expect-one-row rows) vector->list)))))
 
 (define (db-get-builds-min eval status)
