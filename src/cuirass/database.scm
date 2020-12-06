@@ -1290,7 +1290,6 @@ AND (:system IS NULL
            (stmt (sqlite-prepare db stmt-text #:cache? #t)))
       (apply sqlite-bind-arguments stmt
              (query->bind-arguments query))
-      (sqlite-reset stmt)
       (let ((rows (sqlite-fold-right cons '() stmt)))
         (sqlite-reset stmt)
         (and=> (expect-one-row rows) vector->list)))))
@@ -1311,7 +1310,6 @@ AND (:system IS NULL
            (stmt (sqlite-prepare db stmt-text #:cache? #t)))
       (apply sqlite-bind-arguments stmt
              (query->bind-arguments query))
-      (sqlite-reset stmt)
       (let ((rows (sqlite-fold-right cons '() stmt)))
         (sqlite-reset stmt)
         (and=> (expect-one-row rows) vector->list)))))
