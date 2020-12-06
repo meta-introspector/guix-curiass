@@ -899,26 +899,28 @@ LIMIT :nr;"))
                              (#f -1)
                              (x x)))
                      (query->bind-arguments (assq-ref filters 'query))))
-      (sqlite-reset stmt)
-      (let loop ((rows (sqlite-fold-right cons '() stmt))
-                 (builds '()))
-        (match rows
-          (() (reverse builds))
-          ((#(id timestamp starttime stoptime log status job-name
-                 system nix-name specification) . rest)
-           (loop rest
-                 (cons `((#:id . ,id)
-                         (#:timestamp . ,timestamp)
-                         (#:starttime . ,starttime)
-                         (#:stoptime . ,stoptime)
-                         (#:log . ,log)
-                         (#:status . ,status)
-                         (#:job-name . ,job-name)
-                         (#:system . ,system)
-                         (#:nix-name . ,nix-name)
-                         (#:specification . ,specification)
-                         (#:buildproducts . ,(db-get-build-products id)))
-                       builds))))))))
+      (let ((builds
+             (sqlite-fold-right
+              (lambda (row result)
+                (match row
+                  (#(id timestamp starttime stoptime log status job-name
+                        system nix-name specification)
+                   (cons `((#:id . ,id)
+                           (#:timestamp . ,timestamp)
+                           (#:starttime . ,starttime)
+                           (#:stoptime . ,stoptime)
+                           (#:log . ,log)
+                           (#:status . ,status)
+                           (#:job-name . ,job-name)
+                           (#:system . ,system)
+                           (#:nix-name . ,nix-name)
+                           (#:specification . ,specification)
+                           (#:buildproducts . ,(db-get-build-products id)))
+                         result))))
+              '()
+              stmt)))
+        (sqlite-reset stmt)
+        builds))))
 
 (define (db-get-builds filters)
   "Retrieve all builds in the database which are matched by given FILTERS.
@@ -1053,39 +1055,40 @@ ORDER BY ~a;"
                                       name)
                                   value))))
                 filters)
-
-      (sqlite-reset stmt)
-      (let loop ((rows (sqlite-fold-right cons '() stmt))
-                 (builds '()))
-        (match rows
-          (() (reverse builds))
-          ((#(derivation id timestamp starttime stoptime log status job-name
-                         system nix-name eval-id specification
-                         outputs-name outputs-path
-                         products-id products-type products-file-size
-                         products-checksum products-path) . rest)
-           (loop rest
-                 (cons `((#:derivation . ,derivation)
-                         (#:id . ,id)
-                         (#:timestamp . ,timestamp)
-                         (#:starttime . ,starttime)
-                         (#:stoptime . ,stoptime)
-                         (#:log . ,log)
-                         (#:status . ,status)
-                         (#:job-name . ,job-name)
-                         (#:system . ,system)
-                         (#:nix-name . ,nix-name)
-                         (#:eval-id . ,eval-id)
-                         (#:specification . ,specification)
-                         (#:outputs . ,(format-outputs outputs-name
-                                                       outputs-path))
-                         (#:buildproducts .
-                          ,(format-build-products products-id
-                                                  products-type
-                                                  products-file-size
-                                                  products-checksum
-                                                  products-path)))
-                       builds))))))))
+      (let ((builds
+             (sqlite-fold-right
+              (lambda (row result)
+                (match row
+                  (#(derivation id timestamp starttime stoptime log status job-name
+                                system nix-name eval-id specification
+                                outputs-name outputs-path
+                                products-id products-type products-file-size
+                                products-checksum products-path)
+                   (cons `((#:derivation . ,derivation)
+                           (#:id . ,id)
+                           (#:timestamp . ,timestamp)
+                           (#:starttime . ,starttime)
+                           (#:stoptime . ,stoptime)
+                           (#:log . ,log)
+                           (#:status . ,status)
+                           (#:job-name . ,job-name)
+                           (#:system . ,system)
+                           (#:nix-name . ,nix-name)
+                           (#:eval-id . ,eval-id)
+                           (#:specification . ,specification)
+                           (#:outputs . ,(format-outputs outputs-name
+                                                         outputs-path))
+                           (#:buildproducts .
+                            ,(format-build-products products-id
+                                                    products-type
+                                                    products-file-size
+                                                    products-checksum
+                                                    products-path)))
+                         result))))
+              '()
+              stmt)))
+        (sqlite-reset stmt)
+        builds))))
 
 (define (db-get-build derivation-or-id)
   "Retrieve a build in the database which corresponds to DERIVATION-OR-ID."
@@ -1142,18 +1145,20 @@ LIMIT :nr;")
        #:nr (match (assq-ref filters 'nr)
               (#f -1)
               (x x)))
-      (sqlite-reset stmt)
-      (let loop ((rows (sqlite-fold-right cons '() stmt))
-                 (events '()))
-        (match rows
-          (() (reverse events))
-          ((#(id type timestamp event_json) . rest)
-           (loop rest
-                 (cons `((#:id . ,id)
-                         (#:type . ,type)
-                         (#:timestamp . ,timestamp)
-                         (#:event_json . ,event_json))
-                       events))))))))
+      (let ((events
+             (sqlite-fold-right
+              (lambda (row result)
+                (match row
+                  (#(id type timestamp event_json)
+                   (cons `((#:id . ,id)
+                           (#:type . ,type)
+                           (#:timestamp . ,timestamp)
+                           (#:event_json . ,event_json))
+                         result))))
+              '()
+              stmt)))
+        (sqlite-reset stmt)
+        events))))
 
 (define (db-delete-events-with-ids-<=-to id)
   (with-db-writer-worker-thread db
