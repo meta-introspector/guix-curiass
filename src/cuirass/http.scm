@@ -476,6 +476,14 @@ Hydra format."
                (append output
                        `((#:build . ,(or build #nil)))))))
            (respond-output-not-found id))))
+    (('GET "api" "evaluation")
+     (let* ((params (request-parameters request))
+            (id (assq-ref params 'id)))
+       (if id
+           (respond-json (object->json-string
+                          (evaluation->json-object
+                           (db-get-evaluation id))))
+           (respond-json-with-error 500 "Parameter not defined!"))))
     (('GET "api" "evaluations")
      (let* ((params (request-parameters request))
             ;; 'nr parameter is mandatory to limit query size.

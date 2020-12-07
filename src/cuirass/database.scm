@@ -73,6 +73,7 @@
             db-add-event
             db-get-events
             db-delete-events-with-ids-<=-to
+            db-get-evaluation
             db-get-evaluations
             db-get-evaluations-build-summary
             db-get-evaluations-id-min
@@ -1189,6 +1190,21 @@ WHERE evaluation =" eval-id ";"))
                        (#:input . ,input)
                        (#:directory . ,directory))
                      checkouts)))))))
+
+(define (db-get-evaluation id)
+  (with-db-worker-thread db
+    (match (sqlite-exec db "SELECT id, specification, status,
+timestamp, checkouttime, evaltime
+FROM Evaluations WHERE id = " id)
+      (() #f)
+      ((#(id specification status timestamp checkouttime evaltime))
+       `((#:id . ,id)
+         (#:specification . ,specification)
+         (#:status . ,status)
+         (#:timestamp . ,timestamp)
+         (#:checkouttime . ,checkouttime)
+         (#:evaltime . ,evaltime)
+         (#:checkouts . ,(db-get-checkouts id)))))))
 
 (define (db-get-evaluations limit)
   (with-db-worker-thread db
