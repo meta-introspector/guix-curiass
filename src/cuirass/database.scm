@@ -97,6 +97,7 @@
             %db-channel
             %db-writer-channel
             %record-events?
+            %db-writer-queue-size
             ;; Macros.
             with-db-worker-thread
             with-db-writer-worker-thread
@@ -201,6 +202,9 @@ specified."
   (make-parameter #f))
 
 (define %record-events?
+  (make-parameter #f))
+
+(define %db-writer-queue-size
   (make-parameter #f))
 
 (define-syntax-rule (with-db-worker-thread db exp ...)
@@ -598,10 +602,9 @@ allocate more than one worker."
                    (lambda ()
                      (list (db-open)))
                    #:parallelism 1
-                   #:queue-size 100
+                   #:queue-size (%db-writer-queue-size)
                    #:queue-proc
                    (lambda (db run-queue)
-                     (log-message "Running writer queue.")
                      (sqlite-exec db "BEGIN TRANSACTION;")
                      (run-queue)
                      (sqlite-exec db "COMMIT;")))))
