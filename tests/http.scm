@@ -58,6 +58,7 @@
 
 (define build-query-result
   '((#:id . 1)
+    (#:evaluation . 1)
     (#:jobset . "guix")
     (#:job . "fake-job")
     (#:timestamp . 1501347493)
