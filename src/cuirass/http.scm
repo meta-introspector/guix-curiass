@@ -87,6 +87,7 @@
                      (build-status started)))))
 
   `((#:id . ,(assq-ref build #:id))
+    (#:evaluation . ,(assq-ref build #:eval-id))
     (#:jobset . ,(assq-ref build #:specification))
     (#:job . ,(assq-ref build #:job-name))
 
