@@ -583,7 +583,8 @@ updating the database accordingly."
            (db-update-build-status! drv (build-status started)))
          (log-message "bogus build-started event for '~a'" drv)))
     (('build-remote drv host _ ...)
-     (log-message "'~a' offloaded to '~a'" drv host))
+     (log-message "'~a' offloaded to '~a'" drv host)
+     (db-update-build-machine! drv host))
     (('build-succeeded drv _ ...)
      (if (valid? drv)
          (begin

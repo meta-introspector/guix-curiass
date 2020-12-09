@@ -60,6 +60,7 @@
             db-add-build-product
             db-register-builds
             db-update-build-status!
+            db-update-build-machine!
             db-get-output
             db-get-inputs
             db-get-build
@@ -801,6 +802,12 @@ log file for DRV."
                           `((#:derivation . ,drv)
                             (#:event      . ,(assq-ref status-names
                                                        status)))))))))
+
+(define* (db-update-build-machine! drv machine)
+  "Update the database so that DRV's machine is MACHINE."
+  (with-db-writer-worker-thread db
+    (sqlite-exec db "UPDATE Builds SET machine=" machine
+                 "WHERE derivation=" drv ";")))
 
 (define (db-get-output path)
   "Retrieve the OUTPUT for PATH."

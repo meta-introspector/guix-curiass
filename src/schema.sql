@@ -61,6 +61,7 @@ CREATE TABLE Builds (
   evaluation    INTEGER NOT NULL,
   job_name      TEXT NOT NULL,
   system        TEXT NOT NULL,
+  machine       TEXT, --optional, machine performing the build.
   nix_name      TEXT NOT NULL,
   log           TEXT NOT NULL,
   status        INTEGER NOT NULL,
