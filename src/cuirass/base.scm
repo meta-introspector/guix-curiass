@@ -706,7 +706,6 @@ by PRODUCT-SPECS."
          (fail (- (length derivations) success)))
 
     (log-message "outputs:\n~a" (string-join outs "\n"))
-    (log-message "success: ~a, fail: ~a" success fail)
     results))
 
 (define (prepare-git)
