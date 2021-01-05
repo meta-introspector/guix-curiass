@@ -23,6 +23,10 @@
   #:use-module (cuirass logging)
   #:use-module (ice-9 match)
   #:use-module (ice-9 threads)
+  #:use-module ((ice-9 suspendable-ports)
+                #:select (current-read-waiter
+                          current-write-waiter))
+  #:use-module (ice-9 ports internal)
   #:use-module (rnrs bytevectors)
   #:use-module (system foreign)
   #:use-module (srfi srfi-1)
@@ -106,58 +110,32 @@ delimited continuations and fibers."
   (make-parameter #f))
 
 (define* (make-worker-thread-channel initializer
-                                     #:key
-                                     (parallelism 1)
-                                     queue-size
-                                     (queue-proc (const #t)))
+                                     #:key (parallelism 1))
   "Return a channel used to offload work to a dedicated thread.  ARGS are the
-arguments of the worker thread procedure.  This procedure supports deferring
-work sent to the worker.  If QUEUE-SIZE is set, each work query will be
-appended to a queue that will be run once it reaches QUEUE-SIZE elements.
-
-When that happens, the QUEUE-PROC procedure is called with %WORKER-THREAD-ARGS
-and a procedure running the queued work as arguments.  The worker thread can
-be passed options.  When #:FORCE? option is set, the worker runs the sent work
-immediately even if QUEUE-SIZE has been set."
+arguments of the worker thread procedure."
   (parameterize (((@@ (fibers internal) current-fiber) #f))
     (let ((channel (make-channel)))
       (for-each
        (lambda _
          (let ((args (initializer)))
            (call-with-new-thread
-            (lambda ()
-              (parameterize ((%worker-thread-args args))
-                (let loop ((queue '()))
-                  (match (get-message channel)
-                    (((? channel? reply) options (? procedure? proc))
-                     (put-message
-                      reply
-                      (catch #t
-                        (lambda ()
-                          (cond
-                           ((or (not queue-size)
-                                (assq-ref options #:force?))
+            (parameterize ((current-read-waiter (lambda (port)
+                                                  (port-poll port "r")))
+                           (current-write-waiter (lambda (port)
+                                                   (port-poll port "w"))))
+              (lambda ()
+                (parameterize ((%worker-thread-args args))
+                  (let loop ()
+                    (match (get-message channel)
+                      (((? channel? reply) . (? procedure? proc))
+                       (put-message
+                        reply
+                        (catch #t
+                          (lambda ()
                             (apply proc args))
-                           (else
-                            (length queue))))
-                        (lambda (key . args)
-                          (cons* 'worker-thread-error key args))))
-                     (let ((new-queue
-                         (cond
-                          ((or (not queue-size)
-                               (assq-ref options #:force?))
-                           '())
-                          ((= (1+ (length queue)) queue-size)
-                           (let ((run-queue
-                                  (lambda ()
-                                    (for-each (lambda (thunk)
-                                                (apply thunk args))
-                                              (append queue (list proc))))))
-                             (apply queue-proc (append args (list run-queue)))
-                             '()))
-                           (else
-                            (append queue (list proc))))))
-                    (loop new-queue))))))))))
+                          (lambda (key . args)
+                            (cons* 'worker-thread-error key args))))))
+                    (loop))))))))
        (iota parallelism))
       channel)))
 
@@ -225,7 +203,6 @@ put-operation until it succeeds."
 
 (define* (call-with-worker-thread channel proc
                                   #:key
-                                  options
                                   send-timeout
                                   send-timeout-proc
                                   receive-timeout
@@ -239,15 +216,12 @@ to a worker thread.
 
 The same goes for RECEIVE-TIMEOUT and RECEIVE-TIMEOUT-PROC, except that the
 timer expires if there is no response from the database worker PROC was sent
-to.
-
-OPTIONS are forwarded to the worker thread.  See MAKE-WORKER-THREAD-CHANNEL
-for a description of the supported options."
+to."
   (let ((args (%worker-thread-args)))
     (if args
         (apply proc args)
         (let* ((reply (make-channel))
-               (message (list reply options proc)))
+               (message (cons reply proc)))
           (if (and send-timeout (current-fiber))
               (put-message-with-timeout channel message
                                         #:seconds send-timeout

@@ -1,5 +1,0 @@
-BEGIN TRANSACTION;
-
-CREATE INDEX Builds_nix_name ON Builds (nix_name COLLATE NOCASE);
-
-COMMIT;

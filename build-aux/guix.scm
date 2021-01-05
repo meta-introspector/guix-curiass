@@ -67,11 +67,11 @@
            ;; Wrap the 'cuirass' command to refer to the right modules.
            (let* ((out    (assoc-ref outputs "out"))
                   (json   (assoc-ref inputs "guile-json"))
-                  (sqlite (assoc-ref inputs "guile-sqlite3"))
+                  (squee  (assoc-ref inputs "guile-squee"))
                   (zlib   (assoc-ref inputs "guile-zlib"))
                   (guix   (assoc-ref inputs "guix"))
                   (mods   (string-append json "/share/guile/site/3.0:"
-                                         sqlite "/share/guile/site/3.0:"
+                                         squee "/share/guile/site/3.0:"
                                          zlib "/share/guile/site/3.0:"
                                          guix "/share/guile/site/3.0")))
              (wrap-program (string-append out "/bin/cuirass")
@@ -82,7 +82,7 @@
         '("guile"
           "guile-fibers"
           "guile-json"
-          "guile-sqlite3"
+          "guile-squee"
           "guile-git"
           "guile-zlib"
           "guix")))

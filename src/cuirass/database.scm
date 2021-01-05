@@ -26,6 +26,7 @@
   #:use-module (cuirass config)
   #:use-module (cuirass remote)
   #:use-module (cuirass utils)
+  #:use-module (squee)
   #:use-module (ice-9 match)
   #:use-module (ice-9 format)
   #:use-module (ice-9 ftw)
@@ -37,160 +38,175 @@
   #:use-module (srfi srfi-26)
   #:use-module (system foreign)
   #:use-module (rnrs bytevectors)
-  #:use-module (sqlite3)
   #:export (;; Procedures.
             db-init
             db-open
             db-close
-            db-optimize
-            db-log-queries
+            exec-query/bind-params
+            expect-one-row
+            read-sql-file
+            db-add-input
+            db-add-checkout
             db-add-specification
             db-remove-specification
+            db-get-inputs
             db-get-specification
             db-get-specifications
             evaluation-status
-            last-insert-rowid
-            expect-one-row
             db-add-evaluation
             db-abort-pending-evaluations
             db-set-evaluation-status
             db-set-evaluation-time
-            db-get-pending-derivations
             build-status
+            db-add-output
             db-add-build
             db-add-build-product
+            db-get-output
+            db-get-outputs
+            db-get-time-since-previous-build
             db-register-builds
             db-update-build-status!
             db-update-build-worker!
-            db-get-output
-            db-get-inputs
-            db-get-build
-            db-get-builds
-            db-get-time-since-previous-build
+            db-get-build-products
             db-get-builds-by-search
-            db-get-builds-min
-            db-get-builds-max
-            db-get-builds-query-min
-            db-get-builds-query-max
-            db-add-event
+            db-get-builds
+            db-get-build
             db-get-events
             db-delete-events-with-ids-<=-to
+            db-get-pending-derivations
+            db-get-checkouts
             db-get-evaluation
             db-get-evaluations
             db-get-evaluations-build-summary
             db-get-evaluations-id-min
             db-get-evaluations-id-max
+            db-get-evaluation-summary
+            db-get-builds-query-min
+            db-get-builds-query-max
+            db-get-builds-min
+            db-get-builds-max
             db-get-evaluation-specification
             db-get-build-product-path
-            db-get-build-products
             db-add-worker
             db-get-workers
             db-clear-workers
-            db-get-evaluation-summary
-            db-get-checkouts
-            read-sql-file
-            read-quoted-string
-            %sqlite-exec
-            sqlite-exec
-            catch-sqlite-error
-            ;; Constants.
-            SQLITE_CONSTRAINT_PRIMARYKEY
-            SQLITE_CONSTRAINT_UNIQUE
-            SQLITE_BUSY_SNAPSHOT
+            db-clear-build-queue
             ;; Parameters.
             %package-database
             %package-schema-file
             %db-channel
-            %db-writer-channel
             %record-events?
-            %db-writer-queue-size
             ;; Macros.
-            with-db-worker-thread
-            with-db-writer-worker-thread
-            with-db-writer-worker-thread/force
+            exec-query/bind
             with-database
-            with-queue-writer-worker))
+            with-db-worker-thread))
 
 ;; Maximum priority for a Build or Specification.
 (define max-priority 9)
 
-(define (%sqlite-exec db sql . args)
-  "Evaluate the given SQL query with the given ARGS.  Return the list of
-rows."
-  (define (normalize arg)
-    ;; Turn ARG into a string, unless it's a primitive SQL datatype.
-    (if (or (null? arg) (pair? arg) (vector? arg))
-        (object->string arg)
-        arg))
+(define (%exec-query db query args)
+  (exec-query db query args))
 
-  (let ((stmt (sqlite-prepare db sql #:cache? #t)))
-    (for-each (lambda (arg index)
-                (sqlite-bind stmt index (normalize arg)))
-              args (iota (length args) 1))
-    (let ((result (sqlite-fold-right cons '() stmt)))
-      (sqlite-reset stmt)
-      result)))
+(define (normalize obj)
+  (if (string? obj)
+      obj
+      (and obj (object->string obj))))
 
-(define-syntax sqlite-exec/bind
+(define-syntax %exec-query/bind
   (lambda (s)
-    ;; Expand to an '%sqlite-exec' call where the query string has
+    ;; Expand to an 'exec-query' call where the query string has
     ;; interspersed question marks and the argument list is separate.
     (define (string-literal? s)
       (string? (syntax->datum s)))
 
+    (define (interleave a b)
+      (if (null? b)
+          (list (car a))
+          `(,(car a) ,(car b) ,@(interleave (cdr a) (cdr b)))))
+
+    (define (interleave-arguments str)
+      (string-join
+       (interleave str
+                   (map (lambda (i)
+                          (string-append "$"
+                                         (number->string (1+ i))))
+                        (iota (1- (length str)))))
+       " "))
+
     (syntax-case s ()
       ((_ db (bindings ...) tail str arg rest ...)
-       #'(sqlite-exec/bind db
+       #'(%exec-query/bind db
                            (bindings ... (str arg))
                            tail
                            rest ...))
       ((_ db (bindings ...) tail str)
-       #'(sqlite-exec/bind db (bindings ...) str))
+       #'(%exec-query/bind db (bindings ...) str))
       ((_ db ((strings args) ...) tail)
-       (and (every string-literal? #'(strings ...))
-            (string-literal? #'tail))
        ;; Optimized case: only string literals.
-       (with-syntax ((query (string-join
-                             (append (syntax->datum #'(strings ...))
-                                     (list (syntax->datum #'tail)))
-                             "? ")))
-         #'(%sqlite-exec db query args ...)))
-      ((_ db ((strings args) ...) tail)
-       ;; Fallback case: some of the strings aren't literals.
-       #'(%sqlite-exec db (string-join (list strings ... tail) "? ")
-                       args ...)))))
+       (with-syntax ((query
+                      (interleave-arguments
+                       (append (syntax->datum #'(strings ...))
+                               (list (syntax->datum #'tail))))))
+         #'(%exec-query db query (map normalize (list args ...))))))))
 
-(define-syntax-rule (sqlite-exec db query args ...)
-  "Execute the specific QUERY with the given ARGS.  Uses of 'sqlite-exec'
+(define-syntax-rule (exec-query/bind db query args ...)
+  "Execute the specific QUERY with the given ARGS.  Uses of 'exec-query/bind'
 typically look like this:
 
-  (sqlite-exec db \"SELECT * FROM Foo WHERE x = \"
-                  x \"AND Y=\" y \";\")
+  (exec-query/bind db \"SELECT * FROM Foo WHERE x = \" x \"AND Y=\" y \";\")
 
-References to variables 'x' and 'y' here are replaced by question marks in the
-SQL query, and then 'sqlite-bind' is used to bind them.
+References to variables 'x' and 'y' here are replaced by $1 and $2 in the
+SQL query.
 
 This ensures that (1) SQL injection is impossible, and (2) the number of
-question marks matches the number of arguments to bind."
-  (sqlite-exec/bind db () "" query args ...))
+parameters matches the number of arguments to bind."
+  (%exec-query/bind db () "" query args ...))
 
-(define-syntax catch-sqlite-error
-  (syntax-rules (on =>)
-    "Run EXP..., catching SQLite error and handling the given code as
-specified."
-    ((_ exp ... (on error => handle ...))
-     (catch 'sqlite-error
-       (lambda ()
-         exp ...)
-       (lambda (key who code message . rest)
-         (if (= code error)
-             (begin handle ...)
-             (apply throw key who code message rest)))))))
+(define (exec-query/bind-params db query params)
+  (define param-regex
+    (make-regexp ":[a-zA-Z]+"))
+
+  (define (argument-indexes arguments)
+    (let loop ((res '())
+               (bindings '())
+               (counter 1)
+               (arguments arguments))
+      (if (null? arguments)
+          (reverse res)
+          (let* ((arg (car arguments))
+                 (index (assoc-ref bindings arg)))
+            (if index
+                (loop (cons index res)
+                      bindings
+                      counter
+                      (cdr arguments))
+                (loop (cons counter res)
+                      `((,arg . ,counter) ,@bindings)
+                      (1+ counter)
+                      (cdr arguments)))))))
+
+  (let* ((args
+          (reverse
+           (fold-matches param-regex query
+                         '() (lambda (m p)
+                               (cons (match:substring m) p)))))
+         (indexes (argument-indexes args))
+         (proc (lambda (m)
+                 (let ((index (car indexes)))
+                   (set! indexes (cdr indexes))
+                   (string-append "$" (number->string index)))))
+         (query (regexp-substitute/global #f param-regex query
+                                          'pre proc 'post))
+         (params (map (lambda (arg)
+                        (let ((symbol
+                               (symbol->keyword
+                                (string->symbol (substring arg 1)))))
+                          (assoc-ref params symbol)))
+                      (delete-duplicates args))))
+    (exec-query db query (map normalize params))))
 
 (define %package-database
-  ;; Define to the database file name of this package.
-  (make-parameter (string-append %localstatedir "/lib/" %package
-                                 "/" %package ".db")))
+  (make-parameter #f))
 
 (define %package-schema-file
   ;; Define to the database schema file of this package.
@@ -207,14 +223,20 @@ specified."
 (define %db-channel
   (make-parameter #f))
 
-(define %db-writer-channel
-  (make-parameter #f))
-
 (define %record-events?
   (make-parameter #f))
 
-(define %db-writer-queue-size
-  (make-parameter #f))
+(define-syntax-rule (with-database body ...)
+  "Run BODY with %DB-CHANNEL being dynamically bound to a channel providing a
+worker thread that allows database operations to run without interfering with
+fibers."
+  (parameterize ((%db-channel
+                  (make-worker-thread-channel
+                   (lambda ()
+                     (list (db-open)))
+                   #:parallelism
+                   (min (current-processor-count) 8))))
+    body ...))
 
 (define-syntax-rule (with-db-worker-thread db exp ...)
   "Evaluate EXP... in the critical section corresponding to %DB-CHANNEL.
@@ -241,27 +263,6 @@ This must only be used for reading queries, i.e SELECT queries."
                 (number->string receive-timeout)
                 caller-name))))))
 
-(define-syntax with-db-writer-worker-thread
-  (syntax-rules ()
-    "Similar to WITH-DB-WORKER-THREAD but evaluates EXP in a database worker
-dedicated to writing.  EXP evaluation is deferred and will only be run once
-the worker evaluation queue in full.  To force an immediate evaluation the
-#:FORCE? option or the alias below may be used.  This macro is reserved for
-writing queries, i.e CREATE, DELETE, DROP, INSERT, or UPDATE queries."
-    ((_ db #:force? force exp ...)
-     (call-with-worker-thread
-      (%db-writer-channel)
-      (lambda (db) exp ...)
-      #:options `((#:force? . ,force))))
-    ((_ db exp ...)
-     (with-db-writer-worker-thread db #:force? #f exp ...))))
-
-(define-syntax with-db-writer-worker-thread/force
-  (syntax-rules ()
-    "Alias for WITH-DB-WRITER-WORKER-THREAD with FORCE? option set."
-    ((_ db exp ...)
-     (with-db-writer-worker-thread db #:force? #t exp ...))))
-
 (define (read-sql-file file-name)
   "Return a list of string containing SQL instructions from FILE-NAME."
   (call-with-input-file file-name
@@ -274,42 +275,30 @@ writing queries, i.e CREATE, DELETE, DROP, INSERT, or UPDATE queries."
               (reverse! insts)
               (loop (cons inst insts))))))))
 
-(define (set-db-options db)
-  "Set various options for DB and return it."
-
-  ;; Turn DB in "write-ahead log" mode and return it.
-  (sqlite-exec db "PRAGMA journal_mode=WAL;")
-
-  ;; Install a busy handler such that, when the database is locked, sqlite
-  ;; retries until 30 seconds have passed, at which point it gives up and
-  ;; throws SQLITE_BUSY.  This is useful when we have several fibers or
-  ;; threads accessing the database concurrently.
-  ;;(sqlite-busy-timeout db (* 30 1000))
-  (sqlite-exec db "PRAGMA busy_timeout = 30000;")
-
-  ;; The want to prioritize read operations over write operations as we can
-  ;; have a large number of clients, while the number of write operations is
-  ;; modest.  Use a small WAL journal to do that, and try to reduce disk I/O
-  ;; by increasing RAM usage as described here:
-  ;; https://wiki.mozilla.org/Performance/Avoid_SQLite_In_Your_Next_Firefox_Feature
-  (sqlite-exec db "PRAGMA wal_autocheckpoint = 16;")
-  (sqlite-exec db "PRAGMA journal_size_limit = 1536;")
-  (sqlite-exec db "PRAGMA page_size = 32768;")
-  (sqlite-exec db "PRAGMA cache_size = -500000;")
-  (sqlite-exec db "PRAGMA temp_store = MEMORY;")
-  (sqlite-exec db "PRAGMA synchronous = NORMAL;")
-  db)
+(define (expect-one-row rows)
+  "Several SQL queries expect one result, or zero if not found.  This gets rid
+of the list, and returns #f when there is no result."
+  (match rows
+    ((row) row)
+    (() #f)))
 
 (define (db-load db schema)
   "Evaluate the file SCHEMA, which may contain SQL queries, into DB."
-  (for-each (cut sqlite-exec db <>)
+  (for-each (cut exec-query db <>)
             (read-sql-file schema)))
 
 (define (db-schema-version db)
-  (vector-ref (car (sqlite-exec db "PRAGMA user_version;")) 0))
+  (catch 'psql-query-error
+    (lambda ()
+      (match (expect-one-row
+              (exec-query db "SELECT version FROM SchemaVersion"))
+        ((version) (string->number version))))
+    (lambda _ #f)))
 
 (define (db-set-schema-version db version)
-  (sqlite-exec db (format #f "PRAGMA user_version = ~d;" version)))
+  (exec-query db "DELETE FROM SchemaVersion")
+  (exec-query/bind db "INSERT INTO SchemaVersion (version) VALUES
+ (" version ")"))
 
 (define (latest-db-schema-version)
   "Return the version to which the schema should be upgraded, based on the
@@ -319,19 +308,14 @@ upgrade-n.sql files, or 0 if there are no such files."
                (filter-map (cut string-match "^upgrade-([0-9]+)\\.sql$" <>)
                            (or (scandir (%package-sql-dir)) '())))))
 
-(define* (db-init #:optional (db-name (%package-database))
-                  #:key (schema (%package-schema-file)))
+(define* (db-init db
+                  #:key
+                  (schema (%package-schema-file)))
   "Open the database to store and read jobs and builds informations.  Return a
 database object."
-  (when (file-exists? db-name)
-    (format (current-error-port) "Removing leftover database ~a~%" db-name)
-    (delete-file db-name))
-  (let ((db (sqlite-open db-name (logior SQLITE_OPEN_CREATE
-                                         SQLITE_OPEN_READWRITE
-                                         SQLITE_OPEN_NOMUTEX))))
-    (db-load db schema)
-    (db-set-schema-version db (latest-db-schema-version))
-    db))
+  (db-load db schema)
+  (db-set-schema-version db (latest-db-schema-version))
+  db)
 
 (define (schema-upgrade-file version)
   "Return the file containing the SQL instructions that upgrade the schema
@@ -348,144 +332,107 @@ upgrade-n.sql files."
               (iota (- (latest-db-schema-version) current) (1+ current))))
   db)
 
-(define* (db-open #:optional (db (%package-database)))
+(define* (db-open #:key
+                  (database (%package-database)))
   "Open database to store or read jobs and builds informations.  Return a
 database object."
-  ;; Use "write-ahead log" mode because it improves concurrency and should
-  ;; avoid SQLITE_LOCKED errors when we have several readers:
-  ;; <https://www.sqlite.org/wal.html>.
-
-  ;; SQLITE_OPEN_NOMUTEX disables mutexing on database connection and prepared
-  ;; statement objects, thus making us responsible for serializing access to
-  ;; database connections and prepared statements.
-  (set-db-options (if (file-exists? db)
-                      (db-upgrade
-                       (sqlite-open db (logior SQLITE_OPEN_READWRITE
-                                               SQLITE_OPEN_NOMUTEX)))
-                      (db-init db))))
+  (let* ((param (or database
+                    (format #f "dbname=~a host=~a"
+                            (getenv "CUIRASS_DATABASE")
+                            (getenv "CUIRASS_HOST"))))
+         (db (connect-to-postgres-paramstring param)))
+    (match (db-schema-version db)
+      (#f
+       (db-init db))
+      (else
+       (db-upgrade db)))))
 
 (define (db-close db)
   "Close database object DB."
-  (sqlite-close db))
-
-(define* (db-optimize #:optional (db-file (%package-database)))
-  "Open the database and perform optimizations."
-  (let ((db (db-open db-file)))
-    (sqlite-exec db "PRAGMA optimize;")
-    (sqlite-exec db "PRAGMA wal_checkpoint(TRUNCATE);")
-    (db-close db)))
-
-(define (trace-callback trace p x)
-  (log-query (pointer->string
-              (sqlite-expanded-sql p))
-             (make-time 'time-duration
-                        (bytevector-uint-ref
-                         (pointer->bytevector x (sizeof uint64))
-                         0 (native-endianness)
-                         (sizeof uint64))
-                        0)))
-
-(define (db-log-queries file)
-  (with-db-worker-thread db
-    (query-logging-port (open-output-file file))
-    (sqlite-trace db SQLITE_TRACE_PROFILE trace-callback)))
-
-(define (last-insert-rowid db)
-  (vector-ref (car (sqlite-exec db "SELECT last_insert_rowid();"))
-              0))
-
-(define (changes-count db)
-  "The number of database rows that were changed or inserted or deleted by the
-most recently completed INSERT, DELETE, or UPDATE statement."
-  (vector-ref (car (sqlite-exec db "SELECT changes();"))
-              0))
-
-(define (expect-one-row rows)
-  "Several SQL queries expect one result, or zero if not found.  This gets rid
-of the list, and returns #f when there is no result."
-  (match rows
-    ((row) row)
-    (() #f)))
+  (pg-conn-finish db))
 
 (define (db-add-input spec-name input)
-  (with-db-writer-worker-thread/force db
-    (sqlite-exec db "\
-INSERT OR IGNORE INTO Inputs (specification, name, url, load_path, branch, \
+  (with-db-worker-thread db
+    (exec-query/bind db "\
+INSERT INTO Inputs (specification, name, url, load_path, branch, \
 tag, revision, no_compile_p) VALUES ("
-                 spec-name ", "
-                 (assq-ref input #:name) ", "
-                 (assq-ref input #:url) ", "
-                 (assq-ref input #:load-path) ", "
-                 (assq-ref input #:branch) ", "
-                 (assq-ref input #:tag) ", "
-                 (assq-ref input #:commit) ", "
-                 (if (assq-ref input #:no-compile?) 1 0) ");")))
+                     spec-name ", "
+                     (assq-ref input #:name) ", "
+                     (assq-ref input #:url) ", "
+                     (assq-ref input #:load-path) ", "
+                     (assq-ref input #:branch) ", "
+                     (assq-ref input #:tag) ", "
+                     (assq-ref input #:commit) ", "
+                     (if (assq-ref input #:no-compile?) 1 0) ")
+ON CONFLICT ON CONSTRAINT inputs_pkey DO NOTHING;")))
 
 (define (db-add-checkout spec-name eval-id checkout)
   "Insert CHECKOUT associated with SPEC-NAME and EVAL-ID.  If a checkout with
 the same revision already exists for SPEC-NAME, return #f."
-  (with-db-writer-worker-thread/force db
-    (catch-sqlite-error
-     (sqlite-exec db "\
+  (with-db-worker-thread db
+    (match (expect-one-row
+            (exec-query/bind db "\
 INSERT INTO Checkouts (specification, revision, evaluation, input,
 directory, timestamp) VALUES ("
-                  spec-name ", "
-                  (assq-ref checkout #:commit) ", "
-                  eval-id ", "
-                  (assq-ref checkout #:input) ", "
-                  (assq-ref checkout #:directory) ", "
-                  (or (assq-ref checkout #:timestamp) 0) ");")
-     (last-insert-rowid db)
-
-     ;; If we get a unique-constraint-failed error, that means we have
-     ;; already inserted the same checkout.  That happens for each input
-     ;; that doesn't change between two evaluations.
-     (on SQLITE_CONSTRAINT_PRIMARYKEY => #f))))
+                             spec-name ", "
+                             (assq-ref checkout #:commit) ", "
+                             eval-id ", "
+                             (assq-ref checkout #:input) ", "
+                             (assq-ref checkout #:directory) ", "
+                             (or (assq-ref checkout #:timestamp) 0) ")
+ON CONFLICT ON CONSTRAINT checkouts_pkey DO NOTHING
+RETURNING (specification, revision);"))
+      (x x)
+      (() #f))))
 
 (define (db-add-specification spec)
   "Store SPEC in database the database.  SPEC inputs are stored in the INPUTS
 table."
-  (with-db-writer-worker-thread/force db
-    (sqlite-exec db "\
-INSERT OR IGNORE INTO Specifications (name, load_path_inputs, \
+  (with-db-worker-thread db
+    (match (expect-one-row
+            (exec-query/bind db "\
+INSERT INTO Specifications (name, load_path_inputs, \
 package_path_inputs, proc_input, proc_file, proc, proc_args, \
 build_outputs, priority) \
   VALUES ("
-                 (assq-ref spec #:name) ", "
-                 (assq-ref spec #:load-path-inputs) ", "
-                 (assq-ref spec #:package-path-inputs) ", "
-                 (assq-ref spec #:proc-input) ", "
-                 (assq-ref spec #:proc-file) ", "
-                 (symbol->string (assq-ref spec #:proc)) ", "
-                 (assq-ref spec #:proc-args) ", "
-                 (assq-ref spec #:build-outputs) ", "
-                 (or (assq-ref spec #:priority) max-priority) ");")
-    (let ((spec-id (last-insert-rowid db)))
-      (for-each (lambda (input)
-                  (db-add-input (assq-ref spec #:name) input))
-                (assq-ref spec #:inputs))
-      spec-id)))
+                             (assq-ref spec #:name) ", "
+                             (assq-ref spec #:load-path-inputs) ", "
+                             (assq-ref spec #:package-path-inputs) ", "
+                             (assq-ref spec #:proc-input) ", "
+                             (assq-ref spec #:proc-file) ", "
+                             (symbol->string (assq-ref spec #:proc)) ", "
+                             (assq-ref spec #:proc-args) ", "
+                             (assq-ref spec #:build-outputs) ", "
+                             (or (assq-ref spec #:priority) max-priority) ")
+ON CONFLICT ON CONSTRAINT specifications_pkey DO NOTHING
+RETURNING name;"))
+      ((name)
+       (for-each (lambda (input)
+                   (db-add-input (assq-ref spec #:name) input))
+                 (assq-ref spec #:inputs))
+       name)
+      (else #f))))
 
 (define (db-remove-specification name)
   "Remove the specification matching NAME from the database and its inputs."
-  (with-db-writer-worker-thread/force db
-    (sqlite-exec db "BEGIN TRANSACTION;")
-    (sqlite-exec db "\
+  (with-db-worker-thread db
+    (exec-query db "BEGIN TRANSACTION;")
+    (exec-query/bind db "\
 DELETE FROM Inputs WHERE specification=" name ";")
-    (sqlite-exec db "\
+    (exec-query/bind db "\
 DELETE FROM Specifications WHERE name=" name ";")
-    (sqlite-exec db "COMMIT;")))
+    (exec-query db "COMMIT;")))
 
 (define (db-get-inputs spec-name)
   (with-db-worker-thread db
-    (let loop ((rows (sqlite-exec
+    (let loop ((rows (exec-query/bind
                       db "SELECT * FROM Inputs WHERE specification="
-                      spec-name ";"))
+                      spec-name "ORDER BY name;"))
                (inputs '()))
       (match rows
-        (() inputs)
-        ((#(specification name url load-path branch tag revision no-compile-p)
-           . rest)
+        (() (reverse inputs))
+        (((specification name url load-path branch tag revision no-compile-p)
+          . rest)
          (loop rest
                (cons `((#:name . ,name)
                        (#:url . ,url)
@@ -493,49 +440,60 @@ DELETE FROM Specifications WHERE name=" name ";")
                        (#:branch . ,branch)
                        (#:tag . ,tag)
                        (#:commit . ,revision)
-                       (#:no-compile? . ,(positive? no-compile-p)))
+                       (#:no-compile? . ,(positive?
+                                          (string->number no-compile-p))))
                      inputs)))))))
 
 (define (db-get-specification name)
   "Retrieve a specification in the database with the given NAME."
-  (with-db-worker-thread db
-    (expect-one-row (db-get-specifications name))))
+  (expect-one-row (db-get-specifications name)))
 
 (define* (db-get-specifications #:optional name)
   (with-db-worker-thread db
     (let loop
         ((rows  (if name
-                    (sqlite-exec db "
+                    (exec-query/bind db "
 SELECT * FROM Specifications WHERE name =" name ";")
-                    (sqlite-exec db "
-SELECT * FROM Specifications ORDER BY name DESC;")))
+                    (exec-query db "
+SELECT * FROM Specifications ORDER BY name ASC;")))
          (specs '()))
-         (match rows
-           (() specs)
-           ((#(name load-path-inputs package-path-inputs proc-input proc-file proc
-                    proc-args build-outputs priority)
-             . rest)
-            (loop rest
-                  (cons `((#:name . ,name)
-                          (#:load-path-inputs .
-                           ,(with-input-from-string load-path-inputs read))
-                          (#:package-path-inputs .
-                           ,(with-input-from-string package-path-inputs read))
-                          (#:proc-input . ,proc-input)
-                          (#:proc-file . ,proc-file)
-                          (#:proc . ,(with-input-from-string proc read))
-                          (#:proc-args . ,(with-input-from-string proc-args read))
-                          (#:inputs . ,(db-get-inputs name))
-                          (#:build-outputs .
-                           ,(with-input-from-string build-outputs read))
-                          (#:priority . ,priority))
-                        specs)))))))
+      (match rows
+        (() (reverse specs))
+        (((name load-path-inputs package-path-inputs proc-input proc-file proc
+                proc-args build-outputs priority)
+          . rest)
+         (loop rest
+               (cons `((#:name . ,name)
+                       (#:load-path-inputs .
+                        ,(with-input-from-string load-path-inputs read))
+                       (#:package-path-inputs .
+                        ,(with-input-from-string package-path-inputs read))
+                       (#:proc-input . ,proc-input)
+                       (#:proc-file . ,proc-file)
+                       (#:proc . ,(with-input-from-string proc read))
+                       (#:proc-args . ,(with-input-from-string proc-args read))
+                       (#:inputs . ,(db-get-inputs name))
+                       (#:build-outputs .
+                        ,(with-input-from-string build-outputs read))
+                       (#:priority . ,(string->number priority)))
+                     specs)))))))
 
 (define-enumeration evaluation-status
   (started          -1)
   (succeeded         0)
   (failed            1)
   (aborted           2))
+
+(define (db-add-event type timestamp details)
+  (with-db-worker-thread db
+    (when (%record-events?)
+      (exec-query/bind db "\
+INSERT INTO Events (type, timestamp, event_json) VALUES ("
+                       (symbol->string type) ", "
+                       timestamp ", "
+                       (object->json-string details)
+                       ");")
+      #t)))
 
 (define* (db-add-evaluation spec-name checkouts
                             #:key
@@ -547,99 +505,49 @@ Otherwise, return #f."
   (define now
     (or timestamp (time-second (current-time time-utc))))
 
-  (with-db-writer-worker-thread/force db
-    (sqlite-exec db "BEGIN TRANSACTION;")
-    (sqlite-exec db "INSERT INTO Evaluations (specification, status,
-timestamp, checkouttime, evaltime)
+  (with-db-worker-thread db
+    (exec-query db "BEGIN TRANSACTION;")
+    (let* ((eval-id
+            (match (expect-one-row
+                    (exec-query/bind db "\
+INSERT INTO Evaluations (specification, status, timestamp,
+checkouttime, evaltime)
 VALUES (" spec-name "," (evaluation-status started) ","
-now "," checkouttime "," evaltime ");")
-    (let* ((eval-id (last-insert-rowid db))
+now "," checkouttime "," evaltime ")
+RETURNING id;"))
+              ((id) (string->number id))))
            (new-checkouts (filter-map
                            (cut db-add-checkout spec-name eval-id <>)
                            checkouts)))
       (if (null? new-checkouts)
-          (begin (sqlite-exec db "ROLLBACK;")
+          (begin (exec-query db "ROLLBACK;")
                  #f)
           (begin (db-add-event 'evaluation
                                (time-second (current-time time-utc))
                                `((#:evaluation    . ,eval-id)
                                  (#:specification . ,spec-name)
                                  (#:in_progress   . #t)))
-                 (sqlite-exec db "COMMIT;")
+                 (exec-query db "COMMIT;")
                  eval-id)))))
 
 (define (db-abort-pending-evaluations)
-  (with-db-writer-worker-thread/force db
-    (sqlite-exec db "UPDATE Evaluations SET status =
+  (with-db-worker-thread db
+    (exec-query/bind db "UPDATE Evaluations SET status =
 " (evaluation-status aborted) " WHERE status = "
 (evaluation-status started))))
 
 (define (db-set-evaluation-status eval-id status)
-  (with-db-writer-worker-thread/force db
-    (sqlite-exec db "UPDATE Evaluations SET status =
+  (with-db-worker-thread db
+    (exec-query/bind db "UPDATE Evaluations SET status =
 " status " WHERE id = " eval-id ";")))
 
 (define (db-set-evaluation-time eval-id)
   (define now
     (time-second (current-time time-utc)))
 
-  (with-db-writer-worker-thread/force
-   db
-   (sqlite-exec db "UPDATE Evaluations SET evaltime = " now
-                "WHERE id = " eval-id ";")))
-
-(define-syntax-rule (with-database body ...)
-  "Run BODY with %DB-CHANNEL being dynamically bound to a channel providing a
-worker thread that allows database operations to run without interfering with
-fibers."
-  (parameterize ((%db-channel
-                  (make-worker-thread-channel
-                   (lambda ()
-                     (list (db-open)))
-                   #:parallelism
-                   (min (current-processor-count) 4))))
-    body ...))
-
-(define-syntax-rule (with-queue-writer-worker body ...)
-  "Run BODY with %DB-WRITER-CHANNEL being dynamically bound to a channel
-providing a worker thread that allow database write operations to run
-without interfering with fibers.
-
-The worker will queue write operations and run them in a single transaction
-when the queue is full. As write operations are exclusive in SQLite, do not
-allocate more than one worker."
-  (parameterize ((%db-writer-channel
-                  (make-worker-thread-channel
-                   (lambda ()
-                     (list (db-open)))
-                   #:parallelism 1
-                   #:queue-size (%db-writer-queue-size)
-                   #:queue-proc
-                   (lambda (db run-queue)
-                     (sqlite-exec db "BEGIN TRANSACTION;")
-                     (run-queue)
-                     (sqlite-exec db "COMMIT;")))))
-    body ...))
-
-(define* (read-quoted-string #:optional (port (current-input-port)))
-  "Read all of the characters out of PORT and return them as a SQL quoted
-string."
-  (let loop ((chars '()))
-    (let ((char (read-char port)))
-      (cond ((eof-object? char) (list->string (reverse! chars)))
-            ((char=? char #\')  (loop (cons* char char chars)))
-            (else (loop (cons char chars)))))))
-
-;; Extended error codes (see <sqlite3.h>).
-;; XXX: This should be defined by (sqlite3).
-(define SQLITE_BUSY 5)
-(define SQLITE_CONSTRAINT 19)
-(define SQLITE_CONSTRAINT_PRIMARYKEY
-  (logior SQLITE_CONSTRAINT (ash 6 8)))
-(define SQLITE_CONSTRAINT_UNIQUE
-  (logior SQLITE_CONSTRAINT (ash 8 8)))
-(define SQLITE_BUSY_SNAPSHOT
-  (logior SQLITE_BUSY (ash 2 8)))
+  (with-db-worker-thread db
+    (exec-query/bind db "UPDATE Evaluations SET evaltime = " now
+                     "WHERE id = " eval-id ";")))
 
 (define-enumeration build-status
   ;; Build status as expected by Hydra's API.  Note: the negative values are
@@ -654,70 +562,104 @@ string."
   (canceled          4))
 
 (define (db-add-output derivation output)
-  "Insert OUTPUT associated with DERIVATION.  If an output with the same path
-already exists, return #f."
-  (with-db-writer-worker-thread/force db
-    (catch-sqlite-error
-     (match output
-       ((name . path)
-        (sqlite-exec db "\
+  "Insert OUTPUT associated with DERIVATION."
+  (with-db-worker-thread db
+    (match output
+      ((name . path)
+       (exec-query/bind db "\
 INSERT INTO Outputs (derivation, name, path) VALUES ("
-                     derivation ", " name ", " path ");")))
-     (last-insert-rowid db)
-
-     ;; If we get a unique-constraint-failed error, that means we have
-     ;; already inserted the same output.  That happens with fixed-output
-     ;; derivations.
-     (on SQLITE_CONSTRAINT_PRIMARYKEY => #f))))
+                        derivation ", " name ", " path ")
+ON CONFLICT ON CONSTRAINT outputs_pkey DO NOTHING;")))))
 
 (define (db-add-build build)
   "Store BUILD in database the database only if one of its outputs is new.
 Return #f otherwise.  BUILD outputs are stored in the OUTPUTS table."
-  (with-db-writer-worker-thread/force db
-    (sqlite-exec db "
+  (with-db-worker-thread db
+    (exec-query/bind db "
 INSERT INTO Builds (derivation, evaluation, job_name, system, nix_name, log,
 status, priority, max_silent, timeout, timestamp, starttime, stoptime)
 VALUES ("
-                 (assq-ref build #:derivation) ", "
-                 (assq-ref build #:eval-id) ", "
-                 (assq-ref build #:job-name) ", "
-                 (assq-ref build #:system) ", "
-                 (assq-ref build #:nix-name) ", "
-                 (assq-ref build #:log) ", "
-                 (or (assq-ref build #:status)
-                     (build-status scheduled)) ", "
-                 (assq-ref build #:priority) ", "
-                 (or (assq-ref build #:max-silent) 0) ", "
-                 (or (assq-ref build #:timeout) 0) ", "
-                 (or (assq-ref build #:timestamp) 0) ", "
-                 (or (assq-ref build #:starttime) 0) ", "
-                 (or (assq-ref build #:stoptime) 0) ");")
-    (let* ((derivation (assq-ref build #:derivation))
-           (outputs (assq-ref build #:outputs))
-           (new-outputs (filter-map (cut db-add-output derivation <>)
-                                    outputs)))
-      (db-add-event 'build
-                    (assq-ref build #:timestamp)
-                    `((#:derivation . ,(assq-ref build #:derivation))
-                      ;; TODO Ideally this would use the value
-                      ;; from build, with a default of scheduled,
-                      ;; but it's hard to convert to the symbol,
-                      ;; so just hard code scheduled for now.
-                      (#:event       . scheduled)))
-      derivation)))
+                     (assq-ref build #:derivation) ", "
+                     (assq-ref build #:eval-id) ", "
+                     (assq-ref build #:job-name) ", "
+                     (assq-ref build #:system) ", "
+                     (assq-ref build #:nix-name) ", "
+                     (assq-ref build #:log) ", "
+                     (or (assq-ref build #:status)
+                         (build-status scheduled)) ", "
+                         (or (assq-ref build #:priority) max-priority) ", "
+                         (or (assq-ref build #:max-silent) 0) ", "
+                         (or (assq-ref build #:timeout) 0) ", "
+                         (or (assq-ref build #:timestamp) 0) ", "
+                         (or (assq-ref build #:starttime) 0) ", "
+                         (or (assq-ref build #:stoptime) 0) ")
+ON CONFLICT ON CONSTRAINT builds_derivation_key DO NOTHING;"))
+  (let* ((derivation (assq-ref build #:derivation))
+         (outputs (assq-ref build #:outputs))
+         (new-outputs (filter-map (cut db-add-output derivation <>)
+                                  outputs)))
+    (db-add-event 'build
+                  (assq-ref build #:timestamp)
+                  `((#:derivation . ,derivation)
+                    ;; TODO Ideally this would use the value
+                    ;; from build, with a default of scheduled,
+                    ;; but it's hard to convert to the symbol,
+                    ;; so just hard code scheduled for now.
+                    (#:event       . scheduled)))
+    derivation))
 
 (define (db-add-build-product product)
   "Insert PRODUCT into BuildProducts table."
-  (with-db-writer-worker-thread/force db
-    (sqlite-exec db "\
-INSERT OR IGNORE INTO BuildProducts (build, type, file_size, checksum,
+  (with-db-worker-thread db
+    (exec-query/bind db "\
+INSERT INTO BuildProducts (build, type, file_size, checksum,
 path) VALUES ("
-                 (assq-ref product #:build) ", "
-                 (assq-ref product #:type) ", "
-                 (assq-ref product #:file-size) ", "
-                 (assq-ref product #:checksum) ", "
-                 (assq-ref product #:path) ");")
-    (last-insert-rowid db)))
+                     (assq-ref product #:build) ", "
+                     (assq-ref product #:type) ", "
+                     (assq-ref product #:file-size) ", "
+                     (assq-ref product #:checksum) ", "
+                     (assq-ref product #:path) ");")))
+
+(define (db-get-output path)
+  "Retrieve the OUTPUT for PATH."
+  (with-db-worker-thread db
+    (match (exec-query/bind db "SELECT derivation, name FROM Outputs
+WHERE path =" path "
+LIMIT 1;")
+      (() #f)
+      (((derivation name))
+       `((#:derivation . ,derivation)
+         (#:name . ,name))))))
+
+(define (db-get-outputs derivation)
+  "Retrieve the OUTPUTS of the build identified by DERIVATION in the
+database."
+  (with-db-worker-thread db
+    (let loop ((rows
+                (exec-query/bind db "SELECT name, path FROM Outputs
+WHERE derivation =" derivation ";"))
+               (outputs '()))
+      (match rows
+        (() (reverse outputs))
+        (((name path)
+          . rest)
+         (loop rest
+               (cons `(,name . ((#:path . ,path)))
+                     outputs)))))))
+
+(define (db-get-time-since-previous-build job-name specification)
+  "Return the time difference in seconds between the current time and the
+registration time of the last build for JOB-NAME and SPECIFICATION."
+  (with-db-worker-thread db
+    (match (expect-one-row
+            (exec-query/bind db "
+SELECT extract(epoch from now())::int - Builds.timestamp FROM Builds
+INNER JOIN Evaluations on Builds.evaluation = Evaluations.id
+WHERE job_name  = " job-name "AND specification = " specification
+"ORDER BY Builds.timestamp DESC LIMIT 1"))
+      ((time)
+       (string->number time))
+      (else #f))))
 
 (define (db-register-builds jobs eval-id specification)
   (define (new-outputs? outputs)
@@ -734,8 +676,7 @@ path) VALUES ("
       (+ (* spec-priority 10) priority)))
 
   (define (register job)
-    (let* ((name       (assq-ref job #:job-name))
-           (drv        (assq-ref job #:derivation))
+    (let* ((drv        (assq-ref job #:derivation))
            (job-name   (assq-ref job #:job-name))
            (system     (assq-ref job #:system))
            (nix-name   (assq-ref job #:nix-name))
@@ -779,11 +720,11 @@ path) VALUES ("
   ;; Use the database worker dedicated to write queries.  We don't want this
   ;; query to be queued as it is already a quite large transaction by itself,
   ;; so pass the #:FORCE? option.
-  (with-db-writer-worker-thread/force db
+  (with-db-worker-thread db
     (log-message "Registering builds for evaluation ~a." eval-id)
-    (sqlite-exec db "BEGIN TRANSACTION;")
+    (exec-query db "BEGIN TRANSACTION;")
     (let ((derivations (filter-map register jobs)))
-      (sqlite-exec db "COMMIT;")
+      (exec-query db "COMMIT;")
       derivations)))
 
 (define* (db-update-build-status! drv status #:key log-file)
@@ -800,11 +741,16 @@ log file for DRV."
       (,(build-status failed-other)      . "failed (other)")
       (,(build-status canceled)          . "canceled")))
 
-  (with-db-writer-worker-thread db
+  (with-db-worker-thread db
     (if (= status (build-status started))
         (begin
-          (sqlite-exec db "UPDATE Builds SET starttime=" now ", status="
-                       status "WHERE derivation=" drv ";")
+          (if log-file
+              (exec-query/bind db "UPDATE Builds SET starttime=" now
+                               ",status=" status ",log=" log-file
+                               "WHERE derivation=" drv ";")
+              (exec-query/bind db "UPDATE Builds SET starttime=" now
+                               ",status="
+                               status "WHERE derivation=" drv ";"))
           (db-add-event 'build
                         now
                         `((#:derivation . ,drv)
@@ -815,56 +761,23 @@ log file for DRV."
         ;; and doesn't change every time we mark DRV as 'succeeded' several
         ;; times in a row, for instance.
         (begin
-          (if log-file
-              (sqlite-exec db "UPDATE Builds SET stoptime=" now
-                           ", status=" status ", log=" log-file
-                           "WHERE derivation=" drv "AND status != " status ";")
-              (sqlite-exec db "UPDATE Builds SET stoptime=" now
-                           ", status=" status
-                           "WHERE derivation=" drv " AND status != " status
-                           ";"))
-          (when (positive? (changes-count db))
-            (db-add-event 'build
-                          now
-                          `((#:derivation . ,drv)
-                            (#:event      . ,(assq-ref status-names
-                                                       status)))))))))
+          (let ((rows
+                 (exec-query/bind db "UPDATE Builds SET stoptime=" now
+                                  ", status=" status
+                                  "WHERE derivation=" drv
+                                  " AND status != " status ";")))
+            (when (positive? rows)
+              (db-add-event 'build
+                            now
+                            `((#:derivation . ,drv)
+                              (#:event      . ,(assq-ref status-names
+                                                         status))))))))))
 
 (define* (db-update-build-worker! drv worker)
   "Update the database so that DRV's worker is WORKER."
-  (with-db-writer-worker-thread db
-    (sqlite-exec db "UPDATE Builds SET worker=" worker
-                 "WHERE derivation=" drv ";")))
-
-(define (db-get-output path)
-  "Retrieve the OUTPUT for PATH."
   (with-db-worker-thread db
-    ;; There isn't a unique index on path, but because Cuirass avoids adding
-    ;; derivations which introduce the same outputs, there should only be one
-    ;; result.
-    (match (sqlite-exec db "SELECT derivation, name FROM Outputs
-WHERE path =" path "
-LIMIT 1;")
-      (() #f)
-      ((#(derivation name))
-       `((#:derivation . ,derivation)
-         (#:name . ,name))))))
-
-(define (db-get-outputs derivation)
-  "Retrieve the OUTPUTS of the build identified by DERIVATION in the
-database."
-  (with-db-worker-thread db
-    (let loop ((rows
-                (sqlite-exec db "SELECT name, path FROM Outputs
-WHERE derivation =" derivation ";"))
-               (outputs '()))
-      (match rows
-        (() outputs)
-        ((#(name path)
-           . rest)
-         (loop rest
-               (cons `(,name . ((#:path . ,path)))
-                     outputs)))))))
+    (exec-query/bind db "UPDATE Builds SET worker=" worker
+                     "WHERE derivation=" drv ";")))
 
 (define (query->bind-arguments query-string)
   "Return a list of keys to query strings by parsing QUERY-STRING."
@@ -874,91 +787,103 @@ WHERE derivation =" derivation ";"))
       ("failed-dependency" . ,(build-status failed-dependency))
       ("failed-other" . ,(build-status failed-other))
       ("canceled" . ,(build-status canceled))))
-  (let ((args (append-map
+  (let ((args (map
                (lambda (token)
                  (match (string-split token #\:)
                    (("system" system)
-                    `(#:system ,system))
+                    `(#:system . ,system))
                    (("spec" spec)
-                    `(#:spec ,spec))
+                    `(#:spec . ,spec))
                    (("status" status)
-                    `(#:status ,(assoc-ref status-values status)))
+                    `(#:status . ,(assoc-ref status-values status)))
                    ((_ invalid) '())    ; ignore
                    ((query)
                     ;; Remove any '%' that could make the search too slow and
                     ;; add one at the end of the query.
-                    `(#:query ,(string-append
-                                (string-join
-                                 (string-split query #\%)
-                                 "")
-                                "%")))))
+                    `(#:query . ,(string-append
+                                  (string-join
+                                   (string-split query #\%)
+                                   "")
+                                  "%")))))
                (string-tokenize query-string))))
     ;; Normalize arguments
     (fold (lambda (key acc)
-            (if (member key acc)
+            (if (assq key acc)
                 acc
-                (append (list key #f) acc)))
+                (cons (cons key #f) acc)))
           args '(#:spec #:system))))
+
+(define (db-get-build-products build-id)
+  "Return the build products associated to the given BUILD-ID."
+  (with-db-worker-thread db
+    (let loop ((rows (exec-query/bind db "
+SELECT id, type, file_size, checksum, path from BuildProducts
+WHERE build = " build-id))
+               (products '()))
+      (match rows
+        (() (reverse products))
+        (((id type file-size checksum path)
+          . rest)
+         (loop rest
+               (cons `((#:id . ,(string->number id))
+                       (#:type . ,type)
+                       (#:file-size . ,(string->number file-size))
+                       (#:checksum . ,checksum)
+                       (#:path . ,path))
+                     products)))))))
 
 (define (db-get-builds-by-search filters)
   "Retrieve all builds in the database which are matched by given FILTERS.
 FILTERS is an assoc list whose possible keys are the symbols query,
 border-low-id, border-high-id, and nr."
   (with-db-worker-thread db
-    (let* ((stmt-text (format #f "SELECT Builds.rowid, Builds.timestamp,
+    (let* ((query (format #f "SELECT Builds.id, Builds.timestamp,
 Builds.starttime,Builds.stoptime, Builds.log, Builds.status,
 Builds.job_name, Builds.system, Builds.nix_name, Specifications.name
 FROM Builds
 INNER JOIN Evaluations ON Builds.evaluation = Evaluations.id
 INNER JOIN Specifications ON Evaluations.specification = Specifications.name
 WHERE (Builds.nix_name LIKE :query)
-AND (:status IS NULL
- OR (Builds.status = :status))
-AND (:spec IS NULL
- OR (Specifications.name = :spec))
-AND (:system IS NULL
- OR (Builds.system = :system))
-AND (:borderlowid IS NULL
- OR (:borderlowid < Builds.rowid))
-AND (:borderhighid IS NULL
- OR (:borderhighid > Builds.rowid))
+AND ((Builds.status = :status) OR :status IS NULL)
+AND ((Specifications.name = :spec) OR :spec IS NULL)
+AND ((Builds.system = :system) OR :system IS NULL)
+AND ((:borderlowid < Builds.id) OR :borderlowid IS NULL)
+AND ((:borderhighid > Builds.id) OR :borderhighid IS NULL)
 ORDER BY
-CASE WHEN :borderlowid IS NULL THEN Builds.rowid
-                               ELSE -Builds.rowid
+CASE WHEN :borderlowid IS NULL THEN Builds.id
+                               ELSE -Builds.id
 END DESC
 LIMIT :nr;"))
-           (stmt (sqlite-prepare db stmt-text #:cache? #t)))
-      (apply sqlite-bind-arguments
-             stmt
-             (append (list
-                      #:borderlowid (assq-ref filters 'border-low-id)
-                      #:borderhighid (assq-ref filters 'border-high-id)
-                      #:nr (match (assq-ref filters 'nr)
-                             (#f -1)
-                             (x x)))
-                     (query->bind-arguments (assq-ref filters 'query))))
-      (let ((builds
-             (sqlite-fold-right
-              (lambda (row result)
-                (match row
-                  (#(id timestamp starttime stoptime log status job-name
-                        system nix-name specification)
-                   (cons `((#:id . ,id)
-                           (#:timestamp . ,timestamp)
-                           (#:starttime . ,starttime)
-                           (#:stoptime . ,stoptime)
-                           (#:log . ,log)
-                           (#:status . ,status)
-                           (#:job-name . ,job-name)
-                           (#:system . ,system)
-                           (#:nix-name . ,nix-name)
-                           (#:specification . ,specification)
-                           (#:buildproducts . ,(db-get-build-products id)))
-                         result))))
-              '()
-              stmt)))
-        (sqlite-reset stmt)
-        builds))))
+           (builds
+            (exec-query/bind-params
+             db
+             query
+             `((#:borderlowid . ,(assq-ref filters 'border-low-id))
+               (#:borderhighid . ,(assq-ref filters 'border-high-id))
+               (#:nr . ,(match (assq-ref filters 'nr)
+                          (#f -1)
+                          (x x)))
+               ,@(query->bind-arguments (assq-ref filters 'query))))))
+      (let loop ((builds builds)
+                 (result '()))
+        (match builds
+          (() result)
+          (((id timestamp starttime stoptime log status job-name
+                system nix-name specification)
+            . rest)
+           (loop rest
+                 (cons `((#:id . ,(string->number id))
+                         (#:timestamp . ,(string->number timestamp))
+                         (#:starttime . ,(string->number starttime))
+                         (#:stoptime . ,(string->number stoptime))
+                         (#:log . ,log)
+                         (#:status . ,(string->number status))
+                         (#:job-name . ,job-name)
+                         (#:system . ,system)
+                         (#:nix-name . ,nix-name)
+                         (#:specification . ,specification)
+                         (#:buildproducts . ,(db-get-build-products id)))
+                       result))))))))
 
 (define (db-get-builds filters)
   "Retrieve all builds in the database which are matched by given FILTERS.
@@ -969,22 +894,22 @@ FILTERS is an assoc list whose possible keys are 'derivation | 'id | 'jobset |
   (define (filters->order filters)
     (lambda (inner)
       (match (assq 'order filters)
-        (('order . 'build-id) "Builds.rowid ASC")
+        (('order . 'build-id) "Builds.id ASC")
         (('order . 'finish-time) "stoptime DESC")
         (('order . 'finish-time+build-id)
          (if inner
-             "CASE WHEN :borderlowid IS NULL THEN
+             "CASE WHEN CAST(:borderlowid AS integer) IS NULL THEN
  stoptime ELSE -stoptime END DESC,
-CASE WHEN :borderlowid IS NULL THEN
- Builds.rowid ELSE -Builds.rowid END DESC"
-             "stoptime DESC, Builds.rowid DESC"))
+CASE WHEN CAST(:borderlowid AS integer) IS NULL THEN
+ Builds.id ELSE -Builds.id END DESC"
+             "stoptime DESC, Builds.id DESC"))
         ;; With this order, builds in 'running' state (-1) appear
         ;; before those in 'scheduled' state (-2).
         (('order . 'status+submission-time)
-         "Builds.status DESC, Builds.timestamp DESC, Builds.rowid ASC")
+         "Builds.status DESC, Builds.timestamp DESC, Builds.id ASC")
         (('order . 'priority+timestamp)
-         "Builds.priority DESC, Builds.timestamp ASC")
-        (_ "Builds.rowid DESC"))))
+         "Builds.priority ASC, Builds.timestamp DESC")
+        (_ "Builds.id DESC"))))
 
   ;; XXX: Make sure that all filters are covered by an index.
   (define (where-conditions filters)
@@ -1005,11 +930,11 @@ CASE WHEN :borderlowid IS NULL THEN
                               ('succeeded "Builds.status = 0")
                               ('failed    "Builds.status > 0")))
         (border-low-time
-         . "(:borderlowtime IS NULL OR :borderlowid IS NULL OR
- ((:borderlowtime, :borderlowid) < (Builds.stoptime, Builds.rowid)))")
+         . "(((:borderlowtime, :borderlowid) < (Builds.stoptime, Builds.id))
+OR :borderlowtime IS NULL OR :borderlowid IS NULL)")
         (border-high-time
-         . "(:borderhightime IS NULL OR :borderhighid IS NULL OR
- ((:borderhightime, :borderhighid) > (Builds.stoptime, Builds.rowid)))")))
+         . "(((:borderhightime, :borderhighid) > (Builds.stoptime, Builds.id))
+OR :borderhightime IS NULL OR :borderhighid IS NULL)")))
 
     (filter
      string?
@@ -1055,422 +980,389 @@ CASE WHEN :borderlowid IS NULL THEN
                     ((first-condition rest ...)
                      (string-append "WHERE " first-condition "\n  AND "
                                     (string-join rest " AND ")))))
-           (stmt-text
-            (format #f "
-SELECT Builds.*,
-GROUP_CONCAT(Outputs.name), GROUP_CONCAT(Outputs.path),
-GROUP_CONCAT(BP.rowid), GROUP_CONCAT(BP.type), GROUP_CONCAT(BP.file_size),
-GROUP_CONCAT(BP.checksum), GROUP_CONCAT(BP.path) FROM
-(SELECT Builds.derivation, Builds.rowid, Builds.timestamp, Builds.starttime,
-        Builds.stoptime, Builds.log, Builds.status, Builds.priority,
-        Builds.max_silent, Builds.timeout, Builds.job_name,
-        Builds.system, Builds.nix_name, Builds.evaluation,
-        Specifications.name
-FROM Builds
+           (query
+            (format #f " SELECT Builds.derivation, Builds.id, Builds.timestamp,
+Builds.starttime, Builds.stoptime, Builds.log, Builds.status, Builds.priority,
+Builds.max_silent, Builds.timeout, Builds.job_name, Builds.system,
+Builds.nix_name, Builds.evaluation, agg.name, agg.outputs_name,
+agg.outputs_path,agg.bp_build, agg.bp_type, agg.bp_file_size,
+agg.bp_checksum, agg.bp_path
+FROM
+(SELECT B.id, B.derivation, B.name,
+string_agg(Outputs.name, ',') AS outputs_name,
+string_agg(Outputs.path, ',') AS outputs_path,
+string_agg(cast(BP.build AS text), ',') AS bp_build,
+string_agg(BP.type, ',') AS bp_type,
+string_agg(cast(BP.file_size AS text), ',') AS bp_file_size,
+string_agg(BP.checksum, ',') AS bp_checksum,
+string_agg(BP.path, ',') AS bp_path FROM
+(SELECT Builds.id, Builds.derivation, Specifications.name FROM Builds
 INNER JOIN Evaluations ON Builds.evaluation = Evaluations.id
 INNER JOIN Specifications ON Evaluations.specification = Specifications.name
 ~a
 ORDER BY ~a
-LIMIT :nr) Builds
-INNER JOIN Outputs ON Outputs.derivation = Builds.derivation
-LEFT JOIN BuildProducts as BP ON BP.build = Builds.rowid
-GROUP BY Builds.derivation
+LIMIT :nr) B
+INNER JOIN Outputs ON Outputs.derivation = B.derivation
+LEFT JOIN BuildProducts as BP ON BP.build = B.id
+GROUP BY B.derivation, B.id, B.name) agg
+JOIN Builds on agg.id = Builds.id
 ORDER BY ~a;"
                     where (order #t) (order #f)))
-           (stmt (sqlite-prepare db stmt-text #:cache? #t)))
-
-      (sqlite-bind stmt 'nr (match (assq-ref filters 'nr)
-                              (#f -1)
-                              (x x)))
-      (for-each (match-lambda
-                  (('nr . _) #f)        ; Handled above
-                  (('order . _) #f)     ; Doesn't need binding
-                  (('status . _) #f)    ; Doesn't need binding
-                  ((name . value)
-                   (when value
-                     (sqlite-bind stmt
-                                  (or (assq-ref
-                                       '((border-low-time  . borderlowtime)
-                                         (border-high-time . borderhightime)
-                                         (border-low-id    . borderlowid)
-                                         (border-high-id   . borderhighid))
-                                       name)
-                                      name)
-                                  value))))
-                filters)
-      (let ((builds
-             (sqlite-fold-right
-              (lambda (row result)
-                (match row
-                  (#(derivation id timestamp starttime stoptime log status
-                                priority max-silent timeout job-name
-                                system nix-name eval-id specification
-                                outputs-name outputs-path
-                                products-id products-type products-file-size
-                                products-checksum products-path)
-                   (cons `((#:derivation . ,derivation)
-                           (#:id . ,id)
-                           (#:timestamp . ,timestamp)
-                           (#:starttime . ,starttime)
-                           (#:stoptime . ,stoptime)
-                           (#:log . ,log)
-                           (#:status . ,status)
-                           (#:priority . ,priority)
-                           (#:max-silent . ,max-silent)
-                           (#:timeout . ,timeout)
-                           (#:job-name . ,job-name)
-                           (#:system . ,system)
-                           (#:nix-name . ,nix-name)
-                           (#:eval-id . ,eval-id)
-                           (#:specification . ,specification)
-                           (#:outputs . ,(format-outputs outputs-name
-                                                         outputs-path))
-                           (#:buildproducts .
-                            ,(format-build-products products-id
-                                                    products-type
-                                                    products-file-size
-                                                    products-checksum
-                                                    products-path)))
-                         result))))
-              '()
-              stmt)))
-        (sqlite-reset stmt)
-        builds))))
+           (params
+            (map (match-lambda
+                   ((name . value)
+                    (let ((key
+                           (symbol->keyword
+                            (or (assq-ref
+                                 '((border-low-time  . borderlowtime)
+                                   (border-high-time . borderhightime)
+                                   (border-low-id    . borderlowid)
+                                   (border-high-id   . borderhighid))
+                                 name)
+                                name)))
+                          (value
+                           (match name
+                             ('nr (or value -1))
+                             ('order #f) ; Doesn't need binding.
+                             ('status #f) ; Doesn't need binding.
+                             (else value))))
+                      (cons key value))))
+                 filters))
+           (builds (exec-query/bind-params db query params)))
+      (let loop ((builds builds)
+                 (result '()))
+        (match builds
+          (() (reverse result))
+          (((derivation id timestamp starttime stoptime log status
+                        priority max-silent timeout job-name
+                        system nix-name eval-id specification
+                        outputs-name outputs-path
+                        products-id products-type products-file-size
+                        products-checksum products-path)
+            . rest)
+           (loop rest
+                 (cons `((#:derivation . ,derivation)
+                         (#:id . ,(string->number id))
+                         (#:timestamp . ,(string->number timestamp))
+                         (#:starttime . ,(string->number starttime))
+                         (#:stoptime . ,(string->number stoptime))
+                         (#:log . ,log)
+                         (#:status . ,(string->number status))
+                         (#:priority . ,(string->number priority))
+                         (#:max-silent . ,(string->number max-silent))
+                         (#:timeout . ,(string->number timeout))
+                         (#:job-name . ,job-name)
+                         (#:system . ,system)
+                         (#:nix-name . ,nix-name)
+                         (#:eval-id . ,(string->number eval-id))
+                         (#:specification . ,specification)
+                         (#:outputs . ,(format-outputs outputs-name
+                                                       outputs-path))
+                         (#:buildproducts .
+                          ,(format-build-products products-id
+                                                  products-type
+                                                  products-file-size
+                                                  products-checksum
+                                                  products-path)))
+                       result))))))))
 
 (define (db-get-build derivation-or-id)
   "Retrieve a build in the database which corresponds to DERIVATION-OR-ID."
-  (with-db-worker-thread db
-    (let ((key (if (number? derivation-or-id) 'id 'derivation)))
-      (expect-one-row (db-get-builds `((,key . ,derivation-or-id)))))))
-
-(define (db-get-time-since-previous-build job-name specification)
-  "Return the time difference in seconds between the current time and the
-registration time of the last build for JOB-NAME and SPECIFICATION."
-  (with-db-worker-thread db
-    (let ((rows (sqlite-exec db "
-SELECT strftime('%s', 'now') - Builds.timestamp FROM Builds
-INNER JOIN Evaluations on Builds.evaluation = Evaluations.id
-WHERE job_name  = " job-name "AND specification = " specification
-"ORDER BY Builds.timestamp DESC LIMIT 1")))
-      (and=> (expect-one-row rows) (cut vector-ref <> 0)))))
-
-(define (db-add-event type timestamp details)
-  (when (%record-events?)
-    (with-db-writer-worker-thread db
-      (sqlite-exec db "\
-INSERT INTO Events (type, timestamp, event_json) VALUES ("
-                   (symbol->string type) ", "
-                   timestamp ", "
-                   (object->json-string details)
-                   ");")
-      #t)))
+  (let ((key (if (number? derivation-or-id) 'id 'derivation)))
+    (expect-one-row (db-get-builds `((,key . ,derivation-or-id))))))
 
 (define (db-get-events filters)
   (with-db-worker-thread db
-    (let* ((stmt-text "\
+    (let* ((query "\
 SELECT Events.id,
        Events.type,
        Events.timestamp,
        Events.event_json
 FROM Events
-WHERE (:type IS NULL OR (:type = Events.type))
-  AND (:borderlowtime IS NULL OR
-       :borderlowid IS NULL OR
-       ((:borderlowtime, :borderlowid) <
-        (Events.timestamp, Events.id)))
-  AND (:borderhightime IS NULL OR
-       :borderhighid IS NULL OR
-       ((:borderhightime, :borderhighid) >
-        (Events.timestamp, Events.id)))
+WHERE (:type = Events.type OR :type IS NULL)
+  AND (((:borderlowtime, :borderlowid) <
+        (Events.timestamp, Events.id)) OR
+       :borderlowtime IS NULL OR
+       :borderlowid IS NULL)
+  AND (((:borderhightime, :borderhighid) >
+        (Events.timestamp, Events.id)) OR
+       :borderhightime IS NULL OR
+       :borderhighid IS NULL)
 ORDER BY Events.id ASC
 LIMIT :nr;")
-           (stmt (sqlite-prepare db stmt-text #:cache? #t)))
-      (sqlite-bind-arguments
-       stmt
-       #:type (and=> (assq-ref filters 'type)
-                     symbol->string)
-       #:nr (match (assq-ref filters 'nr)
-              (#f -1)
-              (x x)))
-      (let ((events
-             (sqlite-fold-right
-              (lambda (row result)
-                (match row
-                  (#(id type timestamp event_json)
-                   (cons `((#:id . ,id)
-                           (#:type . ,type)
-                           (#:timestamp . ,timestamp)
-                           (#:event_json . ,event_json))
-                         result))))
-              '()
-              stmt)))
-        (sqlite-reset stmt)
-        events))))
+           (params `((#:type . ,(and=> (assq-ref filters 'type)
+                                       symbol->string))
+                     (#:nr . ,(match (assq-ref filters 'nr)
+                                (#f -1)
+                                (x x)))))
+           (events (exec-query/bind-params db query params)))
+      (let loop ((events events)
+                 (result '()))
+        (match events
+          (() (reverse result))
+          (((id type timestamp event_json)
+            . rest)
+           (loop rest
+                 (cons `((#:id . ,(string->number id))
+                         (#:type . ,(string->symbol type))
+                         (#:timestamp . ,(string->number timestamp))
+                         (#:event_json . ,event_json))
+                       result))))))))
 
 (define (db-delete-events-with-ids-<=-to id)
-  (with-db-writer-worker-thread db
-    (sqlite-exec
-     db
-     "DELETE FROM Events WHERE id <= " id ";")))
+  (with-db-worker-thread db
+    (exec-query/bind db "DELETE FROM Events WHERE id <= " id ";")))
 
 (define (db-get-pending-derivations)
   "Return the list of derivation file names corresponding to pending builds in
 the database.  The returned list is guaranteed to not have any duplicates."
   (with-db-worker-thread db
-    (map (match-lambda (#(drv) drv))
-         (sqlite-exec db "
+    (map (match-lambda ((drv) drv))
+         (exec-query db "
 SELECT derivation FROM Builds WHERE Builds.status < 0;"))))
 
 (define (db-get-checkouts eval-id)
   (with-db-worker-thread db
-    (let loop ((rows (sqlite-exec
+    (let loop ((rows (exec-query/bind
                       db "SELECT revision, input, directory FROM Checkouts
 WHERE evaluation =" eval-id ";"))
                (checkouts '()))
       (match rows
-        (() checkouts)
-        ((#(revision input directory)
-           . rest)
+        (() (reverse checkouts))
+        (((revision input directory)
+          . rest)
          (loop rest
                (cons `((#:commit . ,revision)
                        (#:input . ,input)
                        (#:directory . ,directory))
                      checkouts)))))))
 
+(define (parse-evaluation evaluation)
+  (match evaluation
+    ((id specification status timestamp checkouttime evaltime)
+     `((#:id . ,(string->number id))
+       (#:specification . ,specification)
+       (#:status . ,(string->number status))
+       (#:timestamp . ,(string->number timestamp))
+       (#:checkouttime . ,(string->number checkouttime))
+       (#:evaltime . ,(string->number evaltime))
+       (#:checkouts . ,(db-get-checkouts id))))))
+
 (define (db-get-evaluation id)
   (with-db-worker-thread db
-    (match (sqlite-exec db "SELECT id, specification, status,
+    (match (exec-query/bind db "SELECT id, specification, status,
 timestamp, checkouttime, evaltime
 FROM Evaluations WHERE id = " id)
       (() #f)
-      ((#(id specification status timestamp checkouttime evaltime))
-       `((#:id . ,id)
-         (#:specification . ,specification)
-         (#:status . ,status)
-         (#:timestamp . ,timestamp)
-         (#:checkouttime . ,checkouttime)
-         (#:evaltime . ,evaltime)
-         (#:checkouts . ,(db-get-checkouts id)))))))
+      ((evaluation)
+       (parse-evaluation evaluation)))))
 
 (define (db-get-evaluations limit)
   (with-db-worker-thread db
-    (let loop ((rows  (sqlite-exec db "SELECT id, specification, status,
+    (let loop ((rows  (exec-query/bind db "SELECT id, specification, status,
 timestamp, checkouttime, evaltime
 FROM Evaluations ORDER BY id DESC LIMIT " limit ";"))
                (evaluations '()))
       (match rows
         (() (reverse evaluations))
-        ((#(id specification status timestamp checkouttime evaltime)
-           . rest)
+        ((evaluation . rest)
          (loop rest
-               (cons `((#:id . ,id)
-                       (#:specification . ,specification)
-                       (#:status . ,status)
-                       (#:timestamp . ,timestamp)
-                       (#:checkouttime . ,checkouttime)
-                       (#:evaltime . ,evaltime)
-                       (#:checkouts . ,(db-get-checkouts id)))
-                     evaluations)))))))
+               (cons (parse-evaluation evaluation) evaluations)))))))
 
 (define (db-get-evaluations-build-summary spec limit border-low border-high)
   (with-db-worker-thread db
-    (let loop ((rows (sqlite-exec db "
-SELECT E.id, E.status, SUM(B.status=0) as succeeded,
-SUM(B.status>0) as failed, SUM(B.status<0) as scheduled FROM
+    (let ((query "
+SELECT E.id, E.status,
+SUM(CASE WHEN B.status = 0 THEN 1 ELSE 0 END) as succeeded,
+SUM(CASE WHEN B.status > 0 THEN 1 ELSE 0 END) as failed,
+SUM(CASE WHEN B.status < 0 THEN 1 ELSE 0 END) as scheduled FROM
 (SELECT id, status FROM Evaluations
-WHERE (specification=" spec ")
-AND (" border-low "IS NULL OR (id >" border-low "))
-AND (" border-high "IS NULL OR (id <" border-high "))
-ORDER BY CASE WHEN " border-low "IS NULL THEN id ELSE -id END DESC
-LIMIT " limit ") E
+WHERE specification=:spec
+AND (id > :borderlow OR :borderlow IS NULL)
+AND (id < :borderhigh OR :borderhigh IS NULL)
+ORDER BY CASE WHEN :borderlow IS NULL THEN id ELSE -id END DESC
+LIMIT :limit) E
 LEFT JOIN Builds as B
 ON B.evaluation=E.id
-GROUP BY E.id
-ORDER BY E.id ASC;"))
-               (evaluations '()))
-      (match rows
-        (() evaluations)
-        ((#(id status succeeded failed scheduled) . rest)
-         (loop rest
-               (cons `((#:id . ,id)
-                       (#:status . ,status)
-                       (#:checkouts . ,(db-get-checkouts id))
-                       (#:succeeded . ,(or succeeded 0))
-                       (#:failed . ,(or failed 0))
-                       (#:scheduled . ,(or scheduled 0)))
-                     evaluations)))))))
+GROUP BY E.id, E.status
+ORDER BY E.id DESC;")
+          (params `((#:spec . ,spec)
+                    (#:limit . ,limit)
+                    (#:borderlow . ,border-low)
+                    (#:borderhigh . ,border-high))))
+      (let loop ((rows (exec-query/bind-params db query params))
+                 (evaluations '()))
+        (match rows
+          (() (reverse evaluations))
+          (((id status succeeded failed scheduled) . rest)
+           (loop rest
+                 (cons `((#:id . ,(string->number id))
+                         (#:status . ,(string->number status))
+                         (#:checkouts . ,(db-get-checkouts id))
+                         (#:succeeded . ,(or (string->number succeeded) 0))
+                         (#:failed . ,(or (string->number failed) 0))
+                         (#:scheduled . ,(or (string->number scheduled) 0)))
+                       evaluations))))))))
 
 (define (db-get-evaluations-id-min spec)
   "Return the min id of evaluations for the given specification SPEC."
   (with-db-worker-thread db
-    (let ((rows (sqlite-exec db "
+    (match (expect-one-row
+            (exec-query/bind db "
 SELECT MIN(id) FROM Evaluations
-WHERE specification=" spec)))
-      (and=> (expect-one-row rows) (cut vector-ref <> 0)))))
+WHERE specification=" spec))
+      ((min) (and min (string->number min))))))
 
 (define (db-get-evaluations-id-max spec)
   "Return the max id of evaluations for the given specification SPEC."
   (with-db-worker-thread db
-    (let ((rows (sqlite-exec db "
+    (match (expect-one-row
+            (exec-query/bind db "
 SELECT MAX(id) FROM Evaluations
-WHERE specification=" spec)))
-      (and=> (expect-one-row rows) (cut vector-ref <> 0)))))
+WHERE specification=" spec))
+      ((max) (and max (string->number max))))))
 
 (define (db-get-evaluation-summary id)
   (with-db-worker-thread db
-    (let ((rows (sqlite-exec db "
-SELECT E.id, E.status, E.timestamp, E.checkouttime, E.evaltime,
-SUM(B.status>-100) as total, SUM(B.status=0) as succeeded,
-SUM(B.status>0) as failed, SUM(B.status<0) as scheduled FROM
-(SELECT id, status, timestamp, checkouttime, evaltime FROM
-        Evaluations WHERE (id=" id ")) E
+    (match (expect-one-row
+            (exec-query/bind db "
+SELECT Evaluations.id, Evaluations.status, Evaluations.timestamp,
+Evaluations.checkouttime, Evaluations.evaltime,
+SUM(CASE WHEN B.status > -100 THEN 1 ELSE 0 END) as total,
+SUM(CASE WHEN B.status = 0 THEN 1 ELSE 0 END) as succeeded,
+SUM(CASE WHEN B.status > 0 THEN 1 ELSE 0 END) as failed,
+SUM(CASE WHEN B.status < 0 THEN 1 ELSE 0 END) as scheduled
+FROM Evaluations
 LEFT JOIN Builds as B
-ON B.evaluation=E.id
-ORDER BY E.id ASC;")))
-      (and=> (expect-one-row rows)
-             (match-lambda
-               (#(id status timestamp checkouttime evaltime
-                     total succeeded failed scheduled)
-                `((#:id . ,id)
-                  (#:status . ,status)
-                  (#:total . ,(or total 0))
-                  (#:timestamp . ,timestamp)
-                  (#:checkouttime . ,checkouttime)
-                  (#:evaltime . ,evaltime)
-                  (#:succeeded . ,(or succeeded 0))
-                  (#:failed . ,(or failed 0))
-                  (#:scheduled . ,(or scheduled 0)))))))))
+ON B.evaluation = Evaluations.id
+WHERE Evaluations.id = " id
+"GROUP BY Evaluations.id
+ORDER BY Evaluations.id ASC;"))
+      ((id status timestamp checkouttime evaltime
+           total succeeded failed scheduled)
+       `((#:id . ,(string->number id))
+         (#:status . ,(string->number status))
+         (#:total . ,(or (string->number total) 0))
+         (#:timestamp . ,(string->number timestamp))
+         (#:checkouttime . ,(string->number checkouttime))
+         (#:evaltime . ,(string->number evaltime))
+         (#:succeeded . ,(or (string->number succeeded) 0))
+         (#:failed . ,(or (string->number failed) 0))
+         (#:scheduled . ,(or (string->number scheduled) 0))))
+      (else #f))))
 
-(define (db-get-builds-query-min query)
+(define (db-get-builds-query-min filters)
   "Return the smallest build row identifier matching QUERY."
   (with-db-worker-thread db
-    (let* ((stmt-text "SELECT MIN(Builds.rowid) FROM Builds
+    (let* ((query "SELECT MIN(Builds.id) FROM Builds
 INNER JOIN Evaluations ON Builds.evaluation = Evaluations.id
 INNER JOIN Specifications ON Evaluations.specification = Specifications.name
 WHERE (Builds.nix_name LIKE :query)
-AND (:status IS NULL
- OR (Builds.status = :status))
-AND (:spec IS NULL
- OR (Specifications.name = :spec))
-AND (:system IS NULL
- OR (Builds.system = :system));")
-           (stmt (sqlite-prepare db stmt-text #:cache? #t)))
-      (apply sqlite-bind-arguments stmt
-             (query->bind-arguments query))
-      (let ((rows (sqlite-fold-right cons '() stmt)))
-        (sqlite-reset stmt)
-        (and=> (expect-one-row rows) vector->list)))))
+AND (Builds.status = :status OR :status IS NULL)
+AND (Specifications.name = :spec OR :spec IS NULL)
+AND (Builds.system = :system OR :system IS NULL);")
+           (params (query->bind-arguments filters)))
+      (match (expect-one-row
+              (exec-query/bind-params db query params))
+        ((min) (and min
+                    (list (string->number min))))))))
 
-(define (db-get-builds-query-max query)
+(define (db-get-builds-query-max filters)
   "Return the largest build row identifier matching QUERY."
   (with-db-worker-thread db
-    (let* ((stmt-text "SELECT MAX(Builds.rowid) FROM Builds
+    (let* ((query "SELECT MAX(Builds.id) FROM Builds
 INNER JOIN Evaluations ON Builds.evaluation = Evaluations.id
 INNER JOIN Specifications ON Evaluations.specification = Specifications.name
 WHERE (Builds.nix_name LIKE :query)
-AND (:status IS NULL
- OR (Builds.status = :status))
-AND (:spec IS NULL
- OR (Specifications.name = :spec))
-AND (:system IS NULL
- OR (Builds.system = :system));")
-           (stmt (sqlite-prepare db stmt-text #:cache? #t)))
-      (apply sqlite-bind-arguments stmt
-             (query->bind-arguments query))
-      (let ((rows (sqlite-fold-right cons '() stmt)))
-        (sqlite-reset stmt)
-        (and=> (expect-one-row rows) vector->list)))))
+AND (Builds.status = :status OR :status IS NULL)
+AND (Specifications.name = :spec OR :spec IS NULL)
+AND (Builds.system = :system OR :system IS NULL);")
+           (params (query->bind-arguments filters)))
+      (match (expect-one-row
+              (exec-query/bind-params db query params))
+        ((max) (and max
+                    (list (string->number max))))))))
 
 (define (db-get-builds-min eval status)
   "Return the min build (stoptime, rowid) pair for the given evaluation EVAL
 and STATUS."
   (with-db-worker-thread db
-    (let ((rows (sqlite-exec db "
-SELECT stoptime, rowid FROM Builds
-WHERE evaluation=" eval "
-AND (" status " IS NULL OR (" status " = 'pending'
-                            AND Builds.status < 0)
-                        OR (" status " = 'succeeded'
-                            AND Builds.status = 0)
-                        OR (" status " = 'failed'
-                            AND Builds.status > 0))
-ORDER BY stoptime ASC, rowid ASC
-LIMIT 1")))
-      (and=> (expect-one-row rows) vector->list))))
+    (let ((query "SELECT stoptime, id FROM Builds
+WHERE evaluation = :eval AND
+((:status = 'pending' AND Builds.status < 0) OR
+(:status = 'succeeded' AND Builds.status = 0) OR
+(:status = 'failed' AND Builds.status > 0) OR
+:status IS NULL)
+ORDER BY stoptime ASC, id ASC
+LIMIT 1")
+          (params `((#:eval . ,eval)
+                    (#:status . ,status))))
+      (match (expect-one-row
+              (exec-query/bind-params db query params))
+        ((stoptime id) (list (string->number stoptime)
+                             (string->number id)))
+        (else #f)))))
 
 (define (db-get-builds-max eval status)
   "Return the max build (stoptime, rowid) pair for the given evaluation EVAL
 and STATUS."
   (with-db-worker-thread db
-    (let ((rows (sqlite-exec db "
-SELECT stoptime, rowid FROM Builds
-WHERE evaluation=" eval "
-AND (" status " IS NULL OR (" status " = 'pending'
-                            AND Builds.status < 0)
-                        OR (" status " = 'succeeded'
-                            AND Builds.status = 0)
-                        OR (" status " = 'failed'
-                            AND Builds.status > 0))
-ORDER BY stoptime DESC, rowid DESC
-LIMIT 1")))
-      (and=> (expect-one-row rows) vector->list))))
+    (let ((query "SELECT stoptime, id FROM Builds
+WHERE evaluation = :eval AND
+((:status = 'pending' AND Builds.status < 0) OR
+(:status = 'succeeded' AND Builds.status = 0) OR
+(:status = 'failed' AND Builds.status > 0) OR
+:status IS NULL)
+ORDER BY stoptime DESC, id DESC
+LIMIT 1")
+          (params `((#:eval . ,eval)
+                    (#:status . ,status))))
+      (match (expect-one-row
+              (exec-query/bind-params db query params))
+        ((stoptime id) (list (string->number stoptime)
+                             (string->number id)))
+        (else #f)))))
 
 (define (db-get-evaluation-specification eval)
   "Return specification of evaluation with id EVAL."
   (with-db-worker-thread db
-    (let ((rows (sqlite-exec db "
+    (match (expect-one-row
+            (exec-query/bind db "
 SELECT specification FROM Evaluations
-WHERE id = " eval)))
-      (and=> (expect-one-row rows) (cut vector-ref <> 0)))))
+WHERE id = " eval))
+      ((spec) spec)
+      (else #f))))
 
 (define (db-get-build-product-path id)
   "Return the build product with the given ID."
   (with-db-worker-thread db
-    (let ((rows (sqlite-exec db "
+    (match (expect-one-row
+            (exec-query/bind db "
 SELECT path FROM BuildProducts
-WHERE rowid = " id)))
-      (and=> (expect-one-row rows) (cut vector-ref <> 0)))))
-
-(define (db-get-build-products build-id)
-  "Return the build products associated to the given BUILD-ID."
-  (with-db-worker-thread db
-    (let loop ((rows  (sqlite-exec db "
-SELECT rowid, type, file_size, checksum, path from BuildProducts
-WHERE build = " build-id))
-               (products '()))
-      (match rows
-        (() (reverse products))
-        ((#(id type file-size checksum path)
-           . rest)
-         (loop rest
-               (cons `((#:id . ,id)
-                       (#:type . ,type)
-                       (#:file-size . ,file-size)
-                       (#:checksum . ,checksum)
-                       (#:path . ,path))
-                     products)))))))
+WHERE id = " id))
+      ((path) path)
+      (else #f))))
 
 (define (db-add-worker worker)
   "Insert WORKER into Worker table."
-  (with-db-writer-worker-thread db
-    (sqlite-exec db "\
-INSERT OR REPLACE INTO Workers (name, address, systems, last_seen)
+  (with-db-worker-thread db
+    (exec-query/bind db "\
+INSERT INTO Workers (name, address, systems, last_seen)
 VALUES ("
-                 (worker-name worker) ", "
-                 (worker-address worker) ", "
-                 (string-join (worker-systems worker) ",") ", "
-                 (worker-last-seen worker) ");")
-    (last-insert-rowid db)))
+                     (worker-name worker) ", "
+                     (worker-address worker) ", "
+                     (string-join (worker-systems worker) ",") ", "
+                     (worker-last-seen worker) ");")))
 
 (define (db-get-workers)
   "Return the workers in Workers table."
   (with-db-worker-thread db
-    (let loop ((rows  (sqlite-exec db "
+    (let loop ((rows (exec-query db "
 SELECT name, address, systems, last_seen from Workers"))
                (workers '()))
       (match rows
         (() (reverse workers))
-        ((#(name address systems last-seen)
+        (((name address systems last-seen)
           . rest)
          (loop rest
                (cons (worker
@@ -1482,5 +1374,14 @@ SELECT name, address, systems, last_seen from Workers"))
 
 (define (db-clear-workers)
   "Remove all workers from Workers table."
-  (with-db-writer-worker-thread db
-    (sqlite-exec db "DELETE FROM Workers;")))
+  (with-db-worker-thread db
+    (exec-query db "DELETE FROM Workers;")))
+
+(define (db-clear-build-queue)
+  "Reset the status of builds in the database that are marked as \"started\"."
+  (with-db-worker-thread db
+    (exec-query db "UPDATE Builds SET status = -2 WHERE status < 0;")))
+
+;;; Local Variables:
+;;; eval: (put 'with-db-worker-thread 'scheme-indent-function 1)
+;;; End:

@@ -636,8 +636,7 @@ updating the database accordingly."
   "Reset the status of builds in the database that are marked as \"started\".
 This procedure is meant to be called at startup."
   (log-message "marking stale builds as \"scheduled\"...")
-  (with-db-worker-thread db
-    (sqlite-exec db "UPDATE Builds SET status = -2 WHERE status = -1;")))
+  (db-clear-build-queue))
 
 (define (restart-builds)
   "Restart builds whose status in the database is \"pending\" (scheduled or

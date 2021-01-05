@@ -250,14 +250,14 @@ Hydra format."
     #:avg-eval-build-start-time
     (db-get-metrics-with-id 'average-eval-build-start-time
                             #:limit 100
-                            #:order "field ASC")
+                            #:order "cast(field as int) ASC")
     #:builds-per-day
     (db-get-metrics-with-id 'builds-per-day
                             #:limit 100)
     #:eval-completion-speed
     (db-get-metrics-with-id 'evaluation-completion-speed
                             #:limit 100
-                            #:order "field ASC")
+                            #:order "cast(field as int) ASC")
     #:new-derivations-per-day
     (db-get-metrics-with-id 'new-derivations-per-day
                             #:limit 100)

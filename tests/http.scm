@@ -24,6 +24,7 @@
              (cuirass utils)
              (json)
              (fibers)
+             (squee)
              (web uri)
              (web client)
              (web response)
@@ -48,13 +49,8 @@
 (define (test-cuirass-uri route)
   (string-append "http://localhost:6688" route))
 
-(define database-name
-  ;; Use an empty and temporary database for the tests.
-  (string-append (getcwd) "/" (number->string (getpid)) "-tmp.db"))
-
 (define %db
-  ;; Global Slot for a database object.
-  (make-parameter #t))
+  (make-parameter #f))
 
 (define build-query-result
   '((#:id . 1)
@@ -111,11 +107,10 @@
 
   (test-assert "db-init"
     (begin
-      (%db (db-init database-name))
+      (%db (db-open))
       (%db-channel (make-worker-thread-channel
                     (lambda ()
                       (list (%db)))))
-      (%db-writer-channel (%db-channel))
       #t))
 
   (test-assert "cuirass-run"
@@ -191,13 +186,13 @@
               ((#:commit . "fakesha3")
                (#:input . "packages")
                (#:directory . "dir4")))))
-      (db-add-build build1)
-      (db-add-build build2)
       (db-add-specification specification)
       (db-add-evaluation "guix" checkouts1
                          #:timestamp 1501347493)
       (db-add-evaluation "guix" checkouts2
-                         #:timestamp 1501347493)))
+                         #:timestamp 1501347493)
+      (db-add-build build1)
+      (db-add-build build2)))
 
   (test-assert "/specifications"
     (match (call-with-input-string
@@ -290,8 +285,7 @@
       (http-get-body (test-cuirass-uri "/api/evaluations?nr=1")))))
 
   (test-assert "db-close"
-    (db-close (%db)))
-
-  (begin
-    (%db-channel #f)
-    (delete-file database-name)))
+    (begin
+      (exec-query (%db) (format #f "DROP OWNED BY CURRENT_USER;"))
+      (db-close (%db))
+      #t)))

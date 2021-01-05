@@ -57,8 +57,6 @@ exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
   -p  --port=NUM            Port of the HTTP server.
       --listen=HOST         Listen on the network interface for HOST
   -I, --interval=N          Wait N seconds between each poll
-  -Q, --queue-size=N        Set the writer queue size to N elements.
-      --log-queries=FILE    Log SQL queries in FILE.
       --build-remote        Use the remote build mechanism
       --use-substitutes     Allow usage of pre-built substitutes
       --record-events       Record events for distribution
@@ -77,12 +75,10 @@ exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
     (port           (single-char #\p) (value #t))
     (listen                           (value #t))
     (interval       (single-char #\I) (value #t))
-    (queue-size     (single-char #\Q) (value #t))
     (build-remote                     (value #f))
     (use-substitutes                  (value #f))
     (threads                          (value #t))
     (fallback                         (value #f))
-    (log-queries                      (value #t))
     (record-events                    (value #f))
     (ttl                              (value #t))
     (version        (single-char #\V) (value #f))
@@ -110,9 +106,7 @@ exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
          (%fallback? (option-ref opts 'fallback #f))
          (%record-events? (option-ref opts 'record-events #f))
          (%gc-root-ttl
-          (time-second (string->duration (option-ref opts 'ttl "30d"))))
-         (%db-writer-queue-size
-          (string->number (option-ref opts 'queue-size "1"))))
+          (time-second (string->duration (option-ref opts 'ttl "30d")))))
       (cond
        ((option-ref opts 'help #f)
         (show-help)
@@ -129,7 +123,6 @@ exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
               (host (option-ref opts 'listen "localhost"))
               (interval (string->number (option-ref opts 'interval "300")))
               (specfile (option-ref opts 'specifications #f))
-              (queries-file (option-ref opts 'log-queries #f))
 
               ;; Since our work is mostly I/O-bound, default to a maximum of 4
               ;; kernel threads.  Going beyond that can increase overhead (GC
@@ -140,95 +133,87 @@ exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
                              (min (current-processor-count) 4))))
           (prepare-git)
 
-          (unless (option-ref opts 'web #f)
-            (log-message "performing database optimizations")
-            (db-optimize))
-
           (log-message "running Fibers on ~a kernel threads" threads)
           (run-fibers
            (lambda ()
              (with-database
-               (with-queue-writer-worker
-                 (and specfile
-                      (let ((new-specs (save-module-excursion
-                                        (lambda ()
-                                          (set-current-module
-                                           (make-user-module '()))
-                                          (primitive-load specfile)))))
-                        (for-each db-add-specification new-specs)))
+               (and specfile
+                    (let ((new-specs (save-module-excursion
+                                      (lambda ()
+                                        (set-current-module
+                                         (make-user-module '()))
+                                        (primitive-load specfile)))))
 
-                 (when queries-file
-                   (log-message "Enable SQL query logging.")
-                   (db-log-queries queries-file))
+                      (for-each db-add-specification new-specs)))
 
-                 (if one-shot?
-                     (process-specs (db-get-specifications))
-                     (let ((exit-channel (make-channel)))
-                       (start-watchdog)
-                       (if (option-ref opts 'web #f)
-                           (begin
-                             (spawn-fiber
-                              (essential-task
-                               'web exit-channel
-                               (lambda ()
-                                 (run-cuirass-server #:host host
-                                                     #:port port)))
-                              #:parallel? #t)
+               (if one-shot?
+                   (process-specs (db-get-specifications))
+                   (let ((exit-channel (make-channel)))
+                     (start-watchdog)
+                     (if (option-ref opts 'web #f)
+                         (begin
+                           (spawn-fiber
+                            (essential-task
+                             'web exit-channel
+                             (lambda ()
+                               (run-cuirass-server #:host host
+                                                   #:port port)))
+                            #:parallel? #t)
 
-                             (spawn-fiber
-                              (essential-task
-                               'monitor exit-channel
-                               (lambda ()
-                                 (while #t
-                                   (log-monitoring-stats)
-                                   (sleep 600))))))
+                           (spawn-fiber
+                            (essential-task
+                             'monitor exit-channel
+                             (lambda ()
+                               (while #t
+                                 (log-monitoring-stats)
+                                 (sleep 600))))))
 
-                           (begin
-                             (clear-build-queue)
+                         (begin
+                           (clear-build-queue)
 
-                             ;; If Cuirass was stopped during an evaluation,
-                             ;; abort it. Builds that were not registered
-                             ;; during this evaluation will be registered
-                             ;; during the next evaluation.
-                             (db-abort-pending-evaluations)
+                           ;; If Cuirass was stopped during an evaluation,
+                           ;; abort it. Builds that were not registered
+                           ;; during this evaluation will be registered
+                           ;; during the next evaluation.
+                           (db-abort-pending-evaluations)
 
-                             ;; First off, restart builds that had not
-                             ;; completed or were not even started on a
-                             ;; previous run.
-                             (spawn-fiber
-                              (essential-task
-                               'restart-builds exit-channel
-                               (lambda ()
-                                 (restart-builds))))
+                           ;; First off, restart builds that had not
+                           ;; completed or were not even started on a
+                           ;; previous run.
+                           (spawn-fiber
+                            (essential-task
+                             'restart-builds exit-channel
+                             (lambda ()
+                               (restart-builds))))
 
-                             (spawn-fiber
-                              (essential-task
-                               'build exit-channel
-                               (lambda ()
-                                 (while #t
-                                   (process-specs (db-get-specifications))
-                                   (log-message
-                                    "next evaluation in ~a seconds" interval)
-                                   (sleep interval)))))
+                           (spawn-fiber
+                            (essential-task
+                             'build exit-channel
+                             (lambda ()
+                               (while #t
+                                 (process-specs (db-get-specifications))
+                                 (log-message
+                                  "next evaluation in ~a seconds" interval)
+                                 (sleep interval)))))
 
-                             (spawn-fiber
-                              (essential-task
-                               'metrics exit-channel
-                               (lambda ()
-                                 (while #t
-                                   (with-time-logging
-                                    "Metrics update"
-                                    (db-update-metrics))
-                                   (sleep 3600)))))
+                           (spawn-fiber
+                            (essential-task
+                             'metrics exit-channel
+                             (lambda ()
+                               (while #t
+                                 (with-time-logging
+                                  "Metrics update"
+                                  (db-update-metrics))
+                                 (sleep 3600)))))
 
-                             (spawn-fiber
-                              (essential-task
-                               'monitor exit-channel
-                               (lambda ()
-                                 (while #t
-                                   (log-monitoring-stats)
-                                   (sleep 600)))))))
-                       (primitive-exit (get-message exit-channel)))))))
+                           (spawn-fiber
+                            (essential-task
+                             'monitor exit-channel
+                             (lambda ()
+                               (while #t
+                                 (log-monitoring-stats)
+                                 (sleep 600)))))))
+                     (primitive-exit (get-message exit-channel))))))
 
            ;; Most of our code is I/O so preemption doesn't matter much (it
            ;; could help while we're doing SQL requests, for instance, but it

@@ -157,6 +157,7 @@ system whose names start with " (code "guile-") ":" (br)
 
 (define (status-class status)
   (cond
+    ((= (build-status submitted)         status) "oi oi-clock         text-warning")
     ((= (build-status scheduled)         status) "oi oi-clock         text-warning")
     ((= (build-status started)           status) "oi oi-reload        text-warning")
     ((= (build-status succeeded)         status) "oi oi-check         text-success")
@@ -168,6 +169,7 @@ system whose names start with " (code "guile-") ":" (br)
 
 (define (status-title status)
   (cond
+    ((= (build-status submitted)         status) "Submitted")
     ((= (build-status scheduled)         status) "Scheduled")
     ((= (build-status started)           status) "Started")
     ((= (build-status succeeded)         status) "Succeeded")

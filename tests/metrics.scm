@@ -21,15 +21,8 @@
              (cuirass metrics)
              (cuirass utils)
              ((guix utils) #:select (call-with-temporary-output-file))
+             (squee)
              (srfi srfi-64))
-
-(define-syntax-rule (with-temporary-database body ...)
-  (call-with-temporary-output-file
-   (lambda (file port)
-     (parameterize ((%package-database file))
-       (db-init file)
-       (with-database
-         body ...)))))
 
 (define today
   (let ((time (current-time)))
@@ -39,50 +32,49 @@
   (- today 86400))
 
 (define %db
-  ;; Global Slot for a database object.
-  (make-parameter #t))
-
-(define database-name
-  ;; Use an empty and temporary database for the tests.
-  (string-append (getcwd) "/" (number->string (getpid)) "-tmp.db"))
+  (make-parameter #f))
 
 (test-group-with-cleanup "database"
   (test-assert "db-init"
     (begin
-      (%db (db-init database-name))
+      (%db (db-open))
       (%db-channel (make-worker-thread-channel
                     (lambda ()
                       (list (%db)))))
-      (%db-writer-channel (%db-channel))
       #t))
 
-  (test-assert "sqlite-exec"
+  (test-assert "exec-query"
     (begin
-      (sqlite-exec (%db) "\
+      (exec-query (%db) "\
+INSERT INTO Specifications (name, load_path_inputs, package_path_inputs,
+proc_input, proc_file, proc, proc_args, build_outputs, priority)
+VALUES ('guix', '()', '()', 'guix',' build-aux/cuirass/gnu-system.scm',
+'cuirass-jobs', '', '', 2);")
+      (exec-query (%db) "\
 INSERT INTO Evaluations (specification, status,
 timestamp, checkouttime, evaltime) VALUES ('guix', -1, 1600174547, 0, 0);")
-      (sqlite-exec (%db) (format #f "\
+      (exec-query (%db) (format #f "\
 INSERT INTO Evaluations (specification, status,
 timestamp, checkouttime, evaltime) VALUES ('guix', 0, ~a, ~a, ~a);\
 " yesterday (+ yesterday 100) (+ yesterday 600)))
-      (sqlite-exec (%db) "\
+      (exec-query (%db) "\
 INSERT INTO Evaluations (specification, status,
 timestamp, checkouttime, evaltime) VALUES ('guix', 1, 1600174547,
 1600174548, 0);")
-      (sqlite-exec (%db) "\
+      (exec-query (%db) "\
 INSERT INTO Evaluations (specification, status,
 timestamp, checkouttime, evaltime) VALUES ('guix', 1, 1600174547,
 1600174548, 1600174647);")
-      (sqlite-exec (%db) (format #f "\
+      (exec-query (%db) (format #f "\
 INSERT INTO Builds (id, derivation, evaluation, job_name, system,
 nix_name, log, status, timestamp, starttime, stoptime) VALUES
 (1, '/gnu/store/1.drv', 2, '', '', '', '', 0, ~a, ~a, ~a);\
 " yesterday (+ yesterday 1600) (+ yesterday 2600)))
-      (sqlite-exec (%db) (format #f "\
+      (exec-query (%db) (format #f "\
 INSERT INTO Builds (id, derivation, evaluation, job_name, system,
 nix_name, log, status, timestamp, starttime, stoptime) VALUES
 (2, '/gnu/store/2.drv', 2, '', '', '', '', -2, 0, 0, 0);"))
-      (sqlite-exec (%db) (format #f "\
+      (exec-query (%db) (format #f "\
 INSERT INTO Builds (id, derivation, evaluation, job_name, system,
 nix_name, log, status, timestamp, starttime, stoptime) VALUES
 (3, '/gnu/store/3.drv', 4, '', '', '', '', 0, 1600174451, 1600174451,
@@ -94,65 +86,60 @@ nix_name, log, status, timestamp, starttime, stoptime) VALUES
       (db-update-metric 'average-eval-duration-per-spec "guix")
       (db-get-metrics-with-id 'average-eval-duration-per-spec)))
 
-  (test-equal "builds-per-day"
-    1.0
-    (begin
-      (db-update-metric 'builds-per-day)
-      (db-get-metric 'builds-per-day yesterday)))
+    (test-equal "builds-per-day"
+      1.0
+      (begin
+        (db-update-metric 'builds-per-day)
+        (db-get-metric 'builds-per-day yesterday)))
 
-  (test-equal "pending-builds"
-    `((,today . 1.0))
-    (begin
-      (db-update-metric 'pending-builds)
-      (db-get-metrics-with-id 'pending-builds)))
+    (test-equal "pending-builds"
+      `((,today . 1.0))
+      (begin
+        (db-update-metric 'pending-builds)
+        (db-get-metrics-with-id 'pending-builds)))
 
-  (test-equal "new-derivations-per-day"
-    `((,yesterday . 1.0))
-    (begin
-      (db-update-metric 'new-derivations-per-day)
-      (db-get-metrics-with-id 'new-derivations-per-day)))
+    (test-equal "new-derivations-per-day"
+      `((,yesterday . 1.0))
+      (begin
+        (db-update-metric 'new-derivations-per-day)
+        (db-get-metrics-with-id 'new-derivations-per-day)))
 
-  (test-equal "percentage-failed-eval-per-spec"
-    `(("guix" . 50.0))
-    (begin
-      (db-update-metric 'percentage-failed-eval-per-spec "guix")
-      (db-get-metrics-with-id 'percentage-failed-eval-per-spec)))
+    (test-equal "percentage-failed-eval-per-spec"
+      `(("guix" . 50.0))
+      (begin
+        (db-update-metric 'percentage-failed-eval-per-spec "guix")
+        (db-get-metrics-with-id 'percentage-failed-eval-per-spec)))
 
-  (test-equal "db-update-metrics"
-    `((,today . 2.0))
-    (begin
-      (sqlite-exec (%db) (format #f "\
+    (test-equal "db-update-metrics"
+      `((,today . 2.0))
+      (begin
+        (exec-query (%db) (format #f "\
 INSERT INTO Builds (id, derivation, evaluation, job_name, system,
 nix_name, log, status, timestamp, starttime, stoptime) VALUES
 (4, '/gnu/store/4.drv', 1, '', '', '', '', -2, 0, 0, 0);"))
-      (db-update-metrics)
-      (db-get-metrics-with-id 'pending-builds)))
+        (db-update-metrics)
+        (db-get-metrics-with-id 'pending-builds)))
 
-  (test-equal "average-eval-build-start-time"
-    `((2 . 1000.0))
-    (begin
-      (db-update-metric 'average-eval-build-start-time 2)
-      (db-get-metrics-with-id 'average-eval-build-start-time)))
+    (test-equal "average-eval-build-start-time"
+      `((2 . 1000.0))
+      (begin
+        (db-update-metric 'average-eval-build-start-time 2)
+        (db-get-metrics-with-id 'average-eval-build-start-time)))
 
-  (test-equal "average-eval-build-complete-time"
-    `((2 . 2000.0))
-    (begin
-      (db-update-metric 'average-eval-build-complete-time 2)
-      (db-get-metrics-with-id 'average-eval-build-complete-time)))
+    (test-equal "average-eval-build-complete-time"
+      `((2 . 2000.0))
+      (begin
+        (db-update-metric 'average-eval-build-complete-time 2)
+        (db-get-metrics-with-id 'average-eval-build-complete-time)))
 
-  (test-equal "evaluation-completion-speed"
-    900.0
-    (begin
-      (db-update-metric 'evaluation-completion-speed 4)
-      (db-get-metric 'evaluation-completion-speed 4)))
+    (test-equal "evaluation-completion-speed"
+      900.0
+      (begin
+        (db-update-metric 'evaluation-completion-speed 4)
+        (db-get-metric 'evaluation-completion-speed 4)))
 
   (test-assert "db-close"
-    (db-close (%db)))
-
-  (begin
-    (%db-channel #f)
-    (delete-file database-name)))
-
-;;; Local Variables:
-;;; eval: (put 'with-temporary-database 'scheme-indent-function 0)
-;;; End:
+    (begin
+      (exec-query (%db) (format #f "DROP OWNED BY CURRENT_USER;"))
+      (db-close (%db))
+      #t)))

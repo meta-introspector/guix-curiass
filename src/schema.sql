@@ -1,5 +1,9 @@
 BEGIN TRANSACTION;
 
+CREATE TABLE SchemaVersion (
+    version     INTEGER NOT NULL
+);
+
 CREATE TABLE Specifications (
   name          TEXT NOT NULL PRIMARY KEY,
   load_path_inputs TEXT NOT NULL, -- list of input names whose load path will be in Guile's %load-path
@@ -23,7 +27,17 @@ CREATE TABLE Inputs (
   revision      TEXT,
   no_compile_p  INTEGER,
   PRIMARY KEY (specification, name),
-  FOREIGN KEY (specification) REFERENCES Specifications (name)
+  FOREIGN KEY (specification) REFERENCES Specifications(name)
+);
+
+CREATE TABLE Evaluations (
+  id            SERIAL PRIMARY KEY,
+  specification TEXT NOT NULL,
+  status        INTEGER NOT NULL,
+  timestamp     INTEGER NOT NULL,
+  checkouttime  INTEGER NOT NULL,
+  evaltime      INTEGER NOT NULL,
+  FOREIGN KEY (specification) REFERENCES Specifications(name)
 );
 
 CREATE TABLE Checkouts (
@@ -34,30 +48,13 @@ CREATE TABLE Checkouts (
   directory     TEXT NOT NULL,
   timestamp     INTEGER NOT NULL,
   PRIMARY KEY (specification, revision),
-  FOREIGN KEY (evaluation) REFERENCES Evaluations (id),
-  FOREIGN KEY (specification) REFERENCES Specifications (name),
-  FOREIGN KEY (input) REFERENCES Inputs (name)
-);
-
-CREATE TABLE Evaluations (
-  id            INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
-  specification TEXT NOT NULL,
-  status        INTEGER NOT NULL,
-  timestamp     INTEGER NOT NULL,
-  checkouttime  INTEGER NOT NULL,
-  evaltime      INTEGER NOT NULL,
-  FOREIGN KEY (specification) REFERENCES Specifications (name)
-);
-
-CREATE TABLE Outputs (
-  derivation TEXT NOT NULL,
-  name TEXT NOT NULL,
-  path TEXT NOT NULL PRIMARY KEY,
-  FOREIGN KEY (derivation) REFERENCES Builds (derivation)
+  FOREIGN KEY (evaluation) REFERENCES Evaluations(id),
+  FOREIGN KEY (specification) REFERENCES Specifications(name),
+  FOREIGN KEY (specification, input) REFERENCES Inputs(specification, name)
 );
 
 CREATE TABLE Builds (
-  id            INTEGER NOT NULL PRIMARY KEY,
+  id            SERIAL PRIMARY KEY,
   derivation    TEXT NOT NULL UNIQUE,
   evaluation    INTEGER NOT NULL,
   job_name      TEXT NOT NULL,
@@ -72,11 +69,19 @@ CREATE TABLE Builds (
   timestamp     INTEGER NOT NULL,
   starttime     INTEGER NOT NULL,
   stoptime      INTEGER NOT NULL,
-  FOREIGN KEY (evaluation) REFERENCES Evaluations (id)
+  FOREIGN KEY (evaluation) REFERENCES Evaluations(id)
+);
+
+CREATE TABLE Outputs (
+  derivation TEXT NOT NULL,
+  name TEXT NOT NULL,
+  path TEXT NOT NULL PRIMARY KEY,
+  FOREIGN KEY (derivation) REFERENCES Builds(derivation) ON DELETE CASCADE
 );
 
 CREATE TABLE Metrics (
-  field         INTEGER NOT NULL,
+  id            SERIAL,
+  field         TEXT NOT NULL,
   type          INTEGER NOT NULL,
   value         DOUBLE PRECISION NOT NULL,
   timestamp     INTEGER NOT NULL,
@@ -84,17 +89,18 @@ CREATE TABLE Metrics (
 );
 
 CREATE TABLE BuildProducts (
+  id            SERIAL,
   build         INTEGER NOT NULL,
   type          TEXT NOT NULL,
   file_size     BIGINT NOT NULL,
   checksum      TEXT NOT NULL,
   path          TEXT NOT NULL,
-  PRIMARY KEY (build, path)
-  FOREIGN KEY (build) REFERENCES Builds (id) ON DELETE CASCADE
+  PRIMARY KEY (build, path),
+  FOREIGN KEY (build) REFERENCES Builds(id) ON DELETE CASCADE
 );
 
 CREATE TABLE Events (
-  id            INTEGER PRIMARY KEY,
+  id            SERIAL PRIMARY KEY,
   type          TEXT NOT NULL,
   timestamp     INTEGER NOT NULL,
   event_json    TEXT NOT NULL
@@ -112,12 +118,12 @@ CREATE TABLE Workers (
 CREATE INDEX Builds_status_index ON Builds (status);
 CREATE INDEX Builds_evaluation_index ON Builds (evaluation, status);
 CREATE INDEX Builds_job_name_timestamp on Builds(job_name, timestamp);
-CREATE INDEX Builds_nix_name ON Builds (nix_name COLLATE NOCASE);
+CREATE INDEX Builds_nix_name ON Builds (nix_name);
 CREATE INDEX Builds_timestamp_stoptime on Builds(timestamp, stoptime);
 CREATE INDEX Builds_stoptime on Builds(stoptime DESC);
 CREATE INDEX Builds_stoptime_id on Builds(stoptime DESC, id DESC);
 CREATE INDEX Builds_status_ts_id on Builds(status DESC, timestamp DESC, id ASC);
-CREATE INDEX Builds_priority_timestamp on Builds(priority DESC, timestamp ASC);
+CREATE INDEX Builds_priority_timestamp on Builds(priority ASC, timestamp DESC);
 
 CREATE INDEX Evaluations_status_index ON Evaluations (id, status);
 CREATE INDEX Evaluations_specification_index ON Evaluations (specification, id DESC);

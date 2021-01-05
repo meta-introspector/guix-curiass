@@ -79,25 +79,7 @@ nodist_webobject_DATA =				\
 dist_pkgdata_DATA = src/schema.sql
 
 dist_sql_DATA = 				\
-  src/sql/upgrade-1.sql				\
-  src/sql/upgrade-2.sql				\
-  src/sql/upgrade-3.sql				\
-  src/sql/upgrade-4.sql				\
-  src/sql/upgrade-5.sql				\
-  src/sql/upgrade-6.sql 			\
-  src/sql/upgrade-7.sql				\
-  src/sql/upgrade-8.sql				\
-  src/sql/upgrade-9.sql				\
-  src/sql/upgrade-10.sql			\
-  src/sql/upgrade-11.sql			\
-  src/sql/upgrade-12.sql			\
-  src/sql/upgrade-13.sql			\
-  src/sql/upgrade-14.sql			\
-  src/sql/upgrade-15.sql			\
-  src/sql/upgrade-16.sql			\
-  src/sql/upgrade-17.sql			\
-  src/sql/upgrade-18.sql			\
-  src/sql/upgrade-19.sql
+  src/sql/upgrade-1.sql
 
 dist_css_DATA =					\
   src/static/css/cuirass.css			\
@@ -162,12 +144,6 @@ CLEANFILES =					\
   $(nodist_webobject_DATA)			\
   $(nodist_guileobject_DATA)			\
   src/cuirass/config.go
-
-.PHONY:	sql-check
-sql-check: src/schema.sql
-	@echo "$<"
-	$(AM_V_at)sqlite3 tmp-$$$.db < $< ; \
-	rm tmp-$$$.db
 
 ## -------------- ##
 ## Distribution.  ##

@@ -173,7 +173,7 @@ Currently the only way to add those specifications to cuirass is to put
 a list of them in a file and set the @code{--specifications} command
 line option argument with the file name when launching the daemon
 (@pxref{Invocation}).  The specifications are persistent (they are kept
-in a SQLite database) so the next time @command{cuirass} is run the
+in a PostgreSQL database) so the next time @command{cuirass} is run the
 previously added specifications will remain active even if you don't
 keep the @code{--specifications} option.
 
@@ -209,9 +209,9 @@ database before launching the evaluation and build processes.
 @item --database=@var{database}
 @itemx -D @var{database}
 Use @var{database} as the database containing the jobs and the past
-build results. Since @code{cuirass} uses SQLite as a database engine,
-@var{database} must be a file name.  If the file doesn't exist, it will
-be created.
+build results. Since @code{cuirass} uses PostgreSQL as a database
+engine, @var{database} must be a file name.  If the file doesn't exist,
+it will be created.
 
 @item --ttl=@var{duration}
 Cuirass registers build results as garbage collector (GC) roots, thereby
@@ -263,11 +263,11 @@ Display an help message that summarize all the options provided.
 @node Database
 @chapter Database schema
 @cindex cuirass database
-@cindex sqlite database
+@cindex postgresql database
 @cindex persistent configuration
 
-Cuirass uses a SQLite database to store information about jobs and past
-build results, but also to coordinate the execution of jobs.
+Cuirass uses a PostgreSQL database to store information about jobs and
+past build results, but also to coordinate the execution of jobs.
 
 The database contains the following tables: @code{Specifications},
 @code{Inputs}, @code{Checkouts}, @code{Evaluations}, @code{Builds} and
