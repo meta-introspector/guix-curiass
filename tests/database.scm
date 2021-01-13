@@ -343,21 +343,20 @@ timestamp, checkouttime, evaltime) VALUES ('guix', 0, 0, 0, 0);")
     (list (build-status scheduled)
           (build-status started)
           (build-status succeeded)
-          "/foo2.drv.log")
+          "/foo2.log")
     (let* ((derivation (db-add-build
                         (make-dummy-build "/foo2.drv" 2
                                           #:outputs '(("out" . "/foo")))))
            (get-status (lambda* (#:optional (key #:status))
                          (assq-ref (db-get-build derivation) key))))
       (let ((status0 (get-status)))
-        (db-update-build-status! "/foo2.drv" (build-status started))
+        (db-update-build-status! "/foo2.drv" (build-status started)
+                                 #:log-file "/foo2.log")
         (let ((status1 (get-status)))
-          (db-update-build-status! "/foo2.drv" (build-status succeeded)
-                                   #:log-file "/foo2.drv.log")
+          (db-update-build-status! "/foo2.drv" (build-status succeeded))
 
           ;; Second call shouldn't make any difference.
-          (db-update-build-status! "/foo2.drv" (build-status succeeded)
-                                   #:log-file "/foo2.drv.log")
+          (db-update-build-status! "/foo2.drv" (build-status succeeded))
 
           (let ((status2 (get-status))
                 (start   (get-status #:starttime))
