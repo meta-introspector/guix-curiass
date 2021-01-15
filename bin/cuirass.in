@@ -98,6 +98,7 @@ exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
   (let ((opts (getopt-long args %options)))
     (parameterize
         ((%program-name     (car args))
+         (%create-database? (not (option-ref opts 'web #f)))
          (%package-database (option-ref opts 'database (%package-database)))
          (%package-cachedir
           (option-ref opts 'cache-directory (%package-cachedir)))

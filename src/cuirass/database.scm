@@ -92,6 +92,7 @@
             db-clear-workers
             db-clear-build-queue
             ;; Parameters.
+            %create-database?
             %package-database
             %package-schema-file
             %db-channel
@@ -204,6 +205,9 @@ parameters matches the number of arguments to bind."
                           (assoc-ref params symbol)))
                       (delete-duplicates args))))
     (exec-query db query (map normalize params))))
+
+(define %create-database?
+  (make-parameter #f))
 
 (define %package-database
   (make-parameter #f))
@@ -341,11 +345,13 @@ database object."
                             (getenv "CUIRASS_DATABASE")
                             (getenv "CUIRASS_HOST"))))
          (db (connect-to-postgres-paramstring param)))
-    (match (db-schema-version db)
-      (#f
-       (db-init db))
-      (else
-       (db-upgrade db)))))
+    (when (%create-database?)
+      (match (db-schema-version db)
+        (#f
+         (db-init db))
+        (else
+         (db-upgrade db))))
+    db))
 
 (define (db-close db)
   "Close database object DB."
