@@ -843,7 +843,9 @@ WHERE build = " build-id))
 FILTERS is an assoc list whose possible keys are the symbols query,
 border-low-id, border-high-id, and nr."
   (with-db-worker-thread db
-    (let* ((query (format #f "SELECT Builds.id, Builds.timestamp,
+    (let* ((query (format #f "
+SELECT * FROM
+(SELECT Builds.id, Builds.timestamp,
 Builds.starttime,Builds.stoptime, Builds.log, Builds.status,
 Builds.job_name, Builds.system, Builds.nix_name, Specifications.name
 FROM Builds
@@ -856,10 +858,10 @@ AND ((Builds.system = :system) OR :system IS NULL)
 AND ((:borderlowid < Builds.id) OR :borderlowid IS NULL)
 AND ((:borderhighid > Builds.id) OR :borderhighid IS NULL)
 ORDER BY
-CASE WHEN :borderlowid IS NULL THEN Builds.id
-                               ELSE -Builds.id
-END DESC
-LIMIT :nr;"))
+(CASE WHEN :borderlowid IS NULL THEN Builds.id
+ELSE -Builds.id END) DESC
+LIMIT :nr) Builds
+ORDER BY Builds.id DESC;"))
            (builds
             (exec-query/bind-params
              db
@@ -873,7 +875,7 @@ LIMIT :nr;"))
       (let loop ((builds builds)
                  (result '()))
         (match builds
-          (() result)
+          (() (reverse result))
           (((id timestamp starttime stoptime log status job-name
                 system nix-name specification)
             . rest)
