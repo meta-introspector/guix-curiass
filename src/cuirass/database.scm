@@ -997,7 +997,7 @@ FROM
 (SELECT B.id, B.derivation, B.name,
 string_agg(Outputs.name, ',') AS outputs_name,
 string_agg(Outputs.path, ',') AS outputs_path,
-string_agg(cast(BP.build AS text), ',') AS bp_build,
+string_agg(cast(BP.id AS text), ',') AS bp_build,
 string_agg(BP.type, ',') AS bp_type,
 string_agg(cast(BP.file_size AS text), ',') AS bp_file_size,
 string_agg(BP.checksum, ',') AS bp_checksum,
