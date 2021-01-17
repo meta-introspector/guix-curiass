@@ -107,6 +107,7 @@
 
   (test-assert "db-init"
     (begin
+      (%create-database? #t)
       (%db (db-open))
       (%db-channel (make-worker-thread-channel
                     (lambda ()

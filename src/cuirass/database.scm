@@ -1017,22 +1017,19 @@ ORDER BY ~a;"
            (params
             (map (match-lambda
                    ((name . value)
-                    (let ((key
-                           (symbol->keyword
-                            (or (assq-ref
-                                 '((border-low-time  . borderlowtime)
-                                   (border-high-time . borderhightime)
-                                   (border-low-id    . borderlowid)
-                                   (border-high-id   . borderhighid))
-                                 name)
-                                name)))
-                          (value
-                           (match name
-                             ('nr (or value -1))
-                             ('order #f) ; Doesn't need binding.
-                             ('status #f) ; Doesn't need binding.
-                             (else value))))
-                      (cons key value))))
+                    (cons (symbol->keyword
+                           (or (assq-ref
+                                '((border-low-time  . borderlowtime)
+                                  (border-high-time . borderhightime)
+                                  (border-low-id    . borderlowid)
+                                  (border-high-id   . borderhighid))
+                                name)
+                               name))
+                          (match name
+                            ('nr (or value -1))
+                            ('order #f) ; Doesn't need binding.
+                            ('status #f) ; Doesn't need binding.
+                            (else value)))))
                  filters))
            (builds (exec-query/bind-params db query params)))
       (let loop ((builds builds)
