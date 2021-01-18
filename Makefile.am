@@ -252,9 +252,8 @@ nobase_dist_pkgdata_DATA =			\
 
 # Ensure that the scripts will find their module directories.
 install-exec-hook:
-	$(SED) \
-	  -e 's,^#GUILE_LOAD,GUILE_LOAD,g' \
-	  -i $(DESTDIR)$(bindir)/cuirass
+	@find $(DESTDIR)$(bindir) -type f -exec \
+	$(SED) -i -e 's,^#GUILE_LOAD,GUILE_LOAD,g' {} ';'
 
 ## -------------- ##
 ## Silent rules.  ##
