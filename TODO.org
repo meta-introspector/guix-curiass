@@ -1,0 +1,24 @@
+* Add "BuildSteps" table like in Hydra.
+This will prevent package dependencies to be built multiple times.
+
+* Add tests for the remote building mechanism.
+- Write test cases covering the nominal remote building scenario, with a
+  server dispatching build tasks to multiple local workers.
+- Write test cases covering workers disconnection and reconnection.
+- Write test cases covering build timeout.
+
+* Improve the "/workers" page.
+- Add build machines status (CPU, RAM) usage.
+- The opensuse monitor page could be a good model:
+  https://build.opensuse.org/monitor.
+
+* Add new metrics.
+- Add "build speed per machine" and "idle time per machine" metrics.
+
+* Report build failures by email/RSS.
+
+* Add a user account section.
+- Add customized monitoring dashboards.
+- Add build failures notifications subscription page.
+- Add a substitutes availability service, so that users can be notified when
+  the substitutes coverage of their manifest is passing a threshold.
