@@ -242,7 +242,7 @@ PRIVATE-KEY to sign narinfos."
      (parameterize ((%public-key public-key)
                     (%private-key private-key))
        (with-store store
-         (let ((log-file (open-file "/tmp/publish.log" "w")))
+         (let ((log-file (open-file "/dev/null" "w")))
            (close-fdes 1)
            (close-fdes 2)
            (dup2 (fileno log-file) 1)

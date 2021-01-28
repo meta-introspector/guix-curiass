@@ -437,6 +437,10 @@ exiting."
 (define (remote-server args)
   (signal-handler)
 
+  ;; Always have stdout/stderr line-buffered.
+  (setvbuf (current-output-port) 'line)
+  (setvbuf (current-error-port) 'line)
+
   (with-error-handling
     (let* ((opts (args-fold* args %options
                              (lambda (opt name arg result)
