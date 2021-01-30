@@ -109,6 +109,7 @@ CREATE TABLE Events (
 CREATE TABLE Workers (
   name        TEXT NOT NULL PRIMARY KEY,
   address     TEXT NOT NULL,
+  machine     TEXT NOT NULL,
   systems     TEXT NOT NULL,
   last_seen   INTEGER NOT NULL
 );

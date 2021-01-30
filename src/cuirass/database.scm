@@ -992,7 +992,7 @@ OR :borderhightime IS NULL OR :borderhighid IS NULL)")))
             (format #f " SELECT Builds.derivation, Builds.id, Builds.timestamp,
 Builds.starttime, Builds.stoptime, Builds.log, Builds.status, Builds.priority,
 Builds.max_silent, Builds.timeout, Builds.job_name, Builds.system,
-Builds.nix_name, Builds.evaluation, agg.name, agg.outputs_name,
+Builds.worker, Builds.nix_name, Builds.evaluation, agg.name, agg.outputs_name,
 agg.outputs_path,agg.bp_build, agg.bp_type, agg.bp_file_size,
 agg.bp_checksum, agg.bp_path
 FROM
@@ -1040,7 +1040,7 @@ ORDER BY ~a;"
           (() (reverse result))
           (((derivation id timestamp starttime stoptime log status
                         priority max-silent timeout job-name
-                        system nix-name eval-id specification
+                        system worker nix-name eval-id specification
                         outputs-name outputs-path
                         products-id products-type products-file-size
                         products-checksum products-path)
@@ -1058,6 +1058,7 @@ ORDER BY ~a;"
                          (#:timeout . ,(string->number timeout))
                          (#:job-name . ,job-name)
                          (#:system . ,system)
+                         (#:worker . ,worker)
                          (#:nix-name . ,nix-name)
                          (#:eval-id . ,(string->number eval-id))
                          (#:specification . ,specification)
@@ -1352,10 +1353,11 @@ WHERE id = " id))
   "Insert WORKER into Worker table."
   (with-db-worker-thread db
     (exec-query/bind db "\
-INSERT INTO Workers (name, address, systems, last_seen)
+INSERT INTO Workers (name, address, machine, systems, last_seen)
 VALUES ("
                      (worker-name worker) ", "
                      (worker-address worker) ", "
+                     (worker-machine worker) ", "
                      (string-join (worker-systems worker) ",") ", "
                      (worker-last-seen worker) ");")))
 
@@ -1363,16 +1365,17 @@ VALUES ("
   "Return the workers in Workers table."
   (with-db-worker-thread db
     (let loop ((rows (exec-query db "
-SELECT name, address, systems, last_seen from Workers"))
+SELECT name, address, machine, systems, last_seen from Workers"))
                (workers '()))
       (match rows
         (() (reverse workers))
-        (((name address systems last-seen)
+        (((name address machine systems last-seen)
           . rest)
          (loop rest
                (cons (worker
                       (name name)
                       (address address)
+                      (machine machine)
                       (systems (string-split systems #\,))
                       (last-seen last-seen))
                      workers)))))))

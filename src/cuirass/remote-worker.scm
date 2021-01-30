@@ -355,9 +355,10 @@ exiting."
                (let ((publish-url (local-publish-url address)))
                  (add-to-worker-pids!
                   (start-worker (worker
-                                 (address address)
-                                 (publish-url publish-url)
                                  (name (generate-worker-name))
+                                 (address address)
+                                 (machine (gethostname))
+                                 (publish-url publish-url)
                                  (systems systems))
                                 server))))
              (iota workers))
@@ -374,9 +375,10 @@ exiting."
                           (publish-url (local-publish-url address)))
                      (add-to-worker-pids!
                       (start-worker (worker
-                                     (address address)
-                                     (publish-url publish-url)
                                      (name (generate-worker-name))
+                                     (address address)
+                                     (machine (gethostname))
+                                     (publish-url publish-url)
                                      (systems systems))
                                     (avahi-service->server service)))))
                  (iota workers)))))

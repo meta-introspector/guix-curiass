@@ -79,6 +79,7 @@
   (worker
    (name "worker")
    (address "address")
+   (machine "machine")
    (systems '("a" "b"))
    (last-seen "1")))
 

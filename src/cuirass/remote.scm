@@ -40,8 +40,9 @@
   #:use-module (ice-9 threads)
   #:export (worker
             worker?
-            worker-address
             worker-name
+            worker-address
+            worker-machine
             worker-publish-url
             worker-systems
             worker-last-seen
@@ -91,8 +92,9 @@
 (define-record-type* <worker>
   worker make-worker
   worker?
-  (address        worker-address)
   (name           worker-name)
+  (address        worker-address)
+  (machine        worker-machine)
   (publish-url    worker-publish-url
                   (default #f))
   (systems        worker-systems)
@@ -101,26 +103,30 @@
 
 (define (worker->sexp worker)
   "Return an sexp describing WORKER."
-  (let ((address (worker-address worker))
-        (name (worker-name worker))
+  (let ((name (worker-name worker))
+        (address (worker-address worker))
+        (machine (worker-machine worker))
         (systems (worker-systems worker))
         (last-seen (worker-last-seen worker)))
     `(worker
-      (address ,address)
       (name ,name)
+      (address ,address)
+      (machine ,machine)
       (systems ,systems)
       (last-seen ,last-seen))))
 
 (define (sexp->worker sexp)
   "Turn SEXP, an sexp as returned by 'worker->sexp', into a <worker> record."
   (match sexp
-    (('worker ('address address)
-              ('name name)
+    (('worker ('name name)
+              ('address address)
+              ('machine machine)
               ('systems systems)
               ('last-seen last-seen))
      (worker
-      (address address)
       (name name)
+      (address address)
+      (machine machine)
       (systems systems)
       (last-seen last-seen)))))
 
@@ -151,7 +157,7 @@
 
 (define (generate-worker-name)
   "Return the service name of the server."
-  (string-append (gethostname) "-" (random-string 4)))
+  (random-string 8))
 
 (define %worker-timeout
   (make-parameter 120))
