@@ -768,7 +768,8 @@ log file for DRV."
       (,(build-status canceled)          . "canceled")))
 
   (with-db-worker-thread db
-    (if (= status (build-status started))
+    (if (or (= status (build-status started))
+            (= status (build-status submitted)))
         (begin
           (if log-file
               (exec-query/bind db "UPDATE Builds SET starttime=" now
