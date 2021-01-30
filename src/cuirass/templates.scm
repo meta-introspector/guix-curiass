@@ -1033,27 +1033,58 @@ completed builds divided by the time required to build them.")
       (td (a (@ (href "/build/" ,(assq-ref build #:id) "/log/raw"))
              "raw"))))
 
-  (define (worker-header worker)
-    `((p ,(integer->char 128994)
-         " "
-         (b ,(worker-name worker))
-         ,(format #f " (~a, ~{~a ~})"
-                  (worker-address worker)
-                  (worker-systems worker)))))
+  (define (machine-row machine)
+    (let* ((workers (filter (lambda (worker)
+                              (string=? (worker-machine worker)
+                                        machine))
+                            workers))
+           (builds
+            (map (lambda (worker)
+                   (match (filter
+                           (lambda (build)
+                             (let ((name (worker-name worker)))
+                               (let ((build-worker
+                                      (assq-ref build #:worker)))
+                                 (and build-worker
+                                      (string=? build-worker name)))))
+                                  builds)
+                     (() #f)
+                     ((build) build)))
+                        workers)))
+      `(div (@ (class "col-sm-4 mt-3"))
+            (h6 ,machine)
+            ,(map (lambda (worker build)
+                    (let ((name (worker-name worker))
+                          (style (format #f
+                                         "width: ~a%"
+                                         (if build
+                                             (assq-ref build #:percentage)
+                                             0))))
+                      `(div (@ (class "progress mt-1")
+                               (style "height: 20px"))
+                            (div (@ (class "progress-bar")
+                                    (role "progressbar")
+                                    (style ,style)
+                                    (aria-valuemin "0")
+                                    (aria-valuemax "100"))
+                                 ,(if build
+                                      `(strong
+                                        (@ (class "justify-content-center
+d-flex position-absolute w-100"))
+                                        (a (@ (class "text-dark")
+                                              (href "/build/"
+                                                    ,(assq-ref build #:id)
+                                                    "/details"))
+                                           ,(assq-ref build #:job-name)))
+                                      '(em
+                                        (@ (class "justify-content-center
+text-dark d-flex position-absolute w-100"))
+                                        "idle"))))))
+                  workers builds))))
 
-  (define (worker-table worker builds)
-    `(,@(worker-header worker)
-      (table
-       (@ (class "table table-sm table-hover table-striped"))
-       ,@(if (null? builds)
-             `((th (@ (scope "col")) "Idle"))
-             `((thead (tr (th (@ (scope "col")) "ID")
-                          (th (@ (scope "col")) "Job")
-                          (th (@ (scope "col")) "Queued at")
-                          (th (@ (scope "col")) "System")
-                          (th (@ (scope "col")) "Log")))
-               (tbody
-                ,(map build-row builds)))))))
-
-  `((p (@ (class "lead")) "Workers status")
-    ,@(map worker-table workers builds)))
+  (let ((machines (delete-duplicates
+                   (map worker-machine workers))))
+    `((p (@ (class "lead")) "Workers status")
+      (div (@ (class "container"))
+           (div (@ (class "row"))
+                ,@(map machine-row machines))))))
