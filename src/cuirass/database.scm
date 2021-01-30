@@ -676,7 +676,7 @@ WHERE job_name  = " job-name "AND specification = " specification
 SELECT LEAST(duration::float/last_duration * 100, 100)::int AS percentage FROM
 (SELECT (extract(epoch from now())::int - starttime) as duration,
 last_build.duration AS last_duration FROM builds,
-(SELECT (stoptime - starttime) AS duration FROM Builds
+(SELECT GREATEST((stoptime - starttime), 1) AS duration FROM Builds
 WHERE job_name IN
 (SELECT job_name from Builds WHERE id = " build-id ")
 AND status = 0
