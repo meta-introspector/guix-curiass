@@ -31,7 +31,8 @@
   #:use-module (guix derivations)
   #:use-module (guix progress)
   #:use-module (guix store)
-  #:use-module ((guix utils) #:select (string-replace-substring))
+  #:use-module ((guix utils) #:select (string-replace-substring
+                                       version>?))
   #:use-module ((cuirass database) #:select (build-status
                                              evaluation-status))
   #:use-module (cuirass remote)
@@ -1082,8 +1083,10 @@ text-dark d-flex position-absolute w-100"))
                                         "idle"))))))
                   workers builds))))
 
-  (let ((machines (delete-duplicates
-                   (map worker-machine workers))))
+  (let ((machines (reverse
+                   (sort (delete-duplicates
+                          (map worker-machine workers))
+                         version>?))))
     `((p (@ (class "lead")) "Workers status")
       (div (@ (class "container"))
            (div (@ (class "row"))
