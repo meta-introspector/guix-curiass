@@ -64,6 +64,7 @@
             db-get-output
             db-get-outputs
             db-get-time-since-previous-build
+            db-get-build-percentage
             db-register-builds
             db-update-build-status!
             db-update-build-worker!
@@ -663,6 +664,25 @@ SELECT extract(epoch from now())::int - Builds.timestamp FROM Builds
 INNER JOIN Evaluations on Builds.evaluation = Evaluations.id
 WHERE job_name  = " job-name "AND specification = " specification
 "ORDER BY Builds.timestamp DESC LIMIT 1"))
+      ((time)
+       (string->number time))
+      (else #f))))
+
+(define (db-get-build-percentage build-id)
+  "Return the build completion percentage for BUILD-ID."
+  (with-db-worker-thread db
+    (match (expect-one-row
+            (exec-query/bind db "
+SELECT LEAST(duration::float/last_duration * 100, 100)::int AS percentage FROM
+(SELECT (extract(epoch from now())::int - starttime) as duration,
+last_build.duration AS last_duration FROM builds,
+(SELECT (stoptime - starttime) AS duration FROM Builds
+WHERE job_name IN
+(SELECT job_name from Builds WHERE id = " build-id ")
+AND status = 0
+ORDER BY Builds.timestamp DESC LIMIT 1) last_build
+where id = " build-id ") d;
+"))
       ((time)
        (string->number time))
       (else #f))))

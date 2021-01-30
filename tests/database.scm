@@ -402,6 +402,37 @@ timestamp, checkouttime, evaltime) VALUES ('guix', 0, 0, 0, 0);")
                                       #:outputs `(("out" . "/bar"))))
       (sort (db-get-pending-derivations) string<?)))
 
+  (test-assert "db-get-build-percentage"
+    (begin
+      (let* ((ts (time-second (current-time time-utc)))
+             (old `((#:derivation . "/last.drv")
+                    (#:eval-id . 2)
+                    (#:job-name . "job")
+                    (#:timestamp . ,(- ts 10))
+                    (#:status . 0)
+                    (#:starttime . 10)
+                    (#:stoptime . 20)
+                    (#:system . "x86_64-linux")
+                    (#:nix-name . "foo")
+                    (#:log . "log")
+                    (#:outputs . ())))
+             (new `((#:derivation . "/cur.drv")
+                    (#:eval-id . 2)
+                    (#:job-name . "job")
+                    (#:timestamp . ,(- ts 5))
+                    (#:starttime . ,(- ts 5))
+                    (#:system . "x86_64-linux")
+                    (#:nix-name . "foo")
+                    (#:log . "log")
+                    (#:outputs . ()))))
+        (db-add-build old)
+        (db-add-build new)
+        (let ((last-id
+               (match (expect-one-row
+                       (exec-query (%db) "SELECT MAX(id) FROM Builds;"))
+                 ((id) (string->number id)))))
+          (>= (db-get-build-percentage last-id) 50)))))
+
   (test-assert "db-close"
     (begin
       (exec-query (%db) (format #f "DROP OWNED BY CURRENT_USER;"))
