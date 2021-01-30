@@ -1067,7 +1067,8 @@ completed builds divided by the time required to build them.")
                                       `(strong
                                         (@ (class "justify-content-center
 d-flex position-absolute w-100"))
-                                        (a (@ (class "text-dark")
+                                        (a (@ (class "text-dark text-truncate")
+                                              (style "max-width: 150px")
                                               (href "/build/"
                                                     ,(assq-ref build #:id)
                                                     "/details"))
