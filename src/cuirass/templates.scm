@@ -1028,18 +1028,6 @@ completed builds divided by the time required to build them.")
                          #:colors (list "#3e95cd")))))
 
 (define (workers-status workers builds)
-  (define (build-row build)
-    `(tr
-      (th (@ (scope "row"))
-          (a (@ (href "/build/" ,(assq-ref build #:id) "/details"))
-             ,(assq-ref build #:id)))
-      (td ,(assq-ref build #:job-name))
-      (td ,(time->string
-            (assq-ref build #:starttime)))
-      (td ,(assq-ref build #:system))
-      (td (a (@ (href "/build/" ,(assq-ref build #:id) "/log/raw"))
-             "raw"))))
-
   (define (machine-row machine)
     (let* ((workers (filter (lambda (worker)
                               (string=? (worker-machine worker)
