@@ -1029,28 +1029,29 @@ completed builds divided by the time required to build them.")
 
 (define (workers-status workers builds)
   (define (machine-row machine)
-    (let* ((workers (filter (lambda (worker)
-                              (string=? (worker-machine worker)
-                                        machine))
-                            workers))
+    (let* ((workers (sort (filter-map
+                           (lambda (worker)
+                             (and (string=? (worker-machine worker)
+                                            machine)
+                                  (worker-name worker)))
+                           workers)
+                          string<?))
            (builds
             (map (lambda (worker)
                    (match (filter
                            (lambda (build)
-                             (let ((name (worker-name worker)))
-                               (let ((build-worker
-                                      (assq-ref build #:worker)))
-                                 (and build-worker
-                                      (string=? build-worker name)))))
-                                  builds)
+                             (let ((build-worker
+                                    (assq-ref build #:worker)))
+                               (and build-worker
+                                    (string=? build-worker worker))))
+                           builds)
                      (() #f)
                      ((build _ ...) build)))
-                        workers)))
+                 workers)))
       `(div (@ (class "col-sm-4 mt-3"))
             (h6 ,machine)
-            ,(map (lambda (worker build)
-                    (let ((name (worker-name worker))
-                          (style (format #f
+            ,(map (lambda (build)
+                    (let ((style (format #f
                                          "width: ~a%"
                                          (if build
                                              (assq-ref build #:percentage)
@@ -1075,7 +1076,7 @@ d-flex position-absolute w-100"))
                                         (@ (class "justify-content-center
 text-dark d-flex position-absolute w-100"))
                                         "idle"))))))
-                  workers builds))))
+                  builds))))
 
   (let ((machines (reverse
                    (sort (delete-duplicates
