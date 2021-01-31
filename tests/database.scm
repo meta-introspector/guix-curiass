@@ -327,13 +327,25 @@ timestamp, checkouttime, evaltime) VALUES ('guix', 0, 0, 0, 0);")
     "path"
     (db-get-build-product-path 1))
 
-  (test-equal "db-add-worker"
+  (test-equal "db-add-or-update-worker"
     1
-    (db-add-worker %dummy-worker))
+    (begin
+      (db-add-or-update-worker %dummy-worker)
+      (db-add-or-update-worker %dummy-worker)))
+
+  (test-equal "db-get-worker"
+    %dummy-worker
+    (db-get-worker "worker"))
 
   (test-equal "db-get-workers"
     (list %dummy-worker)
     (db-get-workers))
+
+  (test-equal "db-remove-unresponsive-workers"
+    '()
+    (begin
+      (db-remove-unresponsive-workers 50)
+      (db-get-workers)))
 
   (test-equal "db-clear-workers"
     '()

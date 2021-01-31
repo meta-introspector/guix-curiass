@@ -158,15 +158,11 @@ Start a remote build server.\n"))
 ;;; Build workers.
 ;;;
 
-(define %workers
-  ;; Set of connected workers.
-  (make-hash-table))
-
 (define (pop-build name)
   (define (random-system systems)
     (list-ref systems (random (length systems))))
 
-  (let ((worker (hash-ref %workers name)))
+  (let ((worker (db-get-worker name)))
     (and worker
          (let ((system (random-system
                         (worker-systems worker))))
@@ -177,36 +173,18 @@ Start a remote build server.\n"))
              ((build) build)
              (() #f))))))
 
-(define (remove-unresponsive-workers!)
-  (let ((unresponsive
-         (hash-fold (lambda (key value old)
-                      (let* ((last-seen (worker-last-seen value))
-                             (diff (- (current-time) last-seen)))
-                        (if (> diff (%worker-timeout))
-                            (cons key old)
-                            old)))
-                    '()
-                    %workers)))
-    (for-each (lambda (worker)
-                (hash-remove! %workers worker))
-              unresponsive)))
-
 (define* (read-worker-exp exp #:key reply-worker)
   "Read the given EXP sent by a worker.  REPLY-WORKER is a procedure that can
 be used to reply to the worker."
-  (define (update-workers! base-worker proc)
+  (define (update-worker! base-worker)
     (let* ((worker* (worker
                      (inherit (sexp->worker base-worker))
-                     (last-seen (current-time))))
-           (name (worker-name worker*)))
-      (proc name)
-      (hash-set! %workers name worker*)))
+                     (last-seen (current-time)))))
+      (db-add-or-update-worker worker*)))
 
   (match (zmq-read-message exp)
     (('worker-ready worker)
-     (update-workers! worker
-                      (lambda (name)
-                        (log-message (G_ "Worker `~a' is ready.") name))))
+     (update-worker! worker))
     (('worker-request-work name)
      (let ((build (pop-build name)))
        (if build
@@ -224,11 +202,7 @@ be used to reply to the worker."
            (reply-worker
             (zmq-no-build-message)))))
     (('worker-ping worker)
-     (update-workers! worker (const #t))
-     (db-clear-workers)
-     (hash-for-each (lambda (key value)
-                      (db-add-worker value))
-                    %workers))
+     (update-worker! worker))
     (('build-started ('drv drv) ('worker worker))
      (let ((log-file (log-path (%cache-directory) drv)))
        (log-message "build started: '~a' on ~a." drv worker)
@@ -387,7 +361,7 @@ frontend to the workers connected through the TCP backend."
                    (zmq-send-bytevector fetch-socket rest)
                    (read-worker-exp (bv->string rest)
                                     #:reply-worker reply-worker))))))
-        (remove-unresponsive-workers!)
+        (db-remove-unresponsive-workers (%worker-timeout))
         (loop)))))
 
 

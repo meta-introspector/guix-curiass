@@ -88,8 +88,10 @@
             db-get-builds-max
             db-get-evaluation-specification
             db-get-build-product-path
-            db-add-worker
+            db-add-or-update-worker
+            db-get-worker
             db-get-workers
+            db-remove-unresponsive-workers
             db-clear-workers
             db-clear-build-queue
             ;; Parameters.
@@ -1370,7 +1372,7 @@ WHERE id = " id))
       ((path) path)
       (else #f))))
 
-(define (db-add-worker worker)
+(define (db-add-or-update-worker worker)
   "Insert WORKER into Worker table."
   (with-db-worker-thread db
     (exec-query/bind db "\
@@ -1380,7 +1382,24 @@ VALUES ("
                      (worker-address worker) ", "
                      (worker-machine worker) ", "
                      (string-join (worker-systems worker) ",") ", "
-                     (worker-last-seen worker) ");")))
+                     (worker-last-seen worker) ")
+ON CONFLICT(name) DO UPDATE
+SET last_seen = " (worker-last-seen worker) ";")))
+
+(define (db-get-worker name)
+  "Return the worker with the given NAME."
+  (with-db-worker-thread db
+    (match (expect-one-row
+            (exec-query/bind db "
+SELECT name, address, machine, systems, last_seen from Workers
+WHERE name = " name ";"))
+      ((name address machine systems last-seen)
+       (worker
+        (name name)
+        (address address)
+        (machine machine)
+        (systems (string-split systems #\,))
+        (last-seen last-seen))))))
 
 (define (db-get-workers)
   "Return the workers in Workers table."
@@ -1400,6 +1419,11 @@ SELECT name, address, machine, systems, last_seen from Workers"))
                       (systems (string-split systems #\,))
                       (last-seen last-seen))
                      workers)))))))
+
+(define (db-remove-unresponsive-workers timeout)
+  (with-db-worker-thread db
+    (exec-query/bind db "DELETE FROM Workers WHERE
+(extract(epoch from now())::int - last_seen) > " timeout ";")))
 
 (define (db-clear-workers)
   "Remove all workers from Workers table."
