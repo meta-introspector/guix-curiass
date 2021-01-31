@@ -490,12 +490,16 @@ Hydra format."
         ((> limit 1000)
          (respond-json-with-error 500 "Maximum limit exceeded"))
         (else
-         ;; Limit results to builds that are "done".
+         ;; Limit results to builds that are "done".  Order the builds by
+         ;; descending evaluation numbers.  This ensures that the builds that
+         ;; were last registered are first returned even if they take more
+         ;; time to complete.  Ordering by timestamp wouldn't work as
+         ;; evaluations are not always performed sequentially.
          (respond-json
           (object->json-string
            (handle-builds-request `((status . done)
                                     ,@params
-                                    (order . finish-time)))))))))
+                                    (order . evaluation)))))))))
     (('GET "api" "queue")
      (let* ((params (request-parameters request))
             ;; 'nr parameter is mandatory to limit query size.

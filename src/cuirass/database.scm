@@ -926,6 +926,7 @@ FILTERS is an assoc list whose possible keys are 'derivation | 'id | 'jobset |
     (lambda (inner)
       (match (assq 'order filters)
         (('order . 'build-id) "Builds.id ASC")
+        (('order . 'evaluation) "Builds.evaluation DESC")
         (('order . 'finish-time) "stoptime DESC")
         (('order . 'finish-time+build-id)
          (if inner
