@@ -58,6 +58,7 @@
             db-set-evaluation-status
             db-set-evaluation-time
             build-status
+            build-weather
             db-add-output
             db-add-build
             db-add-build-product
@@ -930,6 +931,26 @@ ORDER BY Builds.id DESC;"))
                          (#:buildproducts . ,(db-get-build-products id)))
                        result))))))))
 
+(define-enumeration build-weather
+  (unknown          -1)
+  (new-success       0)
+  (new-failure       1)
+  (still-succeeding  2)
+  (still-failing     3))
+
+(define (build-status->weather status last-status)
+  (cond
+   ((or (< status 0) (not last-status))
+    (build-weather unknown))
+   ((and (= status 0) (> last-status 0))
+    (build-weather new-success))
+   ((and (> status 0) (= last-status 0))
+    (build-weather new-failure))
+   ((and (= status 0) (= last-status 0))
+    (build-weather still-succeeding))
+   ((and (> status 0) (> last-status 0))
+    (build-weather still-failing))))
+
 (define (db-get-builds filters)
   "Retrieve all builds in the database which are matched by given FILTERS.
 FILTERS is an assoc list whose possible keys are 'derivation | 'id | 'jobset |
@@ -1084,34 +1105,38 @@ ORDER BY ~a;"
                         products-id products-type products-file-size
                         products-checksum products-path)
             . rest)
-           (loop rest
-                 (cons `((#:derivation . ,derivation)
-                         (#:id . ,(string->number id))
-                         (#:timestamp . ,(string->number timestamp))
-                         (#:starttime . ,(string->number starttime))
-                         (#:stoptime . ,(string->number stoptime))
-                         (#:log . ,log)
-                         (#:status . ,(string->number status))
-                         (#:last-status . ,(and last-status
-                                                (string->number last-status)))
-                         (#:priority . ,(string->number priority))
-                         (#:max-silent . ,(string->number max-silent))
-                         (#:timeout . ,(string->number timeout))
-                         (#:job-name . ,job-name)
-                         (#:system . ,system)
-                         (#:worker . ,worker)
-                         (#:nix-name . ,nix-name)
-                         (#:eval-id . ,(string->number eval-id))
-                         (#:specification . ,specification)
-                         (#:outputs . ,(format-outputs outputs-name
-                                                       outputs-path))
-                         (#:buildproducts .
-                          ,(format-build-products products-id
-                                                  products-type
-                                                  products-file-size
-                                                  products-checksum
-                                                  products-path)))
-                       result))))))))
+           (let* ((status (string->number status))
+                  (last-status (and last-status
+                                    (string->number last-status)))
+                  (weather (build-status->weather status last-status)))
+             (loop rest
+                   (cons `((#:derivation . ,derivation)
+                           (#:id . ,(string->number id))
+                           (#:timestamp . ,(string->number timestamp))
+                           (#:starttime . ,(string->number starttime))
+                           (#:stoptime . ,(string->number stoptime))
+                           (#:log . ,log)
+                           (#:status . ,status)
+                           (#:last-status . ,last-status)
+                           (#:weather . ,weather)
+                           (#:priority . ,(string->number priority))
+                           (#:max-silent . ,(string->number max-silent))
+                           (#:timeout . ,(string->number timeout))
+                           (#:job-name . ,job-name)
+                           (#:system . ,system)
+                           (#:worker . ,worker)
+                           (#:nix-name . ,nix-name)
+                           (#:eval-id . ,(string->number eval-id))
+                           (#:specification . ,specification)
+                           (#:outputs . ,(format-outputs outputs-name
+                                                         outputs-path))
+                           (#:buildproducts .
+                            ,(format-build-products products-id
+                                                    products-type
+                                                    products-file-size
+                                                    products-checksum
+                                                    products-path)))
+                         result)))))))))
 
 (define (db-get-build derivation-or-id)
   "Retrieve a build in the database which corresponds to DERIVATION-OR-ID."

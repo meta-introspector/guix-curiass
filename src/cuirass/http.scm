@@ -105,6 +105,7 @@
     (#:system . ,(assq-ref build #:system))
     (#:nixname . ,(assq-ref build #:nix-name))
     (#:buildstatus . ,(assq-ref build #:status))
+    (#:weather . ,(assq-ref build #:weather))
     (#:busy . ,(bool->int (eqv? (build-status started)
                                 (assq-ref build #:status))))
     (#:priority . 0)

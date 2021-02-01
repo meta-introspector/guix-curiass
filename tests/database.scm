@@ -464,6 +464,32 @@ timestamp, checkouttime, evaltime) VALUES ('guix', 0, 0, 0, 0);")
            (list (db-get-build "/old-build.drv")
                  (db-get-build "/new-build.drv")))))
 
+  (test-equal "db-get-builds weather"
+    (build-weather new-success)
+    (begin
+      (assq-ref (db-get-build "/new-build.drv") #:weather)))
+
+  (test-equal "db-get-builds weather"
+    (build-weather new-failure)
+    (begin
+      (db-update-build-status! "/old-build.drv" 0)
+      (db-update-build-status! "/new-build.drv" 1)
+      (assq-ref (db-get-build "/new-build.drv") #:weather)))
+
+  (test-equal "db-get-builds weather"
+    (build-weather still-succeeding)
+    (begin
+      (db-update-build-status! "/old-build.drv" 0)
+      (db-update-build-status! "/new-build.drv" 0)
+      (assq-ref (db-get-build "/new-build.drv") #:weather)))
+
+  (test-equal "db-get-builds weather"
+    (build-weather still-failing)
+    (begin
+      (db-update-build-status! "/old-build.drv" 1)
+      (db-update-build-status! "/new-build.drv" 1)
+      (assq-ref (db-get-build "/new-build.drv") #:weather)))
+
   (test-assert "db-close"
     (begin
       (exec-query (%db) (format #f "DROP OWNED BY CURRENT_USER;"))

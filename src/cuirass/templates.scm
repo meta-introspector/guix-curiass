@@ -34,6 +34,7 @@
   #:use-module ((guix utils) #:select (string-replace-substring
                                        version>?))
   #:use-module ((cuirass database) #:select (build-status
+                                             build-weather
                                              evaluation-status))
   #:use-module (cuirass remote)
   #:export (html-page
@@ -489,6 +490,27 @@ system whose names start with " (code "guile-") ":" (br)
                              "~e ~b ~Y ~H:~M")))
            (date->string date format)))))
 
+(define (weather-class status)
+  (cond
+   ((= (build-weather unknown) status)
+    "oi oi-media-record text-primary mt-1")
+   ((= (build-weather new-success) status)
+    "oi oi-arrow-thick-top text-success mt-1")
+   ((= (build-weather new-failure) status)
+    "oi oi-arrow-thick-bottom text-danger mt-1")
+   ((= (build-weather still-succeeding) status)
+    "oi oi-media-record text-success mt-1")
+   ((= (build-weather still-failing) status)
+    "oi oi-media-record text-danger mt-1")))
+
+(define (weather-title status)
+  (cond
+   ((= (build-weather unknown) status) "Unknown")
+   ((= (build-weather new-success) status) "New success")
+   ((= (build-weather new-failure) status) "New failure")
+   ((= (build-weather still-succeeding) status) "Still succeeding")
+   ((= (build-weather still-failing) status) "Still failing")))
+
 (define (build-eval-table eval-id builds build-min build-max status)
   "Return HTML for the BUILDS table evaluation with given STATUS.  BUILD-MIN
 and BUILD-MAX are global minimal and maximal (stoptime, rowid) pairs."
@@ -501,12 +523,16 @@ and BUILD-MAX are global minimal and maximal (stoptime, rowid) pairs."
        (th (@ (scope "col") (class "border-0")) "Completion time")
        (th (@ (scope "col") (class "border-0")) "Job")
        (th (@ (scope "col") (class "border-0")) "Name")
+       (th (@ (scope "col") (class "border-0")) "Weather")
        (th (@ (scope "col") (class "border-0")) "System")
        (th (@ (scope "col") (class "border-0")) "Log"))))
 
   (define (table-row build)
     (define status
       (assq-ref build #:buildstatus))
+
+    (define weather
+      (assq-ref build #:weather))
 
     (define completed?
       (or (= (build-status succeeded) status)
@@ -526,6 +552,10 @@ and BUILD-MAX are global minimal and maximal (stoptime, rowid) pairs."
                "—"))
       (td ,(assq-ref build #:job))
       (td ,(assq-ref build #:nixname))
+      (td (span (@ (class ,(weather-class weather))
+                   (title ,(weather-title weather))
+                   (aria-hidden "true"))
+                ""))
       (td ,(assq-ref build #:system))
       (td (a (@ (href "/build/" ,(assq-ref build #:id) "/log/raw"))
                "raw"))))
