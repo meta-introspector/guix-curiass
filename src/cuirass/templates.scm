@@ -241,7 +241,7 @@ system whose names start with " (code "guile-") ":" (br)
                             "Add")))))
            '()))))
 
-(define (build-details build products)
+(define (build-details build products history)
   "Return HTML showing details for the BUILD."
   (define status (assq-ref build #:status))
   (define weather (assq-ref build #:weather))
@@ -269,6 +269,21 @@ system whose names start with " (code "guile-") ":" (br)
   (define evaluation
     (assq-ref build #:eval-id))
 
+  (define (history-table-row build)
+    (define status
+      (assq-ref build #:status))
+
+    `(tr
+      (td (span (@ (class ,(status-class status))
+                   (title ,(status-title status))
+                   (aria-hidden "true"))
+                ""))
+      (th (@ (scope "row"))
+          (a (@ (href "/build/" ,(assq-ref build #:id) "/details"))
+             ,(assq-ref build #:id)))
+      (td ,(assq-ref build #:nix-name))
+      (td ,(time->string (assq-ref build #:stoptime)))))
+
   `((p (@ (class "lead")) "Build details")
     (table
      (@ (class "table table-sm table-hover"))
@@ -282,7 +297,7 @@ system whose names start with " (code "guile-") ":" (br)
       (tr (th "Status")
           (td (span (@ (class ,(status-class status))
                        (title ,(status-title status)))
-                ,(string-append " " (status-title status)))
+                    ,(string-append " " (status-title status)))
               ,@(map (lambda (output)
                        `((br)
                          (a (@ (href ,(string-append "/log/" (basename output))))
@@ -349,12 +364,24 @@ system whose names start with " (code "guile-") ":" (br)
                                   (div (@ (class "col-md-auto"))
                                        "(" ,type ")")
                                   (div (@ (class "col-md-auto"))
-                                   ,(byte-count->string size))))))))
+                                       ,(byte-count->string size))))))))
                     products)))
               `((tr (th "Build outputs")
                     (td
                      (ul (@ (class "list-group d-flex flex-row"))
-                         ,product-items))))))))))
+                         ,product-items))))))))
+    ,@(if (null? history)
+          '()
+          `((h6 "Build history")
+            (table
+             (@ (class "table table-sm table-hover table-striped"))
+             (thead
+              (tr
+               (th (@ (scope "col") (class "border-0")) ())
+               (th (@ (scope "col") (class "border-0")) "ID")
+               (th (@ (scope "col") (class "border-0")) "Name")
+               (th (@ (scope "col") (class "border-0")) "Completion time")))
+             (tbody ,@(map history-table-row history)))))))
 
 (define (pagination first-link prev-link next-link last-link)
   "Return html page navigation buttons with LINKS."

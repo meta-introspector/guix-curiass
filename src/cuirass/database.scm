@@ -987,6 +987,7 @@ CASE WHEN CAST(:borderlowid AS integer) IS NULL THEN
         (job             . "Builds.job_name = :job")
         (system          . "Builds.system = :system")
         (worker          . "Builds.worker = :worker")
+        (oldevaluation   . "Builds.evaluation < :oldevaluation")
         (evaluation      . "Builds.evaluation = :evaluation")
         (status          . ,(match (assq-ref filters 'status)
                               (#f         #f)
@@ -1088,7 +1089,7 @@ ORDER BY ~a;"
                                 name)
                                name))
                           (match name
-                            ('nr (or value -1))
+                            ('nr value)
                             ('order #f) ; Doesn't need binding.
                             ('status #f) ; Doesn't need binding.
                             (else value)))))

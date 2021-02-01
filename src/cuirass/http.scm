@@ -439,11 +439,19 @@ Hydra format."
            (respond-build-not-found id))))
     (('GET "build" (= string->number id) "details")
      (let* ((build (and id (db-get-build id)))
-            (products (and build (assoc-ref build #:buildproducts))))
+            (products (and build (assoc-ref build #:buildproducts)))
+            (history
+             (db-get-builds
+              `((jobset . ,(assq-ref build #:specification))
+                (job . ,(assq-ref build #:job-name))
+                (oldevaluation . ,(assq-ref build #:eval-id))
+                (status . done)
+                (order . evaluation)
+                (nr . 5)))))
        (if build
            (respond-html
             (html-page (string-append "Build " (number->string id))
-                       (build-details build products)
+                       (build-details build products history)
                        `(((#:name . ,(assq-ref build #:specification))
                           (#:link . ,(string-append "/jobset/" (assq-ref build #:specification)))))))
            (respond-build-not-found id))))
