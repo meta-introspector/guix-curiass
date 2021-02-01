@@ -1415,7 +1415,8 @@ WHERE name = " name ";"))
         (address address)
         (machine machine)
         (systems (string-split systems #\,))
-        (last-seen last-seen))))))
+        (last-seen last-seen)))
+      (else #f))))
 
 (define (db-get-workers)
   "Return the workers in Workers table."
