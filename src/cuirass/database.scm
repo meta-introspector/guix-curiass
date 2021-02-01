@@ -797,14 +797,16 @@ log file for DRV."
 UPDATE Builds SET stoptime =" now
 ", status =" status
 ", last_status =
-(SELECT Builds.status FROM (SELECT job_name, specification FROM Builds
+(SELECT Builds.status FROM
+(SELECT evaluation, job_name, specification FROM Builds
 INNER JOIN Evaluations ON Builds.evaluation = Evaluations.id WHERE
 derivation = " drv ") AS cur, Builds INNER JOIN
 Evaluations ON Builds.evaluation = Evaluations.id
 WHERE cur.job_name = Builds.job_name AND
 cur.specification = Evaluations.specification AND
+Builds.evaluation < cur.evaluation AND
 Builds.status >= 0
-ORDER BY evaluation DESC LIMIT 1)
+ORDER BY Builds.evaluation DESC LIMIT 1)
 WHERE derivation =" drv
 " AND status != " status ";")))
             (when (positive? rows)
