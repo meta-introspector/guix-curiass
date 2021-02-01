@@ -244,6 +244,7 @@ system whose names start with " (code "guile-") ":" (br)
 (define (build-details build products)
   "Return HTML showing details for the BUILD."
   (define status (assq-ref build #:status))
+  (define weather (assq-ref build #:weather))
   (define blocking-outputs
     (or (and-let* (((= (build-status failed-dependency) status))
                    (drv (false-if-exception
@@ -307,6 +308,11 @@ system whose names start with " (code "guile-") ":" (br)
           (td ,(if completed?
                    (time->string (assq-ref build #:stoptime))
                    "—")))
+      (tr (th "Weather")
+          (td (span (@ (class ,(weather-class weather))
+                       (title ,(weather-title weather))
+                       (aria-hidden "true"))
+                    "")))
       (tr (th "Log file")
           (td (a (@ (href "/build/" ,(assq-ref build #:id) "/log/raw"))
                  "raw")))
