@@ -286,6 +286,8 @@ and executing them.  The worker can reply on the same socket."
 (define %worker-pids
   (make-atomic-box '()))
 
+(define %workers-started? #f)
+
 (define (load-server file)
   (let ((user-module (make-user-module '((cuirass remote)))))
     (load* file user-module)))
@@ -368,20 +370,22 @@ exiting."
            (lambda (action service)
              (case action
                ((new-service)
-                (for-each
-                 (lambda (n)
-                   (let* ((address (or address
-                                       (avahi-service-local-address service)))
-                          (publish-url (local-publish-url address)))
-                     (add-to-worker-pids!
-                      (start-worker (worker
-                                     (name (generate-worker-name))
-                                     (address address)
-                                     (machine (gethostname))
-                                     (publish-url publish-url)
-                                     (systems systems))
-                                    (avahi-service->server service)))))
-                 (iota workers)))))
+                (unless %workers-started?
+                  (for-each
+                   (lambda (n)
+                     (let* ((address (or address
+                                         (avahi-service-local-address service)))
+                            (publish-url (local-publish-url address)))
+                       (add-to-worker-pids!
+                        (start-worker (worker
+                                       (name (generate-worker-name))
+                                       (address address)
+                                       (machine (gethostname))
+                                       (publish-url publish-url)
+                                       (systems systems))
+                                      (avahi-service->server service)))))
+                   (iota workers))
+                  (set! %workers-started? #t)))))
            #:ignore-local? #f
            #:types (list remote-server-service-type)
            #:stop-loop? (lambda ()
