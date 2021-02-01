@@ -788,13 +788,25 @@ log file for DRV."
         ;; Update only if we're switching to a different status; otherwise
         ;; leave things unchanged.  This ensures that 'stoptime' remains valid
         ;; and doesn't change every time we mark DRV as 'succeeded' several
-        ;; times in a row, for instance.
+        ;; times in a row, for instance.  The 'last_status' field is updated
+        ;; with the status of the last completed build with the same
+        ;; 'job_name' and 'specification'.
         (begin
           (let ((rows
-                 (exec-query/bind db "UPDATE Builds SET stoptime=" now
-                                  ", status=" status
-                                  "WHERE derivation=" drv
-                                  " AND status != " status ";")))
+                 (exec-query/bind db "
+UPDATE Builds SET stoptime =" now
+", status =" status
+", last_status =
+(SELECT Builds.status FROM (SELECT job_name, specification FROM Builds
+INNER JOIN Evaluations ON Builds.evaluation = Evaluations.id WHERE
+derivation = " drv ") AS cur, Builds INNER JOIN
+Evaluations ON Builds.evaluation = Evaluations.id
+WHERE cur.job_name = Builds.job_name AND
+cur.specification = Evaluations.specification AND
+Builds.status >= 0
+ORDER BY evaluation DESC LIMIT 1)
+WHERE derivation =" drv
+" AND status != " status ";")))
             (when (positive? rows)
               (db-add-event 'build
                             now
@@ -1014,8 +1026,9 @@ OR :borderhightime IS NULL OR :borderhighid IS NULL)")))
                                     (string-join rest " AND ")))))
            (query
             (format #f " SELECT Builds.derivation, Builds.id, Builds.timestamp,
-Builds.starttime, Builds.stoptime, Builds.log, Builds.status, Builds.priority,
-Builds.max_silent, Builds.timeout, Builds.job_name, Builds.system,
+Builds.starttime, Builds.stoptime, Builds.log, Builds.status,
+Builds.last_status, Builds.priority, Builds.max_silent,
+Builds.timeout, Builds.job_name, Builds.system,
 Builds.worker, Builds.nix_name, Builds.evaluation, agg.name, agg.outputs_name,
 agg.outputs_path,agg.bp_build, agg.bp_type, agg.bp_file_size,
 agg.bp_checksum, agg.bp_path
@@ -1063,7 +1076,7 @@ ORDER BY ~a;"
         (match builds
           (() (reverse result))
           (((derivation id timestamp starttime stoptime log status
-                        priority max-silent timeout job-name
+                        last-status priority max-silent timeout job-name
                         system worker nix-name eval-id specification
                         outputs-name outputs-path
                         products-id products-type products-file-size
@@ -1077,6 +1090,8 @@ ORDER BY ~a;"
                          (#:stoptime . ,(string->number stoptime))
                          (#:log . ,log)
                          (#:status . ,(string->number status))
+                         (#:last-status . ,(and last-status
+                                                (string->number last-status)))
                          (#:priority . ,(string->number priority))
                          (#:max-silent . ,(string->number max-silent))
                          (#:timeout . ,(string->number timeout))

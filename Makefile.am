@@ -80,7 +80,8 @@ dist_pkgdata_DATA = src/schema.sql
 
 dist_sql_DATA = 				\
   src/sql/upgrade-1.sql				\
-  src/sql/upgrade-2.sql
+  src/sql/upgrade-2.sql				\
+  src/sql/upgrade-3.sql
 
 dist_css_DATA =					\
   src/static/css/cuirass.css			\

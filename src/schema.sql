@@ -63,6 +63,7 @@ CREATE TABLE Builds (
   nix_name      TEXT NOT NULL,
   log           TEXT NOT NULL,
   status        INTEGER NOT NULL,
+  last_status   INTEGER,
   priority      INTEGER NOT NULL DEFAULT 0,
   max_silent    INTEGER NOT NULL DEFAULT 0,
   timeout       INTEGER NOT NULL DEFAULT 0,

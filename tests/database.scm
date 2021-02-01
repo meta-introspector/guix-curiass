@@ -64,11 +64,13 @@
 
 (define* (make-dummy-build drv
                            #:optional (eval-id 2)
-                           #:key (outputs
-                                  `(("foo" . ,(format #f "~a.output" drv)))))
+                           #:key
+                           (job-name "job")
+                           (outputs
+                            `(("foo" . ,(format #f "~a.output" drv)))))
   `((#:derivation . ,drv)
     (#:eval-id . ,eval-id)
-    (#:job-name . "job")
+    (#:job-name . ,job-name)
     (#:timestamp . ,(time-second (current-time time-utc)))
     (#:system . "x86_64-linux")
     (#:nix-name . "foo")
@@ -444,6 +446,23 @@ timestamp, checkouttime, evaltime) VALUES ('guix', 0, 0, 0, 0);")
                        (exec-query (%db) "SELECT MAX(id) FROM Builds;"))
                  ((id) (string->number id)))))
           (>= (db-get-build-percentage last-id) 50)))))
+
+  (test-equal "db-update-build-status!"
+    (list #f 1)
+    (begin
+      (db-add-evaluation "guix"
+                         (make-dummy-checkouts "fakesha5" "fakesha6"))
+      (db-add-build (make-dummy-build "/old-build.drv" 3
+                                      #:job-name "job-1"
+                                      #:outputs `(("out" . "/old"))))
+      (db-add-build (make-dummy-build "/new-build.drv" 4
+                                      #:job-name "job-1"
+                                      #:outputs `(("out" . "/new"))))
+      (db-update-build-status! "/old-build.drv" 1)
+      (db-update-build-status! "/new-build.drv" 0)
+      (map (cut assq-ref <> #:last-status)
+           (list (db-get-build "/old-build.drv")
+                 (db-get-build "/new-build.drv")))))
 
   (test-assert "db-close"
     (begin
