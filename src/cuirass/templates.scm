@@ -183,7 +183,14 @@ system whose names start with " (code "guile-") ":" (br)
 
 (define* (specifications-table specs #:optional admin?)
   "Return HTML for the SPECS table."
-  `((p (@ (class "lead")) "Specifications")
+  `((p (@ (class "lead")) "Specifications"
+       (a (@ (href "/events/rss/"))
+          (button (@ (class "btn btn-outline-warning float-right")
+                     (type "button"))
+                  (span (@(class "oi oi-rss text-warning align-right")
+                         (title "RSS")
+                         (aria-hidden "true"))
+                        ""))))
     (table
      (@ (class "table table-sm table-hover"))
      ,@(if (null? specs)
