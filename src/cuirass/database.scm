@@ -1134,8 +1134,9 @@ ORDER BY ~a;"
                          (#:status . ,(string->number status))
                          (#:last-status . ,(and last-status
                                                 (string->number last-status)))
-                         (#:weather . ,(and weather
-                                            (string->number weather)))
+                         (#:weather . ,(if weather
+                                           (string->number weather)
+                                           (build-weather unknown)))
                          (#:priority . ,(string->number priority))
                          (#:max-silent . ,(string->number max-silent))
                          (#:timeout . ,(string->number timeout))
