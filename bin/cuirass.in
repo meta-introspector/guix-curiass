@@ -95,6 +95,9 @@ exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
   (setvbuf (current-output-port) 'line)
   (setvbuf (current-error-port) 'line)
 
+  ;; Use a default locale.
+  (setlocale LC_ALL "en_US.UTF-8")
+
   (let ((opts (getopt-long args %options)))
     (parameterize
         ((%program-name     (car args))
