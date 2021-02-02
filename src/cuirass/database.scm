@@ -1014,7 +1014,7 @@ CASE WHEN CAST(:borderlowid AS integer) IS NULL THEN
          . ,(match (assq-ref filters 'weather)
               (#f         #f)
               ('all       "Builds.weather >= 0")
-              ('new       "Builds.weather = 0 OR Builds.weather = 1")))
+              ('new       "(Builds.weather = 0 OR Builds.weather = 1)")))
         (border-low-time
          . "(((:borderlowtime, :borderlowid) < (Builds.stoptime, Builds.id))
 OR :borderlowtime IS NULL OR :borderlowid IS NULL)")
