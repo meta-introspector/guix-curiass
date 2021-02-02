@@ -64,6 +64,7 @@ CREATE TABLE Builds (
   log           TEXT NOT NULL,
   status        INTEGER NOT NULL,
   last_status   INTEGER,
+  weather       INTEGER,
   priority      INTEGER NOT NULL DEFAULT 0,
   max_silent    INTEGER NOT NULL DEFAULT 0,
   timeout       INTEGER NOT NULL DEFAULT 0,
@@ -126,6 +127,7 @@ CREATE INDEX Builds_stoptime on Builds(stoptime DESC);
 CREATE INDEX Builds_stoptime_id on Builds(stoptime DESC, id DESC);
 CREATE INDEX Builds_status_ts_id on Builds(status DESC, timestamp DESC, id ASC);
 CREATE INDEX Builds_priority_timestamp on Builds(priority ASC, timestamp DESC);
+CREATE INDEX Builds_weather_evaluation ON Builds (weather, evaluation);
 
 CREATE INDEX Evaluations_status_index ON Evaluations (id, status);
 CREATE INDEX Evaluations_specification_index ON Evaluations (specification, id DESC);

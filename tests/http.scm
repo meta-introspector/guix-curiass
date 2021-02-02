@@ -65,7 +65,7 @@
     (#:system . "x86_64-linux")
     (#:nixname . "fake-1.0")
     (#:buildstatus . 0)
-    (#:weather . -1)
+    (#:weather . #nil)
     (#:busy . 0)
     (#:priority . 0)
     (#:finished . 1)

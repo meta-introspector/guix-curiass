@@ -756,6 +756,26 @@ where id = " build-id ") d;
       (exec-query db "COMMIT;")
       derivations)))
 
+(define (db-get-last-status drv)
+  "Return the status of the last completed build with the same 'job_name' and
+specification' as DRV."
+  (with-db-worker-thread db
+    (match (expect-one-row
+            (exec-query/bind db "
+SELECT Builds.status FROM
+(SELECT evaluation, job_name, specification FROM Builds
+INNER JOIN Evaluations ON Builds.evaluation = Evaluations.id WHERE
+derivation = " drv ") AS cur, Builds INNER JOIN
+Evaluations ON Builds.evaluation = Evaluations.id
+WHERE cur.job_name = Builds.job_name AND
+cur.specification = Evaluations.specification AND
+Builds.evaluation < cur.evaluation AND
+Builds.status >= 0
+ORDER BY Builds.evaluation DESC LIMIT 1"))
+      ((status)
+       (string->number status))
+      (else #f))))
+
 (define* (db-update-build-status! drv status #:key log-file)
   "Update the database so that DRV's status is STATUS.  This also updates the
 'starttime' or 'stoptime' fields.  If LOG-FILE is true, record it as the build
@@ -793,22 +813,15 @@ log file for DRV."
         ;; with the status of the last completed build with the same
         ;; 'job_name' and 'specification'.
         (begin
-          (let ((rows
-                 (exec-query/bind db "
+          (let* ((last-status (db-get-last-status drv))
+                 (weather (build-status->weather status last-status))
+                 (rows
+                  (exec-query/bind db "
 UPDATE Builds SET stoptime =" now
 ", status =" status
-", last_status =
-(SELECT Builds.status FROM
-(SELECT evaluation, job_name, specification FROM Builds
-INNER JOIN Evaluations ON Builds.evaluation = Evaluations.id WHERE
-derivation = " drv ") AS cur, Builds INNER JOIN
-Evaluations ON Builds.evaluation = Evaluations.id
-WHERE cur.job_name = Builds.job_name AND
-cur.specification = Evaluations.specification AND
-Builds.evaluation < cur.evaluation AND
-Builds.status >= 0
-ORDER BY Builds.evaluation DESC LIMIT 1)
-WHERE derivation =" drv
+", last_status = " last-status
+", weather = " weather
+"WHERE derivation =" drv
 " AND status != " status ";")))
             (when (positive? rows)
               (db-add-event 'build
@@ -997,6 +1010,11 @@ CASE WHEN CAST(:borderlowid AS integer) IS NULL THEN
                               ('pending   "Builds.status < 0")
                               ('succeeded "Builds.status = 0")
                               ('failed    "Builds.status > 0")))
+        (weather
+         . ,(match (assq-ref filters 'weather)
+              (#f         #f)
+              ('all       "Builds.weather >= 0")
+              ('new       "Builds.weather = 0 OR Builds.weather = 1")))
         (border-low-time
          . "(((:borderlowtime, :borderlowid) < (Builds.stoptime, Builds.id))
 OR :borderlowtime IS NULL OR :borderlowid IS NULL)")
@@ -1051,7 +1069,7 @@ OR :borderhightime IS NULL OR :borderhighid IS NULL)")))
            (query
             (format #f " SELECT Builds.derivation, Builds.id, Builds.timestamp,
 Builds.starttime, Builds.stoptime, Builds.log, Builds.status,
-Builds.last_status, Builds.priority, Builds.max_silent,
+Builds.last_status, Builds.weather, Builds.priority, Builds.max_silent,
 Builds.timeout, Builds.job_name, Builds.system,
 Builds.worker, Builds.nix_name, Builds.evaluation, agg.name, agg.outputs_name,
 agg.outputs_path,agg.bp_build, agg.bp_type, agg.bp_file_size,
@@ -1100,44 +1118,42 @@ ORDER BY ~a;"
         (match builds
           (() (reverse result))
           (((derivation id timestamp starttime stoptime log status
-                        last-status priority max-silent timeout job-name
-                        system worker nix-name eval-id specification
-                        outputs-name outputs-path
+                        last-status weather priority max-silent timeout
+                        job-name system worker nix-name eval-id
+                        specification outputs-name outputs-path
                         products-id products-type products-file-size
                         products-checksum products-path)
             . rest)
-           (let* ((status (string->number status))
-                  (last-status (and last-status
-                                    (string->number last-status)))
-                  (weather (build-status->weather status last-status)))
-             (loop rest
-                   (cons `((#:derivation . ,derivation)
-                           (#:id . ,(string->number id))
-                           (#:timestamp . ,(string->number timestamp))
-                           (#:starttime . ,(string->number starttime))
-                           (#:stoptime . ,(string->number stoptime))
-                           (#:log . ,log)
-                           (#:status . ,status)
-                           (#:last-status . ,last-status)
-                           (#:weather . ,weather)
-                           (#:priority . ,(string->number priority))
-                           (#:max-silent . ,(string->number max-silent))
-                           (#:timeout . ,(string->number timeout))
-                           (#:job-name . ,job-name)
-                           (#:system . ,system)
-                           (#:worker . ,worker)
-                           (#:nix-name . ,nix-name)
-                           (#:eval-id . ,(string->number eval-id))
-                           (#:specification . ,specification)
-                           (#:outputs . ,(format-outputs outputs-name
-                                                         outputs-path))
-                           (#:buildproducts .
-                            ,(format-build-products products-id
-                                                    products-type
-                                                    products-file-size
-                                                    products-checksum
-                                                    products-path)))
-                         result)))))))))
+           (loop rest
+                 (cons `((#:derivation . ,derivation)
+                         (#:id . ,(string->number id))
+                         (#:timestamp . ,(string->number timestamp))
+                         (#:starttime . ,(string->number starttime))
+                         (#:stoptime . ,(string->number stoptime))
+                         (#:log . ,log)
+                         (#:status . ,(string->number status))
+                         (#:last-status . ,(and last-status
+                                                (string->number last-status)))
+                         (#:weather . ,(and weather
+                                            (string->number weather)))
+                         (#:priority . ,(string->number priority))
+                         (#:max-silent . ,(string->number max-silent))
+                         (#:timeout . ,(string->number timeout))
+                         (#:job-name . ,job-name)
+                         (#:system . ,system)
+                         (#:worker . ,worker)
+                         (#:nix-name . ,nix-name)
+                         (#:eval-id . ,(string->number eval-id))
+                         (#:specification . ,specification)
+                         (#:outputs . ,(format-outputs outputs-name
+                                                       outputs-path))
+                         (#:buildproducts .
+                          ,(format-build-products products-id
+                                                  products-type
+                                                  products-file-size
+                                                  products-checksum
+                                                  products-path)))
+                       result))))))))
 
 (define (db-get-build derivation-or-id)
   "Retrieve a build in the database which corresponds to DERIVATION-OR-ID."
