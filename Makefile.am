@@ -57,6 +57,7 @@ dist_pkgmodule_DATA =				\
   src/cuirass/remote.scm			\
   src/cuirass/remote-server.scm			\
   src/cuirass/remote-worker.scm			\
+  src/cuirass/rss.scm				\
   src/cuirass/send-events.scm			\
   src/cuirass/ui.scm				\
   src/cuirass/utils.scm		                \

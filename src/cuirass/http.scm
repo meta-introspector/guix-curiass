@@ -29,6 +29,7 @@
   #:use-module (cuirass utils)
   #:use-module (cuirass logging)
   #:use-module (cuirass remote)
+  #:use-module (cuirass rss)
   #:use-module (srfi srfi-1)
   #:use-module (srfi srfi-11)
   #:use-module (srfi srfi-26)
@@ -659,6 +660,14 @@ Hydra format."
              (_
               (respond-json-with-error 500 "No build found.")))
            (respond-json-with-error 500 "Query parameter not provided."))))
+
+    (('GET "events" "rss")
+     (let* ((params (request-parameters request)))
+       (respond-html (rss-feed (db-get-builds `((weather . new)
+                                                (nr . 100)
+                                                (order . evaluation)
+                                                ,@params))
+                               #:params params))))
 
     (('GET "workers")
      (respond-html
