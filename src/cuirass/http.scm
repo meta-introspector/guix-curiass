@@ -323,6 +323,17 @@ Hydra format."
         "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd")
        (sxml->xml body port))))
 
+  (define* (respond-xml body #:key code)
+    (respond
+     (let ((content-type '((content-type . (application/xhtml+xml)))))
+       (if code
+           (build-response #:headers content-type #:code code)
+           content-type))
+     #:body
+     (lambda (port)
+       (format port "<?xml version=\"1.0\" encoding=\"utf-8\"?>")
+       (sxml->xml body port))))
+
   (define* (respond-file file)
     (let ((content-type (or (assoc-ref %file-mime-types
                                        (file-extension file))
@@ -663,11 +674,11 @@ Hydra format."
 
     (('GET "events" "rss")
      (let* ((params (request-parameters request)))
-       (respond-html (rss-feed (db-get-builds `((weather . new)
-                                                (nr . 100)
-                                                (order . evaluation)
-                                                ,@params))
-                               #:params params))))
+       (respond-xml (rss-feed (db-get-builds `((weather . new)
+                                               (nr . 100)
+                                               (order . evaluation)
+                                               ,@params))
+                              #:params params))))
 
     (('GET "workers")
      (respond-html
