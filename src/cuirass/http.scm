@@ -673,12 +673,17 @@ Hydra format."
            (respond-json-with-error 500 "Query parameter not provided."))))
 
     (('GET "events" "rss")
-     (let* ((params (request-parameters request)))
-       (respond-xml (rss-feed (db-get-builds `((weather . new)
-                                               (nr . 100)
-                                               (order . evaluation)
-                                               ,@params))
-                              #:params params))))
+     (let* ((params (request-parameters request))
+            (specification (and params
+                            (assq-ref params 'specification))))
+       (respond-xml
+        (rss-feed
+         (db-get-builds `((weather . new)
+                          (jobset . ,specification)
+                          (nr . 100)
+                          (order . evaluation)
+                          ,@params))
+         #:params params))))
 
     (('GET "workers")
      (respond-html
