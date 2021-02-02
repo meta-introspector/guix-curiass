@@ -458,7 +458,14 @@ system whose names start with " (code "guile-") ":" (br)
 (define (evaluation-info-table name evaluations id-min id-max)
   "Return HTML for the EVALUATION table NAME. ID-MIN and ID-MAX are
   global minimal and maximal id."
-  `((p (@ (class "lead")) "Evaluations of " ,name)
+  `((p (@ (class "lead")) "Evaluations of " ,name
+       (a (@ (href "/events/rss/?specification=" ,name))
+          (button (@ (class "btn btn-outline-warning float-right")
+                     (type "button"))
+                  (span (@(class "oi oi-rss text-warning align-right")
+                         (title "RSS")
+                         (aria-hidden "true"))
+                        ""))))
     (table
      (@ (class "table table-sm table-hover table-striped"))
      ,@(if (null? evaluations)
