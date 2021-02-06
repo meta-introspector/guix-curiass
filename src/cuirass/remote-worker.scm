@@ -286,8 +286,6 @@ and executing them.  The worker can reply on the same socket."
 (define %worker-pids
   (make-atomic-box '()))
 
-(define %workers-started? #f)
-
 (define (load-server file)
   (let ((user-module (make-user-module '((cuirass remote)))))
     (load* file user-module)))
@@ -363,30 +361,30 @@ exiting."
                                  (publish-url publish-url)
                                  (systems systems))
                                 server))))
-             (iota workers))
-            (while #t
-              (sleep 1)))
+             (iota workers)))
           (avahi-browse-service-thread
            (lambda (action service)
              (case action
                ((new-service)
-                (unless %workers-started?
-                  (for-each
-                   (lambda (n)
-                     (let* ((address (or address
-                                         (avahi-service-local-address service)))
-                            (publish-url (local-publish-url address)))
-                       (add-to-worker-pids!
-                        (start-worker (worker
-                                       (name (generate-worker-name))
-                                       (address address)
-                                       (machine (gethostname))
-                                       (publish-url publish-url)
-                                       (systems systems))
-                                      (avahi-service->server service)))))
-                   (iota workers))
-                  (set! %workers-started? #t)))))
+                (for-each
+                 (lambda (n)
+                   (let* ((address (or address
+                                       (avahi-service-local-address service)))
+                          (publish-url (local-publish-url address)))
+                     (add-to-worker-pids!
+                      (start-worker (worker
+                                     (name (generate-worker-name))
+                                     (address address)
+                                     (machine (gethostname))
+                                     (publish-url publish-url)
+                                     (systems systems))
+                                    (avahi-service->server service)))))
+                 (iota workers))
+                (atomic-box-set! %stop-process? #t))))
            #:ignore-local? #f
            #:types (list remote-server-service-type)
            #:stop-loop? (lambda ()
-                          (atomic-box-ref %stop-process?)))))))
+                          (atomic-box-ref %stop-process?))))
+
+      (while #t
+        (sleep 1)))))
