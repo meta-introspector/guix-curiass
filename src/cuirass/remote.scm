@@ -329,6 +329,13 @@ PRIVATE-KEY to sign narinfos."
      (set-thread-name "log-server")
      (wait-for-client port client-handler))))
 
+(define-syntax-rule (swallow-zlib-error exp ...)
+  "Swallow 'zlib-error' exceptions raised by EXP..."
+  (catch 'zlib-error
+    (lambda ()
+      exp ...)
+    (const #f)))
+
 (define* (send-log address port derivation log)
   (let* ((sock (socket AF_INET SOCK_STREAM 0))
          (in-addr (inet-pton AF_INET address))
@@ -342,9 +349,10 @@ PRIVATE-KEY to sign narinfos."
                           (version 0)
                           (derivation ,derivation))))
             (write header sock)
-            (call-with-gzip-output-port sock
-              (lambda (sock-compressed)
-                (dump-port log sock-compressed)))
+            (swallow-zlib-error
+             (call-with-gzip-output-port sock
+               (lambda (sock-compressed)
+                 (dump-port log sock-compressed))))
             (close-port sock)))
          (x
           (log-message "invalid handshake ~s.~%" x)
