@@ -30,6 +30,7 @@
   #:use-module (cuirass logging)
   #:use-module (cuirass remote)
   #:use-module (cuirass rss)
+  #:use-module (cuirass zabbix)
   #:use-module (srfi srfi-1)
   #:use-module (srfi srfi-11)
   #:use-module (srfi srfi-26)
@@ -46,6 +47,7 @@
   #:use-module ((rnrs bytevectors) #:select (utf8->string))
   #:use-module (sxml simple)
   #:use-module (cuirass templates)
+  #:use-module (guix progress)
   #:use-module (guix utils)
   #:use-module ((guix store) #:select (%store-prefix))
   #:use-module (guix build union)
@@ -275,6 +277,58 @@ Hydra format."
      (db-get-metrics-with-id
       'percentage-failed-eval-per-spec)))
    '()))
+
+(define (machine-page name)
+  (define zabbix-info
+    (if (zabbix-available?)
+        (with-zabbix-connection
+         (let* ((host-id        (zabbix-host-id name))
+                (enabled?       (zabbix-host-enabled? name))
+                (value          (cut zabbix-item-value <> host-id))
+                (history        (lambda (key type)
+                                  (zabbix-history
+                                   (zabbix-item-id key host-id)
+                                   #:limit 100
+                                   #:type type))))
+           (if enabled?
+               `((#:hostname . ,(value "system.hostname"))
+                 (#:info . ,(value "system.uname"))
+                 (#:boottime . ,(string->number
+                                 (value "system.boottime")))
+                 (#:ram . ,(byte-count->string
+                            (string->number
+                             (value "vm.memory.size[total]"))))
+                 (#:root-space . ,(byte-count->string
+                                   (string->number
+                                    (value "vfs.fs.size[/,total]"))))
+                 (#:store-space
+                  . ,(byte-count->string
+                      (string->number
+                       (value "vfs.fs.size[/gnu/store,total]"))))
+                 (#:cpu-idle . ,(history "system.cpu.util[,idle]" 'float))
+                 (#:ram-available . ,(history "vm.memory.size[available]"
+                                              'unsigned))
+                 (#:store-free . ,(history "vfs.fs.size[/gnu/store,pfree]"
+                                           'float)))
+               '())))
+        '()))
+
+  (let ((builds (db-get-builds `((status . started)
+                                 (order . status+submission-time))))
+        (workers (filter (lambda (worker)
+                           (string=? name (worker-machine worker)))
+                         (db-get-workers))))
+    (html-page
+     name
+     (machine-status name workers
+                     (map (lambda (worker)
+                            (filter (lambda (build)
+                                      (string=? (assq-ref build #:worker)
+                                                (worker-name worker)))
+                                    builds))
+                          workers)
+                     zabbix-info)
+     '())))
 
 
 ;;;
@@ -722,6 +776,10 @@ Hydra format."
            (respond-json-with-error
             500
             "Could not find the request build product."))))
+
+    (('GET "machine" name)
+     (respond-html
+      (machine-page name)))
 
     (('GET "static" path ...)
      (respond-static-file path))

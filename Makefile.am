@@ -62,7 +62,8 @@ dist_pkgmodule_DATA =				\
   src/cuirass/ui.scm				\
   src/cuirass/utils.scm		                \
   src/cuirass/templates.scm                     \
-  src/cuirass/watchdog.scm
+  src/cuirass/watchdog.scm			\
+  src/cuirass/zabbix.scm
 
 nodist_pkgmodule_DATA = \
   src/cuirass/config.scm

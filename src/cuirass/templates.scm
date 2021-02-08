@@ -46,7 +46,8 @@
             evaluation-build-table
             running-builds-table
             global-metrics-content
-            workers-status))
+            workers-status
+            machine-status))
 
 (define (navigation-items navigation)
   (match navigation
@@ -922,6 +923,7 @@ and BUILD-MAX are global minimal and maximal row identifiers."
                           xaxes-labels
                           x-label
                           y-label
+                          (x-unit "day")
                           title
                           labels
                           colors)
@@ -932,7 +934,7 @@ and BUILD-MAX are global minimal and maximal row identifiers."
                                   . ((display . #t)
                                      (labelString . ,x-label))))))
          (time-xAxes (vector `((type . "time")
-                               (time . ((unit . "day")))
+                               (time . ((unit . ,x-unit)))
                                (display . #t)
                                (distribution . "series")
                                (scaleLabel
@@ -1126,7 +1128,8 @@ completed builds divided by the time required to build them.")
                      ((build _ ...) build)))
                  workers)))
       `(div (@ (class "col-sm-4 mt-3"))
-            (h6 ,machine)
+            (a (@(href "/machine/" ,machine))
+               (h6 ,machine))
             ,(map (lambda (build)
                     (let ((style (format #f
                                          "width: ~a%"
@@ -1164,3 +1167,123 @@ text-dark d-flex position-absolute w-100"))
       (div (@ (class "container"))
            (div (@ (class "row"))
                 ,@(map machine-row machines))))))
+
+(define* (machine-status name workers builds info)
+  (define (history->json-scm history)
+    (apply vector
+           (map (match-lambda
+                  ((field . value)
+                   `((x . ,(* field 1000)) (y . ,value))))
+                history)))
+
+  (define (ram-available->json-scm history)
+    (apply vector
+           (map (match-lambda
+                  ((field . value)
+                   `((x . ,(* field 1000))
+                     (y . ,(/ value (expt 2 30))))))
+                history)))
+
+  `((p (@ (class "lead")) "Machine " ,name)
+    ,@(if (null? info)
+          '()
+          `((table
+             (@ (class "table table-sm table-hover table-striped"))
+             (tbody
+              (tr (th "Hostname")
+                  (td ,(assq-ref info #:hostname)))
+              (tr (th "Info")
+                  (td ,(assq-ref info #:info)))
+              (tr (th "Boot time")
+                  (td ,(time->string
+                        (assq-ref info #:boottime))))
+              (tr (th "Total RAM")
+                  (td ,(assq-ref info #:ram)))
+              (tr (th "Total root disk space")
+                  (td ,(assq-ref info #:root-space)))
+              (tr (th "Total store disk space")
+                  (td ,(assq-ref info #:store-space)))))))
+    (h6 "Workers")
+    (table
+     (@ (class "table table-sm table-hover table-striped"))
+     ,@(if (null? workers)
+           `((th (@ (scope "col")) "No elements here."))
+           `((thead
+              (tr
+               (th (@ (scope "col")) "Name")
+               (th (@ (scope "col")) "Systems")
+               (th (@ (scope "col")) "Building")
+               (th (@ (scope "col")) "Last seen")))
+             (tbody
+              ,@(map
+                 (lambda (worker build)
+                   `(tr (td ,(worker-name worker))
+                        (td ,(string-join (worker-systems worker)
+                                          ", "))
+                        (td ,(match build
+                               (() "idle")
+                               ((build)
+                                `(a (@ (class "text-truncate")
+                                       (style "max-width: 150px")
+                                       (href "/build/"
+                                             ,(assq-ref build #:id)
+                                             "/details"))
+                                    ,(assq-ref build #:job-name)))))
+                        (td ,(time->string
+                              (worker-last-seen worker)))))
+                 workers builds)))))
+    ,@(if (null? info)
+          '((div (@ (class "alert alert-danger"))
+                 "Could not find machine information using Zabbix."))
+          `((h6 "CPU idle time")
+            ,@(let ((cpu-idle (assq-ref info #:cpu-idle))
+                    (cpu-idle-chart "cpu_idle_chart"))
+                `((script (@ (src "/static/js/chart.js")))
+                  (br)
+                  (canvas (@ (id ,cpu-idle-chart)))
+                  ,@(make-line-chart cpu-idle-chart
+                                     (list (history->json-scm cpu-idle))
+                                     #:time-x-axes? #t
+                                     #:x-label "Time"
+                                     #:y-label "Percentage"
+                                     #:x-unit "minute"
+                                     #:title "CPU idle time"
+                                     #:labels '("CPU idle time")
+                                     #:colors (list "#3e95cd"))))
+            (br)
+            (h6 "Available memory")
+            ,@(let ((ram-available (assq-ref info #:ram-available))
+                    (ram-available-chart "ram_available_chart"))
+                `((script (@ (src "/static/js/chart.js")))
+                  (br)
+                  (canvas (@ (id ,ram-available-chart)))
+                  ,@(make-line-chart ram-available-chart
+                                     (list
+                                      (ram-available->json-scm ram-available))
+                                     #:time-x-axes? #t
+                                     #:x-label "Time"
+                                     #:y-label "GiB"
+                                     #:x-unit "minute"
+                                     #:title
+                                     "Available memory"
+                                     #:labels
+                                     '("Available memory")
+                                     #:colors (list "#3e95cd"))))
+            (br)
+            (h6 "Free store disk space percentage")
+            ,@(let ((store-free (assq-ref info #:store-free))
+                    (store-free-chart "store_free_chart"))
+                `((script (@ (src "/static/js/chart.js")))
+                  (br)
+                  (canvas (@ (id ,store-free-chart)))
+                  ,@(make-line-chart store-free-chart
+                                     (list (history->json-scm store-free))
+                                     #:time-x-axes? #t
+                                     #:x-label "Time"
+                                     #:y-label "Percentage"
+                                     #:x-unit "minute"
+                                     #:title
+                                     "Free store disk space percentage"
+                                     #:labels
+                                     '("Free store disk space percentage")
+                                     #:colors (list "#3e95cd"))))))))
