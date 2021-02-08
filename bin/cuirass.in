@@ -80,7 +80,7 @@ exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
     (build-remote                     (value #f))
     (use-substitutes                  (value #f))
     (threads                          (value #t))
-    (zabbix-uri     (single-char #\z) (value #f))
+    (zabbix-uri     (single-char #\z) (value #t))
     (fallback                         (value #f))
     (record-events                    (value #f))
     (ttl                              (value #t))
