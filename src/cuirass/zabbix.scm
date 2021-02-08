@@ -25,7 +25,8 @@
   #:use-module (rnrs bytevectors)
   #:use-module (srfi srfi-11)
   #:use-module (ice-9 match)
-  #:export (zabbix-api-version
+  #:export (%zabbix-uri
+            zabbix-api-version
             zabbix-available?
             zabbix-login
             zabbix-logout

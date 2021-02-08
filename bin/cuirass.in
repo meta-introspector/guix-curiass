@@ -34,6 +34,7 @@ exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
              (cuirass metrics)
              (cuirass utils)
              (cuirass watchdog)
+             (cuirass zabbix)
              (guix ui)
              ((guix build utils) #:select (mkdir-p))
              (fibers)
@@ -61,6 +62,7 @@ exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
       --use-substitutes     Allow usage of pre-built substitutes
       --record-events       Record events for distribution
       --threads=N           Use up to N kernel threads
+  -z, --zabbix-uri=URI      Use Zabbix server at URI
   -V, --version             Display version
   -h, --help                Display this help message")
   (newline)
@@ -78,6 +80,7 @@ exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
     (build-remote                     (value #f))
     (use-substitutes                  (value #f))
     (threads                          (value #t))
+    (zabbix-uri     (single-char #\z) (value #f))
     (fallback                         (value #f))
     (record-events                    (value #f))
     (ttl                              (value #t))
@@ -106,6 +109,7 @@ exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
          (%package-cachedir
           (option-ref opts 'cache-directory (%package-cachedir)))
          (%build-remote? (option-ref opts 'build-remote #f))
+         (%zabbix-uri (option-ref opts 'zabbix-uri #f))
          (%use-substitutes? (option-ref opts 'use-substitutes #f))
          (%fallback? (option-ref opts 'fallback #f))
          (%record-events? (option-ref opts 'record-events #f))
