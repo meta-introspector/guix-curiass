@@ -77,6 +77,12 @@
 (define %public-key
   (make-parameter #f))
 
+(define %log-port
+  (make-parameter #f))
+
+(define %publish-port
+  (make-parameter #f))
+
 (define service-name
   "Cuirass remote server")
 
@@ -185,6 +191,9 @@ be used to reply to the worker."
   (match (zmq-read-message exp)
     (('worker-ready worker)
      (update-worker! worker))
+    (('worker-request-info)
+     (reply-worker
+      (zmq-server-info (%log-port) (%publish-port))))
     (('worker-request-work name)
      (let ((build (pop-build name)))
        (if build
@@ -437,6 +446,8 @@ exiting."
              (assoc-ref opts 'private-key-file))))
 
       (parameterize ((%cache-directory cache)
+                     (%log-port log-port)
+                     (%publish-port publish-port)
                      (%trigger-substitute-url trigger-substitute-url)
                      (%package-database database)
                      (%public-key public-key)

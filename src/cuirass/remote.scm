@@ -80,6 +80,8 @@
             zmq-worker-ping
             zmq-worker-ready-message
             zmq-worker-request-work-message
+            zmq-worker-request-info-message
+            zmq-server-info
             zmq-read-message
 
             remote-server-service-type))
@@ -172,8 +174,10 @@
   server?
   (address        server-address)
   (port           server-port)
-  (log-port       server-log-port)
-  (publish-url    server-publish-url))
+  (log-port       server-log-port
+                  (default #f))
+  (publish-url    server-publish-url
+                  (default #f)))
 
 (define (publish-url address port)
   "Return the publish url at ADDRESS and PORT."
@@ -446,6 +450,15 @@ retries a call to PROC."
 (define (zmq-worker-request-work-message name)
   "Return a message that indicates that WORKER is requesting work."
   (format #f "~s" `(worker-request-work ,name)))
+
+(define (zmq-worker-request-info-message)
+  "Return a message requesting server information."
+  (format #f "~s" '(worker-request-info)))
+
+(define (zmq-server-info log-port publish-port)
+  "Return a message containing server information."
+  (format #f "~s" `(server-info (log-port ,log-port)
+                                (publish-port ,publish-port))))
 
 (define remote-server-service-type
   "_remote-server._tcp")
