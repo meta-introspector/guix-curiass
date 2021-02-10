@@ -682,7 +682,7 @@ last_build.duration AS last_duration FROM builds,
 (SELECT GREATEST((stoptime - starttime), 1) AS duration FROM Builds
 WHERE job_name IN
 (SELECT job_name from Builds WHERE id = " build-id ")
-AND status = 0
+AND status >= 0
 ORDER BY Builds.timestamp DESC LIMIT 1) last_build
 where id = " build-id ") d;
 "))
