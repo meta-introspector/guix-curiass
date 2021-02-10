@@ -1222,7 +1222,7 @@ text-dark d-flex position-absolute w-100"))
                                           ", "))
                         (td ,(match build
                                (() "idle")
-                               ((build)
+                               ((build _ ...)
                                 `(a (@ (class "text-truncate")
                                        (style "max-width: 150px")
                                        (href "/build/"
