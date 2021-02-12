@@ -82,6 +82,8 @@
             zmq-worker-request-work-message
             zmq-worker-request-info-message
             zmq-server-info
+            zmq-remote-address
+            zmq-message-string
             zmq-read-message
 
             remote-server-service-type))
@@ -95,7 +97,8 @@
   worker make-worker
   worker?
   (name           worker-name)
-  (address        worker-address)
+  (address        worker-address
+                  (default #f))
   (machine        worker-machine)
   (publish-url    worker-publish-url
                   (default #f))
@@ -400,6 +403,13 @@ retries a call to PROC."
           (eq? (poll-item-socket item) socket))
         items))
 
+(define (zmq-remote-address message)
+  (zmq-message-gets message "Peer-Address"))
+
+(define (zmq-message-string message)
+  (bv->string
+   (zmq-message-content message)))
+
 (define (zmq-read-message msg)
   (call-with-input-string msg read))
 
@@ -455,9 +465,10 @@ retries a call to PROC."
   "Return a message requesting server information."
   (format #f "~s" '(worker-request-info)))
 
-(define (zmq-server-info log-port publish-port)
+(define (zmq-server-info worker-address log-port publish-port)
   "Return a message containing server information."
-  (format #f "~s" `(server-info (log-port ,log-port)
+  (format #f "~s" `(server-info (worker-address ,worker-address)
+                                (log-port ,log-port)
                                 (publish-port ,publish-port))))
 
 (define remote-server-service-type

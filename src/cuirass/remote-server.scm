@@ -179,8 +179,8 @@ Start a remote build server.\n"))
              ((build) build)
              (() #f))))))
 
-(define* (read-worker-exp exp #:key reply-worker)
-  "Read the given EXP sent by a worker.  REPLY-WORKER is a procedure that can
+(define* (read-worker-exp msg #:key reply-worker)
+  "Read the given MSG sent by a worker.  REPLY-WORKER is a procedure that can
 be used to reply to the worker."
   (define (update-worker! base-worker)
     (let* ((worker* (worker
@@ -188,12 +188,13 @@ be used to reply to the worker."
                      (last-seen (current-time)))))
       (db-add-or-update-worker worker*)))
 
-  (match (zmq-read-message exp)
+  (match (zmq-read-message
+          (zmq-message-string msg))
     (('worker-ready worker)
      (update-worker! worker))
     (('worker-request-info)
      (reply-worker
-      (zmq-server-info (%log-port) (%publish-port))))
+      (zmq-server-info (zmq-remote-address msg) (%log-port) (%publish-port))))
     (('worker-request-work name)
      (let ((build (pop-build name)))
        (if build
@@ -357,18 +358,19 @@ frontend to the workers connected through the TCP backend."
     (let loop ()
       (let ((items (zmq-poll* poll-items 1000)))
         (when (zmq-socket-ready? items build-socket)
-          (match (zmq-get-msg-parts-bytevector build-socket)
+          (match (zmq-message-receive build-socket)
             ((worker empty rest)
              (let ((reply-worker
                     (lambda (message)
                       (zmq-send-msg-parts-bytevector
                        build-socket
-                       (list worker
+                       (list (zmq-message-content worker)
                              (zmq-empty-delimiter)
-                             (string->bv message))))))
-               (if (need-fetching? (bv->string rest))
-                   (zmq-send-bytevector fetch-socket rest)
-                   (read-worker-exp (bv->string rest)
+                             (string->bv message)))))
+                   (rest-bv (zmq-message-content rest)))
+               (if (need-fetching? (bv->string rest-bv))
+                   (zmq-send-bytevector fetch-socket rest-bv)
+                   (read-worker-exp rest
                                     #:reply-worker reply-worker))))))
         (db-remove-unresponsive-workers (%worker-timeout))
         (loop)))))

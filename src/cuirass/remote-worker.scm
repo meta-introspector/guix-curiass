@@ -87,9 +87,6 @@ Start a remote build worker.\n"))
         (option '(#\V "version") #f #f
                 (lambda _
                   (show-version-and-exit "guix publish")))
-        (option '(#\a "address") #t #f
-                (lambda (opt name arg result)
-                  (alist-cons 'address arg result)))
         (option '(#\w "workers") #t #f
                 (lambda (opt name arg result)
                   (alist-cons 'workers (string->number* arg) result)))
@@ -230,7 +227,7 @@ command.  REPLY is a procedure that can be used to reply to this server."
          (sleep 60)
          (loop))))))
 
-(define (start-worker worker serv)
+(define (start-worker wrk serv)
   "Start a worker thread named NAME, reading commands from the DEALER socket
 and executing them.  The worker can reply on the same socket."
   (define (reply socket)
@@ -239,14 +236,14 @@ and executing them.  The worker can reply on the same socket."
        socket
        (list (zmq-empty-delimiter) (string->bv message)))))
 
-  (define (ready socket)
+  (define (ready socket worker)
     (zmq-send-msg-parts-bytevector
      socket
      (list (make-bytevector 0)
            (string->bv
             (zmq-worker-ready-message (worker->sexp worker))))))
 
-  (define (request-work socket)
+  (define (request-work socket worker)
     (let ((name (worker-name worker)))
       (zmq-send-msg-parts-bytevector
        socket
@@ -259,37 +256,54 @@ and executing them.  The worker can reply on the same socket."
      (list (make-bytevector 0)
            (string->bv (zmq-worker-request-info-message)))))
 
-  (define (read-server-info socket serv)
+  (define (read-server-info socket)
     (request-info socket)
     (match (zmq-get-msg-parts-bytevector socket '())
       ((empty info)
        (match (zmq-read-message (bv->string info))
          (('server-info
+           ('worker-address worker-address)
            ('log-port log-port)
            ('publish-port publish-port))
-          (let ((url (publish-url (server-address serv)
-                                  publish-port)))
-            (server
-             (inherit serv)
-             (log-port log-port)
-             (publish-url url))))))))
+          (list worker-address log-port publish-port))))))
+
+  (define (server-info->server info serv)
+    (match info
+      ((_ log-port publish-port)
+       (let ((url (publish-url (server-address serv)
+                               publish-port)))
+         (server
+          (inherit serv)
+          (log-port log-port)
+          (publish-url url))))))
+
+  (define (server-info->worker info w)
+    (match info
+      ((worker-address _ _)
+       (let ((url (local-publish-url worker-address)))
+         (worker
+          (inherit w)
+          (address worker-address)
+          (publish-url url))))))
 
   (match (primitive-fork)
     (0
-     (set-thread-name (worker-name worker))
+     (set-thread-name (worker-name wrk))
      (let* ((socket (zmq-dealer-socket))
             (address (server-address serv))
             (port (server-port serv))
             (endpoint (zmq-backend-endpoint address port)))
        (zmq-connect socket endpoint)
-       (ready socket)
-       (worker-ping worker serv)
-       (let ((server* (read-server-info socket serv)))
+       (let* ((info (read-server-info socket))
+              (server (server-info->server info serv))
+              (worker (server-info->worker info wrk)))
+         (ready socket worker)
+         (worker-ping worker server)
          (let loop ()
-           (request-work socket)
+           (request-work socket worker)
            (match (zmq-get-msg-parts-bytevector socket '())
              ((empty command)
-              (run-command (bv->string command) server*
+              (run-command (bv->string command) server
                            #:reply (reply socket)
                            #:worker worker)))
            (sleep 10)
@@ -343,7 +357,6 @@ exiting."
                              (lambda (arg result)
                                (leave (G_ "~A: extraneous argument~%") arg))
                              %default-options))
-           (address (assoc-ref opts 'address))
            (workers (assoc-ref opts 'workers))
            (publish-port (assoc-ref opts 'publish-port))
            (server-address (assoc-ref opts 'server))
@@ -363,18 +376,12 @@ exiting."
                        #:public-key public-key
                        #:private-key private-key))
 
-      (when (and server-address (not address))
-        (leave (G_ "Address must be set when server is provided.~%")))
-
       (if server-address
           (for-each
            (lambda (n)
-             (let* ((publish-url (local-publish-url address))
-                    (worker (worker
+             (let* ((worker (worker
                              (name (generate-worker-name))
-                             (address address)
                              (machine (gethostname))
-                             (publish-url publish-url)
                              (systems systems)))
                     (addr (string-split server-address #\:))
                     (server (match addr
@@ -391,8 +398,7 @@ exiting."
                ((new-service)
                 (for-each
                  (lambda (n)
-                   (let* ((address (or address
-                                       (avahi-service-local-address service)))
+                   (let* ((address (avahi-service-local-address service))
                           (publish-url (local-publish-url address)))
                      (add-to-worker-pids!
                       (start-worker (worker
