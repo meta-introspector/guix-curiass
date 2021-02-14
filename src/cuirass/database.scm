@@ -746,9 +746,6 @@ where id = " build-id ") d;
                    (and add-build? (db-add-build build)))
                  (db-add-build build))))))
 
-  ;; Use the database worker dedicated to write queries.  We don't want this
-  ;; query to be queued as it is already a quite large transaction by itself,
-  ;; so pass the #:FORCE? option.
   (with-db-worker-thread db
     (log-message "Registering builds for evaluation ~a." eval-id)
     (exec-query db "BEGIN TRANSACTION;")
