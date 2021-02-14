@@ -83,7 +83,7 @@
    (address "address")
    (machine "machine")
    (systems '("a" "b"))
-   (last-seen "1")))
+   (last-seen 1)))
 
 (define %db
   (make-parameter #f))
