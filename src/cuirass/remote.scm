@@ -261,6 +261,10 @@ PRIVATE-KEY to sign narinfos."
            (dup2 (fileno log-file) 1)
            (dup2 (fileno log-file) 2)
            (close-port log-file)
+
+           ;; Use a default locale.
+           (setlocale LC_ALL "en_US.utf8")
+
            (let* ((address (make-socket-address AF_INET INADDR_ANY 0))
                   (socket-address
                    (make-socket-address (sockaddr:fam address)
