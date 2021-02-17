@@ -426,6 +426,9 @@ exiting."
   (setvbuf (current-output-port) 'line)
   (setvbuf (current-error-port) 'line)
 
+  ;; Use a default locale.
+  (setlocale LC_ALL "en_US.utf8")
+
   (with-error-handling
     (let* ((opts (args-fold* args %options
                              (lambda (opt name arg result)
