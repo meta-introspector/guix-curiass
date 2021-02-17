@@ -69,6 +69,7 @@
             db-register-builds
             db-update-build-status!
             db-update-build-worker!
+            db-restart-build!
             db-get-build-products
             db-get-builds-by-search
             db-get-builds
@@ -832,6 +833,13 @@ UPDATE Builds SET stoptime =" now
   (with-db-worker-thread db
     (exec-query/bind db "UPDATE Builds SET worker=" worker
                      "WHERE derivation=" drv ";")))
+
+(define (db-restart-build! build-id)
+  "Restart the build with BUILD-ID id."
+  (with-db-worker-thread db
+    (exec-query/bind db "UPDATE Builds SET status="
+                     (build-status scheduled)
+                     "WHERE id=" build-id ";")))
 
 (define (query->bind-arguments query-string)
   "Return a list of keys to query strings by parsing QUERY-STRING."

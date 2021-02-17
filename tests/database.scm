@@ -490,6 +490,12 @@ timestamp, checkouttime, evaltime) VALUES ('guix', 0, 0, 0, 0);")
       (db-update-build-status! "/new-build.drv" 1)
       (assq-ref (db-get-build "/new-build.drv") #:weather)))
 
+  (test-assert "db-restart-build!"
+    (let ((build (db-get-build "/new-build.drv")))
+      (db-restart-build! (assq-ref build #:id))
+      (eq? (assq-ref (db-get-build "/new-build.drv") #:status)
+           (build-status scheduled))))
+
   (test-assert "db-close"
     (begin
       (exec-query (%db) (format #f "DROP OWNED BY CURRENT_USER;"))
