@@ -292,7 +292,22 @@ system whose names start with " (code "guile-") ":" (br)
       (td ,(assq-ref build #:nix-name))
       (td ,(time->string (assq-ref build #:stoptime)))))
 
-  `((p (@ (class "lead")) "Build details")
+  `((p (@ (class "lead")) "Build details"
+       ,@(if (>= status 0)
+             `((div (@ (class "dropdown float-right"))
+                    (a (@ (class "btn btn-warning dropdown-toggle")
+                          (href "#")
+                          (data-toggle "dropdown")
+                          (role "button")
+                          (aria-haspopup "true")
+                          (aria-expanded "false"))
+                       "Action")
+                    (div (@ (class "dropdown-menu"))
+                         (a (@ (class "dropdown-item")
+                               (href "/admin/build/"
+                                     ,(assq-ref build #:id) "/restart"))
+                            "Restart"))))
+             '()))
     (table
      (@ (class "table table-sm table-hover"))
      (tbody

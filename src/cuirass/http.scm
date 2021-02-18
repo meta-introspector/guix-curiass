@@ -483,6 +483,14 @@ Hydra format."
                     "Cuirass [Admin]"
                     (specifications-table (db-get-specifications) 'admin)
                     '())))
+    (('GET "admin" "build" id "restart")
+     (db-restart-build! (string->number id))
+     (respond
+      (build-response
+       #:code 302
+       #:headers `((location . ,(string->uri-reference
+                                 (string-append "/build/" id "/details")))))
+      #:body ""))
     (('GET "admin")
      (respond-html (html-page
                     "Cuirass [Admin]"
