@@ -37,3 +37,8 @@ a.dropdown-toggle:focus + .dropdown-menu {
     visibility: hidden;
     transition: visibility 0.5s;
 }
+
+/* Remove the dropdown-toggle arrow. */
+.no-dropdown-arrow::after {
+    content: none;
+}
