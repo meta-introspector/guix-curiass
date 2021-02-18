@@ -491,6 +491,19 @@ Hydra format."
        #:headers `((location . ,(string->uri-reference
                                  (string-append "/build/" id "/details")))))
       #:body ""))
+
+    (('GET "admin" "evaluation" id "restart")
+     (let* ((eval (db-get-evaluation id))
+            (specification (assq-ref eval #:specification)))
+       (db-restart-evaluation! (string->number id))
+       (respond
+        (build-response
+         #:code 302
+         #:headers `((location
+                      . ,(string->uri-reference
+                          (string-append "/jobset/" specification)))))
+        #:body "")))
+
     (('GET "admin")
      (respond-html (html-page
                     "Cuirass [Admin]"
