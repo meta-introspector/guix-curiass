@@ -78,7 +78,6 @@
     "fonts/open-iconic.otf"
     "fonts/open-iconic.woff"
     "images/icon.png"
-    "images/icon.svg"
     "images/guix.png"
     "js/chart.js"))
 

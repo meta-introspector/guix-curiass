@@ -119,8 +119,6 @@ system whose names start with " (code "guile-") ":" (br)
                    (href "/static/css/cuirass.css")))
           (link (@ (rel "icon") (type "image/png")
                    (href "/static/images/icon.png")))
-          (link (@ (rel "icon") (type "image/svg+xml") (sizes "any")
-                   (href "/static/images/icon.svg")))
           (title ,title))
          (body
           (nav (@ (class "navbar navbar-expand-lg navbar-light bg-light"))
