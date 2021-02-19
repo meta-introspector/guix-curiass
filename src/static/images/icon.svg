@@ -1,0 +1,152 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg
+   xmlns:dc="http://purl.org/dc/elements/1.1/"
+   xmlns:cc="http://creativecommons.org/ns#"
+   xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+   xmlns:svg="http://www.w3.org/2000/svg"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   width="200"
+   height="200.00011"
+   id="svg2"
+   version="1.1"
+   inkscape:version="1.0.1 (3bc2e813f5, 2020-09-07)"
+   sodipodi:docname="icon.svg">
+  <title
+     id="title3831">Cuirass icon</title>
+  <defs
+     id="defs4" />
+  <sodipodi:namedview
+     id="base"
+     pagecolor="#ffffff"
+     bordercolor="#666666"
+     borderopacity="1.0"
+     inkscape:pageopacity="0"
+     inkscape:pageshadow="2"
+     inkscape:zoom="1"
+     inkscape:cx="387.83802"
+     inkscape:cy="172.5298"
+     inkscape:document-units="px"
+     inkscape:current-layer="layer1"
+     showgrid="false"
+     inkscape:window-width="1920"
+     inkscape:window-height="1016"
+     inkscape:window-x="0"
+     inkscape:window-y="27"
+     inkscape:window-maximized="1"
+     inkscape:showpageshadow="false"
+     borderlayer="true"
+     inkscape:document-rotation="0"
+     inkscape:snap-global="true"
+     showguides="true"
+     inkscape:guide-bbox="true"
+     inkscape:snap-bbox="true"
+     fit-margin-top="0"
+     fit-margin-left="0"
+     fit-margin-right="0"
+     fit-margin-bottom="0"
+     showborder="false">
+    <inkscape:grid
+       type="axonomgrid"
+       id="grid3004"
+       units="mm"
+       empspacing="5"
+       visible="true"
+       enabled="true"
+       snapvisiblegridlinesonly="true"
+       spacingy="3.7mm"
+       originx="-9436.2206"
+       originy="-1853.1371" />
+  </sodipodi:namedview>
+  <metadata
+     id="metadata7">
+    <rdf:RDF>
+      <cc:Work
+         rdf:about="">
+        <dc:format>image/svg+xml</dc:format>
+        <dc:type
+           rdf:resource="http://purl.org/dc/dcmitype/StillImage" />
+        <dc:title>Cuirass icon</dc:title>
+        <dc:date>2021-01-09</dc:date>
+        <dc:creator>
+          <cc:Agent>
+            <dc:title>Luis Felipe López Acevedo</dc:title>
+          </cc:Agent>
+        </dc:creator>
+        <dc:rights>
+          <cc:Agent>
+            <dc:title />
+          </cc:Agent>
+        </dc:rights>
+        <cc:license
+           rdf:resource="http://creativecommons.org/licenses/by-sa/4.0/" />
+      </cc:Work>
+      <cc:License
+         rdf:about="http://creativecommons.org/licenses/by-sa/4.0/">
+        <cc:permits
+           rdf:resource="http://creativecommons.org/ns#Reproduction" />
+        <cc:permits
+           rdf:resource="http://creativecommons.org/ns#Distribution" />
+        <cc:requires
+           rdf:resource="http://creativecommons.org/ns#Notice" />
+        <cc:requires
+           rdf:resource="http://creativecommons.org/ns#Attribution" />
+        <cc:permits
+           rdf:resource="http://creativecommons.org/ns#DerivativeWorks" />
+        <cc:requires
+           rdf:resource="http://creativecommons.org/ns#ShareAlike" />
+      </cc:License>
+    </rdf:RDF>
+  </metadata>
+  <g
+     inkscape:groupmode="layer"
+     id="layer2"
+     inkscape:label="ref"
+     sodipodi:insensitive="true"
+     transform="translate(-9421.1025,-1821.0111)" />
+  <g
+     inkscape:label="layer"
+     inkscape:groupmode="layer"
+     id="layer1"
+     transform="translate(-9421.1025,-2673.3733)">
+    <rect
+       style="fill:#191919;fill-opacity:1;stroke:none;stroke-width:0.284347"
+       id="rect4281"
+       width="200"
+       height="200.00011"
+       x="9421.1025"
+       y="2673.3733" />
+    <g
+       id="g1247"
+       transform="matrix(0.75,0,0,0.75,2361.5257,674.59333)">
+      <path
+         id="path4303"
+         style="fill:#fd7e14;fill-opacity:1;stroke:none;stroke-width:1.40209;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+         d="m 9551.1873,2698.3734 v 38.6156 h 15.2577 v -3.0224 l 6.7796,-6.7797 h 20.339 20.339 l 6.7797,6.7797 v 20.0692 a 27.118644,27.118644 0 0 1 0,0.2698 v 20.3389 l -6.7797,6.7797 h -20.339 -20.339 l -6.7796,-6.7797 v -3.7572 h -15.2577 v 54.2372 h 15.2577 v -3.0223 l 6.7796,-6.7797 h 20.339 20.339 l 6.7797,6.7797 v 20.0692 a 27.118644,27.118644 0 0 1 0,0.2698 v 20.3389 l -6.7797,6.7797 h -20.339 -20.339 l -6.7796,-6.7797 v -3.7573 h -15.2577 v 39.3506 h 82.2034 l 12.7119,-12.7119 v -174.5763 l -12.7119,-12.7118 z" />
+      <path
+         id="path4305"
+         style="fill:#ffffff;fill-opacity:1;stroke-width:1.86014"
+         d="m 9458.8145,2698.3733 -12.7119,12.7119 v 174.5763 l 12.7119,12.7119 h 82.2034 v -39.3506 -8.9545 h 35.5966 v 5.9322 l 3.3898,3.3898 h 27.1186 l 3.3899,-3.3898 v -27.1187 l -3.3899,-3.3898 h -27.1186 l -3.3898,3.3898 v 5.9322 h -35.5966 v -9.6895 -54.2372 -8.9546 h 35.5966 v 5.9322 l 3.3898,3.3898 h 27.1186 l 3.3899,-3.3898 v -27.1187 l -3.3899,-3.3898 h -27.1186 l -3.3898,3.3898 v 5.9322 h -35.5966 v -9.6894 -38.6157 z m 13.5593,16.9492 h 51.6949 v 166.1017 h -51.6949 l -9.322,-9.322 v -147.4577 z m 8.4746,11.8644 -5.9322,7.6271 v 127.1187 l 7.6271,7.6271 h 29.661 v -142.3729 z m 108.4779,19.4915 h 8.4746 l 3.3898,3.3899 v 8.4745 l -3.3898,3.3899 h -8.4746 l -3.3898,-3.3899 v -8.4745 z m 0,88.1356 h 8.4746 l 3.3898,3.3899 v 8.4745 l -3.3898,3.3899 h -8.4746 l -3.3898,-3.3899 v -8.4745 z" />
+    </g>
+    <g
+       id="g850"
+       transform="translate(0,-20)">
+      <rect
+         style="fill:#ffffff;fill-opacity:1;stroke:none;stroke-width:0.284347"
+         id="rect14"
+         width="200"
+         height="200.00011"
+         x="9421.1025"
+         y="2973.3733" />
+      <path
+         id="path16"
+         style="fill:#fd7e14;fill-opacity:1;stroke:none;stroke-width:1.05157;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+         d="m 9524.9162,2998.3734 v 28.9617 h 11.4433 v -2.2668 l 5.0846,-5.0848 h 15.2543 15.2542 l 5.0848,5.0848 v 15.0519 a 20.338983,20.338983 0 0 1 0,0.2023 v 15.2542 l -5.0848,5.0848 h -15.2542 -15.2543 l -5.0846,-5.0848 v -2.8179 h -11.4433 v 40.6779 h 11.4433 v -2.2667 l 5.0846,-5.0848 h 15.2543 15.2542 l 5.0848,5.0848 v 15.0519 a 20.338983,20.338983 0 0 1 0,0.2023 v 15.2542 l -5.0848,5.0848 h -15.2542 -15.2543 l -5.0846,-5.0848 v -2.818 h -11.4433 v 29.513 h 61.6525 l 9.534,-9.5339 v -130.9323 l -9.534,-9.5338 z" />
+      <path
+         id="path18"
+         style="fill:#191919;fill-opacity:1;stroke-width:1.39511"
+         d="m 9455.6366,2998.3733 -9.5339,9.5339 v 130.9323 l 9.5339,9.5339 h 61.6525 v -29.513 -6.7158 h 26.6975 v 4.4491 l 2.5423,2.5424 h 20.339 l 2.5424,-2.5424 v -20.339 l -2.5424,-2.5424 h -20.339 l -2.5423,2.5424 v 4.4491 h -26.6975 v -7.2671 -40.6779 -6.7159 h 26.6975 v 4.4491 l 2.5423,2.5424 h 20.339 l 2.5424,-2.5424 v -20.339 l -2.5424,-2.5424 h -20.339 l -2.5423,2.5424 v 4.4491 h -26.6975 v -7.267 -28.9618 z m 10.1695,12.7119 h 38.7711 v 124.5763 h -38.7711 l -6.9915,-6.9915 v -110.5933 z m 6.3559,8.8983 -4.4491,5.7203 v 95.3391 l 5.7203,5.7203 h 22.2457 v -106.7797 z m 81.3584,14.6186 h 6.356 l 2.5423,2.5425 v 6.3558 l -2.5423,2.5425 h -6.356 l -2.5423,-2.5425 v -6.3558 z m 0,66.1017 h 6.356 l 2.5423,2.5425 v 6.3558 l -2.5423,2.5425 h -6.356 l -2.5423,-2.5425 v -6.3558 z" />
+    </g>
+  </g>
+</svg>

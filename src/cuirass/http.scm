@@ -77,7 +77,9 @@
     "css/open-iconic-bootstrap.css"
     "fonts/open-iconic.otf"
     "fonts/open-iconic.woff"
-    "images/logo.png"
+    "images/icon.png"
+    "images/icon.svg"
+    "images/guix.png"
     "js/chart.js"))
 
 (define (build->hydra-build build)
