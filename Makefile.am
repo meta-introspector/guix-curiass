@@ -53,7 +53,9 @@ dist_pkgmodule_DATA =				\
   src/cuirass/database.scm			\
   src/cuirass/http.scm				\
   src/cuirass/logging.scm			\
+  src/cuirass/mail.scm				\
   src/cuirass/metrics.scm			\
+  src/cuirass/notification.scm			\
   src/cuirass/remote.scm			\
   src/cuirass/remote-server.scm			\
   src/cuirass/remote-worker.scm			\
@@ -84,7 +86,8 @@ dist_sql_DATA = 				\
   src/sql/upgrade-1.sql				\
   src/sql/upgrade-2.sql				\
   src/sql/upgrade-3.sql				\
-  src/sql/upgrade-4.sql
+  src/sql/upgrade-4.sql				\
+  src/sql/upgrade-5.sql
 
 dist_css_DATA =					\
   src/static/css/cuirass.css			\

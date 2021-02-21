@@ -32,6 +32,7 @@ exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
              (cuirass ui)
              (cuirass logging)
              (cuirass metrics)
+             (cuirass notification)
              (cuirass utils)
              (cuirass watchdog)
              (cuirass zabbix)
@@ -145,83 +146,84 @@ exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
           (run-fibers
            (lambda ()
              (with-database
-               (and specfile
-                    (let ((new-specs (save-module-excursion
-                                      (lambda ()
-                                        (set-current-module
-                                         (make-user-module '()))
-                                        (primitive-load specfile)))))
+                 (with-notification
+                  (and specfile
+                       (let ((new-specs (save-module-excursion
+                                         (lambda ()
+                                           (set-current-module
+                                            (make-user-module '()))
+                                           (primitive-load specfile)))))
 
-                      (for-each db-add-specification new-specs)))
+                         (for-each db-add-specification new-specs)))
 
-               (if one-shot?
-                   (process-specs (db-get-specifications))
-                   (let ((exit-channel (make-channel)))
-                     (start-watchdog)
-                     (if (option-ref opts 'web #f)
-                         (begin
-                           (spawn-fiber
-                            (essential-task
-                             'web exit-channel
-                             (lambda ()
-                               (run-cuirass-server #:host host
-                                                   #:port port)))
-                            #:parallel? #t)
+                  (if one-shot?
+                      (process-specs (db-get-specifications))
+                      (let ((exit-channel (make-channel)))
+                        (start-watchdog)
+                        (if (option-ref opts 'web #f)
+                            (begin
+                              (spawn-fiber
+                               (essential-task
+                                'web exit-channel
+                                (lambda ()
+                                  (run-cuirass-server #:host host
+                                                      #:port port)))
+                               #:parallel? #t)
 
-                           (spawn-fiber
-                            (essential-task
-                             'monitor exit-channel
-                             (lambda ()
-                               (while #t
-                                 (log-monitoring-stats)
-                                 (sleep 600))))))
+                              (spawn-fiber
+                               (essential-task
+                                'monitor exit-channel
+                                (lambda ()
+                                  (while #t
+                                    (log-monitoring-stats)
+                                    (sleep 600))))))
 
-                         (begin
-                           (clear-build-queue)
+                            (begin
+                              (clear-build-queue)
 
-                           ;; If Cuirass was stopped during an evaluation,
-                           ;; abort it. Builds that were not registered
-                           ;; during this evaluation will be registered
-                           ;; during the next evaluation.
-                           (db-abort-pending-evaluations)
+                              ;; If Cuirass was stopped during an evaluation,
+                              ;; abort it. Builds that were not registered
+                              ;; during this evaluation will be registered
+                              ;; during the next evaluation.
+                              (db-abort-pending-evaluations)
 
-                           ;; First off, restart builds that had not
-                           ;; completed or were not even started on a
-                           ;; previous run.
-                           (spawn-fiber
-                            (essential-task
-                             'restart-builds exit-channel
-                             (lambda ()
-                               (restart-builds))))
+                              ;; First off, restart builds that had not
+                              ;; completed or were not even started on a
+                              ;; previous run.
+                              (spawn-fiber
+                               (essential-task
+                                'restart-builds exit-channel
+                                (lambda ()
+                                  (restart-builds))))
 
-                           (spawn-fiber
-                            (essential-task
-                             'build exit-channel
-                             (lambda ()
-                               (while #t
-                                 (process-specs (db-get-specifications))
-                                 (log-message
-                                  "next evaluation in ~a seconds" interval)
-                                 (sleep interval)))))
+                              (spawn-fiber
+                               (essential-task
+                                'build exit-channel
+                                (lambda ()
+                                  (while #t
+                                    (process-specs (db-get-specifications))
+                                    (log-message
+                                     "next evaluation in ~a seconds" interval)
+                                    (sleep interval)))))
 
-                           (spawn-fiber
-                            (essential-task
-                             'metrics exit-channel
-                             (lambda ()
-                               (while #t
-                                 (with-time-logging
-                                  "Metrics update"
-                                  (db-update-metrics))
-                                 (sleep 3600)))))
+                              (spawn-fiber
+                               (essential-task
+                                'metrics exit-channel
+                                (lambda ()
+                                  (while #t
+                                    (with-time-logging
+                                     "Metrics update"
+                                     (db-update-metrics))
+                                    (sleep 3600)))))
 
-                           (spawn-fiber
-                            (essential-task
-                             'monitor exit-channel
-                             (lambda ()
-                               (while #t
-                                 (log-monitoring-stats)
-                                 (sleep 600)))))))
-                     (primitive-exit (get-message exit-channel))))))
+                              (spawn-fiber
+                               (essential-task
+                                'monitor exit-channel
+                                (lambda ()
+                                  (while #t
+                                    (log-monitoring-stats)
+                                    (sleep 600)))))))
+                        (primitive-exit (get-message exit-channel)))))))
 
            ;; Most of our code is I/O so preemption doesn't matter much (it
            ;; could help while we're doing SQL requests, for instance, but it

@@ -21,16 +21,30 @@
 ;;; along with Cuirass.  If not, see <http://www.gnu.org/licenses/>.
 
 (use-modules (cuirass database)
+             (cuirass notification)
              (cuirass remote)
              (cuirass utils)
              ((guix utils) #:select (call-with-temporary-output-file))
+             (rnrs io ports)
              (squee)
              (ice-9 match)
              (srfi srfi-19)
              (srfi srfi-64))
 
+;; This variable is looked up by 'mu-message-send'.
+(define-public mu-debug 0)
+
+(define (mailer)
+  (string-append "sendmail://" (getcwd) "/tests/mail.sh"))
+
+;; The above bash program will be invoked by mailutils.  It copies what's
+;; passed on the standard input to the following file.
+(define tmp-mail ".tmp-mail")
+
+(false-if-exception (delete-file tmp-mail))
+
 (define example-spec
-  '((#:name . "guix")
+  `((#:name . "guix")
     (#:load-path-inputs . ("savannah"))
     (#:package-path-inputs . ())
     (#:proc-input . "savannah")
@@ -52,6 +66,12 @@
                   (#:commit . #f)
                   (#:no-compile? . #f))))
     (#:build-outputs . ())
+    (#:notifications . (((#:name . "name")
+                         (#:type . ,(notification-type email))
+                         (#:from . "from")
+                         (#:to . "to")
+                         (#:server . ,(mailer))
+                         (#:event . 0))))
     (#:priority . 9)))
 
 (define (make-dummy-checkouts fakesha1 fakesha2)
@@ -469,12 +489,22 @@ timestamp, checkouttime, evaltime) VALUES ('guix', 0, 0, 0, 0);")
     (begin
       (assq-ref (db-get-build "/new-build.drv") #:weather)))
 
+  (test-assert "mail notification"
+    (let ((str (call-with-input-file tmp-mail
+                 get-string-all)))
+      (string-contains str "Build job-1 on guix is fixed.")))
+
   (test-equal "db-get-builds weather"
     (build-weather new-failure)
     (begin
       (db-update-build-status! "/old-build.drv" 0)
       (db-update-build-status! "/new-build.drv" 1)
       (assq-ref (db-get-build "/new-build.drv") #:weather)))
+
+  (test-assert "mail notification"
+    (let ((str (call-with-input-file tmp-mail
+                 get-string-all)))
+      (string-contains str "Build job-1 on guix is broken.")))
 
   (test-equal "db-get-builds weather"
     (build-weather still-succeeding)

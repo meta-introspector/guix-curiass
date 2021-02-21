@@ -21,6 +21,7 @@
   #:use-module (cuirass config)
   #:use-module (cuirass database)
   #:use-module (cuirass logging)
+  #:use-module (cuirass notification)
   #:use-module (cuirass remote)
   #:use-module (cuirass utils)
   #:use-module (gcrypt pk-crypto)
@@ -479,10 +480,11 @@ exiting."
         (receive-logs log-port (%cache-directory))
 
         (with-database
-            (for-each (lambda (number)
-                        (start-fetch-worker
-                         (string-append "fetch-worker-"
-                                        (number->string number))))
-                      (iota 4))
+            (with-notification
+             (for-each (lambda (number)
+                         (start-fetch-worker
+                          (string-append "fetch-worker-"
+                                         (number->string number))))
+                       (iota 4))
 
-            (zmq-start-proxy backend-port))))))
+             (zmq-start-proxy backend-port)))))))

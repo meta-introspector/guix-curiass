@@ -24,6 +24,7 @@
 (define-module (cuirass database)
   #:use-module (cuirass logging)
   #:use-module (cuirass config)
+  #:use-module (cuirass notification)
   #:use-module (cuirass remote)
   #:use-module (cuirass utils)
   #:use-module (squee)
@@ -250,8 +251,7 @@ fibers."
 
 (define-syntax-rule (with-db-worker-thread db exp ...)
   "Evaluate EXP... in the critical section corresponding to %DB-CHANNEL.
-DB is bound to the argument of that critical section: the database connection.
-This must only be used for reading queries, i.e SELECT queries."
+DB is bound to the argument of that critical section: the database connection."
   (let ((send-timeout 2)
         (receive-timeout 5)
         (caller-name (frame-procedure-name
@@ -405,7 +405,7 @@ table."
             (exec-query/bind db "\
 INSERT INTO Specifications (name, load_path_inputs, \
 package_path_inputs, proc_input, proc_file, proc, proc_args, \
-build_outputs, priority) \
+build_outputs, notifications, priority) \
   VALUES ("
                              (assq-ref spec #:name) ", "
                              (assq-ref spec #:load-path-inputs) ", "
@@ -415,6 +415,7 @@ build_outputs, priority) \
                              (symbol->string (assq-ref spec #:proc)) ", "
                              (assq-ref spec #:proc-args) ", "
                              (assq-ref spec #:build-outputs) ", "
+                             (assq-ref spec #:notifications) ", "
                              (or (assq-ref spec #:priority) max-priority) ")
 ON CONFLICT ON CONSTRAINT specifications_pkey DO NOTHING
 RETURNING name;"))
@@ -472,7 +473,7 @@ SELECT * FROM Specifications ORDER BY name ASC;")))
       (match rows
         (() (reverse specs))
         (((name load-path-inputs package-path-inputs proc-input proc-file proc
-                proc-args build-outputs priority)
+                proc-args build-outputs notifications priority)
           . rest)
          (loop rest
                (cons `((#:name . ,name)
@@ -487,6 +488,8 @@ SELECT * FROM Specifications ORDER BY name ASC;")))
                        (#:inputs . ,(db-get-inputs name))
                        (#:build-outputs .
                         ,(with-input-from-string build-outputs read))
+                       (#:notifications .
+                        ,(with-input-from-string notifications read))
                        (#:priority . ,(string->number priority)))
                      specs)))))))
 
@@ -823,11 +826,16 @@ UPDATE Builds SET stoptime =" now
 "WHERE derivation =" drv
 " AND status != " status ";")))
             (when (positive? rows)
-              (db-add-event 'build
-                            now
-                            `((#:derivation . ,drv)
-                              (#:event      . ,(assq-ref status-names
-                                                         status))))))))))
+              (let* ((build (db-get-build drv))
+                     (spec (assq-ref build #:specification))
+                     (specification (db-get-specification spec))
+                     (notifications (assq-ref specification #:notifications)))
+                (send-notifications notifications #:build build)
+                (db-add-event 'build
+                              now
+                              `((#:derivation . ,drv)
+                                (#:event      . ,(assq-ref status-names
+                                                           status)))))))))))
 
 (define* (db-update-build-worker! drv worker)
   "Update the database so that DRV's worker is WORKER."
