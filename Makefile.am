@@ -97,7 +97,8 @@ dist_fonts_DATA =				\
   src/static/fonts/open-iconic.ttf		\
   src/static/fonts/open-iconic.woff
 dist_images_DATA =				\
-  src/static/images/logo.png
+  src/static/images/guix.png			\
+  src/static/images/icon.png
 dist_js_DATA =					\
   src/static/js/chart.js
 
