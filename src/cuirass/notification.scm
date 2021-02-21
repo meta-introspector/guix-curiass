@@ -20,6 +20,7 @@
   #:use-module (cuirass database)
   #:use-module (cuirass logging)
   #:use-module (cuirass mail)
+  #:use-module (cuirass mastodon)
   #:use-module (cuirass utils)
   #:export (notification-type
             notification-event
@@ -54,7 +55,8 @@ interfering with fibers."
      exp ...)))
 
 (define-enumeration notification-type
-  (email            0))
+  (email            0)
+  (mastodon         1))
 
 (define-enumeration notification-event
   (always            0)
@@ -104,6 +106,17 @@ the detailed information about this build here: ~a."
                 #:subject subject
                 #:text text)))
 
+(define (notification-mastodon notification)
+  "Send a new status for the given NOTIFICATION."
+  (let ((name (assq-ref notification #:instance-name))
+        (url (assq-ref notification #:instance-url))
+        (token (assq-ref notification #:instance-token))
+        (text (notification-text notification)))
+    (send-status text
+                 #:instance-name name
+                 #:instance-url url
+                 #:instance-token token)))
+
 (define* (send-notifications notifications #:key build)
   "Send the notifications in NOTIFICATIONS list, regarding the given BUILD."
   (with-notification-worker-thread
@@ -124,5 +137,7 @@ the detailed information about this build here: ~a."
           (let ((notification* (acons #:build build notification)))
             (cond
              ((eq? type (notification-type email))
-              (notification-email notification*)))))))
+              (notification-email notification*))
+             ((eq? type (notification-type mastodon))
+              (notification-mastodon notification*)))))))
     notifications)))
