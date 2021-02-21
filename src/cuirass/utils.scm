@@ -30,6 +30,7 @@
   #:use-module (rnrs bytevectors)
   #:use-module (system foreign)
   #:use-module (srfi srfi-1)
+  #:use-module (srfi srfi-19)
   #:use-module (json)
   #:use-module (fibers)
   #:use-module (fibers channels)
@@ -52,7 +53,9 @@
             %non-blocking
             non-blocking
             essential-task
-            bytevector-range))
+            bytevector-range
+
+            date->rfc822-str))
 
 (define (alist? obj)
   "Return #t if OBJ is an alist."
@@ -317,3 +320,6 @@ die silently while the rest of the program keeps going."
                 (range   (pointer->bytevector pointer count)))
            (hashq-set! %weak-references range bv)
            range))))
+
+(define (date->rfc822-str date)
+  (date->string date "~a, ~d ~b ~Y ~T ~z"))

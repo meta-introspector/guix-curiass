@@ -18,6 +18,7 @@
 
 (define-module (cuirass rss)
   #:use-module (cuirass database)
+  #:use-module (cuirass utils)
   #:use-module (srfi srfi-19)
   #:use-module (srfi srfi-26)
   #:use-module (sxml simple)
@@ -125,9 +126,6 @@ list ATTRS and the child nodes in BODY."
   (call-with-output-string
     (lambda (port)
       (sxml->html sxml port))))
-
-(define (date->rfc822-str date)
-  (date->string date "~a, ~d ~b ~Y ~T ~z"))
 
 (define* (build->rss-item build)
   "Convert BUILD into an RSS <item> node."
