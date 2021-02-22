@@ -22,6 +22,7 @@
 
 (use-modules (cuirass database)
              (cuirass notification)
+             (cuirass parameters)
              (cuirass remote)
              (cuirass utils)
              ((guix utils) #:select (call-with-temporary-output-file))

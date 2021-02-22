@@ -25,6 +25,9 @@
             %mastodon-instance-url
             %mastodon-instance-token))
 
+;; This variable is looked up by 'mu-message-send'.
+(define-public mu-debug 0)
+
 ;; The URL of the Cuirass web server.  This is useful to send absolute links
 ;; within notifications.
 (define %cuirass-url

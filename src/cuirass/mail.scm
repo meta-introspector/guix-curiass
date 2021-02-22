@@ -24,9 +24,6 @@
   #:use-module (srfi srfi-19)
   #:export (send-email))
 
-;; This variable is looked up by 'mu-message-send'.
-(define-public mu-debug 0)
-
 ;; Copied from (mumi send-email).
 (define* (compute-message-id message #:optional seed)
   "Return a message ID string."

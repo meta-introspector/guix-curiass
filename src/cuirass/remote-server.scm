@@ -320,6 +320,7 @@ downloading build outputs.  It communicates with the remote server using a ZMQ
 socket."
   (call-with-new-thread
    (lambda ()
+     (use-modules (cuirass parameters)) ;XXX: Needed for mu-debug variable.
      (set-thread-name name)
      (let ((socket (zmq-fetch-worker-socket)))
        (let loop ()
