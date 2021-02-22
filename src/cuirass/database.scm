@@ -415,7 +415,7 @@ build_outputs, notifications, priority) \
                              (symbol->string (assq-ref spec #:proc)) ", "
                              (assq-ref spec #:proc-args) ", "
                              (assq-ref spec #:build-outputs) ", "
-                             (assq-ref spec #:notifications) ", "
+                             (or (assq-ref spec #:notifications) '()) ", "
                              (or (assq-ref spec #:priority) max-priority) ")
 ON CONFLICT ON CONSTRAINT specifications_pkey DO NOTHING
 RETURNING name;"))
