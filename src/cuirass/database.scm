@@ -473,7 +473,7 @@ SELECT * FROM Specifications ORDER BY name ASC;")))
       (match rows
         (() (reverse specs))
         (((name load-path-inputs package-path-inputs proc-input proc-file proc
-                proc-args build-outputs notifications priority)
+                proc-args build-outputs priority notifications)
           . rest)
          (loop rest
                (cons `((#:name . ,name)

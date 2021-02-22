@@ -13,8 +13,8 @@ CREATE TABLE Specifications (
   proc          TEXT NOT NULL, -- defined in proc_file
   proc_args     TEXT NOT NULL, -- passed to proc
   build_outputs TEXT NOT NULL, --specify what build outputs should be made available for download
-  notifications TEXT,
-  priority      INTEGER NOT NULL DEFAULT 0
+  priority      INTEGER NOT NULL DEFAULT 0,
+  notifications TEXT
 );
 
 CREATE TABLE Inputs (
