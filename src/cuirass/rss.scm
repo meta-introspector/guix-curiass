@@ -18,6 +18,7 @@
 
 (define-module (cuirass rss)
   #:use-module (cuirass database)
+  #:use-module (cuirass parameters)
   #:use-module (cuirass utils)
   #:use-module (srfi srfi-19)
   #:use-module (srfi srfi-26)
@@ -127,9 +128,15 @@ list ATTRS and the child nodes in BODY."
     (lambda (port)
       (sxml->html sxml port))))
 
+(define (build-details-url build)
+  "Return the build details URL for BUILD."
+  (let ((id (assq-ref build #:id))
+        (url (or (%cuirass-url) "")))
+    (string-append url "/build/" (number->string id) "/details")))
+
 (define* (build->rss-item build)
   "Convert BUILD into an RSS <item> node."
-  (let* ((id       (assq-ref build #:id))
+  (let* ((url (build-details-url build))
          (job-name (assq-ref build #:job-name))
          (specification (assq-ref build #:specification))
          (weather  (assq-ref build #:weather))
@@ -147,19 +154,17 @@ list ATTRS and the child nodes in BODY."
       (pubDate ,(date->rfc822-str
                  (time-utc->date
                   (make-time time-utc 0 stoptime))))
-      (link "../../build/" ,id "/details")
+      (link ,url)
       (description
        ,(sxml->html-string
          `(p "The build " (b ,job-name) " for specification "
              (b ,specification) " is " ,weather-text ".
 You can find the detailed information about this build "
-             (a (@ (href ,(string-append "../../build/"
-                                         (number->string id)
-                                         "/details")))
+             (a (@ (href ,url))
                 "here")
              "."))))))
 
-(define* (rss-feed builds #:key base-url params)
+(define* (rss-feed builds #:key params)
   (let ((specification (and params
                             (assq-ref params 'specification))))
     `(rss (@ (version "2.0"))

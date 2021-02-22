@@ -17,10 +17,10 @@
 ;;; along with GNU Guix.  If not, see <http://www.gnu.org/licenses/>.
 
 (define-module (cuirass notification)
-  #:use-module (cuirass database)
   #:use-module (cuirass logging)
   #:use-module (cuirass mail)
   #:use-module (cuirass mastodon)
+  #:use-module (cuirass parameters)
   #:use-module (cuirass utils)
   #:export (notification-type
             notification-event
@@ -72,6 +72,12 @@ interfering with fibers."
      ((= weather weather-failure)
       "broken"))))
 
+(define (build-details-url build)
+  "Return the build details URL for BUILD."
+  (let ((id (assq-ref build #:id))
+        (url (or (%cuirass-url) "")))
+    (string-append url "/build/" (number->string id) "/details")))
+
 (define (notification-subject notification)
   "Return the subject for the given NOTIFICATION."
   (let* ((build (assq-ref notification #:build))
@@ -84,14 +90,13 @@ interfering with fibers."
 (define (notification-text notification)
   "Return the text for the given NOTIFICATION."
   (let* ((build (assq-ref notification #:build))
-         (id (assq-ref build #:id))
+         (url (build-details-url build))
          (job-name (assq-ref build #:job-name))
          (specification (assq-ref build #:specification))
          (weather-text (build-weather-text build)))
     (format #f "The build ~a for specification ~a is ~a. You can find
 the detailed information about this build here: ~a."
-            job-name specification weather-text
-            (string-append "build/" (number->string id) "/details"))))
+            job-name specification weather-text url)))
 
 (define (notification-email notification)
   "Send an email for the given NOTIFICATION."

@@ -57,6 +57,7 @@ dist_pkgmodule_DATA =				\
   src/cuirass/mastodon.scm			\
   src/cuirass/metrics.scm			\
   src/cuirass/notification.scm			\
+  src/cuirass/parameters.scm			\
   src/cuirass/remote.scm			\
   src/cuirass/remote-server.scm			\
   src/cuirass/remote-worker.scm			\

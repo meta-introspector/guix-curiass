@@ -17,6 +17,7 @@
 ;;; along with GNU Guix.  If not, see <http://www.gnu.org/licenses/>.
 
 (define-module (cuirass zabbix)
+  #:use-module (cuirass parameters)
   #:use-module (guix import json)
   #:use-module (web uri)
   #:use-module (web client)
@@ -40,24 +41,12 @@
 (define %zabbix-auth
   (make-parameter #f))
 
-(define %zabbix-uri
-  (make-parameter
-   (getenv "CUIRASS_ZABBIX_URI")))
-
-(define %zabbix-user
-  (make-parameter
-   (or (getenv "CUIRASS_ZABBIX_USER") "Admin")))
-
-(define %zabbix-password
-  (make-parameter
-   (or (getenv "CUIRASS_ZABBIX_PASSWORD") "zabbix")))
-
 (define* (zabbix-request params)
   (let ((headers `((User-Agent . "Cuirass")
                    (Accept . "application/json")
                    (Content-Type . "application/json"))))
     (let-values (((response port)
-                  (http-post (%zabbix-uri)
+                  (http-post (%zabbix-url)
                              #:headers headers
                              #:body (string->utf8
                                      (scm->json-string params))
@@ -98,9 +87,11 @@
        (string? (zabbix-api-version))))
 
 (define (zabbix-login)
-  (let* ((params (zabbix-params "user.login"
-                                `(("user" . ,(%zabbix-user))
-                                  ("password" . ,(%zabbix-password)))))
+  (let* ((user (%zabbix-user))
+         (password (%zabbix-password))
+         (params (zabbix-params "user.login"
+                                   `(("user" . ,user)
+                                     ("password" . ,password))))
          (result (zabbix-request params)))
     (%zabbix-auth result)
     result))

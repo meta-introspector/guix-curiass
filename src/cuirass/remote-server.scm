@@ -97,6 +97,8 @@ Start a remote build server.\n"))
   (display (G_ "
   -p, --publish-port=PORT   publish substitutes on PORT"))
   (display (G_ "
+  -P, --parameters=FILE     Read parameters from FILE"))
+  (display (G_ "
   -D, --database=DB         Use DB to read and store build results"))
   (display (G_ "
   -c, --cache=DIRECTORY     cache built items to DIRECTORY"))
@@ -134,6 +136,9 @@ Start a remote build server.\n"))
         (option '(#\p "publish-port") #t #f
                 (lambda (opt name arg result)
                   (alist-cons 'publish-port (string->number* arg) result)))
+        (option '(#\P "parameters") #t #f
+                (lambda (opt name arg result)
+                  (alist-cons 'parameters arg result)))
         (option '(#\D "database") #t #f
                 (lambda (opt name arg result)
                   (alist-cons 'database arg result)))
@@ -438,6 +443,7 @@ exiting."
            (log-port (assoc-ref opts 'log-port))
            (publish-port (assoc-ref opts 'publish-port))
            (cache (assoc-ref opts 'cache))
+           (parameters (assoc-ref opts 'parameters))
            (database (assoc-ref opts 'database))
            (trigger-substitute-url (assoc-ref opts 'trigger-substitute-url))
            (user (assoc-ref opts 'user))
@@ -457,6 +463,9 @@ exiting."
                      (%private-key private-key))
         (when user
           (gather-user-privileges user))
+
+        (and parameters
+             (read-parameters parameters))
 
         (atomic-box-set!
          %publish-pid

@@ -53,6 +53,8 @@ exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
       --fallback            Fall back to building when the substituter fails.
   -S  --specifications=SPECFILE
                             Add specifications from SPECFILE to database.
+  -P  --parameters=PARAMFILE
+                            Read parameters for PARAMFILE.
   -D  --database=DB         Use DB to store build results.
       --ttl=DURATION        Keep build results live for at least DURATION.
       --web                 Start the web interface
@@ -63,7 +65,6 @@ exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
       --use-substitutes     Allow usage of pre-built substitutes
       --record-events       Record events for distribution
       --threads=N           Use up to N kernel threads
-  -z, --zabbix-uri=URI      Use Zabbix server at URI
   -V, --version             Display version
   -h, --help                Display this help message")
   (newline)
@@ -74,6 +75,7 @@ exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
     (web                              (value #f))
     (cache-directory                  (value #t))
     (specifications (single-char #\S) (value #t))
+    (parameters     (single-char #\P) (value #t))
     (database       (single-char #\D) (value #t))
     (port           (single-char #\p) (value #t))
     (listen                           (value #t))
@@ -81,7 +83,6 @@ exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
     (build-remote                     (value #f))
     (use-substitutes                  (value #f))
     (threads                          (value #t))
-    (zabbix-uri     (single-char #\z) (value #t))
     (fallback                         (value #f))
     (record-events                    (value #f))
     (ttl                              (value #t))
@@ -110,7 +111,6 @@ exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
          (%package-cachedir
           (option-ref opts 'cache-directory (%package-cachedir)))
          (%build-remote? (option-ref opts 'build-remote #f))
-         (%zabbix-uri (option-ref opts 'zabbix-uri #f))
          (%use-substitutes? (option-ref opts 'use-substitutes #f))
          (%fallback? (option-ref opts 'fallback #f))
          (%record-events? (option-ref opts 'record-events #f))
@@ -132,6 +132,7 @@ exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
               (host (option-ref opts 'listen "localhost"))
               (interval (string->number (option-ref opts 'interval "300")))
               (specfile (option-ref opts 'specifications #f))
+              (paramfile (option-ref opts 'parameters #f))
 
               ;; Since our work is mostly I/O-bound, default to a maximum of 4
               ;; kernel threads.  Going beyond that can increase overhead (GC
@@ -155,6 +156,7 @@ exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
                                            (primitive-load specfile)))))
 
                          (for-each db-add-specification new-specs)))
+                  (and paramfile (read-parameters paramfile))
 
                   (if one-shot?
                       (process-specs (db-get-specifications))

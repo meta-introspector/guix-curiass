@@ -32,6 +32,7 @@
   #:use-module (guix build utils)
   #:use-module (guix derivations)
   #:use-module (guix store)
+  #:use-module (guix ui)
   #:use-module (guix git)
   #:use-module (guix cache)
   #:use-module (zlib)
@@ -60,6 +61,7 @@
   #:use-module (rnrs bytevectors)
   #:export (;; Procedures.
             call-with-time-display
+            read-parameters
             fetch-input
             fetch-inputs
             compile
@@ -375,6 +377,15 @@ Return a list of jobs that are associated to EVAL-ID."
        (let* ((spec-name (assq-ref spec #:name)))
          (log-message "evaluation ~a for '~a' completed" eval-id spec-name)
          jobs)))))
+
+
+;;;
+;;; Read parameters.
+;;;
+
+(define (read-parameters file)
+  (let ((modules (make-user-module '((cuirass parameters)))))
+    (load* file modules)))
 
 
 ;;;
