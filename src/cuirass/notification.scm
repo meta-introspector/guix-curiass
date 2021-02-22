@@ -113,14 +113,8 @@ the detailed information about this build here: ~a."
 
 (define (notification-mastodon notification)
   "Send a new status for the given NOTIFICATION."
-  (let ((name (assq-ref notification #:instance-name))
-        (url (assq-ref notification #:instance-url))
-        (token (assq-ref notification #:instance-token))
-        (text (notification-text notification)))
-    (send-status text
-                 #:instance-name name
-                 #:instance-url url
-                 #:instance-token token)))
+  (let ((text (notification-text notification)))
+    (send-status text)))
 
 (define* (send-notifications notifications #:key build)
   "Send the notifications in NOTIFICATIONS list, regarding the given BUILD."

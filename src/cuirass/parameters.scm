@@ -20,7 +20,10 @@
   #:export (%cuirass-url
             %zabbix-url
             %zabbix-user
-            %zabbix-password))
+            %zabbix-password
+            %mastodon-instance-name
+            %mastodon-instance-url
+            %mastodon-instance-token))
 
 ;; The URL of the Cuirass web server.  This is useful to send absolute links
 ;; within notifications.
@@ -39,3 +42,15 @@
 ;; The password for Zabbix API authentication.
 (define %zabbix-password
   (make-parameter "zabbix"))
+
+;; The name of the Mastodon instance used to send build notifications.
+(define %mastodon-instance-name
+  (make-parameter #f))
+
+;; The URL of the Mastodon instance.
+(define %mastodon-instance-url
+  (make-parameter #f))
+
+;; The token used to authenticate on the Mastodon instance.
+(define %mastodon-instance-token
+  (make-parameter #f))

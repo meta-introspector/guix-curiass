@@ -17,18 +17,15 @@
 ;;; along with GNU Guix.  If not, see <http://www.gnu.org/licenses/>.
 
 (define-module (cuirass mastodon)
+  #:use-module (cuirass parameters)
   #:use-module (mastodon)
   #:use-module (mastodon types)
   #:export (send-status))
 
-(define* (send-status text
-                      #:key
-                      instance-name
-                      instance-url
-                      instance-token)
+(define (send-status text)
   "Send a new status with the given TEXT to the instance named INSTANCE-NAME
 at the INSTANCE-URL address.  Use the given INSTANCE-TOKEN to authenticate."
-  (let ((instance (make-mastodon instance-name
-                                 instance-url
-                                 instance-token)))
+  (let ((instance (make-mastodon (%mastodon-instance-name)
+                                 (%mastodon-instance-url)
+                                 (%mastodon-instance-token))))
     (new-status instance #:status text)))
