@@ -57,6 +57,9 @@
 
             date->rfc822-str))
 
+;; This variable is looked up by 'mu-message-send'.
+(define-public mu-debug 0)
+
 (define (alist? obj)
   "Return #t if OBJ is an alist."
   (and (list? obj)

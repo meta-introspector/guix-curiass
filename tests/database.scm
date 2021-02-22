@@ -31,9 +31,6 @@
              (srfi srfi-19)
              (srfi srfi-64))
 
-;; This variable is looked up by 'mu-message-send'.
-(define-public mu-debug 0)
-
 (define (mailer)
   (string-append "sendmail://" (getcwd) "/tests/mail.sh"))
 
