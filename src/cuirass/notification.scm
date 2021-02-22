@@ -94,7 +94,7 @@ interfering with fibers."
          (job-name (assq-ref build #:job-name))
          (specification (assq-ref build #:specification))
          (weather-text (build-weather-text build)))
-    (format #f "The build ~a for specification ~a is ~a. You can find
+    (format #f "The build ~a for specification ~a is ~a. You can find \
 the detailed information about this build here: ~a."
             job-name specification weather-text url)))
 
