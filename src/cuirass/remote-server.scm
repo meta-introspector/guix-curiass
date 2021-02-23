@@ -305,6 +305,7 @@ directory."
   (match (zmq-read-message message)
     (('build-succeeded ('drv drv) ('url url) _ ...)
      (let ((outputs (build-outputs drv)))
+       (log-message "fetching '~a' from ~a" drv url)
        (add-to-store outputs url)
        (when (%trigger-substitute-url)
          (trigger-substitutes-baking outputs (%trigger-substitute-url)))
