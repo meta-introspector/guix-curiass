@@ -105,16 +105,26 @@ the detailed information about this build here: ~a."
          (server (assq-ref notification #:server))
          (subject (notification-subject notification))
          (text (notification-text notification)))
-    (send-email server
-                #:from from
-                #:to to
-                #:subject subject
-                #:text text)))
+    (catch #t
+      (lambda ()
+        (send-email server
+                    #:from from
+                    #:to to
+                    #:subject subject
+                    #:text text))
+      (lambda args
+        (log-message "Failed to send the email notification: ~a."
+                     args)))))
 
 (define (notification-mastodon notification)
   "Send a new status for the given NOTIFICATION."
   (let ((text (notification-text notification)))
-    (send-status text)))
+    (catch #t
+      (lambda ()
+        (send-status text))
+      (lambda args
+        (log-message "Failed to send the mastodon notification: ~a."
+                     args)))))
 
 (define* (send-notifications notifications #:key build)
   "Send the notifications in NOTIFICATIONS list, regarding the given BUILD."
