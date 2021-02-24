@@ -1504,7 +1504,17 @@ SELECT name, address, machine, systems, last_seen from Workers"))
                      workers)))))))
 
 (define (db-remove-unresponsive-workers timeout)
+  "Remove the workers that are unresponsive since at least TIMEOUT seconds.
+Also restart the builds that are started on those workers."
   (with-db-worker-thread db
+    ;; Restart the builds that are marked as started on those workers.
+    (exec-query/bind db "
+UPDATE Builds SET status = -2, worker = null FROM
+(SELECT id FROM Workers LEFT JOIN Builds
+ON builds.worker = workers.name
+WHERE status = -1 AND
+(extract(epoch from now())::int - last_seen) > " timeout
+") AS expired WHERE builds.id = expired.id")
     (exec-query/bind db "DELETE FROM Workers WHERE
 (extract(epoch from now())::int - last_seen) > " timeout ";")))
 

@@ -361,11 +361,18 @@ timestamp, checkouttime, evaltime) VALUES ('guix', 0, 0, 0, 0);")
     (list %dummy-worker)
     (db-get-workers))
 
-  (test-equal "db-remove-unresponsive-workers"
-    '()
+  (test-assert "db-remove-unresponsive-workers"
     (begin
-      (db-remove-unresponsive-workers 50)
-      (db-get-workers)))
+      (let ((drv "/foo.drv"))
+        (db-update-build-worker! drv "worker")
+        (db-update-build-status! drv (build-status started))
+        (db-remove-unresponsive-workers 50)
+        (and (eq? (db-get-workers) '())
+             (let* ((build (db-get-build drv))
+                    (worker (assq-ref build #:worker))
+                    (status (assq-ref build #:status)))
+               (and (not worker)
+                    (eq? status (build-status scheduled))))))))
 
   (test-equal "db-clear-workers"
     '()
