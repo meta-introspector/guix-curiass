@@ -633,7 +633,8 @@ path) VALUES ("
                      (assq-ref product #:type) ", "
                      (assq-ref product #:file-size) ", "
                      (assq-ref product #:checksum) ", "
-                     (assq-ref product #:path) ");")))
+                     (assq-ref product #:path) ")
+ON CONFLICT ON CONSTRAINT buildproducts_pkey DO NOTHING;")))
 
 (define (db-get-output path)
   "Retrieve the OUTPUT for PATH."
