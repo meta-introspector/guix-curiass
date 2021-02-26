@@ -325,9 +325,10 @@ socket."
      (set-thread-name name)
      (let ((socket (zmq-fetch-worker-socket)))
        (let loop ()
-         (match (zmq-get-msg-parts-bytevector socket)
+         (match (zmq-message-receive socket)
            ((message)
-            (run-fetch (bv->string message))))
+            (run-fetch (bv->string
+                        (zmq-message-content message)))))
          (loop))))))
 
 
