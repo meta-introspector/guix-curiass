@@ -352,6 +352,10 @@ frontend to the workers connected through the TCP backend."
             (eq? (poll-item-socket item) socket))
           items))
 
+  ;; The poll loop below must not be blocked.  Print a warning message if a
+  ;; loop iteration takes more than %LOOP-TIMEOUT seconds to complete.
+  (define %loop-timeout 5)
+
   (let* ((build-socket
           (zmq-create-socket %zmq-context ZMQ_ROUTER))
          (fetch-socket
@@ -365,7 +369,8 @@ frontend to the workers connected through the TCP backend."
     ;; Do not use the built-in zmq-proxy as we want to edit the envelope of
     ;; frontend messages before forwarding them to the backend.
     (let loop ()
-      (let ((items (zmq-poll* poll-items 1000)))
+      (let* ((items (zmq-poll* poll-items 1000))
+             (start-time (current-time)))
         (when (zmq-socket-ready? items build-socket)
           (match (zmq-message-receive build-socket)
             ((worker empty rest)
@@ -382,6 +387,9 @@ frontend to the workers connected through the TCP backend."
                    (read-worker-exp rest
                                     #:reply-worker reply-worker))))))
         (db-remove-unresponsive-workers (%worker-timeout))
+        (let ((delta (- (current-time) start-time)))
+          (when (> delta %loop-timeout)
+            (log-message "Poll loop busy during ~a seconds." delta)))
         (loop)))))
 
 
