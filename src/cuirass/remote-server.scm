@@ -476,6 +476,10 @@ exiting."
                      (%package-database database)
                      (%public-key public-key)
                      (%private-key private-key))
+
+        ;; Enable core dump generation.
+        (setrlimit 'core #f #f)
+
         (when user
           (gather-user-privileges user))
 
