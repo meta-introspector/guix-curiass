@@ -374,9 +374,7 @@ frontend to the workers connected through the TCP backend."
         (when (zmq-socket-ready? items build-socket)
           (match (zmq-message-receive* build-socket)
             ((worker empty rest)
-             (let* ((worker-msg (zmq-msg-init
-                                 (zmq-message-content worker)))
-                    (fetch-msg (zmq-msg-init
+             (let* ((fetch-msg (zmq-msg-init
                                 (zmq-message-content rest)))
                     (command (bv->string
                               (zmq-message-content rest)))
@@ -384,10 +382,10 @@ frontend to the workers connected through the TCP backend."
                     (lambda (message)
                       (zmq-message-send-parts
                        build-socket
-                       (cons worker-msg
-                             (map zmq-msg-init
-                                  (list (zmq-empty-delimiter)
-                                        (string->bv message))))))))
+                       (map zmq-msg-init
+                            (list (zmq-message-content worker)
+                                  (zmq-empty-delimiter)
+                                  (string->bv message)))))))
                (if (need-fetching? command)
                    (zmq-message-send fetch-socket fetch-msg)
                    (read-worker-exp rest
