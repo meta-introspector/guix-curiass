@@ -374,19 +374,22 @@ frontend to the workers connected through the TCP backend."
         (when (zmq-socket-ready? items build-socket)
           (match (zmq-message-receive* build-socket)
             ((worker empty rest)
-             (let* ((worker-name (bytevector-copy
-                                  (zmq-message-content worker)))
-                    (rest-bv (bytevector-copy
+             (let* ((worker-msg (zmq-msg-init
+                                 (zmq-message-content worker)))
+                    (fetch-msg (zmq-msg-init
+                                (zmq-message-content rest)))
+                    (command (bv->string
                               (zmq-message-content rest)))
                     (reply-worker
                     (lambda (message)
-                      (zmq-send-msg-parts-bytevector
+                      (zmq-message-send-parts
                        build-socket
-                       (list worker-name
-                             (zmq-empty-delimiter)
-                             (string->bv message))))))
-               (if (need-fetching? (bv->string rest-bv))
-                   (zmq-send-bytevector fetch-socket rest-bv)
+                       (cons worker-msg
+                             (map zmq-msg-init
+                                  (list (zmq-empty-delimiter)
+                                        (string->bv message))))))))
+               (if (need-fetching? command)
+                   (zmq-message-send fetch-socket fetch-msg)
                    (read-worker-exp rest
                                     #:reply-worker reply-worker))))))
         (db-remove-unresponsive-workers (%worker-timeout))
