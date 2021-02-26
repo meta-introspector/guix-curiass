@@ -325,7 +325,7 @@ socket."
      (set-thread-name name)
      (let ((socket (zmq-fetch-worker-socket)))
        (let loop ()
-         (match (zmq-message-receive socket)
+         (match (zmq-message-receive* socket)
            ((message)
             (run-fetch (bv->string
                         (zmq-message-content message)))))
@@ -372,7 +372,7 @@ frontend to the workers connected through the TCP backend."
       (let* ((items (zmq-poll* poll-items 1000))
              (start-time (current-time)))
         (when (zmq-socket-ready? items build-socket)
-          (match (zmq-message-receive build-socket)
+          (match (zmq-message-receive* build-socket)
             ((worker empty rest)
              (let* ((worker-name (bytevector-copy
                                   (zmq-message-content worker)))

@@ -69,6 +69,7 @@
             send-log
 
             zmq-poll*
+            zmq-message-receive*
             zmq-socket-ready?
             zmq-empty-delimiter
 
@@ -399,6 +400,9 @@ retries a call to PROC."
 (define zmq-poll*
   ;; Return a variant of ZMQ-POLL that catches EINTR errors.
   (EINTR-safe zmq-poll))
+
+(define zmq-message-receive*
+  (EINTR-safe zmq-message-receive))
 
 (define (zmq-socket-ready? items socket)
   "Return #t if the given SOCKET is part of ITEMS, a list returned by a
