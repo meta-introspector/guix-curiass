@@ -107,7 +107,8 @@
             ;; Macros.
             exec-query/bind
             with-database
-            with-db-worker-thread))
+            with-db-worker-thread
+            with-transaction))
 
 ;; Maximum priority for a Build or Specification.
 (define max-priority 9)
@@ -272,6 +273,13 @@ DB is bound to the argument of that critical section: the database connection."
         (format #f "Database worker unresponsive for ~a seconds (~a)."
                 (number->string receive-timeout)
                 caller-name))))))
+
+(define-syntax-rule (with-transaction exp ...)
+  "Evalute EXP within an SQL transaction."
+  (with-db-worker-thread db
+    (exec-query db "BEGIN TRANSACTION;")
+    exp ...
+    (exec-query db "COMMIT;")))
 
 (define (read-sql-file file-name)
   "Return a list of string containing SQL instructions from FILE-NAME."
