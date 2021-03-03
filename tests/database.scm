@@ -24,7 +24,9 @@
              (cuirass notification)
              (cuirass parameters)
              (cuirass remote)
+             (cuirass specification)
              (cuirass utils)
+             (guix channels)
              ((guix utils) #:select (call-with-temporary-output-file))
              (rnrs io ports)
              (squee)
@@ -42,43 +44,40 @@
 (false-if-exception (delete-file tmp-mail))
 
 (define example-spec
-  `((#:name . "guix")
-    (#:load-path-inputs . ("savannah"))
-    (#:package-path-inputs . ())
-    (#:proc-input . "savannah")
-    (#:proc-file . "/tmp/gnu-system.scm")
-    (#:proc . hydra-jobs)
-    (#:proc-args (subset . "hello"))
-    (#:inputs . (((#:name . "maintenance")
-                  (#:url . "git://git.savannah.gnu.org/guix/maintenance.git")
-                  (#:load-path . ".")
-                  (#:branch . "master")
-                  (#:tag . #f)
-                  (#:commit . #f)
-                  (#:no-compile? . #f))
-                 ((#:name . "savannah")
-                  (#:url . "git://git.savannah.gnu.org/guix.git")
-                  (#:load-path . ".")
-                  (#:branch . "master")
-                  (#:tag . #f)
-                  (#:commit . #f)
-                  (#:no-compile? . #f))))
-    (#:build-outputs . ())
-    (#:notifications . (((#:name . "name")
-                         (#:type . ,(notification-type email))
-                         (#:from . "from")
-                         (#:to . "to")
-                         (#:server . ,(mailer))
-                         (#:event . 0))))
-    (#:priority . 9)))
+  (specification
+   (name "guix")
+   (build 'hello)
+   (channels
+    (list (channel
+           (name 'guix)
+           (url "git://git.savannah.gnu.org/guix.git")
+           (branch "master"))
+          (channel
+           (name 'my-channel)
+           (url "git://my-git-channel.git")
+           (branch "master"))))
+   (build-outputs
+    (list (build-output
+           (job "job")
+           (type "type")
+           (output "out")
+           (path ""))))
+   (notifications
+    (list (email
+           (from "from")
+           (to "to")
+           (server (mailer)))))))
 
-(define (make-dummy-checkouts fakesha1 fakesha2)
-  `(((#:commit . ,fakesha1)
-     (#:input . "savannah")
-     (#:directory . "foo"))
-    ((#:commit . ,fakesha2)
-     (#:input . "maintenance")
-     (#:directory . "bar"))))
+(define (make-dummy-instances fakesha1 fakesha2)
+  (list
+   (checkout->channel-instance "foo"
+                               #:name 'guix
+                               #:url "git://git.savannah.gnu.org/guix.git"
+                               #:commit fakesha1)
+   (checkout->channel-instance "bar"
+                               #:name 'my-channel
+                               #:url "git://my-git-channel.git"
+                               #:commit fakesha2)))
 
 (define* (make-dummy-build drv
                            #:optional (eval-id 2)
@@ -130,17 +129,21 @@ INSERT INTO Evaluations (specification, status,
 timestamp, checkouttime, evaltime) VALUES ('guix', 0, 0, 0, 0);")
       (exec-query (%db) "SELECT * FROM Evaluations;")))
 
-  (test-equal "db-get-specification"
-    example-spec
-    (db-get-specification "guix"))
+  (test-assert "db-get-specification"
+    (let* ((spec (db-get-specification "guix"))
+           (channels (specification-channels spec))
+           (build-outputs (specification-build-outputs spec)))
+      (and (string=? (specification-name spec) "guix")
+           (equal? (map channel-name channels) '(guix my-channel))
+           (equal? (map build-output-job build-outputs) '("job")))))
 
   (test-equal "db-add-evaluation"
     '(2 3)
     (list
      (db-add-evaluation "guix"
-                        (make-dummy-checkouts "fakesha1" "fakesha2"))
+                        (make-dummy-instances "fakesha1" "fakesha2"))
      (db-add-evaluation "guix"
-                        (make-dummy-checkouts "fakesha3" "fakesha4"))))
+                        (make-dummy-instances "fakesha3" "fakesha4"))))
 
   (test-assert "db-set-evaluation-status"
     (db-set-evaluation-status 2 (evaluation-status started)))
@@ -181,14 +184,14 @@ timestamp, checkouttime, evaltime) VALUES ('guix', 0, 0, 0, 0);")
 
   (test-assert "db-register-builds"
     (let ((drv "/test.drv"))
-      (db-register-builds `(((#:job-name . "test")
-                             (#:derivation . ,drv)
-                             (#:system . "x86_64-linux")
-                             (#:nix-name . "test")
-                             (#:log . "log")
-                             (#:outputs .
-                              (("foo" . ,(format #f "~a.output" drv))
-                               ("foo2" . ,(format #f "~a.output.2" drv))))))
+      (db-register-build `((#:job-name . "test")
+                           (#:derivation . ,drv)
+                           (#:system . "x86_64-linux")
+                           (#:nix-name . "test")
+                           (#:log . "log")
+                           (#:outputs .
+                            (("foo" . ,(format #f "~a.output" drv))
+                             ("foo2" . ,(format #f "~a.output.2" drv)))))
                           2 (db-get-specification "guix"))))
 
   (test-assert "db-update-build-status!"
@@ -251,9 +254,11 @@ timestamp, checkouttime, evaltime) VALUES ('guix', 0, 0, 0, 0);")
     '("/foo.drv")
     (db-get-pending-derivations))
 
-  (test-assert "db-get-checkouts"
-    (equal? (db-get-checkouts 2)
-            (make-dummy-checkouts "fakesha1" "fakesha2")))
+  (test-equal "db-get-checkouts"
+    '("fakesha1" "fakesha2")
+    (begin
+      (make-dummy-instances "fakesha1" "fakesha2")
+      (map (cut assq-ref <> #:commit) (db-get-checkouts 2))))
 
   (test-equal "db-get-evaluation"
     "guix"
@@ -476,7 +481,7 @@ timestamp, checkouttime, evaltime) VALUES ('guix', 0, 0, 0, 0);")
     (list #f 1)
     (begin
       (db-add-evaluation "guix"
-                         (make-dummy-checkouts "fakesha5" "fakesha6"))
+                         (make-dummy-instances "fakesha5" "fakesha6"))
       (db-add-build (make-dummy-build "/old-build.drv" 3
                                       #:job-name "job-1"
                                       #:outputs `(("out" . "/old"))))

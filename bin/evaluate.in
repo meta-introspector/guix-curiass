@@ -6,7 +6,7 @@ exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
 ;;;; evaluate -- convert a specification to a job list
 ;;; Copyright © 2016, 2018 Ludovic Courtès <ludo@gnu.org>
 ;;; Copyright © 2016, 2017 Mathieu Lirzin <mthl@gnu.org>
-;;; Copyright © 2017, 2018 Mathieu Othacehe <m.othacehe@gmail.com>
+;;; Copyright © 2017, 2018, 2021 Mathieu Othacehe <m.othacehe@gmail.com>
 ;;; Copyright © 2018 Clément Lassieur <clement@lassieur.org>
 ;;;
 ;;; This file is part of Cuirass.
@@ -25,148 +25,86 @@ exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
 ;;; along with Cuirass.  If not, see <http://www.gnu.org/licenses/>.
 
 
-;; Note: Do not use any Guix modules (see below).
-(use-modules (ice-9 match)
+(use-modules (cuirass database)
+             (cuirass specification)
+             (guix channels)
+             (guix inferior)
+             (guix licenses)
+             (guix store)
+             (guix utils)
+             (ice-9 match)
              (ice-9 pretty-print)
-             (srfi srfi-1)
-             (srfi srfi-26))
+             (ice-9 threads))
 
-(define (ref module name)
-  "Dynamically link variable NAME under MODULE and return it."
-  (let ((m (resolve-interface module)))
-    (module-ref m name)))
+(define (checkouts->channel-instances checkouts)
+  "Return the list of CHANNEL-INSTANCE records describing the given
+CHECKOUTS."
+  (map (lambda (checkout)
+         (let ((channel (assq-ref checkout #:channel))
+               (directory (assq-ref checkout #:directory))
+               (commit (assq-ref checkout #:commit)))
+           (checkout->channel-instance directory
+                                       #:name channel
+                                       #:commit commit)))
+       checkouts))
 
-(define (absolutize directory load-path)
-  (if (string-prefix? "/" load-path)
-      load-path
-      (string-append directory "/" load-path)))
+(define* (inferior-evaluation store instances
+                              #:key
+                              eval-id spec build systems)
+  "Spawn an inferior on INSTANCES that uses the given STORE.  Withing that
+inferior, call PROC with PROC-ARGS arguments from MODULE.  Pass PROC a
+register procedure that writes its arguments on a socket.  Listen that socket
+for new jobs and register them using REGISTER-JOB procedure."
+  ;; The module where the below procedure is defined.
+  (define eval-module '(gnu ci))
 
-(define (input-checkout checkouts input-name)
-  "Find in CHECKOUTS the CHECKOUT corresponding to INPUT-NAME, and return it."
-  (find (lambda (checkout)
-          (string=? (assq-ref checkout #:input)
-                    input-name))
-        checkouts))
+  ;; The Guix procedure for job evaluation.
+  (define eval-proc 'cuirass-jobs)
 
-(define (spec-source spec checkouts)
-  "Find in CHECKOUTS the directory where the #:PROC-INPUT repository of SPEC
-has been checked out, and return it."
-  (let* ((input-name (assq-ref spec #:proc-input))
-         (checkout (input-checkout checkouts input-name)))
-    (assq-ref checkout #:directory)))
-
-(define (spec-load-path spec checkouts)
-  "Find in CHECKOUTS the load paths of each SPEC's #:LOAD-PATH-INPUTS and
-return them as a list."
-  (map (lambda (input-name)
-         (let* ((checkout (input-checkout checkouts input-name))
-                (directory (assq-ref checkout #:directory))
-                (load-path (assq-ref checkout #:load-path)))
-           (absolutize directory load-path)))
-       (assq-ref spec #:load-path-inputs)))
-
-(define (spec-package-path spec checkouts)
-  "Find in CHECKOUTS the package paths of each SPEC's #:PACKAGE-PATH-INPUTS
-and return them as a colon separated string."
-  (let* ((input-names (assq-ref spec #:package-path-inputs))
-         (checkouts (map (cut input-checkout checkouts <>) input-names)))
-    (string-join
-     (map
-      (lambda (checkout)
-        (let ((directory (assq-ref checkout #:directory))
-              (load-path (assq-ref checkout #:load-path)))
-          (absolutize directory load-path)))
-      checkouts)
-     ":")))
-
-(define (format-checkouts checkouts)
-  "Format checkouts the way Hydra does: #:NAME becomes the key as a symbol,
-#:DIRECTORY becomes FILE-NAME and #:COMMIT becomes REVISION.  The other
-entries are added because they could be useful during the evaluation."
-  (map
-   (lambda (checkout)
-     (let loop ((in checkout)
-                (out '())
-                (name #f))
-       (match in
-         (()
-          (cons name out))
-         (((#:input . val) . rest)
-          (loop rest out (string->symbol val)))
-         (((#:directory . val) . rest)
-          (loop rest (cons `(file-name . ,val) out) name))
-         (((#:commit . val) . rest)
-          (loop rest (cons `(revision . ,val) out) name))
-         (((keyword . val) . rest)
-          (loop rest (cons `(,(keyword->symbol keyword) . ,val) out) name)))))
-   checkouts))
+  (let* ((cached (cached-channel-instance store instances))
+         (inferior (open-inferior cached))
+         (channels (map channel-instance->sexp instances))
+         (args `((channels . ,channels)
+                 (systems . ,systems)
+                 (subset . ,build))))
+    (inferior-eval `(use-modules ,eval-module) inferior)
+    (let ((jobs
+           (inferior-eval-with-store
+            inferior store
+            `(lambda (store)
+               (,eval-proc store ',args)))))
+      (db-register-builds jobs eval-id spec))))
 
 (define* (main #:optional (args (command-line)))
+  "This procedure spawns an inferior on the given channels.  An evaluation
+procedure is called within that inferior.  The evaluation procedure is passed
+a job registration callback.  The registered jobs are then read on a socket
+nd registered in database."
   (match args
-    ((command spec-str checkouts-str)
-     ;; Load FILE, a Scheme file that defines Hydra jobs.
-     ;;
-     ;; Until FILE is loaded, we must *not* load any Guix module because the
-     ;; user may be providing its own with #:LOAD-PATH-INPUTS, which could
-     ;; differ from ours.  The 'ref' procedure helps us achieve this.
-     (let* ((%user-module (make-fresh-user-module))
-            (spec (with-input-from-string spec-str read))
-            (checkouts (with-input-from-string checkouts-str read))
-            (source (spec-source spec checkouts))
-            (file (assq-ref spec #:proc-file))
-            (stdout (current-output-port))
-            (stderr (current-error-port)))
-       (setenv "GUIX_PACKAGE_PATH" (spec-package-path spec checkouts))
+    ((command database eval-str)
+     (parameterize ((%package-database database))
+       (with-database
+           (let* ((eval-id (with-input-from-string eval-str read))
+                  (name (db-get-evaluation-specification eval-id))
+                  (spec (db-get-specification name))
+                  (checkouts (db-get-checkouts eval-id))
+                  (instances (checkouts->channel-instances checkouts))
+                  (build (specification-build spec))
+                  (systems (specification-systems spec)))
 
-       ;; Since we have relative file name canonicalization by default, better
-       ;; change to SOURCE to make sure things like 'include' with relative
-       ;; file names work as expected.
-       (chdir source)
-
-       ;; Change '%load-path' once and for all.  We need it to be effective
-       ;; both when we load FILE and when we later call the thunks.
-       (set! %load-path (append (spec-load-path spec checkouts) %load-path))
-
-       (save-module-excursion
-        (lambda ()
-          (set-current-module %user-module)
-          (primitive-load file)))
-
-       ;; From there on we can access Guix modules.
-
-       (let ((store ((ref '(guix store) 'open-connection)))
-             (set-build-options (ref '(guix store)
-                                     'set-build-options)))
-         (unless (assoc-ref spec #:use-substitutes?)
-           ;; Make sure we don't resort to substitutes.
-           (set-build-options store #:use-substitutes? #f #:substitute-urls '()))
-
-         ;; Grafts can trigger early builds.  We do not want that to happen
-         ;; during evaluation, so use a sledgehammer to catch such problems.
-         ;; An exception, though, is the evaluation of Guix itself, which
-         ;; requires building a "trampoline" program.
-         (let ((real-build-things (ref '(guix store) 'build-things)))
-           (module-set! (resolve-module '(guix store))
-                        'build-things
-                        (lambda (store . args)
-                          (simple-format stderr "warning:
-building things during evaluation~%")
-                          (simple-format stderr
-                                         "'build-things' arguments: ~S~%"
-                                         args)
-                          (apply real-build-things store args))))
-
-         ;; Call the entry point of FILE and print the resulting job sexp.
-         (let* ((proc (module-ref %user-module (assq-ref spec #:proc)))
-                (args `(,@(format-checkouts checkouts)
-                        ,@(or (assq-ref spec #:proc-args) '())))
-                (thunks (proc store args)))
-           (pretty-print
-            `(evaluation ,(map (lambda (thunk) (thunk))
-                               thunks))
-            stdout)))))
-    ((command _ ...)
-     (simple-format (current-error-port) "Usage: ~A FILE
-Evaluate the Hydra jobs defined in FILE.~%"
-                    command)
+             (par-for-each
+              (lambda (system)
+                (with-store store
+                  (set-build-options store
+                                       #:use-substitutes? #f
+                                       #:substitute-urls '())
+                  (inferior-evaluation store instances
+                                       #:eval-id eval-id
+                                       #:spec spec
+                                       #:build build
+                                       #:systems (list system))))
+              systems)
+             (display 'done)))))
+    (x
+     (format (current-error-port) "Wrong command: ~a~%." x)
      (exit 1))))

@@ -28,8 +28,10 @@
   #:use-module (cuirass metrics)
   #:use-module (cuirass utils)
   #:use-module (cuirass logging)
+  #:use-module (cuirass notification)
   #:use-module (cuirass remote)
   #:use-module (cuirass rss)
+  #:use-module (cuirass specification)
   #:use-module (cuirass zabbix)
   #:use-module (srfi srfi-1)
   #:use-module (srfi srfi-11)
@@ -47,6 +49,7 @@
   #:use-module ((rnrs bytevectors) #:select (utf8->string))
   #:use-module (sxml simple)
   #:use-module (cuirass templates)
+  #:use-module (guix channels)
   #:use-module (guix progress)
   #:use-module (guix utils)
   #:use-module ((guix store) #:select (%store-prefix))
@@ -129,31 +132,42 @@
 
 (define (specification->json-object spec)
   "Turn SPEC into a representation suitable for 'json->scm'."
-  (define (atom? x)
-    (not (pair? x)))
+  (define (channel->json-object channel)
+    `((#:name . ,(channel-name channel))
+      (#:url . ,(channel-url channel))
+      (#:branch . ,(channel-branch channel))
+      (#:commit . ,(channel-commit channel))))
 
-  (define (atom-list? obj)
-    (and (list? obj)
-         (every atom? obj)))
+  (define (build-output->json-object build-output)
+    `((#:job . ,(build-output-job build-output))
+      (#:type . ,(build-output-type build-output))
+      (#:output . ,(build-output-output build-output))
+      (#:path . ,(build-output-path build-output))))
 
-  `((#:name . ,(assq-ref spec #:name))
-    (#:load-path-inputs . ,(list->vector
-                            (assq-ref spec #:load-path-inputs)))
-    (#:package-path-inputs . ,(list->vector
-                               (assq-ref spec #:package-path-inputs)))
-    (#:proc-input . ,(assq-ref spec #:proc-input))
-    (#:proc-file . ,(assq-ref spec #:proc-file))
-    (#:proc . ,(assq-ref spec #:proc))
-    (#:proc-args . ,(map (match-lambda
-                           ((key . arg)
-                            (cons key (if (atom-list? arg)
-                                          (list->vector arg)
-                                          arg))))
-                         (assq-ref spec #:proc-args)))
-    (#:inputs . ,(list->vector
-                  (assq-ref spec #:inputs)))
+  (define (notification->json-object notif)
+    (cond
+     ((email? notif)
+      `((#:type . email)
+        (#:from . ,(email-from notif))
+        (#:to . ,(email-to notif))
+        (#:server . ,(email-server notif))))
+     ((mastodon? notif)
+      `((#:type . mastodon)))))
+
+  `((#:name . ,(specification-name spec))
+    (#:build . ,(specification-build spec))
+    (#:channels . ,(list->vector
+                    (map channel->json-object
+                         (specification-channels spec))))
     (#:build-outputs . ,(list->vector
-                         (assq-ref spec #:build-outputs)))))
+                         (map build-output->json-object
+                              (specification-build-outputs spec))))
+    (#:notifications . ,(list->vector
+                         (map notification->json-object
+                              (specification-notifications spec))))
+    (#:priority . ,(specification-priority spec))
+    (#:systems . ,(list->vector
+                   (specification-systems spec)))))
 
 (define (handle-build-request build-id)
   "Retrieve build identified by BUILD-ID over the database and convert it to
@@ -211,8 +225,9 @@ Hydra format."
   (define builds-id-max (db-get-builds-max id status))
   (define builds-id-min (db-get-builds-min id status))
   (define specification (db-get-evaluation-specification id))
+  (define channels      (specification-channels
+                         (db-get-specification specification)))
   (define checkouts     (db-get-checkouts id))
-  (define inputs        (db-get-inputs specification))
 
   (define builds
     (vector->list
@@ -229,8 +244,8 @@ Hydra format."
   (html-page
    "Evaluation"
    (evaluation-build-table evaluation
+                           #:channels channels
                            #:checkouts checkouts
-                           #:inputs inputs
                            #:status status
                            #:builds builds
                            #:builds-id-min builds-id-min

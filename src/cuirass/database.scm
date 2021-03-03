@@ -26,7 +26,9 @@
   #:use-module (cuirass config)
   #:use-module (cuirass notification)
   #:use-module (cuirass remote)
+  #:use-module (cuirass specification)
   #:use-module (cuirass utils)
+  #:use-module (guix channels)
   #:use-module (squee)
   #:use-module (ice-9 match)
   #:use-module (ice-9 format)
@@ -46,11 +48,9 @@
             exec-query/bind-params
             expect-one-row
             read-sql-file
-            db-add-input
             db-add-checkout
             db-add-specification
             db-remove-specification
-            db-get-inputs
             db-get-specification
             db-get-specifications
             evaluation-status
@@ -371,99 +371,55 @@ database object."
   "Close database object DB."
   (pg-conn-finish db))
 
-(define (db-add-input spec-name input)
-  (with-db-worker-thread db
-    (exec-query/bind db "\
-INSERT INTO Inputs (specification, name, url, load_path, branch, \
-tag, revision, no_compile_p) VALUES ("
-                     spec-name ", "
-                     (assq-ref input #:name) ", "
-                     (assq-ref input #:url) ", "
-                     (assq-ref input #:load-path) ", "
-                     (assq-ref input #:branch) ", "
-                     (assq-ref input #:tag) ", "
-                     (assq-ref input #:commit) ", "
-                     (if (assq-ref input #:no-compile?) 1 0) ")
-ON CONFLICT ON CONSTRAINT inputs_pkey DO NOTHING;")))
-
-(define (db-add-checkout spec-name eval-id checkout)
-  "Insert CHECKOUT associated with SPEC-NAME and EVAL-ID.  If a checkout with
+(define* (db-add-checkout spec-name eval-id instance
+                          #:key timestamp)
+  "Insert INSTANCE associated with SPEC-NAME and EVAL-ID.  If a checkout with
 the same revision already exists for SPEC-NAME, return #f."
-  (with-db-worker-thread db
-    (match (expect-one-row
-            (exec-query/bind db "\
-INSERT INTO Checkouts (specification, revision, evaluation, input,
+  (let ((channel (channel-instance-channel instance)))
+    (with-db-worker-thread db
+      (match (expect-one-row
+              (exec-query/bind db "\
+INSERT INTO Checkouts (specification, revision, evaluation, channel,
 directory, timestamp) VALUES ("
-                             spec-name ", "
-                             (assq-ref checkout #:commit) ", "
-                             eval-id ", "
-                             (assq-ref checkout #:input) ", "
-                             (assq-ref checkout #:directory) ", "
-                             (or (assq-ref checkout #:timestamp) 0) ")
+                               spec-name ", "
+                               (channel-instance-commit instance) ", "
+                               eval-id ", "
+                               (symbol->string (channel-name channel)) ", "
+                               (channel-instance-checkout instance) ", "
+                               (or timestamp 0) ")
 ON CONFLICT ON CONSTRAINT checkouts_pkey DO NOTHING
 RETURNING (specification, revision);"))
-      (x x)
-      (() #f))))
+        (x x)
+        (() #f)))))
 
 (define (db-add-specification spec)
-  "Store SPEC in database the database.  SPEC inputs are stored in the INPUTS
-table."
+  "Store SPEC in database."
   (with-db-worker-thread db
     (match (expect-one-row
             (exec-query/bind db "\
-INSERT INTO Specifications (name, load_path_inputs, \
-package_path_inputs, proc_input, proc_file, proc, proc_args, \
-build_outputs, notifications, priority) \
+INSERT INTO Specifications (name, build, channels, \
+build_outputs, notifications, priority, systems) \
   VALUES ("
-                             (assq-ref spec #:name) ", "
-                             (assq-ref spec #:load-path-inputs) ", "
-                             (assq-ref spec #:package-path-inputs) ", "
-                             (assq-ref spec #:proc-input) ", "
-                             (assq-ref spec #:proc-file) ", "
-                             (symbol->string (assq-ref spec #:proc)) ", "
-                             (assq-ref spec #:proc-args) ", "
-                             (assq-ref spec #:build-outputs) ", "
-                             (or (assq-ref spec #:notifications) '()) ", "
-                             (or (assq-ref spec #:priority) max-priority) ")
+                             (specification-name spec) ", "
+                             (specification-build spec) ", "
+                             (map channel->sexp
+                                  (specification-channels spec)) ", "
+                             (map build-output->sexp
+                                  (specification-build-outputs spec)) ", "
+                             (map notification->sexp
+                                  (specification-notifications spec)) ", "
+                             (specification-priority spec) ", "
+                             (specification-systems spec) ")
 ON CONFLICT ON CONSTRAINT specifications_pkey DO NOTHING
 RETURNING name;"))
-      ((name)
-       (for-each (lambda (input)
-                   (db-add-input (assq-ref spec #:name) input))
-                 (assq-ref spec #:inputs))
-       name)
+      ((name) name)
       (else #f))))
 
 (define (db-remove-specification name)
-  "Remove the specification matching NAME from the database and its inputs."
+  "Remove the specification matching NAME from the database."
   (with-db-worker-thread db
-    (exec-query db "BEGIN TRANSACTION;")
     (exec-query/bind db "\
-DELETE FROM Inputs WHERE specification=" name ";")
-    (exec-query/bind db "\
-DELETE FROM Specifications WHERE name=" name ";")
-    (exec-query db "COMMIT;")))
-
-(define (db-get-inputs spec-name)
-  (with-db-worker-thread db
-    (let loop ((rows (exec-query/bind
-                      db "SELECT * FROM Inputs WHERE specification="
-                      spec-name "ORDER BY name;"))
-               (inputs '()))
-      (match rows
-        (() (reverse inputs))
-        (((specification name url load-path branch tag revision no-compile-p)
-          . rest)
-         (loop rest
-               (cons `((#:name . ,name)
-                       (#:url . ,url)
-                       (#:load-path . ,load-path)
-                       (#:branch . ,branch)
-                       (#:tag . ,tag)
-                       (#:commit . ,revision)
-                       (#:no-compile? . ,(positive?
-                                          (string->number no-compile-p))))
-                     inputs)))))))
+DELETE FROM Specifications WHERE name=" name ";")))
 
 (define (db-get-specification name)
   "Retrieve a specification in the database with the given NAME."
@@ -474,31 +430,31 @@ DELETE FROM Specifications WHERE name=" name ";")
     (let loop
         ((rows  (if name
                     (exec-query/bind db "
-SELECT * FROM Specifications WHERE name =" name ";")
+SELECT name, build, channels, build_outputs, notifications,\
+priority, systems FROM Specifications WHERE name =" name ";")
                     (exec-query db "
-SELECT * FROM Specifications ORDER BY name ASC;")))
+SELECT name, build, channels, build_outputs, notifications,\
+priority, systems FROM Specifications ORDER BY name ASC;")))
          (specs '()))
       (match rows
         (() (reverse specs))
-        (((name load-path-inputs package-path-inputs proc-input proc-file proc
-                proc-args build-outputs priority notifications)
+        (((name build channels build-outputs notifications priority systems)
           . rest)
          (loop rest
-               (cons `((#:name . ,name)
-                       (#:load-path-inputs .
-                        ,(with-input-from-string load-path-inputs read))
-                       (#:package-path-inputs .
-                        ,(with-input-from-string package-path-inputs read))
-                       (#:proc-input . ,proc-input)
-                       (#:proc-file . ,proc-file)
-                       (#:proc . ,(with-input-from-string proc read))
-                       (#:proc-args . ,(with-input-from-string proc-args read))
-                       (#:inputs . ,(db-get-inputs name))
-                       (#:build-outputs .
-                        ,(with-input-from-string build-outputs read))
-                       (#:notifications .
-                        ,(with-input-from-string notifications read))
-                       (#:priority . ,(string->number priority)))
+               (cons (specification
+                      (name name)
+                      (build (with-input-from-string build read))
+                      (channels
+                       (map sexp->channel
+                            (with-input-from-string channels read)))
+                      (build-outputs
+                       (map sexp->build-output
+                            (with-input-from-string build-outputs read)))
+                      (notifications
+                       (map sexp->notification
+                            (with-input-from-string notifications read)))
+                      (priority (string->number priority))
+                      (systems (with-input-from-string systems read)))
                      specs)))))))
 
 (define-enumeration evaluation-status
@@ -518,12 +474,12 @@ INSERT INTO Events (type, timestamp, event_json) VALUES ("
                        ");")
       #t)))
 
-(define* (db-add-evaluation spec-name checkouts
+(define* (db-add-evaluation spec-name instances
                             #:key
                             (checkouttime 0)
                             (evaltime 0)
                             timestamp)
-  "Add a new evaluation for SPEC-NAME only if one of the CHECKOUTS is new.
+  "Add a new evaluation for SPEC-NAME only if one of the INSTANCES is new.
 Otherwise, return #f."
   (define now
     (or timestamp (time-second (current-time time-utc))))
@@ -539,10 +495,12 @@ VALUES (" spec-name "," (evaluation-status started) ","
 now "," checkouttime "," evaltime ")
 RETURNING id;"))
               ((id) (string->number id))))
-           (new-checkouts (filter-map
-                           (cut db-add-checkout spec-name eval-id <>)
-                           checkouts)))
-      (if (null? new-checkouts)
+           (new-instances (filter-map
+                           (lambda (instance)
+                             (db-add-checkout spec-name eval-id instance
+                                              #:timestamp timestamp))
+                           instances)))
+      (if (null? new-instances)
           (begin (exec-query db "ROLLBACK;")
                  #f)
           (begin (db-add-event 'evaluation
@@ -715,7 +673,7 @@ where id = " build-id ") d;
       (not (null? new-outputs))))
 
   (define (build-priority priority)
-    (let ((spec-priority (assq-ref specification #:priority)))
+    (let ((spec-priority (specification-priority specification)))
       (+ (* spec-priority 10) priority)))
 
   (define (register job)
@@ -750,7 +708,7 @@ where id = " build-id ") d;
                           (#:starttime . 0)
                           (#:stoptime . 0))))
              (if period
-                 (let* ((spec (assq-ref specification #:name))
+                 (let* ((spec (specification-name specification))
                         (time
                          (db-get-time-since-previous-build job-name spec))
                         (add-build? (cond
@@ -838,7 +796,8 @@ UPDATE Builds SET stoptime =" now
               (let* ((build (db-get-build drv))
                      (spec (assq-ref build #:specification))
                      (specification (db-get-specification spec))
-                     (notifications (assq-ref specification #:notifications)))
+                     (notifications
+                      (specification-notifications specification)))
                 (send-notifications notifications #:build build)
                 (db-add-event 'build
                               now
@@ -1244,16 +1203,16 @@ SELECT derivation FROM Builds WHERE Builds.status < 0;"))))
 (define (db-get-checkouts eval-id)
   (with-db-worker-thread db
     (let loop ((rows (exec-query/bind
-                      db "SELECT revision, input, directory FROM Checkouts
-WHERE evaluation =" eval-id ";"))
+                      db "SELECT revision, channel, directory FROM Checkouts
+WHERE evaluation =" eval-id " ORDER BY channel ASC;"))
                (checkouts '()))
       (match rows
         (() (reverse checkouts))
-        (((revision input directory)
+        (((revision channel directory)
           . rest)
          (loop rest
                (cons `((#:commit . ,revision)
-                       (#:input . ,input)
+                       (#:channel . ,(string->symbol channel))
                        (#:directory . ,directory))
                      checkouts)))))))
 

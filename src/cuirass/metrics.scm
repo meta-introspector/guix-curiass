@@ -19,6 +19,7 @@
 (define-module (cuirass metrics)
   #:use-module (cuirass database)
   #:use-module (cuirass logging)
+  #:use-module (cuirass specification)
   #:use-module (guix records)
   #:use-module (squee)
   #:use-module (srfi srfi-1)
@@ -375,7 +376,7 @@ UPDATE SET value = " value ", timestamp = " now ";"))
   ;; Limit to the evaluations that were added during the past three days.
   (with-db-worker-thread db
     (let ((specifications
-           (map (cut assq-ref <> #:name) (db-get-specifications)))
+           (map specification-name (db-get-specifications)))
           (evaluations (db-latest-evaluations)))
       (exec-query db "BEGIN TRANSACTION;")
 

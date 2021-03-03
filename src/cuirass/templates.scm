@@ -28,6 +28,7 @@
   #:use-module (srfi srfi-26)
   #:use-module (json)
   #:use-module (web uri)
+  #:use-module (guix channels)
   #:use-module (guix derivations)
   #:use-module (guix progress)
   #:use-module (guix store)
@@ -37,6 +38,7 @@
                                              build-weather
                                              evaluation-status))
   #:use-module (cuirass remote)
+  #:use-module (cuirass specification)
   #:export (html-page
             specifications-table
             evaluation-info-table
@@ -162,27 +164,45 @@ system whose names start with " (code "guile-") ":" (br)
 
 (define (status-class status)
   (cond
-    ((= (build-status submitted)         status) "oi oi-clock         text-warning")
-    ((= (build-status scheduled)         status) "oi oi-clock         text-warning")
-    ((= (build-status started)           status) "oi oi-reload        text-warning")
-    ((= (build-status succeeded)         status) "oi oi-check         text-success")
-    ((= (build-status failed)            status) "oi oi-x             text-danger")
-    ((= (build-status failed-dependency) status) "oi oi-warning       text-danger")
-    ((= (build-status failed-other)      status) "oi oi-warning       text-danger")
-    ((= (build-status canceled)          status) "oi oi-question-mark text-warning")
-    (else                                        "oi oi-warning       text-danger")))
+   ((= (build-status submitted) status)
+    "oi oi-clock text-warning")
+   ((= (build-status scheduled) status)
+    "oi oi-clock text-warning")
+   ((= (build-status started) status)
+    "oi oi-reload text-warning")
+   ((= (build-status succeeded) status)
+    "oi oi-check text-success")
+   ((= (build-status failed) status)
+    "oi oi-x text-danger")
+   ((= (build-status failed-dependency) status)
+    "oi oi-warning text-danger")
+   ((= (build-status failed-other) status)
+    "oi oi-warning text-danger")
+   ((= (build-status canceled) status)
+    "oi oi-question-mark text-warning")
+   (else
+    "oi oi-warning text-danger")))
 
 (define (status-title status)
   (cond
-    ((= (build-status submitted)         status) "Submitted")
-    ((= (build-status scheduled)         status) "Scheduled")
-    ((= (build-status started)           status) "Started")
-    ((= (build-status succeeded)         status) "Succeeded")
-    ((= (build-status failed)            status) "Failed")
-    ((= (build-status failed-dependency) status) "Failed (dependency)")
-    ((= (build-status failed-other)      status) "Failed (other)")
-    ((= (build-status canceled)          status) "Canceled")
-    (else                                        "Invalid status")))
+   ((= (build-status submitted) status)
+    "Submitted")
+   ((= (build-status scheduled) status)
+    "Scheduled")
+   ((= (build-status started) status)
+    "Started")
+   ((= (build-status succeeded) status)
+    "Succeeded")
+   ((= (build-status failed) status)
+    "Failed")
+   ((= (build-status failed-dependency) status)
+    "Failed (dependency)")
+   ((= (build-status failed-other) status)
+    "Failed (other)")
+   ((= (build-status canceled) status)
+    "Canceled")
+   (else
+    "Invalid status")))
 
 (define* (specifications-table specs #:optional admin?)
   "Return HTML for the SPECS table."
@@ -199,37 +219,42 @@ system whose names start with " (code "guile-") ":" (br)
      ,@(if (null? specs)
            `((th (@ (scope "col")) "No elements here."))
            `((thead (tr (th (@ (scope "col")) Name)
-                        (th (@ (scope "col")) Inputs)
+                        (th (@ (scope "col")) Channels)
                         ,@(if admin?
                               '((th (@ (scope "col")) Action))
                               '())))
              (tbody
               ,@(map
                  (lambda (spec)
-                   `(tr (td (a (@ (href "/jobset/" ,(assq-ref spec #:name)))
-                               ,(assq-ref spec #:name)))
+                   `(tr (td (a (@ (href "/jobset/"
+                                        ,(specification-name spec)))
+                               ,(specification-name spec)))
                         (td ,(string-join
-                              (map (lambda (input)
+                              (map (lambda (channel)
                                      (format #f "~a (on ~a)"
-                                             (assq-ref input #:name)
-                                             (assq-ref input #:branch)))
-                                   (assq-ref spec #:inputs)) ", "))
+                                             (channel-name channel)
+                                             (channel-branch channel)))
+                                   (specification-channels spec)) ", "))
                         ,@(if admin?
-                              `((form (@ (class "form")
-                                         (action ,(string-append "/admin/specifications/delete/"
-                                                                 (assq-ref spec #:name)))
-                                         (method "POST")
-                                         (onsubmit
-                                          ,(string-append "return confirm('Please confirm deletion of specification "
-                                                          (assq-ref spec #:name)
-                                                          ".');")))
+                              `((form
+                                 (@ (class "form")
+                                    (action
+                                     ,(string-append
+                                       "/admin/specifications/delete/"
+                                       (specification-name spec)))
+                                    (method "POST")
+                                    (onsubmit
+                                     ,(string-append
+                                       "return confirm('Please confirm deletion of specification "
+                                       (specification-name spec) ".');")))
                                       `((div
                                          (@ (class "input-group"))
-                                         (span (@ (class "input-group-append"))
-                                               (button
-                                                (@ (type "submit")
-                                                   (class "btn"))
-                                                "Remove"))))))
+                                         (span
+                                          (@ (class "input-group-append"))
+                                          (button
+                                           (@ (type "submit")
+                                              (class "btn"))
+                                           "Remove"))))))
                               '())))
                  specs))))
      ,@(if admin?
@@ -437,7 +462,7 @@ system whose names start with " (code "guile-") ":" (br)
   (let ((changes
          (string-join
           (map (lambda (checkout)
-                 (let ((input (assq-ref checkout #:input))
+                 (let ((input (assq-ref checkout #:channel))
                        (commit (assq-ref checkout #:commit)))
                    (format #f "~a → ~a" input (substring commit 0 7))))
                checkouts)
@@ -496,7 +521,7 @@ system whose names start with " (code "guile-") ":" (br)
            `((thead
               (tr
                (th (@ (scope "col")) "#")
-               (th (@ (scope "col")) "Input changes")
+               (th (@ (scope "col")) "Channel changes")
                (th (@ (scope "col")) Success)
                (th (@ (scope "col")) Action)))
              (tbody
@@ -730,8 +755,8 @@ the nearest exact even integer."
 
 (define* (evaluation-build-table evaluation
                                  #:key
+                                 channels
                                  (checkouts '())
-                                 (inputs '())
                                  status builds
                                  builds-id-min builds-id-max)
   "Return HTML for an evaluation page, containing a table of builds for that
@@ -759,20 +784,20 @@ evaluation."
                              (seconds->string duration))))))
     (table (@ (class "table table-sm table-hover"))
            (thead
-            (tr (th (@ (class "border-0") (scope "col")) "Input")
+            (tr (th (@ (class "border-0") (scope "col")) "Channel")
                 (th (@ (class "border-0") (scope "col")) "Commit")))
            (tbody
             ,@(map (lambda (checkout)
-                     (let* ((name  (assq-ref checkout #:input))
-                            (input (find (lambda (input)
-                                           (string=? (assq-ref input #:name)
-                                                     name))
-                                         inputs))
-                            (url   (assq-ref input #:url))
+                     (let* ((name  (assq-ref checkout #:channel))
+                            (channel (find (lambda (channel)
+                                           (eq? (channel-name channel)
+                                                name))
+                                         channels))
+                            (url   (channel-url channel))
                             (commit (assq-ref checkout #:commit)))
                        ;; Some checkout entries may refer to removed
                        ;; inputs.
-                       (if input
+                       (if channel
                            `(tr (td ,url)
                                 (td (code ,(commit-hyperlink url commit))))
                            '())))

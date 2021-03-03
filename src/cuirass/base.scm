@@ -1,7 +1,7 @@
 ;;; base.scm -- Cuirass base module
 ;;; Copyright © 2016, 2017, 2018, 2019 Ludovic Courtès <ludo@gnu.org>
 ;;; Copyright © 2016, 2017 Mathieu Lirzin <mthl@gnu.org>
-;;; Copyright © 2017, 2020 Mathieu Othacehe <m.othacehe@gmail.com>
+;;; Copyright © 2017, 2020, 2021 Mathieu Othacehe <m.othacehe@gmail.com>
 ;;; Copyright © 2017 Ricardo Wurmus <rekado@elephly.net>
 ;;; Copyright © 2018 Clément Lassieur <clement@lassieur.org>
 ;;;
@@ -26,10 +26,12 @@
   #:use-module (cuirass logging)
   #:use-module (cuirass database)
   #:use-module (cuirass remote)
+  #:use-module (cuirass specification)
   #:use-module (cuirass utils)
   #:use-module ((cuirass config) #:select (%localstatedir))
   #:use-module (gnu packages)
   #:use-module (guix build utils)
+  #:use-module (guix channels)
   #:use-module (guix derivations)
   #:use-module (guix store)
   #:use-module (guix ui)
@@ -62,9 +64,6 @@
   #:export (;; Procedures.
             call-with-time-display
             read-parameters
-            fetch-input
-            fetch-inputs
-            compile
             evaluate
             build-derivations&
             set-build-successful!
@@ -198,86 +197,6 @@ values."
     (lambda (key err)
       (report-git-error err))))
 
-(define* (fetch-input store input #:key writable-copy?) ;TODO fix desc
-  "Get the latest version of repository inputified in INPUT.  Return an
-association list containing the input name, the content of the git repository
-at URL copied into a store directory and the sha1 of the top level commit in
-this directory.
-
-When WRITABLE-COPY? is true, return a writable copy; otherwise, return a
-read-only directory."
-
-  (define (add-origin branch)
-    "Prefix branch name with origin if no remote is specified."
-    (if (string-index branch #\/)
-        branch
-        (string-append "origin/" branch)))
-
-  (let ((name   (assq-ref input #:name))
-        (url    (assq-ref input #:url))
-        (branch (and=> (assq-ref input #:branch)
-                       (lambda (b)
-                         `(branch . ,(add-origin b)))))
-        (commit (and=> (assq-ref input #:commit)
-                       (lambda (c)
-                         `(commit . ,c))))
-        (tag    (and=> (assq-ref input #:tag)
-                       (lambda (t)
-                         `(tag . ,t)))))
-    (let*-values (((directory commit)
-                   (latest-repository-commit store url
-                                             #:cache-directory
-                                             (%package-cachedir)
-                                             #:ref (or branch commit tag)))
-                  ((timestamp)
-                   (time-second (current-time time-utc))))
-      ;; TODO: When WRITABLE-COPY? is true, we could directly copy the
-      ;; checkout directly in a writable location instead of copying it to the
-      ;; store first.
-      (let ((directory (if writable-copy?
-                           (make-writable-copy directory
-                                               (string-append
-                                                (%package-cachedir) "/" name))
-                           directory)))
-        `((#:input . ,name)
-          (#:directory . ,directory)
-          (#:commit . ,commit)
-          (#:timestamp . ,timestamp)
-          (#:load-path . ,(assq-ref input #:load-path))
-          (#:no-compile? . ,(assq-ref input #:no-compile?)))))))
-
-(define (make-writable-copy source target)
-  "Create TARGET and make it a writable copy of directory SOURCE; delete
-TARGET beforehand if it exists.  Return TARGET."
-  (define (chmod+w file stat _)
-    (chmod file (logior #o200 (stat:perms stat))))
-
-  (mkdir-p (dirname target))
-  ;; Remove any directory with the same name.
-  (false-if-exception (delete-file-recursively target))
-  (copy-recursively source target)
-
-  ;; Make all the files in TARGET writable.
-  (file-system-fold (const #t)                    ;enter?
-                    chmod+w                       ;leaf
-                    chmod+w                       ;down
-                    (const #t)                    ;up
-                    (const #t)                    ;skip
-                    (const #f)                    ;error
-                    *unspecified*                 ;init
-                    target)
-
-  target)
-
-(define (compile dir)
-  ;; Required for fetching Guix bootstrap tarballs.
-  "Compile files in repository in directory DIR."
-  (with-directory-excursion dir
-    (or (file-exists? "configure") (system* "./bootstrap"))
-    (or (file-exists? "Makefile")
-        (system* "./configure" "--localstatedir=/var"))
-    (zero? (system* "make" "-j" (number->string (current-processor-count))))))
-
 (define-condition-type &evaluation-error &error
   evaluation-error?
   (name evaluation-error-spec-name)
@@ -322,7 +241,7 @@ fibers."
                  "/log/cuirass/evaluations/"
                  (number->string eval-id) ".gz"))
 
-(define (evaluate store spec eval-id checkouts)
+(define (evaluate store spec eval-id)
   "Evaluate and build package derivations defined in SPEC, using CHECKOUTS.
 Return a list of jobs that are associated to EVAL-ID."
   (define log-file
@@ -355,8 +274,8 @@ Return a list of jobs that are associated to EVAL-ID."
                 (with-error-to-port (cdr log-pipe)
                   (lambda ()
                     (open-pipe* OPEN_READ "evaluate"
-                                (object->string spec)
-                                (object->string checkouts))))))
+                                (%package-database)
+                                (object->string eval-id))))))
          (result (match (read/non-blocking port)
                    ;; If an error occured during evaluation report it,
                    ;; otherwise, suppose that data read from port are
@@ -367,16 +286,13 @@ Return a list of jobs that are associated to EVAL-ID."
                     (close-port (cdr log-pipe))
                     (raise (condition
                             (&evaluation-error
-                             (name (assq-ref spec #:name))
+                             (name (specification-name spec))
                              (id eval-id)))))
-                   (data data))))
+                   (_ #t))))
     (close-port (cdr log-pipe))
     (close-pipe port)
-    (match result
-      (('evaluation jobs)
-       (let* ((spec-name (assq-ref spec #:name)))
-         (log-message "evaluation ~a for '~a' completed" eval-id spec-name)
-         jobs)))))
+    (let ((spec-name (specification-name spec)))
+      (log-message "evaluation ~a for '~a' completed" eval-id spec-name))))
 
 
 ;;;
@@ -479,7 +395,7 @@ build products."
                       (assq-ref build #:specification)))))
     (when (and spec build)
       (create-build-outputs build
-                            (assq-ref spec #:build-outputs))))
+                            (specification-build-outputs spec))))
   (db-update-build-status! drv (build-status succeeded)
                            #:log-file log))
 
@@ -670,17 +586,17 @@ started)."
         (spawn-builds store valid))
       (log-message "done with restarted builds"))))
 
-(define (create-build-outputs build product-specs)
+(define (create-build-outputs build build-outputs)
   "Given BUILDS a list of built derivations, save the build products described
-by PRODUCT-SPECS."
+by BUILD-OUTPUTS."
   (define (build-has-products? job-regex)
     (let ((job-name (assq-ref build #:job-name)))
       (string-match job-regex job-name)))
 
-  (define* (find-product build spec)
+  (define* (find-product build build-output)
     (let* ((outputs (assq-ref build #:outputs))
-           (output (assq-ref spec #:output))
-           (path (assq-ref spec #:path))
+           (output (build-output-output build-output))
+           (path (build-output-path build-output-path))
            (root (and=> (assoc-ref outputs output)
                         (cut assq-ref <> #:path))))
       (and root
@@ -691,27 +607,28 @@ by PRODUCT-SPECS."
   (define (file-size file)
     (stat:size (stat file)))
 
-  (for-each (lambda (spec)
-              (let ((product (and (build-has-products? (assq-ref spec #:job))
-                                  (find-product build spec))))
+  (for-each (lambda (build-output)
+              (let ((product (and (build-has-products?
+                                   (build-output-job build-output))
+                                  (find-product build build-output))))
                 (when (and product (file-exists? product))
                   (log-message "Adding build product ~a" product)
-                  (db-add-build-product `((#:build . ,(assq-ref build #:id))
-                                          (#:type . ,(assq-ref spec #:type))
-                                          (#:file-size . ,(file-size product))
-                                          ;; TODO: Implement it.
-                                          (#:checksum . "")
-                                          (#:path . ,product))))))
-            product-specs))
+                  (db-add-build-product
+                   `((#:build . ,(assq-ref build #:id))
+                     (#:type . ,(build-output-type build-output-type))
+                     (#:file-size . ,(file-size product))
+                     ;; TODO: Implement it.
+                     (#:checksum . "")
+                     (#:path . ,product))))))
+            build-outputs))
 
-(define (build-packages store jobs eval-id)
+(define (build-packages store eval-id)
   "Build JOBS and return a list of Build results."
+  (define builds
+    (db-get-builds `((evaluation . ,eval-id))))
+
   (define derivations
-    (let* ((name (db-get-evaluation-specification eval-id))
-           (specification (db-get-specification name)))
-      (with-time-logging
-       (format #f "evaluation ~a registration" eval-id)
-       (db-register-builds jobs eval-id specification))))
+    (map (cut assq-ref <> #:derivation) builds))
 
   (log-message "evaluation ~a registered ~a new derivations"
                eval-id (length derivations))
@@ -719,22 +636,22 @@ by PRODUCT-SPECS."
                             (evaluation-status succeeded))
 
   (unless (%build-remote?)
-    (spawn-builds store derivations))
+    (spawn-builds store derivations)
 
-  (let* ((results (filter-map (cut db-get-build <>) derivations))
-         (status (map (cut assq-ref <> #:status) results))
-         (success (count (lambda (status)
-                           (= status (build-status succeeded)))
-                         status))
-         (outputs (map (cut assq-ref <> #:outputs) results))
-         (outs (append-map (match-lambda
-                             (((_ (#:path . (? string? outputs))) ...)
-                              outputs))
-                           outputs))
-         (fail (- (length derivations) success)))
+    (let* ((results (filter-map (cut db-get-build <>) derivations))
+           (status (map (cut assq-ref <> #:status) results))
+           (success (count (lambda (status)
+                             (= status (build-status succeeded)))
+                           status))
+           (outputs (map (cut assq-ref <> #:outputs) results))
+           (outs (append-map (match-lambda
+                               (((_ (#:path . (? string? outputs))) ...)
+                                outputs))
+                             outputs))
+           (fail (- (length derivations) success)))
 
-    (log-message "outputs:\n~a" (string-join outs "\n"))
-    results))
+      (log-message "outputs:\n~a" (string-join outs "\n"))
+      results)))
 
 (define (prepare-git)
   "Prepare Guile-Git's TLS support and all."
@@ -748,68 +665,21 @@ by PRODUCT-SPECS."
      (when (or directory file)
        (set-tls-certificate-locations! directory file)))))
 
-(define (compile? checkout)
-  (not (assq-ref checkout #:no-compile?)))
-
-(define (fetch-inputs spec)
-  "Fetch all inputs of SPEC in parallel."
-  (let* ((inputs (assq-ref spec #:inputs))
-         (thunks
-          (map
-           (lambda (input)
-             (lambda ()
-               (with-store store
-                 (log-message "fetching input '~a' of spec '~a'"
-                              (assq-ref input #:name)
-                              (assq-ref spec #:name))
-                 ;; XXX: Work around: https://issues.guix.gnu.org/44742.
-                 (parameterize ((current-error-port (%make-void-port "rw+")))
-                   (fetch-input store input
-                                #:writable-copy? (compile? input))))))
-           inputs))
-         (results (map %non-blocking thunks)))
-    (map (lambda (checkout)
-           (log-message "fetched input '~a' of spec '~a' (commit ~s)"
-                        (assq-ref checkout #:input)
-                        (assq-ref spec #:name)
-                        (assq-ref checkout #:commit))
-           checkout)
-         results)))
-
-(define (compile-checkouts spec checkouts)
-  "Compile CHECKOUTS in parallel."
-  (let* ((thunks
-          (map
-           (lambda (checkout)
-             (lambda ()
-               (log-message "compiling input '~a' of spec '~a' (commit ~s)"
-                            (assq-ref checkout #:input)
-                            (assq-ref spec #:name)
-                            (assq-ref checkout #:commit))
-               (compile checkout)))
-           checkouts))
-         (results (map %non-blocking thunks)))
-    (map (lambda (checkout)
-           (log-message "compiled input '~a' of spec '~a' (commit ~s)"
-                        (assq-ref checkout #:input)
-                        (assq-ref spec #:name)
-                        (assq-ref checkout #:commit))
-           checkout)
-         results)))
-
 (define (process-specs jobspecs)
   "Evaluate and build JOBSPECS and store results in the database."
   (define (process spec)
     (with-store store
-      (let* ((name (assoc-ref spec #:name))
+      (let* ((name (specification-name spec))
              (timestamp (time-second (current-time time-utc)))
-             (checkouts (fetch-inputs spec))
+             (channels (specification-channels spec))
+             (instances (non-blocking
+                         (latest-channel-instances store channels
+                                                   #:authenticate? #f)))
              (checkouttime (time-second (current-time time-utc)))
-             (eval-id (db-add-evaluation name checkouts
+             (eval-id (db-add-evaluation name instances
                                          #:timestamp timestamp
                                          #:checkouttime checkouttime)))
         (when eval-id
-          (compile-checkouts spec (filter compile? checkouts))
           (spawn-fiber
            (lambda ()
              (guard (c ((evaluation-error? c)
@@ -820,11 +690,9 @@ by PRODUCT-SPECS."
                         #f))
                (log-message "evaluating spec '~a'" name)
                (with-store store
-                 (let ((jobs (evaluate store spec eval-id checkouts)))
-                   (db-set-evaluation-time eval-id)
-                   (log-message "building ~a jobs for '~a'"
-                                (length jobs) name)
-                   (build-packages store jobs eval-id))))))
+                 (evaluate store spec eval-id)
+                 (db-set-evaluation-time eval-id)
+                 (build-packages store eval-id)))))
 
           ;; 'spawn-fiber' returns zero values but we need one.
           *unspecified*))))
@@ -836,6 +704,6 @@ by PRODUCT-SPECS."
                   (process spec))
                 (lambda (key error)
                   (log-message "Git error while fetching inputs of '~a': ~s~%"
-                               (assq-ref spec #:name)
+                               (specification-name spec)
                                (git-error-message error)))))
             jobspecs))

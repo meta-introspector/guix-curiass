@@ -22,11 +22,67 @@
   #:use-module (cuirass mastodon)
   #:use-module (cuirass parameters)
   #:use-module (cuirass utils)
-  #:export (notification-type
-            notification-event
+  #:use-module (guix records)
+  #:use-module (ice-9 match)
+  #:export (email
+            email?
+            email-from
+            email-to
+            email-server
+
+            mastodon
+            mastodon?
+
+            notification->sexp
+            sexp->notification
 
             with-notification
             send-notifications))
+
+
+;;;
+;;; Notification types.
+;;;
+
+(define-record-type* <email>
+  email make-email
+  email?
+  (from     email-from) ;string
+  (to       email-to) ;string
+  (server   email-server)) ;string
+
+(define-record-type* <mastodon>
+  mastodon make-mastodon
+  mastodon?)
+
+(define (notification->sexp notif)
+  "Return an sexp describing NOTIF."
+  (cond
+   ((email? notif)
+    `(email
+      (from ,(email-from notif))
+      (to ,(email-to notif))
+      (server ,(email-server notif))))
+   ((mastodon? notif)
+    '(mastodon))))
+
+(define (sexp->notification sexp)
+  "Return the notification corresponding to SEXP."
+  (match sexp
+    (('email ('from from)
+             ('to to)
+             ('server server))
+     (email
+      (from from)
+      (to to)
+      (server server)))
+    (('mastodon)
+     (mastodon))))
+
+
+;;;
+;;; Send notifications.
+;;;
 
 ;; XXX: Some redefinitions to avoid a circular dependency with the (cuirass
 ;; database) module.
@@ -54,15 +110,6 @@ interfering with fibers."
    (lambda args
      exp ...)))
 
-(define-enumeration notification-type
-  (email            0)
-  (mastodon         1))
-
-(define-enumeration notification-event
-  (always            0)
-  (broken-builds     1)
-  (fixed-builds      2))
-
 (define (build-weather-text build)
   "Return the build weather string."
   (let ((weather (assq-ref build #:weather)))
@@ -78,19 +125,17 @@ interfering with fibers."
         (url (or (%cuirass-url) "")))
     (string-append url "/build/" (number->string id) "/details")))
 
-(define (notification-subject notification)
+(define (notification-subject build)
   "Return the subject for the given NOTIFICATION."
-  (let* ((build (assq-ref notification #:build))
-         (job-name (assq-ref build #:job-name))
+  (let* ((job-name (assq-ref build #:job-name))
          (specification (assq-ref build #:specification))
          (weather-text (build-weather-text build)))
     (format #f "Build ~a on ~a is ~a."
             job-name specification weather-text)))
 
-(define (notification-text notification)
+(define (notification-text build)
   "Return the text for the given NOTIFICATION."
-  (let* ((build (assq-ref notification #:build))
-         (url (build-details-url build))
+  (let* ((url (build-details-url build))
          (job-name (assq-ref build #:job-name))
          (specification (assq-ref build #:specification))
          (weather-text (build-weather-text build)))
@@ -98,13 +143,13 @@ interfering with fibers."
 the detailed information about this build here: ~a."
             job-name specification weather-text url)))
 
-(define (notification-email notification)
+(define (send-email* notif build)
   "Send an email for the given NOTIFICATION."
-  (let* ((from (assq-ref notification #:from))
-         (to (assq-ref notification #:to))
-         (server (assq-ref notification #:server))
-         (subject (notification-subject notification))
-         (text (notification-text notification)))
+  (let* ((from (email-from notif))
+         (to (email-to notif))
+         (server (email-server notif))
+         (subject (notification-subject build))
+         (text (notification-text build)))
     (catch #t
       (lambda ()
         (send-email server
@@ -116,9 +161,9 @@ the detailed information about this build here: ~a."
         (log-message "Failed to send the email notification: ~a."
                      args)))))
 
-(define (notification-mastodon notification)
+(define (send-mastodon build)
   "Send a new status for the given NOTIFICATION."
-  (let ((text (notification-text notification)))
+  (let ((text (notification-text build)))
     (catch #t
       (lambda ()
         (send-status text))
@@ -131,22 +176,9 @@ the detailed information about this build here: ~a."
   (with-notification-worker-thread
    (for-each
     (lambda (notification)
-      (let* ((event (assq-ref notification #:event))
-             (type (assq-ref notification #:type))
-             (weather (assq-ref build #:weather))
-             (success? (eq? weather weather-success))
-             (failure? (eq? weather weather-failure)))
-        (when (or
-               (and (eq? event (notification-event always))
-                    (or success? failure?))
-               (and (eq? event (notification-event broken-builds))
-                    failure?)
-               (and (eq? event (notification-event fixed-builds))
-                    success?))
-          (let ((notification* (acons #:build build notification)))
-            (cond
-             ((eq? type (notification-type email))
-              (notification-email notification*))
-             ((eq? type (notification-type mastodon))
-              (notification-mastodon notification*)))))))
+      (cond
+       ((email? notification)
+        (send-email* notification build))
+       ((mastodon? notification)
+        (send-mastodon build))))
     notifications)))

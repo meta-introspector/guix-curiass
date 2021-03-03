@@ -47,10 +47,9 @@
   (test-assert "exec-query"
     (begin
       (exec-query (%db) "\
-INSERT INTO Specifications (name, load_path_inputs, package_path_inputs,
-proc_input, proc_file, proc, proc_args, build_outputs, priority)
-VALUES ('guix', '()', '()', 'guix',' build-aux/cuirass/gnu-system.scm',
-'cuirass-jobs', '', '', 2);")
+INSERT INTO Specifications (name, build, channels, build_outputs,
+notifications, priority, systems)
+VALUES ('guix', 'hello', '()', '()', '()', 9, '()');")
       (exec-query (%db) "\
 INSERT INTO Evaluations (specification, status,
 timestamp, checkouttime, evaltime) VALUES ('guix', -1, 1600174547, 0, 0);")

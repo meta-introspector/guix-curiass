@@ -1,7 +1,7 @@
 ;;; http.scm -- tests for (cuirass http) module
 ;;; Copyright © 2016 Mathieu Lirzin <mthl@gnu.org>
 ;;; Copyright © 2017, 2018, 2019, 2020 Ludovic Courtès <ludo@gnu.org>
-;;; Copyright © 2017, 2020 Mathieu Othacehe <m.othacehe@gmail.com>
+;;; Copyright © 2017, 2020, 2021 Mathieu Othacehe <m.othacehe@gmail.com>
 ;;; Copyright © 2018 Clément Lassieur <clement@lassieur.org>
 ;;;
 ;;; This file is part of Cuirass.
@@ -21,7 +21,9 @@
 
 (use-modules (cuirass http)
              (cuirass database)
+             (cuirass specification)
              (cuirass utils)
+             (guix channels)
              (json)
              (fibers)
              (squee)
@@ -81,7 +83,7 @@
      (#:checkouttime . 0)
      (#:evaltime . 0)
      (#:checkouts . #(((#:commit . "fakesha2")
-                       (#:input . "savannah")
+                       (#:channel . "guix")
                        (#:directory . "dir3")))))))
 
 (test-group-with-cleanup "http"
@@ -151,44 +153,40 @@
               (#:timestamp . 1501347493)
               (#:starttime . 0)
               (#:stoptime . 0)))
-           (specification
-            '((#:name . "guix")
-              (#:load-path-inputs . ("savannah"))
-              (#:package-path-inputs . ())
-              (#:proc-input . "savannah")
-              (#:proc-file . "/tmp/gnu-system.scm")
-              (#:proc . hydra-jobs)
-              (#:proc-args (subset . "hello"))
-              (#:inputs . (((#:name . "savannah")
-                            (#:url . "git://git.savannah.gnu.org/guix.git")
-                            (#:load-path . ".")
-                            (#:branch . "master")
-                            (#:tag . #f)
-                            (#:commit . #f)
-                            (#:no-compile? . #f))
-                           ((#:name . "packages")
-                            (#:url . "git://git.savannah.gnu.org/guix.git")
-                            (#:load-path . ".")
-                            (#:branch . "master")
-                            (#:tag . #f)
-                            (#:commit . #f)
-                            (#:no-compile? . #f))))
-              (#:build-outputs . ())))
+           (spec
+            (specification
+             (name "guix")
+             (build 'hello)
+             (channels
+              (list (channel
+                     (name 'guix)
+                     (url "https://gitlab.com/mothacehe/guix.git")
+                     (branch "master"))
+                    (channel
+                     (name 'packages)
+                     (url "https://gitlab.com/mothacehe/guix.git")
+                     (branch "master"))))))
            (checkouts1
-            '(((#:commit . "fakesha1")
-               (#:input . "savannah")
-               (#:directory . "dir1"))
-              ((#:commit . "fakesha3")
-               (#:input . "packages")
-               (#:directory . "dir2"))))
+            (list
+             (checkout->channel-instance "dir1"
+                                         #:name 'guix
+                                         #:url "url1"
+                                         #:commit "fakesha1")
+             (checkout->channel-instance "dir2"
+                                         #:name 'packages
+                                         #:url "url2"
+                                         #:commit "fakesha3")))
            (checkouts2
-            '(((#:commit . "fakesha2")
-               (#:input . "savannah")
-               (#:directory . "dir3"))
-              ((#:commit . "fakesha3")
-               (#:input . "packages")
-               (#:directory . "dir4")))))
-      (db-add-specification specification)
+            (list
+             (checkout->channel-instance "dir3"
+                                         #:name 'guix
+                                         #:url "dir3"
+                                         #:commit "fakesha2")
+             (checkout->channel-instance "dir4"
+                                         #:name 'packages
+                                         #:url "dir4"
+                                         #:commit "fakesha3"))))
+      (db-add-specification spec)
       (db-add-evaluation "guix" checkouts1
                          #:timestamp 1501347493)
       (db-add-evaluation "guix" checkouts2
@@ -202,8 +200,7 @@
                 (http-get-body (test-cuirass-uri "/specifications")))
              json->scm)
       (#(spec)
-       (and (string=? (assoc-ref spec "name") "guix")
-            (vector? (assoc-ref spec "package-path-inputs"))))))
+       (string=? (assoc-ref spec "name") "guix"))))
 
   (test-assert "/build/1"
     (lset= equal?

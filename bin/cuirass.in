@@ -33,6 +33,7 @@ exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
              (cuirass logging)
              (cuirass metrics)
              (cuirass notification)
+             (cuirass specification)
              (cuirass utils)
              (cuirass watchdog)
              (cuirass zabbix)
@@ -149,13 +150,8 @@ exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
              (with-database
                  (with-notification
                   (and specfile
-                       (let ((new-specs (save-module-excursion
-                                         (lambda ()
-                                           (set-current-module
-                                            (make-user-module '()))
-                                           (primitive-load specfile)))))
-
-                         (for-each db-add-specification new-specs)))
+                       (for-each db-add-specification
+                                 (read-specifications specfile)))
                   (and paramfile (read-parameters paramfile))
 
                   (if one-shot?
