@@ -48,9 +48,10 @@ CHECKOUTS."
                                        #:commit commit)))
        checkouts))
 
-(define* (inferior-evaluation store instances
+(define* (inferior-evaluation store profile
                               #:key
-                              eval-id spec build systems)
+                              eval-id channels
+                              spec build systems)
   "Spawn an inferior on INSTANCES that uses the given STORE.  Withing that
 inferior, call PROC with PROC-ARGS arguments from MODULE.  Pass PROC a
 register procedure that writes its arguments on a socket.  Listen that socket
@@ -61,9 +62,7 @@ for new jobs and register them using REGISTER-JOB procedure."
   ;; The Guix procedure for job evaluation.
   (define eval-proc 'cuirass-jobs)
 
-  (let* ((cached (cached-channel-instance store instances))
-         (inferior (open-inferior cached))
-         (channels (map channel-instance->sexp instances))
+  (let* ((inferior (open-inferior profile))
          (args `((channels . ,channels)
                  (systems . ,systems)
                  (subset . ,build))))
@@ -74,6 +73,13 @@ for new jobs and register them using REGISTER-JOB procedure."
             `(lambda (store)
                (,eval-proc store ',args)))))
       (db-register-builds jobs eval-id spec))))
+
+(define (instances->cached-profile* instances)
+  (with-store store
+    (set-build-options store
+                       #:use-substitutes? #f
+                       #:substitute-urls '())
+    (instances->cached-profile store instances)))
 
 (define* (main #:optional (args (command-line)))
   "This procedure spawns an inferior on the given channels.  An evaluation
@@ -92,18 +98,20 @@ nd registered in database."
                   (build (specification-build spec))
                   (systems (specification-systems spec)))
 
-             (par-for-each
-              (lambda (system)
-                (with-store store
-                  (set-build-options store
-                                       #:use-substitutes? #f
-                                       #:substitute-urls '())
-                  (inferior-evaluation store instances
-                                       #:eval-id eval-id
-                                       #:spec spec
-                                       #:build build
-                                       #:systems (list system))))
-              systems)
+             (let ((profile
+                    (instances->cached-profile* instances))
+                   (channels
+                    (map channel-instance->sexp instances)))
+               (par-for-each
+                (lambda (system)
+                  (with-store store
+                    (inferior-evaluation store profile
+                                         #:eval-id eval-id
+                                         #:channels channels
+                                         #:spec spec
+                                         #:build build
+                                         #:systems (list system))))
+                systems))
              (display 'done)))))
     (x
      (format (current-error-port) "Wrong command: ~a~%." x)
