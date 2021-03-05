@@ -52,10 +52,9 @@ CHECKOUTS."
                               #:key
                               eval-id channels
                               spec build systems)
-  "Spawn an inferior on INSTANCES that uses the given STORE.  Withing that
-inferior, call PROC with PROC-ARGS arguments from MODULE.  Pass PROC a
-register procedure that writes its arguments on a socket.  Listen that socket
-for new jobs and register them using REGISTER-JOB procedure."
+  "Spawn an inferior on INSTANCES that uses the given STORE and PROFILE.
+Withing that inferior, call EVAL-PROC from the EVAL-MODULE.  Register the
+returned jobs in database."
   ;; The module where the below procedure is defined.
   (define eval-module '(gnu ci))
 
@@ -75,6 +74,8 @@ for new jobs and register them using REGISTER-JOB procedure."
       (db-register-builds jobs eval-id spec))))
 
 (define (instances->cached-profile* instances)
+  "Call INSTANCES->CACHED-PROFILE on an opened store with disable
+substitutes."
   (with-store store
     (set-build-options store
                        #:use-substitutes? #f
@@ -83,9 +84,8 @@ for new jobs and register them using REGISTER-JOB procedure."
 
 (define* (main #:optional (args (command-line)))
   "This procedure spawns an inferior on the given channels.  An evaluation
-procedure is called within that inferior.  The evaluation procedure is passed
-a job registration callback.  The registered jobs are then read on a socket
-nd registered in database."
+procedure is called within that inferior, it returns a list of jobs that are
+registered in database."
   (match args
     ((command database eval-str)
      (parameterize ((%package-database database))
@@ -102,6 +102,10 @@ nd registered in database."
                     (instances->cached-profile* instances))
                    (channels
                     (map channel-instance->sexp instances)))
+               ;; Evaluate jobs on a per-system basis for two reasons.  It
+               ;; speeds up the evaluation speed as the evaluations can be
+               ;; performed concurrently.  It also decreases the amount of
+               ;; memory needed per evaluation process.
                (par-for-each
                 (lambda (system)
                   (with-store store
