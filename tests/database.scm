@@ -184,14 +184,14 @@ timestamp, checkouttime, evaltime) VALUES ('guix', 0, 0, 0, 0);")
 
   (test-assert "db-register-builds"
     (let ((drv "/test.drv"))
-      (db-register-build `((#:job-name . "test")
-                           (#:derivation . ,drv)
-                           (#:system . "x86_64-linux")
-                           (#:nix-name . "test")
-                           (#:log . "log")
-                           (#:outputs .
-                            (("foo" . ,(format #f "~a.output" drv))
-                             ("foo2" . ,(format #f "~a.output.2" drv)))))
+      (db-register-builds `(((#:job-name . "test")
+                             (#:derivation . ,drv)
+                             (#:system . "x86_64-linux")
+                             (#:nix-name . "test")
+                             (#:log . "log")
+                             (#:outputs .
+                              (("foo" . ,(format #f "~a.output" drv))
+                               ("foo2" . ,(format #f "~a.output.2" drv))))))
                           2 (db-get-specification "guix"))))
 
   (test-assert "db-update-build-status!"
@@ -342,10 +342,10 @@ timestamp, checkouttime, evaltime) VALUES ('guix', 0, 0, 0, 0);")
 
   (test-equal "db-get-build-products"
     `(((#:id . 1)
-        (#:type . "1")
-        (#:file-size . 1)
-        (#:checksum . "sum")
-        (#:path . "path")))
+       (#:type . "1")
+       (#:file-size . 1)
+       (#:checksum . "sum")
+       (#:path . "path")))
     (db-get-build-products 1))
 
   (test-equal "db-get-build-product-path"
