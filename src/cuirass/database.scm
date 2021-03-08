@@ -816,14 +816,16 @@ UPDATE Builds SET stoptime =" now
   (with-db-worker-thread db
     (exec-query/bind db "UPDATE Builds SET status="
                      (build-status scheduled)
-                     "WHERE id=" build-id ";")))
+                     ", starttime = 0, stoptime = 0
+                     WHERE id=" build-id ";")))
 
 (define (db-restart-evaluation! eval-id)
   "Restart the evaluation with EVAL-ID id."
   (with-db-worker-thread db
     (exec-query/bind db "UPDATE Builds SET status="
                      (build-status scheduled)
-                     "WHERE evaluation=" eval-id ";")))
+                     ", starttime = 0, stoptime = 0
+                     WHERE evaluation=" eval-id ";")))
 
 (define (query->bind-arguments query-string)
   "Return a list of keys to query strings by parsing QUERY-STRING."
