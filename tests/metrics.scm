@@ -20,6 +20,7 @@
 (use-modules (cuirass database)
              (cuirass metrics)
              (cuirass utils)
+             (tests common)
              ((guix utils) #:select (call-with-temporary-output-file))
              (squee)
              (srfi srfi-64))
@@ -31,17 +32,10 @@
 (define yesterday
   (- today 86400))
 
-(define %db
-  (make-parameter #f))
-
 (test-group-with-cleanup "database"
   (test-assert "db-init"
     (begin
-      (%create-database? #t)
-      (%db (db-open))
-      (%db-channel (make-worker-thread-channel
-                    (lambda ()
-                      (list (%db)))))
+      (test-init-db!)
       #t))
 
   (test-assert "exec-query"

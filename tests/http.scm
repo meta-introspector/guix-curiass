@@ -23,6 +23,7 @@
              (cuirass database)
              (cuirass specification)
              (cuirass utils)
+             (tests common)
              (guix channels)
              (json)
              (fibers)
@@ -51,9 +52,6 @@
 (define (test-cuirass-uri route)
   (string-append "http://localhost:6688" route))
 
-(define %db
-  (make-parameter #f))
-
 (define build-query-result
   '((#:id . 1)
     (#:evaluation . 1)
@@ -69,11 +67,9 @@
     (#:buildstatus . 0)
     (#:weather . -1)
     (#:busy . 0)
-    (#:priority . 0)
+    (#:priority . 9)
     (#:finished . 1)
-    (#:buildproducts . #())
-    (#:releasename . #nil)
-    (#:buildinputs_builds . #nil)))
+    (#:buildproducts . #())))
 
 (define evaluations-query-result
   #(((#:id . 2)
@@ -110,11 +106,7 @@
 
   (test-assert "db-init"
     (begin
-      (%create-database? #t)
-      (%db (db-open))
-      (%db-channel (make-worker-thread-channel
-                    (lambda ()
-                      (list (%db)))))
+      (test-init-db!)
       #t))
 
   (test-assert "cuirass-run"
@@ -247,7 +239,7 @@
               (test-cuirass-uri
                "/api/latestbuilds?nr=1&jobset=guix"))))
       (#(build)
-       (lset= equal? build
+       (lset= equal? (pk build)
               (json-string->scm
                (object->json-string build-query-result))))))
 

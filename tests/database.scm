@@ -26,6 +26,7 @@
              (cuirass remote)
              (cuirass specification)
              (cuirass utils)
+             (tests common)
              (guix channels)
              ((guix utils) #:select (call-with-temporary-output-file))
              (rnrs io ports)
@@ -102,20 +103,12 @@
    (systems '("a" "b"))
    (last-seen 1)))
 
-(define %db
-  (make-parameter #f))
-
-(define db-name "test_database")
 (%record-events? #t)
 
 (test-group-with-cleanup "database"
   (test-assert "db-init"
     (begin
-      (%create-database? #t)
-      (%db (db-open))
-      (%db-channel (make-worker-thread-channel
-                    (lambda ()
-                      (list (%db)))))
+      (test-init-db!)
       #t))
 
   (test-equal "db-add-specification"
