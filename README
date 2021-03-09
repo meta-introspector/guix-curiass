@@ -10,16 +10,20 @@ Cuirass currently depends on the following packages:
   - GNU Guix (and all its development dependencies)
   - GNU Make
   - Guile-JSON 3.x
+  - Guile-Avahi
   - Guile-Squee
   - Guile-Git
   - Guile-zlib
+  - Guile-Mastodon
+  - Guile-Simple-ZMQ
+  - Mailutils
   - Fibers
 
 A convenient way to install those dependencies is to install Guix and execute
 the following command:
 
 #+BEGIN_EXAMPLE
-   $ guix environment -l build-aux/guix.scm
+   $ guix environment cuirass
 #+END_EXAMPLE
 
 This will build and enter an environment which provides all the necessary
@@ -27,23 +31,11 @@ dependencies.
 
 * Build Instructions
 
-When all the dependencies are available on you system, in order to build and
-install Cuirass, you can proceed with the usual:
+When all the dependencies are available on you system, in order to build
+Cuirass, you can proceed with the usual:
 
 #+BEGIN_EXAMPLE
-   $ ./configure && sudo make install
-#+END_EXAMPLE
-
-An alternative way is to directly install Cuirass in your Guix profile, using:
-
-#+BEGIN_EXAMPLE
-   $ guix package -f build-aux/guix.scm
-#+END_EXAMPLE
-
-To build it, but not install it, run:
-
-#+BEGIN_EXAMPLE
-   $ guix build -f build-aux/guix.scm
+   $ ./bootstrap && ./configure && make
 #+END_EXAMPLE
 
 * Database connection
@@ -53,27 +45,34 @@ and to coordinate the execution of jobs.  The database connection string must
 be passed to Cuirass using the =database= argument, under the keyword/value
 format described [[https://www.postgresql.org/docs/10/libpq-connect.html#LIBPQ-CONNSTRING][here]].  The PostgreSQL database must be created beforehand.
 
-For instance, to connect using Unix sockets to the =cuirass= database:
+By default, this command:
+
+#+BEGIN_EXAMPLE
+  ./pre-inst-env cuirass
+#+END_EXAMPLE
+
+will connect using the Unix socket at =/var/run/postgresql= to the =cuirass=
+database and is equivalent to:
 
 #+BEGIN_EXAMPLE
   ./pre-inst-env cuirass --database="dbname=cuirass host=/var/run/postgresql"
 #+END_EXAMPLE
 
-or using a TCP connection:
+To use a TCP connection, one can use:
 
 #+BEGIN_EXAMPLE
-  ./pre-inst-env cuirass --database="dbname=cuirass host=127.0.0.1"
+  ./pre-inst-env cuirass --database="host=127.0.0.1"
 #+END_EXAMPLE
 
 * Run tests
 
 Cuirass tests also require an access to a PostgreSQL database.  This database
-must be dedicated to testing as its content will be dropped.  The database
-name and host must be passed using =CUIRASS_DATABASE= and =CUIRASS_HOST=
-environment variables respectively.
+must be dedicated to testing as its content will be dropped.  By default the
+the Unix socket at =/var/run/postgresql= is used to connect to the =test_tmp=
+database.  This can be changed in the (tests common) module.
 
 #+BEGIN_EXAMPLE
-CUIRASS_DATABASE="test_tmp" CUIRASS_HOST="/var/run/postgresql" make check
+make check
 #+END_EXAMPLE
 
 * Example
@@ -81,11 +80,12 @@ CUIRASS_DATABASE="test_tmp" CUIRASS_HOST="/var/run/postgresql" make check
 A quick way to manually test Cuirass is to execute:
 
 #+BEGIN_EXAMPLE
-  ./pre-inst-env cuirass --specifications=examples/hello-singleton.scm --database="dbname=cuirass host=/var/run/postgresql"
+  ./pre-inst-env cuirass --specifications=examples/hello.scm
 #+END_EXAMPLE
 
-This will read the file "examples/hello-singleton.scm" which contains a list
-of specifications and add them to the =cuirass= database.
+This will read the file "examples/hello.scm" which contains a list of
+specifications and add them to the =cuirass= database.  It will then build the
+=hello= package on top of the default Guix channel.
 
 Cuirass then loops evaluating/building the specs.  The database keeps track
 of the specifications in order to allow users to accumulate specifications.
@@ -93,13 +93,13 @@ To resume the evaluation/build process you can execute the same command
 without the '--specifications' option:
 
 #+BEGIN_EXAMPLE
-  ./pre-inst-env cuirass --database="dbname=cuirass host=/var/run/postgresql"
+  ./pre-inst-env cuirass
 #+END_EXAMPLE
 
 To start the web interface run:
 
 #+BEGIN_EXAMPLE
-  ./pre-inst-env cuirass --database="dbname=cuirass host=/var/run/postgresql" --web
+  ./pre-inst-env cuirass --web
 #+END_EXAMPLE
 
 * Contributing
