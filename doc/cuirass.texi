@@ -555,12 +555,85 @@ Display an help message that summarize all the options provided.
 @chapter Web API
 @cindex web api
 
-Cuirass web API is derived from Hydra one, see @url{https://github.com/NixOS/hydra/blob/master/doc/manual/api.xml, Hydra API description}.
-
-For now only a subset of this API is implemented.
+The Cuirass web API is inspired from the Hydra one.
 
 @section API description
 @cindex description, json
+
+@subsection Evaluation information
+@subsubheading Single evaluation
+
+It is possible to query the Cuirass web server for evaluation
+information. The dedicated API is "/api/evaluation?id=@var{eval-id}"
+where @var{eval-id} is the unique id associated to the evaluation in
+database.
+
+For instance, querying a local Cuirass web server can be done with
+@code{curl} and @code{jq} to format the JSON response :
+
+@example
+$ curl -s "http://localhost:8080/api/evaluation?id=1" | jq
+
+@{
+  "id": 1,
+  "specification": "guix-master",
+  "status": 0,
+  "timestamp": 1615289011,
+  "checkouttime": 1615289011,
+  "evaltime": 1615289655,
+  "checkouts": [
+    @{
+      "commit": "bd311f5a6ccbd4696ac77f0426a036bb375a2f10",
+      "channel": "guix",
+      "directory": "/gnu/store/6978xw9vs4ybg2pc3g736p1dba2056yl-guix-bd311f5"
+    @}
+  ]
+@}
+@end example
+
+The nominal output is a JSON object whose fields are described
+hereafter.
+
+@table @code
+@item id
+The unique build id.
+
+@item specification
+The associated specification name, as a string.
+
+@item status
+The evaluation status, as an integer. Possible values are :
+
+@example
+-1 -> started
+0 -> succeeded
+1 -> failed
+2 -> aborted
+@end example
+
+@item checkouttime
+The timestamp after channel checkout.
+
+@item evaltime
+The timestamp after evaluation completion.
+
+@item checkouts
+The evaluation checkouts as a JSON object.
+
+@end table
+
+@subsubheading Multiple evaluations
+
+The latest evaluations list can be obtained with the API
+"/api/evaluations".  The output is a JSON array of
+evaluations. Evaluations are represented as in the
+"/api/evaluation?id=@var{eval-id}" API.
+
+This request accepts a mandatory parameter.
+@table @code
+@item nr
+Limit query result to nr elements. This parameter is @emph{mandatory}.
+@end table
 
 @subsection Build information
 
@@ -571,9 +644,6 @@ unique id associated to the build in database.
 The build information can also be queried by output. For example,
 @samp{/output/kg9mirg6xbvzcp0a98v7326n1nvvwgsj-hello-2.10} will return
 the details of the output, along with the build if available.
-
-For instance, querying a local Cuirass web server can be done with
-@code{curl} and @code{jq} to format the JSON response :
 
 @example
 $ curl -s "http://localhost:8080/build/2" | jq
@@ -593,12 +663,11 @@ $ curl -s "http://localhost:8080/build/2" | jq
   "system": "x86_64-linux",
   "nixname": "acpica-20150410",
   "buildstatus": 0,
+  "weather": 0,
   "busy": 0,
   "priority": 0,
   "finished": 1,
-  "buildproducts": null,
-  "releasename": null,
-  "buildinputs_builds": null
+  "buildproducts": null
 @}
 @end example
 
@@ -656,23 +725,28 @@ Build status, as an integer. Possible values are :
 4 -> cancelled
 @end example
 
+@item weather
+Build weather, as an integer.
+
+@example
+-1 -> unknown
+0 -> new-success
+1 -> new-failure
+2 -> still-succeeding
+3 -> still-failing
+@end example
+
 @item busy
-Whether the build is pending, as an integer (not implemented yet).
+Whether the build is pending, as an integer.
 
 @item priority
-Build priority, as an integer (not implemented yet).
+Build priority, as an integer.
 
 @item finished
-Build finished, as an integer (not implemented yet : always 1).
+Build finished, as an integer.
 
 @item buildproducts
-Build products in store as a JSON object (not implemented yet).
-
-@item releasename
-Unknown, not implemented yet.
-
-@item buildinputs_builds
-Inputs used for the build, as a JSON object (not implemented yet).
+Build products in store as a JSON object.
 
 @end table
 
@@ -705,8 +779,8 @@ $ curl -s "http://localhost:8080/build/fff/log/raw"
 @subsection Latest builds
 
 The list of latest builds can be obtained with the API
-"/api/latestbuilds".  The output is a JSON array of
-builds. Builds are represented as in "/build/@var{build-id} API.
+"/api/latestbuilds".  The output is a JSON array of builds. Builds are
+represented as in the "/build/@var{build-id}" API.
 
 This request accepts a mandatory parameter and multiple optional ones.
 
@@ -739,6 +813,18 @@ $ curl "http://localhost:8080/api/latestbuilds?nr=5&jobset=guix"
 
 If no builds matching given parameters are found, an empty JSON array is
 returned.
+
+@subsection Queued builds
+
+The list of queued builds can be obtained with the API
+"/api/queue".  The output is a JSON array of builds. Builds are
+represented as in the "/build/@var{build-id}" API.
+
+This request accepts a mandatory parameter.
+@table @code
+@item nr
+Limit query result to nr elements. This parameter is @emph{mandatory}.
+@end table
 
 @c *********************************************************************
 @node Database
@@ -910,8 +996,8 @@ are:
 
 @item priority
 The build priority relatively to the other builds with the same
-@code{job_name}, as an integer ranging from 0 to 9 where 0 is the
-higher priority and 9 the lowest.
+@code{job_name}, as an integer ranging from 0 to 99 where 0 is the
+higher priority and 99 the lowest.
 
 @item max_silent
 This integer field holds the number of seconds of silence after which

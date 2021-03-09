@@ -90,9 +90,7 @@
     (if bool 1 0))
 
   (define finished?
-    (not (memv (assq-ref build #:status)
-               (list (build-status scheduled)
-                     (build-status started)))))
+    (>= (assq-ref build #:status) 0))
 
   `((#:id . ,(assq-ref build #:id))
     (#:evaluation . ,(assq-ref build #:eval-id))
@@ -115,12 +113,10 @@
     (#:weather . ,(assq-ref build #:weather))
     (#:busy . ,(bool->int (eqv? (build-status started)
                                 (assq-ref build #:status))))
-    (#:priority . 0)
+    (#:priority . ,(assq-ref build #:priority))
     (#:finished . ,(bool->int finished?))
     (#:buildproducts . ,(list->vector
-                         (assq-ref build #:buildproducts)))
-    (#:releasename . #nil)
-    (#:buildinputs_builds . #nil)))
+                         (assq-ref build #:buildproducts)))))
 
 (define (evaluation->json-object evaluation)
   "Turn EVALUATION into a representation suitable for 'json->scm'."
