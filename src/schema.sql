@@ -21,7 +21,7 @@ CREATE TABLE Evaluations (
   timestamp     INTEGER NOT NULL,
   checkouttime  INTEGER NOT NULL,
   evaltime      INTEGER NOT NULL,
-  FOREIGN KEY (specification) REFERENCES Specifications(name)
+  FOREIGN KEY (specification) REFERENCES Specifications(name) ON DELETE CASCADE
 );
 
 CREATE TABLE Checkouts (
@@ -32,8 +32,8 @@ CREATE TABLE Checkouts (
   directory     TEXT NOT NULL,
   timestamp     INTEGER NOT NULL,
   PRIMARY KEY (specification, revision),
-  FOREIGN KEY (evaluation) REFERENCES Evaluations(id),
-  FOREIGN KEY (specification) REFERENCES Specifications(name)
+  FOREIGN KEY (evaluation) REFERENCES Evaluations(id) ON DELETE CASCADE,
+  FOREIGN KEY (specification) REFERENCES Specifications(name) ON DELETE CASCADE
 );
 
 CREATE TABLE Builds (
@@ -54,7 +54,7 @@ CREATE TABLE Builds (
   timestamp     INTEGER NOT NULL,
   starttime     INTEGER NOT NULL,
   stoptime      INTEGER NOT NULL,
-  FOREIGN KEY (evaluation) REFERENCES Evaluations(id)
+  FOREIGN KEY (evaluation) REFERENCES Evaluations(id) ON DELETE CASCADE
 );
 
 CREATE TABLE Outputs (
