@@ -5,13 +5,12 @@
 @settitle Cuirass Reference Manual
 @setchapternewpage odd
 
-@copying
-
 This manual is for Cuirass version @value{VERSION}, a build automation
 server.
 
+@copying
 Copyright @copyright{} 2016, 2017 Mathieu Lirzin@*
-Copyright @copyright{} 2017, 2020 Mathieu Othacehe@*
+Copyright @copyright{} 2017, 2020, 2021 Mathieu Othacehe@*
 Copyright @copyright{} 2018 Ludovic Courtès@*
 Copyright @copyright{} 2018 Clément Lassieur
 
@@ -34,7 +33,7 @@ Documentation License''.
 @title Cuirass Reference Manual
 @subtitle Build automation server
 @subtitle for version @value{VERSION}, @value{UPDATED}
-@author by Mathieu Lirzin
+@author The Cuirass Developers
 
 @page
 @vskip 0pt plus 1filll
@@ -52,14 +51,13 @@ Documentation License''.
 @c *********************************************************************
 @menu
 * Introduction::                What is Cuirass about?
-
-Tutorial sections:
-* Overview::                    A quick tour of Cuirass
-
-Reference sections:
+* Specifications::              Writing Cuirass specifications.
+* Notifications::               Build notifications.
+* Parameters::                  Cuirass parameters.
+* Build modes::                 Build modes.
 * Invocation::                  How to run Cuirass.
-* Database::                    About the database schema.
 * Web API::                     Description of the Web API.
+* Database::                    About the database schema.
 
 * Contributing::                Your help needed!
 * GNU Free Documentation License::  The license of this manual.
@@ -74,121 +72,307 @@ Reference sections:
 
 @dfn{Cuirass} is a general-purpose build automation server that checks
 out source files from @acronym{VCS, Version Control System}
-repositories, executes a @dfn{build job}, and notifies the results of
-that job.  A build job consists of a combination of tasks such as
-compiling source code to binary code and running automated tests.
-Notification is achieved by using a database that stores the build
-results associated with an HTTP server that provides a convenient way to
-access them.
+repositories, executes build jobs, and stores build results in a
+database.  It provides a web interface to monitor the build results,
+as well as an HTTP API. Cuirass is also able to send build
+notifications using different mechanisms such as RSS and email.
 
 Cuirass is inspired by the @url{https://nixos.org/hydra/, Hydra}
 continuous build system. Unlike Hydra, it is built on top of the
 @url{https://www.gnu.org/software/guix/, GNU Guix} functional package
 manager.
 
-The goal of Cuirass is to provide both on-demand, scheduled, and
-triggered builds.  A Build server is an important tool in the software
-development process, because it allows modifying the source code while
-ensuring the portability and robustness of those changes.  It is the
-basis of the @dfn{Continuous integration} practice.
+The goal of Cuirass is to prevent software regressions by building a
+set of package definitions, system images and running periodical tests
+for various architectures.  Cuirass is also responsible for GNU Guix
+binary substitutes production (@pxref{Substitutes, Substitutes,, guix,
+Guix}).
 
-@menu
-* Continuous Integration::      A Software development practice
-@end menu
-
-@c *********************************************************************
-@node Continuous Integration
-@unnumberedsec Continuous Integration
+Cuirass is deployed on the GNU Guix build farm at
+@url{https://ci.guix.gnu.org}.  It is also common for Guix users to
+run their own Cuirass instance to build different sources, using
+different priorities (@pxref{Continuous Integration, Continuous
+Integration,, guix, Guix}).
 
 @c *********************************************************************
-@node Overview
-@chapter Overview
+@node Specifications
+@chapter Specifications
+@cindex cuirass specifications
 
-@command{cuirass} acts as a daemon polling @acronym{VCS, version control
-system} repositories (called @dfn{inputs}) for changes, and evaluating a
-derivation when an input has changed (@pxref{Derivations, Derivations,, guix,
-Guix}).  As a final step the derivation is realized and the result of that
-build allows you to know if the job succeeded or not.
+The main Cuirass argument is the @var{specification} file.  It
+describes the repositories that must be used, the build jobs and their
+priorities between other things.
 
-What is actually done by @command{cuirass} is specified in a @dfn{job
-specification} which is represented as an association list which is a
-basic and traditional Scheme data structure.  Here is an example of what
-a specification might look like:
+@deftp {Data Type} specification
+@table @asis
+@item @code{name}
+The specification name as a Scheme symbol.
+
+@item @code{build} (default: @code{all})
+The packages to be built by Cuirass.  It defaults to @code{all}, which
+means that all the discovered packages in the subsequent @code{channels}
+field are to be selected.
+
+It is also possible to set this field to:
+
+@itemize
+@item @code{core}
+Build only the core packages such as @code{gcc}, @code{guile} and
+@code{glibc}.
+
+@item @code{guix}
+Build only the Guix modules that are involved in the @command{guix
+pull} command.
+
+@item @code{hello}
+Build only the hello package.
+
+@item @code{(packages . list)}
+Build only the specified packages in @code{list}.  For instance,
+@code{(packages "strace" "perf")} will only build the packages
+@code{strace} and @code{perf}.
+
+@item @code{(manifests . list)}
+Build only the packages that are part of the manifest @code{list}.
+For instance, @code{(manifests . ((my-channel . "etc/manifest")))}
+will only build the packages that are part of the @code{etc/manifest}
+file in the @code{my-channel} channel.
+
+@end itemize
+
+@item @code{channels} (default: @code{(list %default-guix-channel)})
+The channels to be fetched by Cuirass (@pxref{Channels, Channels,,
+guix, Guix}).
+
+@item @code{build-outputs} (default: @code{()})
+The build artifacts that must be saved and proposed to download in the
+web interface as a list of @code{build-outputs} records.
+
+@deftp {Data Type} build-outputs
+@table @asis
+@item @code{job}
+Save the build outputs of the build jobs which names match the
+@code{job} regexp.
+
+@item @code{type}
+The build output type as a string.  It is only used to describe the
+build output in the web interface.
+
+@item @code{output} (default: @code{("out")})
+The job output if it has multiple outputs (@pxref{Packages with
+Multiple Outputs, Packages with Multiple Outputs,, guix, Guix}).
+
+@item @code{path}
+The build output path within the job, as a string.
+
+@end table
+@end deftp
+
+For instance,
 
 @lisp
- '((#:name . "foo-master")
-   (#:load-path-inputs . ("guix"))
-   (#:package-path-inputs . ("packages"))
-   (#:proc-input . "conf")
-   (#:proc-file . "drv-list.scm")
-   (#:proc . cuirass-jobs)
-   (#:proc-args (subset . "foo"))
-   (#:inputs . (((#:name . "guix")
-                 (#:url . "git://git.savannah.gnu.org/guix.git")
-                 (#:load-path . ".")
-                 (#:branch . "master")
-                 (#:no-compile? . #t))
-                ((#:name . "conf")
-                 (#:url . "git://my-personal-conf.git")
-                 (#:load-path . ".")
-                 (#:branch . "master")
-                 (#:no-compile? . #t))
-                ((#:name . "packages")
-                 (#:url . "git://my-custom-packages.git")
-                 (#:load-path . ".")
-                 (#:branch . "master")
-                 (#:no-compile? . #t))))
-   (#:build-outputs .
-    (((#:job . "hello*")
-      (#:type . "license")
-      (#:output . "out")
-      (#:path . "share/doc/hello-2.10/COPYING")))))
+(build-output
+ (job "binary-tarball*")
+ (type "archive")
+ (output "out")
+ (path ""))
 @end lisp
 
-In this specification the keys are Scheme keywords which have the nice
-property of being self evaluating.  This means that they can't refer to
-another value like symbols do.
+let's consider the @code{binary-tarball.x86_64-linux} job which
+produces the following output:
+@code{/gnu/store/xxx-guix-binary.tar.xz}.
 
-There are three inputs: one tracking the Guix repository, one tracking the
-repository containing the @code{proc}, and one tracking the repository
-containing the custom packages (see @code{GUIX_PACKAGE_PATH}).
-@code{#:load-path-inputs}, @code{#:package-path-inputs} and
-@code{#:proc-input} refer to these inputs by their name.
+The build output definition above will save the root element
+(@code{""}) of the @code{"out"} output of the
+@code{"binary-tarball.x86_64-linux"} job---i.e., the
+@code{"xxx-guix-binary.tar.xz"} file.
 
-The @code{#:build-outputs} list specifies the files that will be made
-available for download, through the Web interface. Here, the
-@code{COPYING} file, in the @code{"out"} output, for all jobs whose name
-matches @code{"hello*"} regex.
+@item @code{notifications} (default: @code{()})
+The list of build notifications that must be sent.  For instance:
 
-@quotation Note
-@c This refers to
-@c <https://github.com/libgit2/libgit2sharp/issues/1094#issuecomment-112306072>.
-Currently Cuirass only supports Git repositories, and only over the
-@code{git} and ``smart'' HTTP(S) transports (Git's so-called ``dumb
-HTTP'' transport, where the HTTP server does not know about Git, is not
-supported.)
-@end quotation
+@lisp
+(list (email
+       (from "build@@cuirass.org")
+       (to "notification@@myself.org")
+       (server "sendmail:///etc/my-mailer.sh")))
+@end lisp
 
-Currently the only way to add those specifications to cuirass is to put
-a list of them in a file and set the @code{--specifications} command
-line option argument with the file name when launching the daemon
-(@pxref{Invocation}).  The specifications are persistent (they are kept
-in a PostgreSQL database) so the next time @command{cuirass} is run the
-previously added specifications will remain active even if you don't
-keep the @code{--specifications} option.
+will send build notifications emails from @code{build@@cuirass.org} to
+@code{notifications@@myself.org}, using
+@code{"sendmail:///etc/my-mailer.sh"} mailer.
+
+The different notification types are described in the
+@ref{Notifications} section.
+
+@item @code{priority} (default: @code{9})
+The specification priority relatively to the other specifications, as
+an integer ranging from 0 to 9 where 0 is the higher priority and 9
+the lowest.
+
+@item @code{systems} (default: @code{(list (%current-system))})
+Build every job for each system in this list.  By default only the
+current system is selected.
+
+@end table
+@end deftp
+
+@c *********************************************************************
+@node Notifications
+@chapter Notifications
+@cindex cuirass notifications
+
+Cuirass supports different build notifications types, that can be
+passed in the @code{notifications} field of the specification record,
+see @ref{Specifications}.
+
+Cuirass sends build notifications each time a build is broken or
+fixed.
+
+@section Email
+Email build notifications can be enabled using the following record.
+
+@deftp {Data Type} email
+@table @asis
+@item @code{from}
+The email @code{From} field, as a string.
+
+@item @code{to}
+The email @code{To} field, as a string.
+
+@item @code{server}
+The mail server connection string.  Cuirass uses the @code{mailutils}
+package.  Hence the server can be specified as a remote SMTP mailbox
+(@pxref{SMTP Mailboxes, SMTP Mailboxes,, mailutils, Mailutils}) or as
+a program mailbox (@pxref{Program Mailboxes, Program Mailboxes,,
+mailutils, Mailutils}).
+
+@end table
+@end deftp
+
+@section Mastodon
+Mastodon build notifications can be enabled using the following record.
+
+@deftp {Data Type} mastodon
+@end deftp
+
+The Mastodon credentials must be defined as Cuirass parameters, see
+@ref{Parameters}.
+
+@section RSS
+Cuirass is proposing a build notification RSS feed at the following
+URL:
+
+@itemize
+@item @url{http://cuirass-url/events/rss[?specification=spec]}
+By default build notifications are sent for all specifications.  If
+the @code{specification} argument is passed, they can be restricted to
+the @var{spec} specification.
+
+@end itemize
+
+@c *********************************************************************
+@node Parameters
+@chapter Parameters
+@cindex cuirass parameters
+
+Cuirass is able to connect to different external services such as
+@code{postgresql} for the database, @code{zabbix} for machine
+monitoring and @code{mastodon} for build notifications.  As those
+services often require using secret credentials, Cuirass can be passed
+a parameter file.
+
+The parameters file can be passed using the @code{parameters} command
+line argument, see @ref{Invocation}.
+
+Here's an example parameter file:
+
+@example
+(%cuirass-url "https://ci.guix.gnu.org")
+(%zabbix-url "http://127.0.0.1:15412/api_jsonrpc.php")
+(%mastodon-instance-name "My Instance")
+(%mastodon-instance-url "https://instance.org")
+(%mastodon-instance-token "secret-token")
+@end example
+
+@deftp {Parameters} parameters
+@table @asis
+@item @code{%cuirass-database} (default: @code{"cuirass"})
+The Cuirass PostgreSQL database name.
+
+@item @code{%cuirass-host} (default: @code{"/var/run/postgresql"})
+The Cuirass PostgreSQL database host.
+
+@item @code{%cuirass-url} (default: @code{#f})
+The URL of the Cuirass web server.  This is useful to send absolute
+links within notifications.
+
+@item @code{%zabbix-url} (default: @code{#f})
+The URL of the Zabbix monitoring server providing the workers status,
+if supported.
+
+@item @code{%zabbix-user} (default: @code{"Admin"})
+The user for Zabbix API authentication.
+
+@item @code{%zabbix-password} (default: @code{"zabbix"})
+The password for Zabbix API authentication.
+
+@item @code{%mastodon-instance-name} (default: @code{#f})
+The name of the Mastodon instance used to send build notifications.
+
+@item @code{%mastodon-instance-url} (default: @code{#f})
+The URL of the Mastodon instance.
+
+@item @code{%mastodon-instance-token} (default: @code{#f})
+The token used to authenticate on the Mastodon instance.
+
+@end table
+@end deftp
+
+@c *********************************************************************
+@node Build modes
+@chapter Build modes
+@cindex cuirass build modes
+
+Cuirass supports two mechanisms to build derivations.
+
+@section With the local Guix daemon
+This is the default build mechanism.  Once the build jobs are
+evaluated, they are sent to the local Guix daemon.  Cuirass then
+listens to the Guix daemon output to detect the various build events.
+
+While this mode doesn't require any particular configuration, it
+doesn't scale well.  The scheduling decisions of the Guix daemon are
+opaque and often suboptimal.
+
+When Cuirass is used to build a large amount of jobs, the remote build
+mechanism described below should be preferred.
+
+@section With the remote build mechanism.
+
+This mode is harder to setup but scales way better. This is the build
+mode that is used on the GNU Guix build farm at
+@url{https://ci.guix.gnu.org}.
+
+It can be enabled by passing the @code{build-remote} command line
+argument, see @ref{Invocation}.
 
 @c *********************************************************************
 @node Invocation
-@chapter Invoking cuirass
+@chapter Invocation
+@section Invoking cuirass
 @cindex invoking cuirass
-@cindex cuirass invocation
-@cindex options for invoking cuirass
 
 The usual way to invoke @code{cuirass} is as follows:
 
 @example
-cuirass --specifications @var{specs}
+cuirass --specifications @var{specs} &
+cuirass --web &
 @end example
+
+This starts a Cuirass instance building @var{specs} and storing the
+results using the default PostgreSQL database.  The second command
+starts a Cuirass web server, on the default port, using the same
+database.
 
 Additionally the following options can be used.
 
@@ -209,9 +393,15 @@ database before launching the evaluation and build processes.
 @item --database=@var{database}
 @itemx -D @var{database}
 Use @var{database} as the database containing the jobs and the past
-build results. Since @code{cuirass} uses PostgreSQL as a database
-engine, @var{database} must be a file name.  If the file doesn't exist,
-it will be created.
+build results. Since Cuirass uses PostgreSQL as a database engine,
+@var{database} must be a string such as @code{"dbname=cuirass
+host=localhost"}.  By default, Cuirass uses the following connection
+string: @code{dbname=cuirass host=/var/run/postgresql"}.
+
+@item --parameters=@var{parameters-file}
+@itemx -P @var{parameters-file}
+Read parameters from the given @var{parameters-file}.  The supported
+parameters are described here (@pxref{Parameters}).
 
 @item --ttl=@var{duration}
 Cuirass registers build results as garbage collector (GC) roots, thereby
@@ -258,6 +448,297 @@ Display the actual version of @code{cuirass}.
 @itemx -h
 Display an help message that summarize all the options provided.
 @end table
+
+@section Invoking remote-server
+@cindex remote-server
+
+The @code{remote-server} command starts a daemon that is able to
+communicate with @code{remote-worker} processes.  Its role is to
+answer build requests from the workers, by sending back derivations
+that must be built.
+
+On build completion it updates the database accordingly and possibly
+fetches build substitutes.  The @code{remote-server} and
+@code{remote-worker} processes communicate using ZMQ over TCP.
+
+Additionally the following options can be used.
+
+@table @code
+@item --backend-port=@var{port}
+The TCP port for communicating with @code{remote-worker} processes
+using ZMQ.  It defaults to @code{5555}.
+
+@item --log-port=@var{port}
+The TCP port of the log server.  It defaults to @code{5556}.
+
+@item --publish-port=@var{port}
+The TCP port of the publish server.  It defaults to @code{5557}.
+
+@item --parameters=@var{parameters-file}
+@itemx -P @var{parameters-file}
+Read parameters from the given @var{parameters-file}.  The supported
+parameters are described here (@pxref{Parameters}).
+
+@item --database=@var{database}
+@itemx -D @var{database}
+Use @var{database} PostgreSQL connection string.
+
+@item --cache=@var{directory}
+Use @var{directory} to cache build log files.
+
+@item --trigger-substitute-url=@var{URL}
+Once a substitute is successfully fetched, trigger substitute baking
+at @var{URL}.
+
+@item --user=@var{user}
+Change privileges to @var{user} as soon as possible---i.e., once the
+signing key has been read.
+
+@item --public-key=@var{file}
+@itemx --private-key=@var{file}
+Use the specific @var{file}s as the public/private key pair used to sign
+the store items being published.
+
+@item --version
+@itemx -V
+Display the actual version of @code{cuirass}.
+
+@item --help
+@itemx -h
+Display an help message that summarize all the options provided.
+@end table
+
+@section Invoking remote-worker
+@cindex remote-worker
+
+The @code{remote-worker} command starts a daemon that is able to
+communicate with a @code{remote-server} process.  Its role is to
+request builds to the @code{remote-server}, perform them and report
+their status.
+
+The @code{remote-worker} is able to discover a @code{remote-server}
+process on the local network using Avahi and connect to it.
+
+Additionally the following options can be used.
+
+@table @code
+@item --workers=@var{count}
+Start @var{count} parallel workers.  It defaults to @code{1}.
+
+@item --publish-port=@var{port}
+The TCP port of the publish server.  It defaults to @code{5558}.
+
+@item --server=@var{ip-address}
+Do not use Avahi discovery and connect to the given
+@code{remote-server} IP address.
+
+@item --systems=@var{systems}
+Only request builds for the given @var{systems}.  It defaults to
+@code{(list (%current-system))}.
+
+@item --public-key=@var{file}
+@itemx --private-key=@var{file}
+Use the specific @var{file}s as the public/private key pair used to sign
+the store items being published.
+
+@item --version
+@itemx -V
+Display the actual version of @code{cuirass}.
+
+@item --help
+@itemx -h
+Display an help message that summarize all the options provided.
+@end table
+
+@c *********************************************************************
+@node Web API
+@chapter Web API
+@cindex web api
+
+Cuirass web API is derived from Hydra one, see @url{https://github.com/NixOS/hydra/blob/master/doc/manual/api.xml, Hydra API description}.
+
+For now only a subset of this API is implemented.
+
+@section API description
+@cindex description, json
+
+@subsection Build information
+
+It is possible to query Cuirass web server for build informations. The
+dedicated API is "/build/@var{build-id}" where @var{build-id} is the
+unique id associated to the build in database.
+
+The build information can also be queried by output. For example,
+@samp{/output/kg9mirg6xbvzcp0a98v7326n1nvvwgsj-hello-2.10} will return
+the details of the output, along with the build if available.
+
+For instance, querying a local Cuirass web server can be done with
+@code{curl} and @code{jq} to format the JSON response :
+
+@example
+$ curl -s "http://localhost:8080/build/2" | jq
+
+@{
+  "id": 2,
+  "jobset": "guix",
+  "job": "acpica-20150410-job",
+  "timestamp": 1501347493,
+  "starttime": 1501347493,
+  "stoptime": 1501347493,
+  "buildoutputs": @{
+    "out": @{
+      "path": "/gnu/store/6g3njhfzqpdm335s7qhvmwvs5l7gcbq1-acpica-20150410"
+    @}
+  @},
+  "system": "x86_64-linux",
+  "nixname": "acpica-20150410",
+  "buildstatus": 0,
+  "busy": 0,
+  "priority": 0,
+  "finished": 1,
+  "buildproducts": null,
+  "releasename": null,
+  "buildinputs_builds": null
+@}
+@end example
+
+If requested @var{build-id} is not known, the HTTP code 404 is
+answered with a JSON error message. For example:
+
+@example
+$ curl -s "http://localhost:8080/build/fff"
+
+@{"error" : "Build with ID fff doesn't exist."@}
+@end example
+
+The nominal output is a JSON object whose fields are described
+hereafter.
+
+@table @code
+@item id
+The unique build id.
+
+@item jobset
+The associated specification name, as a string.
+
+@item job
+The associated job-name, as a string.
+
+@item timestamp
+Timestamp taken at build creation time.
+
+@item starttime
+Timestamp taken at build start time.
+
+@item stoptime
+Timestamp taken at build stop time.
+
+@item buildoutputs
+Build outputs as a JSON object. The keys names are referring to the
+eventual output names. The associated value is another JSON object which
+only key is @code{path}. @code{path} value is the output directory in
+store as a string.
+
+@item system
+System name of the build, as a string.
+
+@item nixname
+Derivation name, as a string.
+
+@item buildstatus
+Build status, as an integer. Possible values are :
+
+@example
+0 -> succeeded
+1 -> failed
+2 -> failed dependency
+3 -> failed other
+4 -> cancelled
+@end example
+
+@item busy
+Whether the build is pending, as an integer (not implemented yet).
+
+@item priority
+Build priority, as an integer (not implemented yet).
+
+@item finished
+Build finished, as an integer (not implemented yet : always 1).
+
+@item buildproducts
+Build products in store as a JSON object (not implemented yet).
+
+@item releasename
+Unknown, not implemented yet.
+
+@item buildinputs_builds
+Inputs used for the build, as a JSON object (not implemented yet).
+
+@end table
+
+@subsection Build raw log output
+
+It is possible to ask Cuirass for the raw build output log with the API
+"/build/@var{build-id}/log/raw" where @var{build-id} is the
+unique id associated to the build in database.
+
+The output is a raw text, for example:
+
+@example
+$ curl http://localhost:8080/build/2/log/raw
+
+starting phase `set-SOURCE-DATE-EPOCH'
+phase `set-SOURCE-DATE-EPOCH' succeeded after 0.0 seconds
+starting phase `set-paths'
+...
+@end example
+
+If requested @var{build-id} is not known, the HTTP code 404 is
+answered with a JSON error message. For example:
+
+@example
+$ curl -s "http://localhost:8080/build/fff/log/raw"
+
+@{"error" : "Build with ID fff doesn't exist."@}
+@end example
+
+@subsection Latest builds
+
+The list of latest builds can be obtained with the API
+"/api/latestbuilds".  The output is a JSON array of
+builds. Builds are represented as in "/build/@var{build-id} API.
+
+This request accepts a mandatory parameter and multiple optional ones.
+
+@table @code
+@item nr
+Limit query result to nr elements. This parameter is @emph{mandatory}.
+
+@item jobset
+Filter query result to builds with the given @code{jobset}.
+
+@item job
+Filter query result to builds with the given @code{job} name.
+
+@item system
+Filter query result to builds with the given @code{system}.
+
+@end table
+
+For example, to ask for the ten last builds:
+
+@example
+$ curl "http://localhost:8080/api/latestbuilds?nr=10"
+@end example
+
+or the five last builds where jobset ``guix'':
+
+@example
+$ curl "http://localhost:8080/api/latestbuilds?nr=5&jobset=guix"
+@end example
+
+If no builds matching given parameters are found, an empty JSON array is
+returned.
 
 @c *********************************************************************
 @node Database
@@ -468,196 +949,6 @@ This text field holds the name of the output.
 This text field holds the path of the output.
 
 @end table
-
-@c *********************************************************************
-@node Web API
-@chapter Web API
-@cindex web api
-
-Cuirass web API is derived from Hydra one, see @url{https://github.com/NixOS/hydra/blob/master/doc/manual/api.xml, Hydra API description}.
-
-For now only a subset of this API is implemented.
-
-@section API description
-@cindex description, json
-
-@subsection Build information
-
-It is possible to query Cuirass web server for build informations. The
-dedicated API is "/build/@var{build-id}" where @var{build-id} is the
-unique id associated to the build in database.
-
-The build information can also be queried by output. For example,
-@samp{/output/kg9mirg6xbvzcp0a98v7326n1nvvwgsj-hello-2.10} will return
-the details of the output, along with the build if available.
-
-For instance, querying a local Cuirass web server can be done with
-@code{curl} and @code{jq} to format the JSON response :
-
-@example
-$ curl -s "http://localhost:8080/build/2" | jq
-
-@{
-  "id": 2,
-  "jobset": "guix",
-  "job": "acpica-20150410-job",
-  "timestamp": 1501347493,
-  "starttime": 1501347493,
-  "stoptime": 1501347493,
-  "buildoutputs": @{
-    "out": @{
-      "path": "/gnu/store/6g3njhfzqpdm335s7qhvmwvs5l7gcbq1-acpica-20150410"
-    @}
-  @},
-  "system": "x86_64-linux",
-  "nixname": "acpica-20150410",
-  "buildstatus": 0,
-  "busy": 0,
-  "priority": 0,
-  "finished": 1,
-  "buildproducts": null,
-  "releasename": null,
-  "buildinputs_builds": null
-@}
-@end example
-
-If requested @var{build-id} is not known, the HTTP code 404 is
-answered with a JSON error message. For example:
-
-@example
-$ curl -s "http://localhost:8080/build/fff"
-
-@{"error" : "Build with ID fff doesn't exist."@}
-@end example
-
-The nominal output is a JSON object whose fields are described
-hereafter.
-
-@table @code
-@item id
-The unique build id.
-
-@item jobset
-The associated specification name, as a string.
-
-@item job
-The associated job-name, as a string.
-
-@item timestamp
-Timestamp taken at build creation time.
-
-@item starttime
-Timestamp taken at build start time.
-
-@item stoptime
-Timestamp taken at build stop time.
-
-@item buildoutputs
-Build outputs as a JSON object. The keys names are referring to the
-eventual output names. The associated value is another JSON object which
-only key is @code{path}. @code{path} value is the output directory in
-store as a string.
-
-@item system
-System name of the build, as a string.
-
-@item nixname
-Derivation name, as a string.
-
-@item buildstatus
-Build status, as an integer. Possible values are :
-
-@example
-0 -> succeeded
-1 -> failed
-2 -> failed dependency
-3 -> failed other
-4 -> cancelled
-@end example
-
-@item busy
-Whether the build is pending, as an integer (not implemented yet).
-
-@item priority
-Build priority, as an integer (not implemented yet).
-
-@item finished
-Build finished, as an integer (not implemented yet : always 1).
-
-@item buildproducts
-Build products in store as a JSON object (not implemented yet).
-
-@item releasename
-Unknown, not implemented yet.
-
-@item buildinputs_builds
-Inputs used for the build, as a JSON object (not implemented yet).
-
-@end table
-
-@subsection Build raw log output
-
-It is possible to ask Cuirass for the raw build output log with the API
-"/build/@var{build-id}/log/raw" where @var{build-id} is the
-unique id associated to the build in database.
-
-The output is a raw text, for example:
-
-@example
-$ curl http://localhost:8080/build/2/log/raw
-
-starting phase `set-SOURCE-DATE-EPOCH'
-phase `set-SOURCE-DATE-EPOCH' succeeded after 0.0 seconds
-starting phase `set-paths'
-...
-@end example
-
-If requested @var{build-id} is not known, the HTTP code 404 is
-answered with a JSON error message. For example:
-
-@example
-$ curl -s "http://localhost:8080/build/fff/log/raw"
-
-@{"error" : "Build with ID fff doesn't exist."@}
-@end example
-
-@subsection Latest builds
-
-The list of latest builds can be obtained with the API
-"/api/latestbuilds".  The output is a JSON array of
-builds. Builds are represented as in "/build/@var{build-id} API.
-
-This request accepts a mandatory parameter and multiple optional ones.
-
-@table @code
-@item nr
-Limit query result to nr elements. This parameter is @emph{mandatory}.
-
-@item jobset
-Filter query result to builds with the given @code{jobset}.
-
-@item job
-Filter query result to builds with the given @code{job} name.
-
-@item system
-Filter query result to builds with the given @code{system}.
-
-@end table
-
-For example, to ask for the ten last builds:
-
-@example
-$ curl "http://localhost:8080/api/latestbuilds?nr=10"
-@end example
-
-or the five last builds where jobset ``guix'':
-
-@example
-$ curl "http://localhost:8080/api/latestbuilds?nr=5&jobset=guix"
-@end example
-
-If no builds matching given parameters are found, an empty JSON array is
-returned.
 
 @c *********************************************************************
 @node Contributing

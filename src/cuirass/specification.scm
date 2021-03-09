@@ -58,7 +58,8 @@
   build-output?
   (job                build-output-job) ;string
   (type               build-output-type) ;string
-  (output             build-output-output) ;string
+  (output             build-output-output ;string
+                      (default "out"))
   (path               build-output-path)) ;string
 
 (define (build-output->sexp build-output)

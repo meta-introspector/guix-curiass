@@ -50,7 +50,7 @@
 (define %zabbix-url
   (make-parameter #f))
 
-    ;; The user for Zabbix API authentication.
+;; The user for Zabbix API authentication.
 (define %zabbix-user
   (make-parameter "Admin"))
 
