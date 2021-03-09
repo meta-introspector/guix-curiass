@@ -463,32 +463,25 @@ Hydra format."
      (match (string-split (utf8->string body) #\=)
        (("spec-name" name)
         (db-add-specification
-         `((#:name . ,name)
-           (#:load-path-inputs . ())
-           (#:package-path-inputs . ())
-           (#:proc . cuirass-jobs)
-           (#:proc-input . ,name)
-           (#:proc-file . "build-aux/cuirass/gnu-system.scm")
-           (#:proc-args . (systems "x86_64-linux"
-                                   "i686-linux"
-                                   "armhf-linux"
-                                   "aarch64-linux"))
-           (#:inputs .
-            '((#:name . ,name)
-              (#:url . "https://git.savannah.gnu.org/git/guix.git")
-              (#:load-path . ".")
-              (#:branch . ,name)
-              (#:no-compile? . #t)))
-           (#:build-outputs . ())))
+         (specification
+          (name name)
+          (build 'all)
+          (channels
+           (list (channel
+                  (inherit %default-guix-channel)
+                  (branch name))))
+          (systems '("x86_64-linux" "i686-linux" "aarch64-linux"))))
         (respond (build-response #:code 302
-                                 #:headers `((location . ,(string->uri-reference
-                                                           "/admin/specifications"))))
+                                 #:headers
+                                 `((location . ,(string->uri-reference
+                                                 "/admin/specifications"))))
                  #:body ""))))
     (('POST "admin" "specifications" "delete" name)
      (db-remove-specification name)
      (respond (build-response #:code 302
-                              #:headers `((location . ,(string->uri-reference
-                                                        "/admin/specifications"))))
+                              #:headers
+                              `((location . ,(string->uri-reference
+                                              "/admin/specifications"))))
               #:body ""))
     (('GET "admin" "specifications" . rest)
      (respond-html (html-page
