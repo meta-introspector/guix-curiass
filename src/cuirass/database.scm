@@ -25,6 +25,7 @@
   #:use-module (cuirass logging)
   #:use-module (cuirass config)
   #:use-module (cuirass notification)
+  #:use-module (cuirass parameters)
   #:use-module (cuirass remote)
   #:use-module (cuirass specification)
   #:use-module (cuirass utils)
@@ -356,8 +357,8 @@ upgrade-n.sql files."
 database object."
   (let* ((param (or database
                     (format #f "dbname=~a host=~a"
-                            (getenv "CUIRASS_DATABASE")
-                            (getenv "CUIRASS_HOST"))))
+                            (%cuirass-database)
+                            (%cuirass-host))))
          (db (connect-to-postgres-paramstring param)))
     (when (%create-database?)
       (match (db-schema-version db)

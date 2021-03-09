@@ -17,16 +17,28 @@
 ;;; along with GNU Guix.  If not, see <http://www.gnu.org/licenses/>.
 
 (define-module (cuirass parameters)
-  #:export (%cuirass-url
+  #:export (%cuirass-database
+            %cuirass-host
+            %cuirass-url
+
             %zabbix-url
             %zabbix-user
             %zabbix-password
+
             %mastodon-instance-name
             %mastodon-instance-url
             %mastodon-instance-token))
 
 ;; This variable is looked up by 'mu-message-send'.
 (define-public mu-debug 0)
+
+;; The Cuirass PostgreSQL database name.
+(define %cuirass-database
+  (make-parameter "cuirass"))
+
+;; The Cuirass PostgreSQL database host.
+(define %cuirass-host
+  (make-parameter "/var/run/postgresql"))
 
 ;; The URL of the Cuirass web server.  This is useful to send absolute links
 ;; within notifications.
