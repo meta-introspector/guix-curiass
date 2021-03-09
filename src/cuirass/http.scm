@@ -476,18 +476,13 @@ Hydra format."
                                  `((location . ,(string->uri-reference
                                                  "/admin/specifications"))))
                  #:body ""))))
-    (('POST "admin" "specifications" "delete" name)
+    (('GET "admin" "specifications" "delete" name)
      (db-remove-specification name)
      (respond (build-response #:code 302
                               #:headers
                               `((location . ,(string->uri-reference
                                               "/admin/specifications"))))
               #:body ""))
-    (('GET "admin" "specifications" . rest)
-     (respond-html (html-page
-                    "Cuirass [Admin]"
-                    (specifications-table (db-get-specifications) 'admin)
-                    '())))
     (('GET "admin" "build" id "restart")
      (db-restart-build! (string->number id))
      (respond
@@ -533,12 +528,6 @@ Hydra format."
                           (string-append "/jobset/" specification)))))
         #:body "")))
 
-    (('GET "admin")
-     (respond-html (html-page
-                    "Cuirass [Admin]"
-                    `(ul (li (a (@ (href "/admin/specifications"))
-                                "Edit specifications")))
-                    '())))
     (('GET (or "jobsets" "specifications") . rest)
      (respond-json (object->json-string
                     (list->vector

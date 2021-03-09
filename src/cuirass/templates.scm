@@ -204,7 +204,7 @@ system whose names start with " (code "guile-") ":" (br)
    (else
     "Invalid status")))
 
-(define* (specifications-table specs #:optional admin?)
+(define (specifications-table specs)
   "Return HTML for the SPECS table."
   `((p (@ (class "lead")) "Specifications"
        (a (@ (href "/events/rss/"))
@@ -220,9 +220,7 @@ system whose names start with " (code "guile-") ":" (br)
            `((th (@ (scope "col")) "No elements here."))
            `((thead (tr (th (@ (scope "col")) Name)
                         (th (@ (scope "col")) Channels)
-                        ,@(if admin?
-                              '((th (@ (scope "col")) Action))
-                              '())))
+                        (th (@ (scope "col")) Action)))
              (tbody
               ,@(map
                  (lambda (spec)
@@ -235,46 +233,22 @@ system whose names start with " (code "guile-") ":" (br)
                                              (channel-name channel)
                                              (channel-branch channel)))
                                    (specification-channels spec)) ", "))
-                        ,@(if admin?
-                              `((form
-                                 (@ (class "form")
-                                    (action
-                                     ,(string-append
-                                       "/admin/specifications/delete/"
-                                       (specification-name spec)))
-                                    (method "POST")
-                                    (onsubmit
-                                     ,(string-append
-                                       "return confirm('Please confirm deletion of specification "
-                                       (specification-name spec) ".');")))
-                                      `((div
-                                         (@ (class "input-group"))
-                                         (span
-                                          (@ (class "input-group-append"))
-                                          (button
-                                           (@ (type "submit")
-                                              (class "btn"))
-                                           "Remove"))))))
-                              '())))
-                 specs))))
-     ,@(if admin?
-           `((form (@ (id "add-specification")
-                       (class "form")
-                       (action "/admin/specifications/add/")
-                       (method "POST"))
-                    (div
-                     (@ (class "input-group"))
-                     (input (@ (type "text")
-                               (class "form-control")
-                               (id   "spec-name")
-                               (name "spec-name")
-                               (placeholder "specification / branch name")))
-                     (span (@ (class "input-group-append"))
-                           (button
-                            (@ (type "submit")
-                               (class "btn btn-primary"))
-                            "Add")))))
-           '()))))
+                        (td
+                         (div
+                          (@ (class "dropdown"))
+                          (a (@ (class "oi oi-menu dropdown-toggle no-dropdown-arrow")
+                                (href "#")
+                                (data-toggle "dropdown")
+                                (role "button")
+                                (aria-haspopup "true")
+                                (aria-expanded "false"))
+                             " ")
+                          (div (@ (class "dropdown-menu"))
+                               (a (@ (class "oi oi-lock-locked dropdown-item")
+                                     (href "/admin/specifications/delete/"
+                                           ,(specification-name spec)))
+                                  " Delete"))))))
+                 specs)))))))
 
 (define (build-details build products history)
   "Return HTML showing details for the BUILD."
