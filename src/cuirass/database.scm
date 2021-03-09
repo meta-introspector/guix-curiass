@@ -355,11 +355,12 @@ upgrade-n.sql files."
                   (database (%package-database)))
   "Open database to store or read jobs and builds informations.  Return a
 database object."
-  (let* ((param (or database
-                    (format #f "dbname=~a host=~a"
-                            (%cuirass-database)
-                            (%cuirass-host))))
-         (db (connect-to-postgres-paramstring param)))
+  (unless database
+    (%package-database
+     (format #f "dbname=~a host=~a"
+             (%cuirass-database) (%cuirass-host))))
+
+  (let ((db (connect-to-postgres-paramstring (%package-database))))
     (when (%create-database?)
       (match (db-schema-version db)
         (#f
