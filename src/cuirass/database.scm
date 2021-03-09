@@ -73,6 +73,7 @@
             db-update-build-worker!
             db-restart-build!
             db-restart-evaluation!
+            db-retry-evaluation!
             db-get-build-products
             db-get-builds-by-search
             db-get-builds
@@ -828,6 +829,12 @@ UPDATE Builds SET stoptime =" now
                      (build-status scheduled)
                      ", starttime = 0, stoptime = 0
                      WHERE evaluation=" eval-id ";")))
+
+(define (db-retry-evaluation! eval-id)
+  "Retry the evaluation with EVAL-ID id."
+  (with-db-worker-thread db
+    (exec-query/bind db "\
+DELETE FROM Checkouts WHERE evaluation=" eval-id ";")))
 
 (define (query->bind-arguments query-string)
   "Return a list of keys to query strings by parsing QUERY-STRING."

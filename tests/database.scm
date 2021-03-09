@@ -535,6 +535,12 @@ timestamp, checkouttime, evaltime) VALUES ('guix', 0, 0, 0, 0);")
       (eq? (assq-ref (db-get-build "/old-build.drv") #:status)
            (build-status scheduled))))
 
+  (test-equal "db-retry-evaluation!"
+    '()
+    (begin
+      (db-retry-evaluation! 4)
+      (db-get-checkouts 4)))
+
   (test-assert "db-close"
     (begin
       (exec-query (%db) (format #f "DROP OWNED BY CURRENT_USER;"))
