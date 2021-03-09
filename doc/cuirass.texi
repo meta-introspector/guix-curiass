@@ -751,8 +751,10 @@ Cuirass uses a PostgreSQL database to store information about jobs and
 past build results, but also to coordinate the execution of jobs.
 
 The database contains the following tables: @code{Specifications},
-@code{Inputs}, @code{Checkouts}, @code{Evaluations}, @code{Builds} and
-@code{Outputs}.  The purpose of each of these tables is explained below.
+@code{Checkouts}, @code{Evaluations}, @code{Builds}, @code{Outputs},
+@code{Metrics}, @code{BuildProducts}, @code{Events} and
+@code{Workers}.  The purpose of each of these tables is explained
+below.
 
 @section Specifications
 @cindex specifications, database
@@ -766,74 +768,24 @@ Entries in this table must have values for the following text fields:
 This field holds the name of the specification.  This field is also the
 primary key of this table.
 
-@item load_path_inputs
-This field holds a list of input names whose load path is prepended to Guile's
-@code{%load-path} when evaluating @code{proc_file}.
+@item channels
+The channels to be fetched by Cuirass as an SEXP string.
 
-@item package_path_inputs
-This field holds a list of input names whose load path is prepended to
-@code{GUIX_PACKAGE_PATH} when evaluating @code{proc_file}.
+@item build_ouputs
+The build outputs to be saved by Cuirass as an SEXP string.
 
-@item proc_input
-The name of the input containing @code{proc}.
+@item notifications
+The build notifications to be sent by Cuirass as an SEXP string.
 
-@item proc_file
-The path of the Scheme file containing @code{proc}, relative to
-@code{proc_input}.
+@item priority
+The specification priority relatively to the other specifications, as
+an integer ranging from 0 to 9 where 0 is the higher priority and 9
+the lowest.
 
-@item proc
-This text field holds the name of the procedure in the Scheme file
-@code{proc_file} that produces a list of jobs.
+@item systems
+The systems for which build jobs must be evaluated, as a comma
+separated list.
 
-@item proc_args
-A list of arguments to be passed to @code{proc}.  This can be used to produce
-a different set of jobs using the same @code{proc}.
-@end table
-
-@section Inputs
-@cindex inputs, database
-
-This table stores the data related to the repositories that are periodically
-fetched by Cuirass.  Entries in this table must have values for the following
-text fields:
-
-@table @code
-@item specification
-This field holds the name of the specification from the @code{Specifications}
-table associated with the input.  Every input belongs to a specification, and
-that specification can refer to its inputs.
-
-@item name
-This field holds the name of the input.  That name can be used as a key by the
-@code{proc} if it needs access to its resulting checkout.
-
-@item url
-The URL of the repository.
-
-@item load_path
-Used by a specification when it refers to an input's load path.  See
-@code{load_path_inputs} and @code{package_path_inputs}.
-
-@end table
-
-The following columns are optional:
-
-@table @code
-@item branch
-This text field determines which branch of the repository Cuirass should
-check out.
-
-@item tag
-This text field is an alternative to using @code{branch} or @code{revision}.
-It tells Cuirass to check out the repository at the specified tag.
-
-@item revision
-This text field is an alternative to using @code{branch} or @code{tag}.  It
-tells Cuirass to check out the repository at a particular commit.
-
-@item no_compile_p
-When this integer field holds the value @code{1} Cuirass will skip
-compilation for the specified repository.
 @end table
 
 @section Checkouts
@@ -857,11 +809,15 @@ can't be identical: they can't have the same revision.
 @item evaluation
 The evaluation that was triggered by the addition of that new checkout.
 
-@item input
-The input associated with the checkout.
+@item channel
+The channel associated with the checkout.
 
 @item directory
 The directory into which the checkout was extracted.
+
+@item timestamp
+The checkout insertion timestamp.
+
 @end table
 
 @section Evaluations
@@ -880,9 +836,24 @@ This is an automatically incrementing numeric identifier.
 This field holds the @code{name} of a specification from the
 @code{Specifications} table.
 
-@item commits
-This text field holds the revisions (space separated commit hashes) of the
-repositories specified as inputs of the related specification.
+@item status
+This integer field hold the evaluation status.  Possible values are:
+@itemize
+@item started (@code{-1})
+@item succeeded (@code{0})
+@item failed (@code{1})
+@item aborted (@code{2})
+@end itemize
+
+@item timestamp
+The timestamp at evaluation insertion.
+
+@item checkout
+The timestamp after channel checkout.
+
+@item evaltime
+The timestamp after evaluation completion.
+
 @end table
 
 @section Builds
@@ -911,11 +882,44 @@ This text field holds the system name of the derivation.
 This text field holds the name of the derivation ---e.g.,
 @code{coreutils-8.24}.
 
+@item worker
+This text field references the name of worker performing the build
+from the @code{Workers} table.
+
 @item log
 This text field holds the absolute file name of the build log file.
 
 @item status
 This integer field holds the build status of the derivation.
+
+@item last_status
+This integer field holds the build status of the previous job
+evaluation.
+
+@item weather
+This integer field holds the weather of the build. Possible values
+are:
+
+@itemize
+@item unknown (@code{-1})
+@item new-success (@code{0})
+@item new-failure (@code{1})
+@item still-succeeding (@code{2})
+@item still-failing (@code{3})
+@end itemize
+
+@item priority
+The build priority relatively to the other builds with the same
+@code{job_name}, as an integer ranging from 0 to 9 where 0 is the
+higher priority and 9 the lowest.
+
+@item max_silent
+This integer field holds the number of seconds of silence after which
+a build process times out.
+
+@item timeout
+This integer field holds the number of seconds of activity after which
+a build process times out.
 
 @item timestamp
 This integer field holds a timestamp taken at build creation time.
@@ -950,7 +954,81 @@ This text field holds the path of the output.
 
 @end table
 
+@section Metrics
+@cindex metrics, database
+
+This table contains several metrics that are recorded by the
+@code{metrics} fiber periodically.
+
+@table @code
+@item field
+This text field holds the application field of the metric.
+
+@item type
+This integer field holds the type of the metric.
+
+@item path
+This float field holds the value of the metric.
+
+@item evaltime
+The metric insertion timestamp.
+
+@end table
+
+@section BuildProducts
+@cindex buildproducts, database
+
+This table contains the saved build products, that are proposed to
+download through the web interface.
+
+@table @code
+@item build
+This integer field holds a reference to the build @code{id} from the
+@code{Builds} table, the build product belongs to.
+
+@item type
+This text field holds the build product type.
+
+@item file_size
+This integer field holds build product size in bytes.
+
+@item checksum
+This text field holds the build product checksum.
+
+@item path
+This text field holds the build product absolute store path.
+
+@end table
+
+@section Workers
+@cindex workers, database
+
+This table contains the registered workers when Cuirass is using the
+remote building mechanism.
+
+@table @code
+@item name
+This text field holds the worker name.  This field is also the primary
+key of this table.
+
+@item address
+This text field holds the worker IP address.
+
+@item machine
+This text field holds the worker machine name.
+
+@item systems
+This text field holds the systems that are supported by the worker, as
+a comma separated list of systems.
+
+@item last_seen
+This integer field holds the timestamp of the last communication with
+the worker.
+
+@end table
+
 @c *********************************************************************
+
 @node Contributing
 @chapter Contributing
 
