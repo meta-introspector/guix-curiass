@@ -547,14 +547,12 @@ system whose names start with " (code "guile-") ":" (br)
                                      (href "/admin/evaluation/"
                                            ,(assq-ref row #:id)
                                            "/cancel"))
-                                  " Cancel pending builds"))
-                          (div (@ (class "dropdown-menu"))
+                                  " Cancel pending builds")
                                (a (@ (class "oi oi-lock-locked dropdown-item")
                                      (href "/admin/evaluation/"
                                            ,(assq-ref row #:id)
                                            "/restart"))
-                                  " Restart"))
-                          (div (@ (class "dropdown-menu"))
+                                  " Restart")
                                (a (@ (class "oi oi-lock-locked dropdown-item")
                                      (href "/admin/evaluation/"
                                            ,(assq-ref row #:id)
