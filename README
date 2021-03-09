@@ -72,7 +72,7 @@ the Unix socket at =/var/run/postgresql= is used to connect to the =test_tmp=
 database.  This can be changed in the (tests common) module.
 
 #+BEGIN_EXAMPLE
-make check
+createdb test_tmp && make check
 #+END_EXAMPLE
 
 * Example
