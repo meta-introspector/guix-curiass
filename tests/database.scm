@@ -535,11 +535,10 @@ timestamp, checkouttime, evaltime) VALUES ('guix', 0, 0, 0, 0);")
       (eq? (assq-ref (db-get-build "/old-build.drv") #:status)
            (build-status scheduled))))
 
-  (test-equal "db-retry-evaluation!"
-    '()
+  (test-assert "db-retry-evaluation!"
     (begin
       (db-retry-evaluation! 4)
-      (db-get-checkouts 4)))
+      (null? (db-get-checkouts 4))))
 
   (test-assert "db-cancel-pending-builds!"
     (let* ((drv "/old-build.drv")
