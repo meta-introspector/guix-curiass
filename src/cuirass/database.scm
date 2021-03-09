@@ -74,6 +74,7 @@
             db-restart-build!
             db-restart-evaluation!
             db-retry-evaluation!
+            db-cancel-pending-builds!
             db-get-build-products
             db-get-builds-by-search
             db-get-builds
@@ -835,6 +836,14 @@ UPDATE Builds SET stoptime =" now
   (with-db-worker-thread db
     (exec-query/bind db "\
 DELETE FROM Checkouts WHERE evaluation=" eval-id ";")))
+
+(define (db-cancel-pending-builds! eval-id)
+  "Cancel the pending builds of the evaluation with EVAL-ID id."
+  (with-db-worker-thread db
+    (exec-query/bind db "UPDATE Builds SET status="
+                     (build-status canceled)
+                     "WHERE evaluation=" eval-id
+                     "AND status = " (build-status started) ";")))
 
 (define (query->bind-arguments query-string)
   "Return a list of keys to query strings by parsing QUERY-STRING."

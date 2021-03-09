@@ -541,6 +541,15 @@ timestamp, checkouttime, evaltime) VALUES ('guix', 0, 0, 0, 0);")
       (db-retry-evaluation! 4)
       (db-get-checkouts 4)))
 
+  (test-assert "db-cancel-pending-builds!"
+    (let* ((drv "/old-build.drv")
+           (build (db-get-build drv))
+           (eval-id (assq-ref build #:eval-id)))
+      (db-update-build-status! drv (build-status started))
+      (db-cancel-pending-builds! eval-id)
+      (eq? (assq-ref (db-get-build drv) #:status)
+           (build-status canceled))))
+
   (test-assert "db-close"
     (begin
       (exec-query (%db) (format #f "DROP OWNED BY CURRENT_USER;"))
