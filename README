@@ -16,6 +16,7 @@ Cuirass currently depends on the following packages:
   - Guile-zlib
   - Guile-Mastodon
   - Guile-Simple-ZMQ
+  - Ephemeral PostgreSQL (for the tests)
   - Mailutils
   - Fibers
 

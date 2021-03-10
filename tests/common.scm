@@ -20,16 +20,26 @@
   #:use-module (cuirass database)
   #:use-module (cuirass parameters)
   #:use-module (cuirass utils)
+  #:use-module (ice-9 popen)
+  #:use-module (ice-9 rdelim)
   #:export (%db
             test-init-db!))
 
 (define %db
   (make-parameter #f))
 
+(define (pg-tmp)
+  "Start a temporary PostgreSQL instance using ephemeralpg."
+  ;; Destroy the database right after disconnection.
+  (let* ((pipe (open-input-pipe "pg_tmp -w 1"))
+         (uri (read-string pipe)))
+    (close-pipe pipe)
+    uri))
+
 (define (test-init-db!)
   "Initialize the test database."
   (%create-database? #t)
-  (%cuirass-database "test_tmp")
+  (%package-database (pg-tmp))
   (%db (db-open))
   (%db-channel (make-worker-thread-channel
                 (lambda ()

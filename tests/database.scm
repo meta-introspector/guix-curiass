@@ -551,6 +551,5 @@ timestamp, checkouttime, evaltime) VALUES ('guix', 0, 0, 0, 0);")
 
   (test-assert "db-close"
     (begin
-      (exec-query (%db) (format #f "DROP OWNED BY CURRENT_USER;"))
       (db-close (%db))
       #t)))

@@ -277,6 +277,5 @@
 
   (test-assert "db-close"
     (begin
-      (exec-query (%db) (format #f "DROP OWNED BY CURRENT_USER;"))
       (db-close (%db))
       #t)))
