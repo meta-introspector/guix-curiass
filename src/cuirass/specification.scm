@@ -60,7 +60,8 @@
   (type               build-output-type) ;string
   (output             build-output-output ;string
                       (default "out"))
-  (path               build-output-path)) ;string
+  (path               build-output-path ;string
+                      (default "")))
 
 (define (build-output->sexp build-output)
   "Return an sexp describing BUILD-OUTPUT."
