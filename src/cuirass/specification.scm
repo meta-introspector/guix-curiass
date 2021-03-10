@@ -127,13 +127,7 @@
      (channel (name name)
               (url url)
               (branch branch)
-              (commit commit)
-              (introduction
-               (match (assq 'introduction rest)
-                 (#f #f)
-                 (('introduction intro)
-                  (sexp->channel-introduction intro))))))
-
+              (commit commit)))
     (_ #f)))
 
 
