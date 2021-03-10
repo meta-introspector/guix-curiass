@@ -47,11 +47,11 @@
   (make-parameter (lambda (str)
                     (log-to-port (current-logging-port) str))))
 
-(define-syntax-rule (log-message fmt args ...)
+(define (log-message fmt . args)
   "Log the given message as one line."
   ;; Note: Use '@' to make sure -Wformat detects this use of 'format'.
   ((current-logging-procedure)
-   ((@ (ice-9 format) format) #f fmt args ...)))
+   (apply (@ (ice-9 format) format) #f fmt args)))
 
 (define (call-with-time-logging name thunk)
   (let* ((start   (current-time time-utc))
