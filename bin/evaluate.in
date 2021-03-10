@@ -32,37 +32,31 @@ exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
              (guix licenses)
              (guix store)
              (guix utils)
+             (srfi srfi-1)
              (ice-9 match)
              (ice-9 pretty-print)
              (ice-9 threads))
-
-(define (checkouts->channel-instances checkouts)
-  "Return the list of CHANNEL-INSTANCE records describing the given
-CHECKOUTS."
-  (map (lambda (checkout)
-         (let ((channel (assq-ref checkout #:channel))
-               (directory (assq-ref checkout #:directory))
-               (commit (assq-ref checkout #:commit)))
-           (checkout->channel-instance directory
-                                       #:name channel
-                                       #:commit commit)))
-       checkouts))
 
 (define* (inferior-evaluation store profile
                               #:key
                               eval-id channels
                               spec build systems)
-  "Spawn an inferior on INSTANCES that uses the given STORE and PROFILE.
-Withing that inferior, call EVAL-PROC from the EVAL-MODULE.  Register the
-returned jobs in database."
+  "Spawn an inferior that uses the given STORE and PROFILE. Withing that
+inferior, call EVAL-PROC from the EVAL-MODULE.  Register the returned jobs in
+database for the EVAL-ID evaluation of the SPEC specification.
+
+Pass the BUILD, CHANNELS and SYSTEMS arguments to the EVAL-PROC procedure."
   ;; The module where the below procedure is defined.
   (define eval-module '(gnu ci))
 
   ;; The Guix procedure for job evaluation.
   (define eval-proc 'cuirass-jobs)
 
+  (define channels*
+    (map channel->sexp channels))
+
   (let* ((inferior (open-inferior profile))
-         (args `((channels . ,channels)
+         (args `((channels . ,channels*)
                  (systems . ,systems)
                  (subset . ,build))))
     (inferior-eval `(use-modules ,eval-module) inferior)
@@ -73,14 +67,27 @@ returned jobs in database."
                (,eval-proc store ',args)))))
       (db-register-builds jobs eval-id spec))))
 
-(define (instances->cached-profile* instances)
-  "Call INSTANCES->CACHED-PROFILE on an opened store with disable
-substitutes."
+(define (channels->cached-profile channels checkouts)
+  "Return a directory containing a guix filetree defined by CHANNELS, a list
+of channels.  Pin the given channels to the commits specified in CHECKOUTS."
+  (define (checkout->commit name)
+    (any (lambda (checkout)
+           (and (eq? (assq-ref checkout #:channel) name)
+                (assq-ref checkout #:commit)))
+         checkouts))
+
   (with-store store
     (set-build-options store
                        #:use-substitutes? #f
                        #:substitute-urls '())
-    (instances->cached-profile store instances)))
+    (let ((channels*
+           (map (lambda (c)
+                  (let ((name (channel-name c)))
+                    (channel
+                     (inherit c)
+                     (commit (checkout->commit name)))))
+                channels)))
+      (cached-channel-instance store channels*))))
 
 (define* (main #:optional (args (command-line)))
   "This procedure spawns an inferior on the given channels.  An evaluation
@@ -94,14 +101,13 @@ registered in database."
                   (name (db-get-evaluation-specification eval-id))
                   (spec (db-get-specification name))
                   (checkouts (db-get-checkouts eval-id))
-                  (instances (checkouts->channel-instances checkouts))
                   (build (specification-build spec))
                   (systems (specification-systems spec)))
 
-             (let ((profile
-                    (instances->cached-profile* instances))
-                   (channels
-                    (map channel-instance->sexp instances)))
+             (let* ((channels
+                     (specification-channels spec))
+                    (profile
+                     (channels->cached-profile channels checkouts)))
                ;; Evaluate jobs on a per-system basis for two reasons.  It
                ;; speeds up the evaluation speed as the evaluations can be
                ;; performed concurrently.  It also decreases the amount of
