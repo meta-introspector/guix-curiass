@@ -18,6 +18,9 @@
 
 (define-module (cuirass specification)
   #:use-module (guix channels)
+  #:use-module ((guix openpgp)
+                #:select (openpgp-public-key-fingerprint
+                          openpgp-format-fingerprint))
   #:use-module (guix records)
   #:use-module (guix ui)
   #:use-module (guix utils)
@@ -91,12 +94,25 @@
 
 (define (channel->sexp channel)
   "Return an sexp describing CHANNEL."
-  `(repository
-    (version 0)
-    (url ,(channel-url channel))
-    (branch ,(channel-branch channel))
-    (commit ,(channel-commit channel))
-    (name ,(channel-name channel))))
+  (let ((intro (channel-introduction channel)))
+    `(repository
+      (version 0)
+      (url ,(channel-url channel))
+      (branch ,(channel-branch channel))
+      (commit ,(channel-commit channel))
+      (name ,(channel-name channel))
+      ,@(if intro
+            `((introduction
+               (channel-introduction
+                (version 0)
+                (commit
+                 ,(channel-introduction-first-signed-commit
+                   intro))
+                (signer
+                 ,(openpgp-format-fingerprint
+                   (channel-introduction-first-commit-signer
+                    intro))))))
+            '()))))
 
 
 ;;;
