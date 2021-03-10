@@ -37,9 +37,21 @@ exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
              (ice-9 pretty-print)
              (ice-9 threads))
 
+(define (checkouts->channel-instances checkouts)
+  "Return the list of CHANNEL-INSTANCE records describing the given
+CHECKOUTS."
+  (map (lambda (checkout)
+         (let ((channel (assq-ref checkout #:channel))
+               (directory (assq-ref checkout #:directory))
+               (commit (assq-ref checkout #:commit)))
+           (checkout->channel-instance directory
+                                       #:name channel
+                                       #:commit commit)))
+       checkouts))
+
 (define* (inferior-evaluation store profile
                               #:key
-                              eval-id channels
+                              eval-id instances
                               spec build systems)
   "Spawn an inferior that uses the given STORE and PROFILE. Withing that
 inferior, call EVAL-PROC from the EVAL-MODULE.  Register the returned jobs in
@@ -52,11 +64,11 @@ Pass the BUILD, CHANNELS and SYSTEMS arguments to the EVAL-PROC procedure."
   ;; The Guix procedure for job evaluation.
   (define eval-proc 'cuirass-jobs)
 
-  (define channels*
-    (map channel->sexp channels))
+  (define channels
+    (map channel-instance->sexp instances))
 
   (let* ((inferior (open-inferior profile))
-         (args `((channels . ,channels*)
+         (args `((channels . ,channels)
                  (systems . ,systems)
                  (subset . ,build))))
     (inferior-eval `(use-modules ,eval-module) inferior)
@@ -101,27 +113,26 @@ registered in database."
                   (name (db-get-evaluation-specification eval-id))
                   (spec (db-get-specification name))
                   (checkouts (db-get-checkouts eval-id))
+                  (instances (checkouts->channel-instances checkouts))
+                  (channels (specification-channels spec))
+                  (profile (channels->cached-profile channels checkouts))
                   (build (specification-build spec))
                   (systems (specification-systems spec)))
 
-             (let* ((channels
-                     (specification-channels spec))
-                    (profile
-                     (channels->cached-profile channels checkouts)))
-               ;; Evaluate jobs on a per-system basis for two reasons.  It
-               ;; speeds up the evaluation speed as the evaluations can be
-               ;; performed concurrently.  It also decreases the amount of
-               ;; memory needed per evaluation process.
-               (par-for-each
-                (lambda (system)
-                  (with-store store
-                    (inferior-evaluation store profile
-                                         #:eval-id eval-id
-                                         #:channels channels
-                                         #:spec spec
-                                         #:build build
-                                         #:systems (list system))))
-                systems))
+             ;; Evaluate jobs on a per-system basis for two reasons.  It
+             ;; speeds up the evaluation speed as the evaluations can be
+             ;; performed concurrently.  It also decreases the amount of
+             ;; memory needed per evaluation process.
+             (par-for-each
+              (lambda (system)
+                (with-store store
+                  (inferior-evaluation store profile
+                                       #:eval-id eval-id
+                                       #:instances instances
+                                       #:spec spec
+                                       #:build build
+                                       #:systems (list system))))
+              systems)
              (display 'done)))))
     (x
      (format (current-error-port) "Wrong command: ~a~%." x)
