@@ -1,5 +1,0 @@
-BEGIN TRANSACTION;
-
-ALTER TABLE Specifications ADD COLUMN notifications TEXT;
-
-COMMIT;
