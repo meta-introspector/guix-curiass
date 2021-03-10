@@ -28,9 +28,12 @@ exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
 (use-modules (cuirass database)
              (cuirass specification)
              (guix channels)
+             (guix derivations)
              (guix inferior)
              (guix licenses)
+             (guix monads)
              (guix store)
+             (guix ui)
              (guix utils)
              (srfi srfi-1)
              (ice-9 match)
@@ -79,27 +82,17 @@ Pass the BUILD, CHANNELS and SYSTEMS arguments to the EVAL-PROC procedure."
                (,eval-proc store ',args)))))
       (db-register-builds jobs eval-id spec))))
 
-(define (channels->cached-profile channels checkouts)
-  "Return a directory containing a guix filetree defined by CHANNELS, a list
-of channels.  Pin the given channels to the commits specified in CHECKOUTS."
-  (define (checkout->commit name)
-    (any (lambda (checkout)
-           (and (eq? (assq-ref checkout #:channel) name)
-                (assq-ref checkout #:commit)))
-         checkouts))
-
+(define (channel-instances->profile instances)
+  "Return a directory containing a guix filetree defined by INSTANCES, a list
+of channel instances."
   (with-store store
-    (set-build-options store
-                       #:use-substitutes? #f
-                       #:substitute-urls '())
-    (let ((channels*
-           (map (lambda (c)
-                  (let ((name (channel-name c)))
-                    (channel
-                     (inherit c)
-                     (commit (checkout->commit name)))))
-                channels)))
-      (cached-channel-instance store channels*))))
+    (run-with-store store
+      (mlet* %store-monad ((profile
+                            (channel-instances->derivation instances)))
+        (mbegin %store-monad
+          (show-what-to-build* (list profile))
+          (built-derivations (list profile))
+          (return (derivation->output-path profile)))))))
 
 (define* (main #:optional (args (command-line)))
   "This procedure spawns an inferior on the given channels.  An evaluation
@@ -114,8 +107,7 @@ registered in database."
                   (spec (db-get-specification name))
                   (checkouts (db-get-checkouts eval-id))
                   (instances (checkouts->channel-instances checkouts))
-                  (channels (specification-channels spec))
-                  (profile (channels->cached-profile channels checkouts))
+                  (profile (channel-instances->profile instances))
                   (build (specification-build spec))
                   (systems (specification-systems spec)))
 
