@@ -102,7 +102,8 @@ dist_images_DATA =				\
   src/static/images/guix.png			\
   src/static/images/icon.png
 dist_js_DATA =					\
-  src/static/js/chart.js
+  src/static/js/chart.js                        \
+  src/static/js/jquery-3.6.0.min.js
 
 TEST_EXTENSIONS = .scm .sh
 AM_TESTS_ENVIRONMENT = \

@@ -50,6 +50,7 @@
   #:use-module (sxml simple)
   #:use-module (cuirass templates)
   #:use-module (guix channels)
+  #:use-module (guix packages)
   #:use-module (guix progress)
   #:use-module (guix utils)
   #:use-module ((guix store) #:select (%store-prefix))
@@ -82,7 +83,8 @@
     "fonts/open-iconic.woff"
     "images/icon.png"
     "images/guix.png"
-    "js/chart.js"))
+    "js/chart.js"
+    "js/jquery-3.6.0.min.js"))
 
 (define (build->hydra-build build)
   "Convert BUILD to an assoc list matching hydra API format."
@@ -342,6 +344,50 @@ Hydra format."
                      zabbix-info)
      '())))
 
+(define (body->specification body)
+  "Turn BODY containing the input parameters of an HTML specification form
+into a specification record and return it."
+  (let* ((query (utf8->string body))
+         (params (fold-right
+                  (lambda (param params)
+                    (match (string-split param #\=)
+                      ((key param)
+                       (cons (cons (string->symbol key) param)
+                             params))))
+                  '()
+                  (string-split query #\&)))
+         (filter-field (lambda (field)
+                         (filter-map (match-lambda
+                                       ((key . param)
+                                        (and (eq? key field) param)))
+                                     params)))
+         (name (assq-ref params 'name))
+         (build (string->symbol
+                 (assq-ref params 'build)))
+         (channels (map (lambda (name url branch)
+                          (channel
+                           (name name)
+                           (url (uri-decode url))
+                           (branch branch)))
+                        (filter-field 'channel-name)
+                        (filter-field 'channel-url)
+                        (filter-field 'channel-branch)))
+         (priority (string->number
+                    (assq-ref params 'priority)))
+         (systems (fold
+                   (lambda (system systems)
+                     (if (assoc (string->symbol system) params)
+                         (cons system systems)
+                         systems))
+                   '()
+                   %cuirass-supported-systems)))
+    (specification
+     (name name)
+     (build build)
+     (channels channels)
+     (priority priority)
+     (systems systems))))
+
 
 ;;;
 ;;; Web server.
@@ -413,11 +459,11 @@ Hydra format."
     ;; PATH is a list of path components
     (let ((file-name (string-join path "/"))
           (file-path (string-join (cons* (%static-directory) path) "/")))
-    (if (and (member file-name %file-white-list)
+      (if (and (member file-name %file-white-list)
                (file-exists? file-path)
                (not (file-is-directory? file-path)))
-        (respond-file file-path)
-        (respond-not-found file-name))))
+          (respond-file file-path)
+          (respond-not-found file-name))))
 
   (define (respond-gzipped-file file)
     ;; Return FILE with 'gzip' content-encoding.
@@ -459,30 +505,42 @@ Hydra format."
 
   (match (cons (request-method request)
                (request-path-components request))
-    (('POST "admin" "specifications" "add")
-     (match (string-split (utf8->string body) #\=)
-       (("spec-name" name)
-        (db-add-specification
-         (specification
-          (name name)
-          (build 'all)
-          (channels
-           (list (channel
-                  (inherit %default-guix-channel)
-                  (branch name))))
-          (systems '("x86_64-linux" "i686-linux" "aarch64-linux"))))
-        (respond (build-response #:code 302
-                                 #:headers
-                                 `((location . ,(string->uri-reference
-                                                 "/admin/specifications"))))
-                 #:body ""))))
+    (('POST "admin" "specification" "add")
+     (let* ((spec (body->specification body))
+            (name (specification-name spec)))
+       (if (db-get-specification name)
+           (respond-html
+            (html-page
+             "Creation error"
+             `(div (@ (class "alert alert-danger"))
+                   ,(format #f "Specification ~a already exists" name))
+             '())
+            #:code 400)
+           (begin
+             (db-add-or-update-specification spec)
+             (respond
+              (build-response #:code 302
+                              #:headers
+                              `((location . ,(string->uri-reference "/"))))
+              #:body "")))))
+
+    (('POST "admin" "specification" "edit")
+     (let* ((spec (body->specification body))
+            (name (specification-name spec)))
+       (db-add-or-update-specification spec)
+       (respond
+        (build-response #:code 302
+                        #:headers
+                        `((location . ,(string->uri-reference "/"))))
+        #:body "")))
+
     (('GET "admin" "specifications" "delete" name)
      (db-remove-specification name)
-     (respond (build-response #:code 302
-                              #:headers
-                              `((location . ,(string->uri-reference
-                                              "/admin/specifications"))))
-              #:body ""))
+     (respond
+      (build-response #:code 302
+                      #:headers
+                      `((location . ,(string->uri-reference "/"))))
+      #:body ""))
     (('GET "admin" "build" id "restart")
      (db-restart-build! (string->number id))
      (respond
@@ -533,6 +591,22 @@ Hydra format."
                     (list->vector
                      (map specification->json-object
                           (db-get-specifications))))))
+
+    (('GET "specification" "add")
+     (respond-html
+      (html-page
+       "Add specification"
+       (specification-edit)
+       '())))
+
+    (('GET "specification" "edit" name)
+     (let ((spec (db-get-specification name)))
+       (respond-html
+        (html-page
+         "Edit specification"
+         (specification-edit spec)
+         '()))))
+
     (('GET "build" id)
      (let* ((build (if (string-suffix? ".drv" id)
                        (string-append (%store-prefix) "/" id)
@@ -768,7 +842,7 @@ Hydra format."
     (('GET "events" "rss")
      (let* ((params (request-parameters request))
             (specification (and params
-                            (assq-ref params 'specification))))
+                                (assq-ref params 'specification))))
        (respond-xml
         (rss-feed
          (db-get-builds `((weather . new)

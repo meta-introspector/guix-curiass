@@ -30,6 +30,7 @@
   #:use-module (web uri)
   #:use-module (guix channels)
   #:use-module (guix derivations)
+  #:use-module (guix packages)
   #:use-module (guix progress)
   #:use-module (guix store)
   #:use-module ((guix utils) #:select (string-replace-substring
@@ -41,6 +42,7 @@
   #:use-module (cuirass specification)
   #:export (html-page
             specifications-table
+            specification-edit
             evaluation-info-table
             build-eval-table
             build-search-results-table
@@ -213,13 +215,23 @@ system whose names start with " (code "guile-") ":" (br)
                   (span (@(class "oi oi-rss text-warning align-right")
                          (title "RSS")
                          (aria-hidden "true"))
-                        ""))))
+                        "")))
+       (a (@ (class "btn btn-outline-primary mr-1 float-right")
+             (href "/specification/add/")
+             (role "button"))
+          (span (@(class "oi oi-plus text-primary align-right")
+                 (title "Add")
+                 (aria-hidden "true"))
+                "")))
     (table
      (@ (class "table table-sm table-hover"))
      ,@(if (null? specs)
            `((th (@ (scope "col")) "No elements here."))
            `((thead (tr (th (@ (scope "col")) Name)
+                        (th (@ (scope "col")) Build)
                         (th (@ (scope "col")) Channels)
+                        (th (@ (scope "col")) Priority)
+                        (th (@ (scope "col")) Systems)
                         (th (@ (scope "col")) Action)))
              (tbody
               ,@(map
@@ -227,12 +239,20 @@ system whose names start with " (code "guile-") ":" (br)
                    `(tr (td (a (@ (href "/jobset/"
                                         ,(specification-name spec)))
                                ,(specification-name spec)))
+                        (td ,(symbol->string
+                              (specification-build spec)))
                         (td ,(string-join
                               (map (lambda (channel)
                                      (format #f "~a (on ~a)"
                                              (channel-name channel)
                                              (channel-branch channel)))
                                    (specification-channels spec)) ", "))
+                        (td ,(number->string
+                              (specification-priority spec)))
+                        (td ,(string-join
+                              (sort (specification-systems spec)
+                                    string<?)
+                              ", "))
                         (td
                          (div
                           (@ (class "dropdown"))
@@ -244,11 +264,175 @@ system whose names start with " (code "guile-") ":" (br)
                                 (aria-expanded "false"))
                              " ")
                           (div (@ (class "dropdown-menu"))
-                               (a (@ (class "oi oi-lock-locked dropdown-item")
+                               (a (@ (class "dropdown-item")
+                                     (href "/specification/edit/"
+                                           ,(specification-name spec)))
+                                  " Edit")
+                               (a (@ (class "dropdown-item")
                                      (href "/admin/specifications/delete/"
                                            ,(specification-name spec)))
                                   " Delete"))))))
                  specs)))))))
+
+(define* (specification-edit #:optional spec)
+  "Return HTML to add a new specification if no argument is passed, or to edit
+the existing SPEC otherwise."
+  (define (channels->html channels)
+    (let ((html
+           (fold
+            (lambda (channel html)
+              (let ((first-row? (null? html))
+                    (name (channel-name channel))
+                    (url (channel-url channel))
+                    (branch (channel-branch channel)))
+                (cons
+                 `(div (@ (class ,(if first-row?
+                                      "form-group row channel"
+                                      "form-group row channel-new")))
+                       (label (@ (for "name")
+                                 (class "col-sm-2 col-form-label"))
+                              ,(if first-row? "Channels" ""))
+                       (div (@ (class "col-sm-2"))
+                            (input
+                             (@ (type "text")
+                                (class "form-control")
+                                (id "channel-name")
+                                (name "channel-name")
+                                (placeholder "name")
+                                (value ,name))))
+                       (div (@ (class "col-sm-4"))
+                            (input
+                             (@ (type "text")
+                                (class "form-control")
+                                (id "channel-url")
+                                (name "channel-url")
+                                (placeholder "url")
+                                (value ,url))))
+                       (div (@ (class "col-sm-2"))
+                            (input
+                             (@ (type "text")
+                                (class "form-control")
+                                (id "channel-branch")
+                                (name "channel-branch")
+                                (placeholder "branch")
+                                (value ,branch))))
+                       ,@(if first-row?
+                             '((a (@ (class "btn btn-success add-channel")
+                                      (href "#")
+                                      (role "button"))
+                                   "Add"))
+                             '((a (@ (class "btn btn-danger remove-channel")
+                                      (href "#")
+                                      (role "button"))
+                                   "Remove"))))
+                 html)))
+            '()
+            channels)))
+      (match (reverse html)
+        ((first . rest)
+         (list first `(div (@ (class "channels")) ,@rest))))))
+
+  (let ((name (and spec (specification-name spec)))
+        (build (and spec (specification-build spec)))
+        (channels (and spec (specification-channels spec)))
+        (priority (and spec (specification-priority spec)))
+        (systems (and spec (specification-systems spec))))
+    `(span
+      (p (@ (class "lead"))
+         ,(if spec
+              (format #f "Edit ~a specification" name)
+              "Create a new specification"))
+      (script (@ (src "/static/js/jquery-3.6.0.min.js")))
+      (script "
+$(document).ready(function() {
+var counter = 0;
+$('.remove-channel').click(function() {
+   $(this).parent().remove();
+});
+$('.add-channel').click(function() {
+  var clone = $('.channel').clone();
+  clone.attr('class', 'form-group row channel-new');
+  clone.find('.col-form-label').text('');
+
+  var new_button = clone.find('.add-channel');
+  new_button.attr('class', 'btn btn-danger remove-channel');
+  new_button.text('Remove');
+  new_button.click(function() {
+   $(this).parent().remove();
+  });
+  clone.appendTo('.channels');
+});
+})")
+      (form (@ (id "add-specification")
+               ,@(if spec
+                     '((action "/admin/specification/edit"))
+                     '((action "/admin/specification/add")))
+               (method "POST"))
+            (div (@ (class "form-group row"))
+                 (label (@ (for "name")
+                           (class "col-sm-2 col-form-label"))
+                        "Name")
+                 (div (@ (class "col-sm-4"))
+                      (input (@ (type "text")
+                                (class "form-control")
+                                (id "name")
+                                (name "name")
+                                (value ,(or name ""))
+                                ,@(if spec
+                                      '((readonly))
+                                      '())))))
+            (div (@ (class "form-group row"))
+                 (label (@ (for "build")
+                           (class "col-sm-2 col-form-label"))
+                        "Build")
+                 (div (@ (class "col-sm-4"))
+                      (select
+                       (@ (class "form-control")
+                          (id "build")
+                          (name "build"))
+                       ,@(map (lambda (type)
+                                `(option (@ ,@(if (eq? type build)
+                                                  '((selected))
+                                                  '()))
+                                         ,(symbol->string type)))
+                              %build-types))))
+            ,@(channels->html
+               (if spec channels (list %default-guix-channel)))
+            (div (@ (class "form-group row"))
+                 (label (@ (for "priority")
+                           (class "col-sm-2 col-form-label"))
+                        "Priority")
+                 (div (@ (class "col-sm-4"))
+                      (input
+                       (@ (type "number")
+                          (class "form-control")
+                          (id "priority")
+                          (name "priority")
+                          (value ,(or priority 9))))))
+            (div (@ (class "form-group row"))
+                 (label (@ (for "systems")
+                           (class "col-sm-2 col-form-label"))
+                        "Systems")
+                 ,@(map (lambda (system)
+                          `(div (@ (class "form-check form-check-inline"))
+                                (input (@ (class "form-check-input")
+                                          (type "checkbox")
+                                          (id ,system)
+                                          (name ,system)
+                                          ,@(if (and systems
+                                                     (member system systems))
+                                                '((checked))
+                                                '())))
+                                (label (@ (class "form-check-label")
+                                          (for ,system))
+                                       ,system)))
+                        %cuirass-supported-systems))
+            (div (@ (class "form-group row"))
+                 (div (@ (class "col-sm-4"))
+                      (button
+                       (@ (type "submit")
+                          (class "btn btn-primary"))
+                       " Submit")))))))
 
 (define (build-details build products history)
   "Return HTML showing details for the BUILD."
@@ -303,7 +487,7 @@ system whose names start with " (code "guile-") ":" (br)
                   (aria-expanded "false"))
                "Action")
             (div (@ (class "dropdown-menu"))
-                 (a (@ (class "oi oi-lock-locked dropdown-item")
+                 (a (@ (class "dropdown-item")
                        (href "/admin/build/"
                              ,(assq-ref build #:id) "/restart"))
                     " Restart"))))
@@ -517,17 +701,17 @@ system whose names start with " (code "guile-") ":" (br)
                                 (aria-expanded "false"))
                              " ")
                           (div (@ (class "dropdown-menu"))
-                               (a (@ (class "oi oi-lock-locked dropdown-item")
+                               (a (@ (class "dropdown-item")
                                      (href "/admin/evaluation/"
                                            ,(assq-ref row #:id)
                                            "/cancel"))
                                   " Cancel pending builds")
-                               (a (@ (class "oi oi-lock-locked dropdown-item")
+                               (a (@ (class "dropdown-item")
                                      (href "/admin/evaluation/"
                                            ,(assq-ref row #:id)
                                            "/restart"))
                                   " Restart all builds")
-                               (a (@ (class "oi oi-lock-locked dropdown-item")
+                               (a (@ (class "dropdown-item")
                                      (href "/admin/evaluation/"
                                            ,(assq-ref row #:id)
                                            "/retry"))
