@@ -17,13 +17,16 @@
 ;;; along with GNU Guix.  If not, see <http://www.gnu.org/licenses/>.
 
 (define-module (cuirass notification)
+  #:use-module (cuirass database)
   #:use-module (cuirass logging)
   #:use-module (cuirass mail)
   #:use-module (cuirass mastodon)
   #:use-module (cuirass parameters)
   #:use-module (cuirass utils)
+  #:use-module (guix build syscalls)
   #:use-module (guix records)
   #:use-module (ice-9 match)
+  #:use-module (ice-9 threads)
   #:export (email
             email?
             email-from
@@ -36,8 +39,7 @@
             notification->sexp
             sexp->notification
 
-            with-notification
-            send-notifications))
+            start-notification-thread))
 
 
 ;;;
@@ -88,27 +90,6 @@
 ;; database) module.
 (define weather-success 0)
 (define weather-failure 1)
-
-;; The channel to communicate with the notification worker thread.
-(define %notification-channel
-  (make-parameter #f))
-
-(define-syntax-rule (with-notification body ...)
-  "Run BODY with %NOTIFICATION-CHANNEL being dynamically bound to a channel
-providing a worker thread that allows to send notifications without
-interfering with fibers."
-  (parameterize ((%notification-channel
-                  (make-worker-thread-channel
-                   (const #t))))
-    body ...))
-
-(define-syntax-rule (with-notification-worker-thread exp ...)
-  "Evaluate EXP... in the critical section corresponding to
-%NOTIFICATION-CHANNEL."
-  (call-with-worker-thread
-   (%notification-channel)
-   (lambda args
-     exp ...)))
 
 (define (build-weather-text build)
   "Return the build weather string."
@@ -171,14 +152,19 @@ the detailed information about this build here: ~a."
         (log-message "Failed to send the mastodon notification: ~a."
                      args)))))
 
-(define* (send-notifications notifications #:key build)
-  "Send the notifications in NOTIFICATIONS list, regarding the given BUILD."
-  (with-notification-worker-thread
-   (for-each
-    (lambda (notification)
-      (cond
-       ((email? notification)
-        (send-email* notification build))
-       ((mastodon? notification)
-        (send-mastodon build))))
-    notifications)))
+(define (start-notification-thread)
+  "Start a thread sending build notifications."
+  (call-with-new-thread
+   (lambda ()
+     (set-thread-name "notification")
+     (let loop ()
+       (match (db-pop-notification)
+         ((notif . build)
+          (cond
+           ((email? notif)
+            (send-email* notif build))
+           ((mastodon? notif)
+            (send-mastodon build))))
+         (#f #f))
+       (sleep 1)
+       (loop)))))

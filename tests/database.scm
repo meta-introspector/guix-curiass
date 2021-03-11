@@ -103,11 +103,23 @@
    (systems '("a" "b"))
    (last-seen 1)))
 
+(define* (retry f #:key times delay)
+  (let loop ((attempt 1))
+    (let ((result (f)))
+      (cond
+       (result result)
+       (else
+        (if (>= attempt times)
+            #f
+            (begin
+              (sleep delay)
+              (loop (+ 1 attempt)))))))))
 
 (test-group-with-cleanup "database"
   (test-assert "db-init"
     (begin
       (test-init-db!)
+      (start-notification-thread)
       #t))
 
   (test-equal "db-add-specification"
@@ -230,17 +242,6 @@ timestamp, checkouttime, evaltime) VALUES ('guix', 0, 0, 0, 0);")
     1
     (let ((build (db-get-build "/foo.drv")))
       (assoc-ref build #:id)))
-
-  (test-equal "db-get-events"
-    'evaluation
-    (let ((event (match (db-get-events '((nr . 1)
-                                         (type . evaluation)))
-                   ((event) event))))
-      (assoc-ref event #:type)))
-
-  (test-equal "db-delete-events-with-ids-<=-to"
-    1
-    (db-delete-events-with-ids-<=-to 1))
 
   (test-equal "db-get-pending-derivations"
     '("/foo.drv")
@@ -492,9 +493,14 @@ timestamp, checkouttime, evaltime) VALUES ('guix', 0, 0, 0, 0);")
       (assq-ref (db-get-build "/new-build.drv") #:weather)))
 
   (test-assert "mail notification"
-    (let ((str (call-with-input-file tmp-mail
-                 get-string-all)))
-      (string-contains str "Build job-1 on guix is fixed.")))
+    (retry
+     (lambda ()
+       (and (file-exists? tmp-mail)
+            (let ((str (call-with-input-file tmp-mail
+                         get-string-all)))
+              (string-contains str "Build job-1 on guix is fixed."))))
+     #:times 5
+     #:delay 1))
 
   (test-equal "db-get-builds weather"
     (build-weather new-failure)
@@ -504,9 +510,14 @@ timestamp, checkouttime, evaltime) VALUES ('guix', 0, 0, 0, 0);")
       (assq-ref (db-get-build "/new-build.drv") #:weather)))
 
   (test-assert "mail notification"
-    (let ((str (call-with-input-file tmp-mail
-                 get-string-all)))
-      (string-contains str "Build job-1 on guix is broken.")))
+    (retry
+     (lambda ()
+       (and (file-exists? tmp-mail)
+            (let ((str (call-with-input-file tmp-mail
+                         get-string-all)))
+              (string-contains str "Build job-1 on guix is broken."))))
+     #:times 5
+     #:delay 1))
 
   (test-equal "db-get-builds weather"
     (build-weather still-succeeding)
@@ -547,6 +558,22 @@ timestamp, checkouttime, evaltime) VALUES ('guix', 0, 0, 0, 0);")
       (db-cancel-pending-builds! eval-id)
       (eq? (assq-ref (db-get-build drv) #:status)
            (build-status canceled))))
+
+  (test-assert "db-push-notification"
+    (let ((build (db-get-build "/new-build.drv")))
+      (db-push-notification
+       (email
+        (from "from")
+        (to "to")
+        (server (mailer)))
+       (assq-ref build #:id))))
+
+  (test-assert "db-pop-notification"
+    (let ((build (db-get-build "/new-build.drv")))
+      (match (db-pop-notification)
+        ((notif . notif-build)
+         (and (email? notif)
+              (equal? build notif-build))))))
 
   (test-assert "db-close"
     (begin

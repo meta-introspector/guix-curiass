@@ -84,11 +84,11 @@ CREATE TABLE BuildProducts (
   FOREIGN KEY (build) REFERENCES Builds(id) ON DELETE CASCADE
 );
 
-CREATE TABLE Events (
+CREATE TABLE Notifications (
   id            SERIAL PRIMARY KEY,
   type          TEXT NOT NULL,
-  timestamp     INTEGER NOT NULL,
-  event_json    TEXT NOT NULL
+  build         INTEGER NOT NULL,
+  FOREIGN KEY (build) REFERENCES Builds(id) ON DELETE CASCADE
 );
 
 CREATE TABLE Workers (

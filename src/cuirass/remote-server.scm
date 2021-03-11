@@ -508,11 +508,11 @@ exiting."
         (receive-logs log-port (%cache-directory))
 
         (with-database
-            (with-notification
-             (for-each (lambda (number)
-                         (start-fetch-worker
-                          (string-append "fetch-worker-"
-                                         (number->string number))))
-                       (iota 4))
+            (start-notification-thread)
+            (for-each (lambda (number)
+                        (start-fetch-worker
+                         (string-append "fetch-worker-"
+                                        (number->string number))))
+                      (iota 4))
 
-             (zmq-start-proxy backend-port)))))))
+            (zmq-start-proxy backend-port))))))

@@ -95,6 +95,8 @@
             db-get-builds-max
             db-get-evaluation-specification
             db-get-build-product-path
+            db-push-notification
+            db-pop-notification
             db-add-or-update-worker
             db-get-worker
             db-get-workers
@@ -752,29 +754,26 @@ log file for DRV."
         ;; times in a row, for instance.  The 'last_status' field is updated
         ;; with the status of the last completed build with the same
         ;; 'job_name' and 'specification'.
-        (begin
-          (let* ((last-status (db-get-last-status drv))
-                 (weather (build-status->weather status last-status))
-                 (rows
-                  (exec-query/bind db "
+        (let* ((last-status (db-get-last-status drv))
+               (weather (build-status->weather status last-status))
+               (rows
+                (exec-query/bind db "
 UPDATE Builds SET stoptime =" now
 ", status =" status
 ", last_status = " last-status
 ", weather = " weather
 "WHERE derivation =" drv
 " AND status != " status ";")))
-            (when (positive? rows)
-              (let* ((build (db-get-build drv))
-                     (spec (assq-ref build #:specification))
-                     (specification (db-get-specification spec))
-                     (notifications
-                      (specification-notifications specification)))
-                (send-notifications notifications #:build build)
-                (db-add-event 'build
-                              now
-                              `((#:derivation . ,drv)
-                                (#:event      . ,(assq-ref status-names
-                                                           status)))))))))))
+          (when (positive? rows)
+            (let* ((build (db-get-build drv))
+                   (spec (assq-ref build #:specification))
+                   (specification (db-get-specification spec))
+                   (notifications
+                    (specification-notifications specification)))
+              (for-each (lambda (notif)
+                          (db-push-notification notif
+                                                (assq-ref build #:id)))
+                        notifications)))))))
 
 (define* (db-update-build-worker! drv worker)
   "Update the database so that DRV's worker is WORKER."
@@ -1365,6 +1364,28 @@ WHERE id = " eval))
 SELECT path FROM BuildProducts
 WHERE id = " id))
       ((path) path)
+      (else #f))))
+
+(define (db-push-notification notification build)
+  "Insert NOTIFICATION into Notifications table."
+  (with-db-worker-thread db
+    (exec-query/bind db "\
+INSERT INTO Notifications (type, build)
+VALUES (" (notification->sexp notification) ", " build ");")))
+
+(define (db-pop-notification)
+  "Return two values, the latest notification from the Notifications table and
+the matching build."
+  (with-db-worker-thread db
+    (match (expect-one-row
+            (exec-query/bind db "
+SELECT id, type, build from Notifications ORDER BY id ASC LIMIT 1;"))
+      ((id type build)
+       (exec-query/bind db "\
+DELETE FROM Notifications WHERE id =" id ";")
+       (cons (sexp->notification
+              (with-input-from-string type read))
+             (db-get-build (string->number build))))
       (else #f))))
 
 (define (db-add-or-update-worker worker)
