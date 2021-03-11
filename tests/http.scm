@@ -178,7 +178,7 @@
                                          #:name 'packages
                                          #:url "dir4"
                                          #:commit "fakesha3"))))
-      (db-add-specification spec)
+      (db-add-or-update-specification spec)
       (db-add-evaluation "guix" checkouts1
                          #:timestamp 1501347493)
       (db-add-evaluation "guix" checkouts2

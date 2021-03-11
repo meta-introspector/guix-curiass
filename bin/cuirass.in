@@ -148,7 +148,7 @@ exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
                  (parameterize (((@@ (fibers internal) current-fiber) #f))
                    (start-notification-thread))
                  (and specfile
-                      (for-each db-add-specification
+                      (for-each db-add-or-update-specification
                                 (read-specifications specfile)))
                  (and paramfile (read-parameters paramfile))
 

@@ -50,7 +50,7 @@
             expect-one-row
             read-sql-file
             db-add-checkout
-            db-add-specification
+            db-add-or-update-specification
             db-remove-specification
             db-get-specification
             db-get-specifications
@@ -394,28 +394,37 @@ RETURNING (specification, revision);"))
         (x x)
         (() #f)))))
 
-(define (db-add-specification spec)
+(define (db-add-or-update-specification spec)
   "Store SPEC in database."
   (with-db-worker-thread db
-    (match (expect-one-row
-            (exec-query/bind db "\
+    (let ((channels (map channel->sexp
+                         (specification-channels spec)))
+          (build-outputs (map build-output->sexp
+                              (specification-build-outputs spec)))
+          (notifications (map notification->sexp
+                              (specification-notifications spec))))
+      (match (expect-one-row
+              (exec-query/bind db "\
 INSERT INTO Specifications (name, build, channels, \
 build_outputs, notifications, priority, systems) \
   VALUES ("
-                             (specification-name spec) ", "
-                             (specification-build spec) ", "
-                             (map channel->sexp
-                                  (specification-channels spec)) ", "
-                             (map build-output->sexp
-                                  (specification-build-outputs spec)) ", "
-                             (map notification->sexp
-                                  (specification-notifications spec)) ", "
-                             (specification-priority spec) ", "
-                             (specification-systems spec) ")
-ON CONFLICT ON CONSTRAINT specifications_pkey DO NOTHING
-RETURNING name;"))
-      ((name) name)
-      (else #f))))
+                               (specification-name spec) ", "
+                               (specification-build spec) ", "
+                               channels ", "
+                               build-outputs ", "
+                               notifications ", "
+                               (specification-priority spec) ", "
+                               (specification-systems spec) ")
+ON CONFLICT(name) DO UPDATE
+SET build = " (specification-build spec) ",
+channels = " channels ",
+build_outputs = " build-outputs ",
+notifications = " notifications ",
+priority = " (specification-priority spec) ",
+systems = " (specification-systems spec)
+"RETURNING name;"))
+        ((name) name)
+        (else #f)))))
 
 (define (db-remove-specification name)
   "Remove the specification matching NAME from the database."

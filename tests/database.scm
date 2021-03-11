@@ -122,9 +122,19 @@
       (start-notification-thread)
       #t))
 
-  (test-equal "db-add-specification"
+  (test-equal "db-add-or-update-specification"
     "guix"
-    (db-add-specification example-spec))
+    (db-add-or-update-specification example-spec))
+
+  (test-equal "db-add-or-update-specification 2"
+    'core
+    (begin
+      (db-add-or-update-specification
+       (specification
+        (inherit example-spec)
+        (build 'core)))
+      (specification-build
+       (db-get-specification "guix"))))
 
   (test-assert "exec-query"
     (begin
