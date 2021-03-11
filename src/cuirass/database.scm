@@ -528,6 +528,26 @@ RETURNING id;"))
   (failed-other      3)
   (canceled          4))
 
+(define-enumeration build-weather
+  (unknown          -1)
+  (new-success       0)
+  (new-failure       1)
+  (still-succeeding  2)
+  (still-failing     3))
+
+(define (build-status->weather status last-status)
+  (cond
+   ((or (< status 0) (not last-status))
+    (build-weather unknown))
+   ((and (= status 0) (> last-status 0))
+    (build-weather new-success))
+   ((and (> status 0) (= last-status 0))
+    (build-weather new-failure))
+   ((and (= status 0) (= last-status 0))
+    (build-weather still-succeeding))
+   ((and (> status 0) (> last-status 0))
+    (build-weather still-failing))))
+
 (define (db-add-output derivation output)
   "Insert OUTPUT associated with DERIVATION."
   (with-db-worker-thread db
@@ -771,8 +791,12 @@ UPDATE Builds SET stoptime =" now
                    (notifications
                     (specification-notifications specification)))
               (for-each (lambda (notif)
-                          (db-push-notification notif
-                                                (assq-ref build #:id)))
+                          (when (or (eq? weather
+                                         (build-weather new-success))
+                                    (eq? weather
+                                         (build-weather new-failure)))
+                            (db-push-notification notif
+                                                  (assq-ref build #:id))))
                         notifications)))))))
 
 (define* (db-update-build-worker! drv worker)
@@ -918,26 +942,6 @@ ORDER BY Builds.id DESC;"))
                          (#:specification . ,specification)
                          (#:buildproducts . ,(db-get-build-products id)))
                        result))))))))
-
-(define-enumeration build-weather
-  (unknown          -1)
-  (new-success       0)
-  (new-failure       1)
-  (still-succeeding  2)
-  (still-failing     3))
-
-(define (build-status->weather status last-status)
-  (cond
-   ((or (< status 0) (not last-status))
-    (build-weather unknown))
-   ((and (= status 0) (> last-status 0))
-    (build-weather new-success))
-   ((and (> status 0) (= last-status 0))
-    (build-weather new-failure))
-   ((and (= status 0) (= last-status 0))
-    (build-weather still-succeeding))
-   ((and (> status 0) (> last-status 0))
-    (build-weather still-failing))))
 
 (define (db-get-builds filters)
   "Retrieve all builds in the database which are matched by given FILTERS.
