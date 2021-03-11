@@ -103,7 +103,6 @@
    (systems '("a" "b"))
    (last-seen 1)))
 
-(%record-events? #t)
 
 (test-group-with-cleanup "database"
   (test-assert "db-init"

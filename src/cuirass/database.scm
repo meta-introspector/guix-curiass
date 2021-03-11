@@ -106,7 +106,6 @@
             %package-database
             %package-schema-file
             %db-channel
-            %record-events?
             ;; Macros.
             exec-query/bind
             with-database
@@ -236,9 +235,6 @@ parameters matches the number of arguments to bind."
                                  "/sql")))
 
 (define %db-channel
-  (make-parameter #f))
-
-(define %record-events?
   (make-parameter #f))
 
 (define-syntax-rule (with-database body ...)
@@ -467,17 +463,6 @@ priority, systems FROM Specifications ORDER BY name ASC;")))
   (failed            1)
   (aborted           2))
 
-(define (db-add-event type timestamp details)
-  (with-db-worker-thread db
-    (when (%record-events?)
-      (exec-query/bind db "\
-INSERT INTO Events (type, timestamp, event_json) VALUES ("
-                       (symbol->string type) ", "
-                       timestamp ", "
-                       (object->json-string details)
-                       ");")
-      #t)))
-
 (define* (db-add-evaluation spec-name instances
                             #:key
                             (checkouttime 0)
@@ -507,12 +492,7 @@ RETURNING id;"))
       (if (null? new-instances)
           (begin (exec-query db "ROLLBACK;")
                  #f)
-          (begin (db-add-event 'evaluation
-                               (time-second (current-time time-utc))
-                               `((#:evaluation    . ,eval-id)
-                                 (#:specification . ,spec-name)
-                                 (#:in_progress   . #t)))
-                 (exec-query db "COMMIT;")
+          (begin (exec-query db "COMMIT;")
                  eval-id)))))
 
 (define (db-abort-pending-evaluations)
@@ -583,14 +563,6 @@ ON CONFLICT ON CONSTRAINT builds_derivation_key DO NOTHING;"))
          (outputs (assq-ref build #:outputs))
          (new-outputs (filter-map (cut db-add-output derivation <>)
                                   outputs)))
-    (db-add-event 'build
-                  (assq-ref build #:timestamp)
-                  `((#:derivation . ,derivation)
-                    ;; TODO Ideally this would use the value
-                    ;; from build, with a default of scheduled,
-                    ;; but it's hard to convert to the symbol,
-                    ;; so just hard code scheduled for now.
-                    (#:event       . scheduled)))
     derivation))
 
 (define (db-add-build-product product)
@@ -766,18 +738,13 @@ log file for DRV."
   (with-db-worker-thread db
     (if (or (= status (build-status started))
             (= status (build-status submitted)))
-        (begin
-          (if log-file
-              (exec-query/bind db "UPDATE Builds SET starttime=" now
-                               ",status=" status ",log=" log-file
-                               "WHERE derivation=" drv ";")
-              (exec-query/bind db "UPDATE Builds SET starttime=" now
-                               ",status="
-                               status "WHERE derivation=" drv ";"))
-          (db-add-event 'build
-                        now
-                        `((#:derivation . ,drv)
-                          (#:event      . started))))
+        (if log-file
+            (exec-query/bind db "UPDATE Builds SET starttime=" now
+                             ",status=" status ",log=" log-file
+                             "WHERE derivation=" drv ";")
+            (exec-query/bind db "UPDATE Builds SET starttime=" now
+                             ",status="
+                             status "WHERE derivation=" drv ";"))
 
         ;; Update only if we're switching to a different status; otherwise
         ;; leave things unchanged.  This ensures that 'stoptime' remains valid
@@ -1169,48 +1136,6 @@ ORDER BY ~a;"
   "Retrieve a build in the database which corresponds to DERIVATION-OR-ID."
   (let ((key (if (number? derivation-or-id) 'id 'derivation)))
     (expect-one-row (db-get-builds `((,key . ,derivation-or-id))))))
-
-(define (db-get-events filters)
-  (with-db-worker-thread db
-    (let* ((query "\
-SELECT Events.id,
-       Events.type,
-       Events.timestamp,
-       Events.event_json
-FROM Events
-WHERE (:type = Events.type OR :type IS NULL)
-  AND (((:borderlowtime, :borderlowid) <
-        (Events.timestamp, Events.id)) OR
-       :borderlowtime IS NULL OR
-       :borderlowid IS NULL)
-  AND (((:borderhightime, :borderhighid) >
-        (Events.timestamp, Events.id)) OR
-       :borderhightime IS NULL OR
-       :borderhighid IS NULL)
-ORDER BY Events.id ASC
-LIMIT :nr;")
-           (params `((#:type . ,(and=> (assq-ref filters 'type)
-                                       symbol->string))
-                     (#:nr . ,(match (assq-ref filters 'nr)
-                                (#f -1)
-                                (x x)))))
-           (events (exec-query/bind-params db query params)))
-      (let loop ((events events)
-                 (result '()))
-        (match events
-          (() (reverse result))
-          (((id type timestamp event_json)
-            . rest)
-           (loop rest
-                 (cons `((#:id . ,(string->number id))
-                         (#:type . ,(string->symbol type))
-                         (#:timestamp . ,(string->number timestamp))
-                         (#:event_json . ,event_json))
-                       result))))))))
-
-(define (db-delete-events-with-ids-<=-to id)
-  (with-db-worker-thread db
-    (exec-query/bind db "DELETE FROM Events WHERE id <= " id ";")))
 
 (define (db-get-pending-derivations)
   "Return the list of derivation file names corresponding to pending builds in
