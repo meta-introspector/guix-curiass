@@ -38,6 +38,8 @@
             channel->sexp
             sexp->channel*
 
+            %build-types
+
             specification
             specification?
             specification-name
@@ -135,11 +137,15 @@
 ;;; Specification record.
 ;;;
 
+;; The list of possible build types.
+(define %build-types
+  '(all core guix hello packages manifests))
+
 (define-record-type* <specification>
   specification make-specification
   specification?
   (name               specification-name) ;symbol
-  (build              specification-build ;symbol
+  (build              specification-build ;symbol for %build-types
                       (default 'all))
   (channels           specification-channels ;list of <channel>
                       (default (list %default-guix-channel)))
