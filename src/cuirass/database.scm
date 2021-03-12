@@ -651,11 +651,13 @@ WHERE job_name  = " job-name "AND specification = " specification
        (string->number time))
       (else #f))))
 
-(define (db-get-build-percentages build-ids)
-  (define builds
+(define (db-get-build-percentages builds)
+  (define build-ids
     (format #f "{~a}"
             (string-join
-             (map number->string build-ids) ",")))
+             (map number->string
+                  (map (cut assq-ref <> #:id) builds))
+             ",")))
 
   (with-db-worker-thread db
     (let loop ((rows
@@ -665,7 +667,7 @@ FROM (SELECT  DISTINCT ON (b1.id) b1.id AS id,
 GREATEST((b2.stoptime - b2.starttime), 1) AS last_duration,
 (extract(epoch from now())::int - b1.starttime) AS duration FROM builds AS b1
 LEFT JOIN builds AS b2 ON b1.job_name = b2.job_name WHERE b1.id IN
-(SELECT id FROM builds WHERE id = ANY(" builds "))
+(SELECT id FROM builds WHERE id = ANY(" build-ids "))
 AND b2.status >= 0 ORDER BY b1.id,  b2.id DESC) d;"))
                (percentages '()))
       (match rows

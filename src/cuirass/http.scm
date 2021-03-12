@@ -862,7 +862,7 @@ into a specification record and return it."
               (builds*
                (map (lambda (build percentage)
                       `(,@build
-                        #:percentage . ,percentage))
+                        (#:percentage . ,percentage)))
                     builds percentages)))
          (workers-status workers builds*))
        '())))
