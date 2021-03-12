@@ -299,7 +299,8 @@ the existing SPEC otherwise."
                                 (id "channel-name")
                                 (name "channel-name")
                                 (placeholder "name")
-                                (value ,name))))
+                                (value ,name)
+                                (required))))
                        (div (@ (class "col-sm-4"))
                             (input
                              (@ (type "text")
@@ -307,7 +308,8 @@ the existing SPEC otherwise."
                                 (id "channel-url")
                                 (name "channel-url")
                                 (placeholder "url")
-                                (value ,url))))
+                                (value ,url)
+                                (required))))
                        (div (@ (class "col-sm-2"))
                             (input
                              (@ (type "text")
@@ -315,7 +317,8 @@ the existing SPEC otherwise."
                                 (id "channel-branch")
                                 (name "channel-branch")
                                 (placeholder "branch")
-                                (value ,branch))))
+                                (value ,branch)
+                                (required))))
                        ,@(if first-row?
                              '((a (@ (class "btn btn-success add-channel")
                                       (href "#")
@@ -362,8 +365,36 @@ $('.add-channel').click(function() {
   });
   clone.appendTo('.channels');
 });
-})")
+var cbs = $('.system');
+cbs.change(function(){
+  if(cbs.is(':checked')) {
+    cbs.removeAttr('required');
+  } else {
+    cbs.attr('required', 'required');
+  }
+});
+var checked_cbs = $('.system:checkbox:checked').length;
+if (checked_cbs == 0) {
+  cbs.attr('required', 'required');
+}
+
+(function () {
+  'use strict'
+  var forms = document.querySelectorAll('.needs-validation')
+  Array.prototype.slice.call(forms)
+    .forEach(function (form) {
+      form.addEventListener('submit', function (event) {
+        if (!form.checkValidity()) {
+          event.preventDefault()
+          event.stopPropagation()
+        }
+        form.classList.add('was-validated')
+      }, false)
+    })
+})();
+});")
       (form (@ (id "add-specification")
+               (class "needs-validation")
                ,@(if spec
                      '((action "/admin/specification/edit"))
                      '((action "/admin/specification/add")))
@@ -380,7 +411,8 @@ $('.add-channel').click(function() {
                                 (value ,(or name ""))
                                 ,@(if spec
                                       '((readonly))
-                                      '())))))
+                                      '())
+                                (required)))))
             (div (@ (class "form-group row"))
                  (label (@ (for "build")
                            (class "col-sm-2 col-form-label"))
@@ -408,6 +440,8 @@ $('.add-channel').click(function() {
                           (class "form-control")
                           (id "priority")
                           (name "priority")
+                          (min 0)
+                          (max 9)
                           (value ,(or priority 9))))))
             (div (@ (class "form-group row"))
                  (label (@ (for "systems")
@@ -415,7 +449,7 @@ $('.add-channel').click(function() {
                         "Systems")
                  ,@(map (lambda (system)
                           `(div (@ (class "form-check form-check-inline"))
-                                (input (@ (class "form-check-input")
+                                (input (@ (class "form-check-input system")
                                           (type "checkbox")
                                           (id ,system)
                                           (name ,system)
