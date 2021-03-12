@@ -145,8 +145,6 @@ exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
           (run-fibers
            (lambda ()
              (with-database
-                 (parameterize (((@@ (fibers internal) current-fiber) #f))
-                   (start-notification-thread))
                  (and specfile
                       (for-each db-add-or-update-specification
                                 (read-specifications specfile)))
@@ -175,6 +173,9 @@ exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
                                  (sleep 600))))))
 
                          (begin
+                           (parameterize (((@@ (fibers internal)
+                                               current-fiber) #f))
+                             (start-notification-thread))
                            (clear-build-queue)
 
                            ;; If Cuirass was stopped during an evaluation,
