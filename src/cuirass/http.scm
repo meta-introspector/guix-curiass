@@ -857,15 +857,13 @@ into a specification record and return it."
       (html-page
        "Workers status"
        (let* ((workers (db-get-workers))
-              (builds  (db-get-builds `((status . started)
-                                        (order . status+submission-time))))
-              (builds* (map (lambda (build)
-                              (let* ((id (assoc-ref build #:id))
-                                     (percentage
-                                      (db-get-build-percentage id)))
-                                `(,@build
-                                  (#:percentage . ,percentage))))
-                            builds)))
+              (builds (db-worker-current-builds))
+              (percentages (db-get-build-percentages builds))
+              (builds*
+               (map (lambda (build percentage)
+                      `(,@build
+                        #:percentage . ,percentage))
+                    builds percentages)))
          (workers-status workers builds*))
        '())))
 

@@ -450,7 +450,7 @@ timestamp, checkouttime, evaltime) VALUES ('guix', 0, 0, 0, 0);")
                                       #:outputs `(("out" . "/bar"))))
       (sort (db-get-pending-derivations) string<?)))
 
-  (test-assert "db-get-build-percentage"
+  (test-assert "db-get-build-percentages"
     (begin
       (let* ((ts (time-second (current-time time-utc)))
              (old `((#:derivation . "/last.drv")
@@ -479,7 +479,9 @@ timestamp, checkouttime, evaltime) VALUES ('guix', 0, 0, 0, 0);")
                (match (expect-one-row
                        (exec-query (%db) "SELECT MAX(id) FROM Builds;"))
                  ((id) (string->number id)))))
-          (>= (db-get-build-percentage last-id) 50)))))
+          (match (db-get-build-percentages (list last-id))
+            ((percentage)
+             (>= percentage 50)))))))
 
   (test-equal "db-update-build-status!"
     (list #f 1)
@@ -596,6 +598,22 @@ timestamp, checkouttime, evaltime) VALUES ('guix', 0, 0, 0, 0);")
       (match (assq-ref (db-get-build name) #:buildproducts)
         ((product)
          (equal? (assq-ref product #:path) (getcwd))))))
+
+  (test-assert "db-worker-current-builds"
+    (begin
+      (let ((drv-1
+             (db-add-build (make-dummy-build "/build-1.drv")))
+            (drv-2
+             (db-add-build (make-dummy-build "/build-2.drv"))))
+        (db-add-or-update-worker %dummy-worker)
+        (db-update-build-worker! drv-1 "worker")
+        (db-update-build-worker! drv-2 "worker")
+        (db-update-build-status! drv-1 (build-status started))
+        (db-update-build-status! drv-2 (build-status started))
+        (match (db-worker-current-builds)
+          ((build)
+           (eq? (assq-ref (db-get-build drv-2) #:id)
+                (assq-ref build #:id)))))))
 
   (test-assert "db-close"
     (begin

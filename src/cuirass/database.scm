@@ -67,7 +67,7 @@
             db-get-output
             db-get-outputs
             db-get-time-since-previous-build
-            db-get-build-percentage
+            db-get-build-percentages
             db-register-builds
             db-update-build-status!
             db-update-build-worker!
@@ -100,6 +100,7 @@
             db-add-or-update-worker
             db-get-worker
             db-get-workers
+            db-worker-current-builds
             db-remove-unresponsive-workers
             db-clear-workers
             db-clear-build-queue
@@ -650,24 +651,28 @@ WHERE job_name  = " job-name "AND specification = " specification
        (string->number time))
       (else #f))))
 
-(define (db-get-build-percentage build-id)
-  "Return the build completion percentage for BUILD-ID."
+(define (db-get-build-percentages build-ids)
+  (define builds
+    (format #f "{~a}"
+            (string-join
+             (map number->string build-ids) ",")))
+
   (with-db-worker-thread db
-    (match (expect-one-row
-            (exec-query/bind db "
-SELECT LEAST(duration::float/last_duration * 100, 100)::int AS percentage FROM
-(SELECT (extract(epoch from now())::int - starttime) as duration,
-last_build.duration AS last_duration FROM builds,
-(SELECT GREATEST((stoptime - starttime), 1) AS duration FROM Builds
-WHERE job_name IN
-(SELECT job_name from Builds WHERE id = " build-id ")
-AND status >= 0
-ORDER BY Builds.timestamp DESC LIMIT 1) last_build
-where id = " build-id ") d;
-"))
-      ((time)
-       (string->number time))
-      (else #f))))
+    (let loop ((rows
+                (exec-query/bind db "
+SELECT LEAST(duration::float/last_duration * 100, 100)::int AS percentage
+FROM (SELECT  DISTINCT ON (b1.id) b1.id AS id,
+GREATEST((b2.stoptime - b2.starttime), 1) AS last_duration,
+(extract(epoch from now())::int - b1.starttime) AS duration FROM builds AS b1
+LEFT JOIN builds AS b2 ON b1.job_name = b2.job_name WHERE b1.id IN
+(SELECT id FROM builds WHERE id = ANY(" builds "))
+AND b2.status >= 0 ORDER BY b1.id,  b2.id DESC) d;"))
+               (percentages '()))
+      (match rows
+        (() (reverse percentages))
+        (((percentage) . rest)
+         (loop rest
+               (cons (string->number percentage) percentages)))))))
 
 (define (db-register-builds jobs eval-id specification)
   (define (new-outputs? outputs)
@@ -1449,6 +1454,23 @@ SELECT name, address, machine, systems, last_seen from Workers"))
                       (systems (string-split systems #\,))
                       (last-seen (string->number last-seen)))
                      workers)))))))
+
+(define (db-worker-current-builds)
+  "Return the list of builds that are been built on the available workers.
+Multiple builds can be marked as started on the same worker if the fetching
+workers do not keep up.  Only pick the build with the latest start time."
+  (with-db-worker-thread db
+    (let loop ((rows (exec-query db "
+SELECT DISTINCT ON (name) name, builds.id FROM Workers
+INNER JOIN Builds ON workers.name = builds.worker
+AND Builds.status = -1 ORDER BY name,
+Builds.starttime DESC, Builds.id DESC;"))
+               (builds '()))
+      (match rows
+        (() (reverse builds))
+        (((name id) . rest)
+         (loop rest
+               (cons (db-get-build (string->number id)) builds)))))))
 
 (define (db-remove-unresponsive-workers timeout)
   "Remove the workers that are unresponsive since at least TIMEOUT seconds.
