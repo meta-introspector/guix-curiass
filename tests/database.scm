@@ -20,7 +20,8 @@
 ;;; You should have received a copy of the GNU General Public License
 ;;; along with Cuirass.  If not, see <http://www.gnu.org/licenses/>.
 
-(use-modules (cuirass database)
+(use-modules (cuirass base)
+             (cuirass database)
              (cuirass notification)
              (cuirass parameters)
              (cuirass remote)
@@ -584,6 +585,17 @@ timestamp, checkouttime, evaltime) VALUES ('guix', 0, 0, 0, 0);")
         ((notif . notif-build)
          (and (email? notif)
               (equal? build notif-build))))))
+
+  (test-assert "set-build-successful!"
+    (let* ((name "/foo5.drv")
+           (build
+            (make-dummy-build name #:outputs `(("out" . ,(getcwd)))))
+           (drv (assq-ref build #:derivation)))
+      (db-add-build build)
+      (set-build-successful! drv)
+      (match (assq-ref (db-get-build name) #:buildproducts)
+        ((product)
+         (equal? (assq-ref product #:path) (getcwd))))))
 
   (test-assert "db-close"
     (begin

@@ -596,7 +596,7 @@ by BUILD-OUTPUTS."
   (define* (find-product build build-output)
     (let* ((outputs (assq-ref build #:outputs))
            (output (build-output-output build-output))
-           (path (build-output-path build-output-path))
+           (path (build-output-path build-output))
            (root (and=> (assoc-ref outputs output)
                         (cut assq-ref <> #:path))))
       (and root
@@ -615,7 +615,7 @@ by BUILD-OUTPUTS."
                   (log-message "Adding build product ~a" product)
                   (db-add-build-product
                    `((#:build . ,(assq-ref build #:id))
-                     (#:type . ,(build-output-type build-output-type))
+                     (#:type . ,(build-output-type build-output))
                      (#:file-size . ,(file-size product))
                      ;; TODO: Implement it.
                      (#:checksum . "")
