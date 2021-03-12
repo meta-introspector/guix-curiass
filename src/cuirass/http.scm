@@ -366,7 +366,7 @@ into a specification record and return it."
                  (assq-ref params 'build)))
          (channels (map (lambda (name url branch)
                           (channel
-                           (name name)
+                           (name (string->symbol name))
                            (url (uri-decode url))
                            (branch branch)))
                         (filter-field 'channel-name)
