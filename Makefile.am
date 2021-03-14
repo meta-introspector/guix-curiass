@@ -24,7 +24,6 @@
 
 bin_SCRIPTS =                    \
   bin/cuirass      	  	 \
-  bin/cuirass-send-events 	 \
   bin/evaluate      		 \
   bin/remote-server		 \
   bin/remote-worker
@@ -62,7 +61,6 @@ dist_pkgmodule_DATA =				\
   src/cuirass/remote-server.scm			\
   src/cuirass/remote-worker.scm			\
   src/cuirass/rss.scm				\
-  src/cuirass/send-events.scm			\
   src/cuirass/specification.scm			\
   src/cuirass/ui.scm				\
   src/cuirass/utils.scm		                \
@@ -161,7 +159,6 @@ CLEANFILES =					\
 EXTRA_DIST = \
   .dir-locals.el \
   bin/cuirass.in \
-  bin/cuirass-send-events.in \
   bin/evaluate.in \
   bin/remote-server.in \
   bin/remote-worker.in \
@@ -223,7 +220,6 @@ generate_file = \
 # These files depend on Makefile so they are rebuilt if $(VERSION),
 # $(datadir) or other do_subst'ituted variables change.
 bin/cuirass: $(srcdir)/bin/cuirass.in
-bin/cuirass-send-events: $(srcdir)/bin/cuirass-send-events.in
 bin/evaluate: $(srcdir)/bin/evaluate.in
 bin/remote-server: $(srcdir)/bin/remote-server.in
 bin/remote-worker: $(srcdir)/bin/remote-worker.in

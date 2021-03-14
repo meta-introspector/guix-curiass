@@ -10,7 +10,6 @@
 /aclocal.m4
 /autom4te.cache/
 /bin/cuirass
-/bin/cuirass-send-events
 /bin/evaluate
 /bin/remote-server
 /bin/remote-worker
