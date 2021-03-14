@@ -139,7 +139,7 @@
 
 ;; The list of possible build types.
 (define %build-types
-  '(all core guix hello packages manifests))
+  '(all core guix hello channels packages manifests))
 
 (define-record-type* <specification>
   specification make-specification
