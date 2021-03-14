@@ -127,6 +127,11 @@ pull} command.
 @item @code{hello}
 Build only the hello package.
 
+@item @code{(channels . list)}
+Build only the packages that are part of the given channel
+@code{list}.  For instance, @code{(channels my-channel)} will only
+build the packages that are part of @code{my-channel} channel.
+
 @item @code{(packages . list)}
 Build only the specified packages in @code{list}.  For instance,
 @code{(packages "strace" "perf")} will only build the packages
