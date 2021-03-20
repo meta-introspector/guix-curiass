@@ -526,8 +526,18 @@ into a specification record and return it."
 
     (('POST "admin" "specification" "edit")
      (let* ((spec (body->specification body))
-            (name (specification-name spec)))
-       (db-add-or-update-specification spec)
+            (name (specification-name spec))
+            (old-spec (db-get-specification name))
+            (old-outputs (specification-build-outputs old-spec))
+            (old-notifications (specification-notifications old-spec)))
+       ;; XXX: It is not possible yet to edit build outputs and notifications
+       ;; using the web interface.  Use the outputs and notifications from the
+       ;; existing specification.
+       (db-add-or-update-specification
+        (specification
+         (inherit spec)
+         (build-outputs old-outputs)
+         (notifications old-notifications)))
        (respond
         (build-response #:code 302
                         #:headers
