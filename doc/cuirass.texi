@@ -138,10 +138,10 @@ Build only the specified packages in @code{list}.  For instance,
 @code{strace} and @code{perf}.
 
 @item @code{(manifests . list)}
-Build only the packages that are part of the manifest @code{list}.
-For instance, @code{(manifests . ((my-channel . "etc/manifest")))}
-will only build the packages that are part of the @code{etc/manifest}
-file in the @code{my-channel} channel.
+Build only the packages that are part of the manifests @code{list}.
+For instance, @code{(manifests "etc/manifest")} will only build the
+packages that are part of the @code{etc/manifest} file.  This file
+must be provided by exactly one of the channels defined below.
 
 @end itemize
 
@@ -173,7 +173,14 @@ The build output path within the job, as a string.
 @end table
 @end deftp
 
-For instance,
+For instance, let's consider the @code{binary-tarball.x86_64-linux}
+job which produces the following output:
+@code{/gnu/store/xxx-guix-binary.tar.xz}.
+
+The build output definition below will save the root element
+(@code{""}) of the @code{"out"} output of the
+@code{"binary-tarball.x86_64-linux"} job---i.e., the
+@code{"xxx-guix-binary.tar.xz"} file.
 
 @lisp
 (build-output
@@ -183,14 +190,6 @@ For instance,
  (path ""))
 @end lisp
 
-let's consider the @code{binary-tarball.x86_64-linux} job which
-produces the following output:
-@code{/gnu/store/xxx-guix-binary.tar.xz}.
-
-The build output definition above will save the root element
-(@code{""}) of the @code{"out"} output of the
-@code{"binary-tarball.x86_64-linux"} job---i.e., the
-@code{"xxx-guix-binary.tar.xz"} file.
 
 @item @code{notifications} (default: @code{()})
 The list of build notifications that must be sent.  For instance:
@@ -1088,6 +1087,24 @@ This text field holds the build product checksum.
 
 @item path
 This text field holds the build product absolute store path.
+
+@end table
+
+@section Notifications
+@cindex notifications, database
+
+This table contains the notifications that are queued for sending.
+
+@table @code
+@item id
+This is an automatically incrementing numeric identifier.
+
+@item type
+This text field holds the SEXP representation of the notification.
+
+@item build
+This integer fields references the build id associated with the
+notification.
 
 @end table
 
