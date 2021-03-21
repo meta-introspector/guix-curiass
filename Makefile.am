@@ -87,6 +87,7 @@ dist_sql_DATA = 				\
   src/sql/upgrade-1.sql
 
 dist_css_DATA =					\
+  src/static/css/choices.min.css		\
   src/static/css/cuirass.css			\
   src/static/css/bootstrap.css			\
   src/static/css/open-iconic-bootstrap.css
@@ -101,6 +102,7 @@ dist_images_DATA =				\
   src/static/images/icon.png
 dist_js_DATA =					\
   src/static/js/chart.js                        \
+  src/static/js/choices.min.js                  \
   src/static/js/jquery-3.6.0.min.js
 
 TEST_EXTENSIONS = .scm .sh

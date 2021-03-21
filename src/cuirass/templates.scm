@@ -120,6 +120,8 @@ system whose names start with " (code "guile-") ":" (br)
           (link (@ (rel "stylesheet")
                    (href "/static/css/open-iconic-bootstrap.css")))
           (link (@ (rel "stylesheet")
+                   (href "/static/css/choices.min.css")))
+          (link (@ (rel "stylesheet")
                    (href "/static/css/cuirass.css")))
           (link (@ (rel "icon") (type "image/png")
                    (href "/static/images/icon.png")))
@@ -239,8 +241,11 @@ system whose names start with " (code "guile-") ":" (br)
                    `(tr (td (a (@ (href "/jobset/"
                                         ,(specification-name spec)))
                                ,(specification-name spec)))
-                        (td ,(symbol->string
-                              (specification-build spec)))
+                        (td ,(match (specification-build spec)
+                               ((? symbol? build)
+                                (symbol->string build))
+                               ((build _ ...)
+                                (symbol->string build))))
                         (td ,(string-join
                               (map (lambda (channel)
                                      (format #f "~a (on ~a)"
@@ -295,8 +300,7 @@ the existing SPEC otherwise."
                        (div (@ (class "col-sm-2"))
                             (input
                              (@ (type "text")
-                                (class "form-control")
-                                (id "channel-name")
+                                (class "form-control channel-name")
                                 (name "channel-name")
                                 (placeholder "name")
                                 (value ,name)
@@ -304,8 +308,7 @@ the existing SPEC otherwise."
                        (div (@ (class "col-sm-4"))
                             (input
                              (@ (type "text")
-                                (class "form-control")
-                                (id "channel-url")
+                                (class "form-control channel-url")
                                 (name "channel-url")
                                 (placeholder "url")
                                 (value ,url)
@@ -313,21 +316,20 @@ the existing SPEC otherwise."
                        (div (@ (class "col-sm-2"))
                             (input
                              (@ (type "text")
-                                (class "form-control")
-                                (id "channel-branch")
+                                (class "form-control channel-branch")
                                 (name "channel-branch")
                                 (placeholder "branch")
                                 (value ,branch)
                                 (required))))
                        ,@(if first-row?
                              '((a (@ (class "btn btn-success add-channel")
-                                      (href "#")
-                                      (role "button"))
-                                   "Add"))
+                                     (href "#")
+                                     (role "button"))
+                                  "Add"))
                              '((a (@ (class "btn btn-danger remove-channel")
-                                      (href "#")
-                                      (role "button"))
-                                   "Remove"))))
+                                     (href "#")
+                                     (role "button"))
+                                  "Remove"))))
                  html)))
             '()
             channels)))
@@ -336,7 +338,9 @@ the existing SPEC otherwise."
          (list first `(div (@ (class "channels")) ,@rest))))))
 
   (let ((name (and spec (specification-name spec)))
-        (build (and spec (specification-build spec)))
+        (build (and spec (match (specification-build spec)
+                           ((? symbol? build) build)
+                           ((build _ ...) build))))
         (channels (and spec (specification-channels spec)))
         (priority (and spec (specification-priority spec)))
         (systems (and spec (specification-systems spec))))
@@ -346,6 +350,7 @@ the existing SPEC otherwise."
               (format #f "Edit ~a specification" name)
               "Create a new specification"))
       (script (@ (src "/static/js/jquery-3.6.0.min.js")))
+      (script (@ (src "/static/js/choices.min.js")))
       (script "
 $(document).ready(function() {
 var counter = 0;
@@ -392,6 +397,51 @@ if (checked_cbs == 0) {
       }, false)
     })
 })();
+
+const select_choices = new Choices($('.build-param-select')[0], {
+  removeItemButton: true,
+  duplicateItemsAllowed: false,
+});
+const input_choices = new Choices($('.build-param-input')[0], {
+  removeItemButton: true,
+  duplicateItemsAllowed: false,
+});
+$('.build-param-select').on('showDropdown', function() {
+  var names = $('.channel-name').map(function() {
+    var name = $(this).val();
+    return { 'value': name, 'label': name};
+  }).toArray();
+  select_choices.setChoices(names, 'value', 'label', true);
+});
+var param_select = $('.build-select');
+var param_select_cb = function(){
+  var val = param_select.val();
+  if (['packages', 'manifests'].indexOf(val) >= 0) {
+    input_choices.clearStore();
+    $('.param-input-row').show();
+  } else {
+    $('.param-input-row').hide();
+  }
+
+  if (['channels'].indexOf(val) >= 0) {
+    $('.param-select-row').show();
+  } else {
+    $('.param-select-row').hide();
+  }
+};
+param_select_cb();
+param_select.change(param_select_cb);
+
+const default_param = $('.default-build-param');
+if (default_param.length) {
+var items = default_param.text().split(',').map(function(name) {
+  return { 'value': name, 'label': name, selected: true};
+});
+if ($('.param-select-row').is(':visible')) {
+  select_choices.setChoices(items, 'value', 'label', true);
+} else if ($('.param-input-row').is(':visible')) {
+  input_choices.setValue(items);
+}}
 });")
       (form (@ (id "add-specification")
                (class "needs-validation")
@@ -419,7 +469,7 @@ if (checked_cbs == 0) {
                         "Build")
                  (div (@ (class "col-sm-4"))
                       (select
-                       (@ (class "form-control")
+                       (@ (class "form-control build-select")
                           (id "build")
                           (name "build"))
                        ,@(map (lambda (type)
@@ -428,6 +478,35 @@ if (checked_cbs == 0) {
                                                   '()))
                                          ,(symbol->string type)))
                               %build-types))))
+            ,(if spec
+                 (match (specification-build spec)
+                   ((build . rest)
+                    `((span (@ (class "default-build-param")
+                               (hidden "true"))
+                            ,(string-join
+                              (map (lambda (param)
+                                     (if (symbol? param)
+                                         (symbol->string param)
+                                         param))
+                                   rest)
+                              ","))))
+                   (else ""))
+                 '())
+            (div (@ (class "form-group row param-select-row"))
+                 (label (@(class "col-sm-2 col-form-label"))
+                        "Parameter")
+                 (div (@ (class "col-sm-4"))
+                      (select (@ (type "text")
+                                 (class "form-control build-param-select")
+                                 (name "param-select")
+                                 (multiple)))))
+            (div (@ (class "form-group row param-input-row"))
+                 (label (@(class "col-sm-2 col-form-label"))
+                        "Parameter")
+                 (div (@ (class "col-sm-4"))
+                      (input (@ (type "text")
+                                (name "param-input")
+                                (class "form-control build-param-input")))))
             ,@(channels->html
                (if spec channels (list %default-guix-channel)))
             (div (@ (class "form-group row"))

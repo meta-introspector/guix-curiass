@@ -77,6 +77,7 @@
 
 (define %file-white-list
   '("css/bootstrap.css"
+    "css/choices.min.css"
     "css/cuirass.css"
     "css/open-iconic-bootstrap.css"
     "fonts/open-iconic.otf"
@@ -84,7 +85,8 @@
     "images/icon.png"
     "images/guix.png"
     "js/chart.js"
-    "js/jquery-3.6.0.min.js"))
+    "js/jquery-3.6.0.min.js"
+    "js/choices.min.js"))
 
 (define (build->hydra-build build)
   "Convert BUILD to an assoc list matching hydra API format."
@@ -364,6 +366,14 @@ into a specification record and return it."
          (name (assq-ref params 'name))
          (build (string->symbol
                  (assq-ref params 'build)))
+         (build-params (or (and (assq-ref params 'param-select)
+                                (map string->symbol
+                                     (filter-field 'param-select)))
+                           (let ((param (assq-ref params 'param-input)))
+                             (and param
+                                  (not (string=? param ""))
+                                  (string-split
+                                   (uri-decode param) #\,)))))
          (channels (map (lambda (name url branch)
                           (channel
                            (name (string->symbol name))
@@ -383,7 +393,9 @@ into a specification record and return it."
                    %cuirass-supported-systems)))
     (specification
      (name name)
-     (build build)
+     (build (if build-params
+                (cons build build-params)
+                build))
      (channels channels)
      (priority priority)
      (systems systems))))
