@@ -43,8 +43,6 @@
 ;; passed on the standard input to the following file.
 (define tmp-mail ".tmp-mail")
 
-(false-if-exception (delete-file tmp-mail))
-
 (define example-spec
   (specification
    (name "guix")
@@ -614,5 +612,6 @@ timestamp, checkouttime, evaltime) VALUES ('guix', 0, 0, 0, 0);")
 
   (test-assert "db-close"
     (begin
+      (false-if-exception (delete-file tmp-mail))
       (db-close (%db))
       #t)))
