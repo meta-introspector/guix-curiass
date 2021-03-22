@@ -125,7 +125,6 @@ TESTS = \
   tests/database.scm \
   tests/http.scm \
   tests/metrics.scm \
-  tests/ui.scm \
   tests/utils.scm
 
 # Unset 'GUILE_LOAD_COMPILED_PATH' altogether while compiling.  Otherwise, if
