@@ -1,3 +1,10 @@
+-*- mode: org; coding: utf-8; -*-
+
+#+TITLE: What's left to do?
+#+STARTUP: content hidestars
+
+Copyright © 2021 Mathieu Othacehe <othacehe@gnu.org>
+
 * Add "BuildSteps" table like in Hydra.
 This will prevent package dependencies to be built multiple times.
 
@@ -7,15 +14,8 @@ This will prevent package dependencies to be built multiple times.
 - Write test cases covering workers disconnection and reconnection.
 - Write test cases covering build timeout.
 
-* Improve the "/workers" page.
-- Add build machines status (CPU, RAM) usage.
-- The opensuse monitor page could be a good model:
-  https://build.opensuse.org/monitor.
-
 * Add new metrics.
 - Add "build speed per machine" and "idle time per machine" metrics.
-
-* Report build failures by email/RSS.
 
 * Add a user account section.
 - Add customized monitoring dashboards.
