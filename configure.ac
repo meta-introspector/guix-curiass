@@ -2,7 +2,7 @@
 
 # Copyright © 2016, 2017 Mathieu Lirzin <mthl@gnu.org>
 # Copyright © 2017, 2018, 2020 Ludovic Courtès <ludo@gnu.org>
-# Copyright © 2017 Mathieu Othacehe <m.othacehe@gmail.com>
+# Copyright © 2017 Mathieu Othacehe <othacehe@gnu.org>
 #
 # This file is part of Cuirass.
 #
