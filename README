@@ -24,7 +24,7 @@ A convenient way to install those dependencies is to install Guix and execute
 the following command:
 
 #+BEGIN_EXAMPLE
-   $ guix environment cuirass
+  guix environment cuirass
 #+END_EXAMPLE
 
 This will build and enter an environment which provides all the necessary
@@ -36,7 +36,7 @@ When all the dependencies are available on you system, in order to build
 Cuirass, you can proceed with the usual:
 
 #+BEGIN_EXAMPLE
-   $ ./bootstrap && ./configure && make
+  ./bootstrap && ./configure && make
 #+END_EXAMPLE
 
 * Database connection
@@ -72,7 +72,7 @@ Ephemeral PostgreSQL package.  The =pg_tmp= script needs to be part of the
 path before running the usual:
 
 #+BEGIN_EXAMPLE
-make check
+  make check
 #+END_EXAMPLE
 
 * Example
