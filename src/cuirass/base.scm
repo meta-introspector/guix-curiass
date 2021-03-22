@@ -273,7 +273,8 @@ Return a list of jobs that are associated to EVAL-ID."
   (let* ((port (non-blocking-port
                 (with-error-to-port (cdr log-pipe)
                   (lambda ()
-                    (open-pipe* OPEN_READ "evaluate"
+                    (open-pipe* OPEN_READ "cuirass"
+                                "evaluate"
                                 (%package-database)
                                 (object->string eval-id))))))
          (result (match (read/non-blocking port)
@@ -665,6 +666,12 @@ by BUILD-OUTPUTS."
      (when (or directory file)
        (set-tls-certificate-locations! directory file)))))
 
+(define (latest-channel-instances* . args)
+  (parameterize ((current-output-port (%make-void-port "w"))
+                 (current-error-port (%make-void-port "w"))
+                 (guix-warning-port (%make-void-port "w")))
+    (apply latest-channel-instances args)))
+
 (define (process-specs jobspecs)
   "Evaluate and build JOBSPECS and store results in the database."
   (define (process spec)
@@ -673,8 +680,9 @@ by BUILD-OUTPUTS."
              (timestamp (time-second (current-time time-utc)))
              (channels (specification-channels spec))
              (instances (non-blocking
-                         (latest-channel-instances store channels
-                                                   #:authenticate? #f)))
+                         (log-message "Fetching channels for spec '~a'." name)
+                         (latest-channel-instances* store channels
+                                                    #:authenticate? #f)))
              (checkouttime (time-second (current-time time-utc)))
              (eval-id (db-add-evaluation name instances
                                          #:timestamp timestamp

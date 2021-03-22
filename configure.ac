@@ -23,7 +23,7 @@ AC_PREREQ([2.61])
 AC_INIT([Cuirass],
   m4_esyscmd([build-aux/git-version-gen .tarball-version]),
   [bug-guix@gnu.org], [cuirass],
-  [https://www.gnu.org/software/guix/])
+  [https://guix.gnu.org/en/cuirass/])
 AC_CONFIG_SRCDIR([bin/cuirass.in])
 AC_CONFIG_AUX_DIR([build-aux])
 AC_REQUIRE_AUX_FILE([git-version-gen])

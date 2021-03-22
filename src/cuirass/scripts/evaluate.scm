@@ -1,8 +1,3 @@
-#!/bin/sh
-# -*- scheme -*-
-# @configure_input@
-exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
-!#
 ;;;; evaluate -- convert a specification to a job list
 ;;; Copyright © 2016, 2018 Ludovic Courtès <ludo@gnu.org>
 ;;; Copyright © 2016, 2017 Mathieu Lirzin <mthl@gnu.org>
@@ -24,21 +19,22 @@ exec ${GUILE:-@GUILE@} --no-auto-compile -e main -s "$0" "$@"
 ;;; You should have received a copy of the GNU General Public License
 ;;; along with Cuirass.  If not, see <http://www.gnu.org/licenses/>.
 
-
-(use-modules (cuirass database)
-             (cuirass specification)
-             (guix channels)
-             (guix derivations)
-             (guix inferior)
-             (guix licenses)
-             (guix monads)
-             (guix store)
-             (guix ui)
-             (guix utils)
-             (srfi srfi-1)
-             (ice-9 match)
-             (ice-9 pretty-print)
-             (ice-9 threads))
+(define-module (cuirass scripts evaluate)
+  #:use-module (cuirass database)
+  #:use-module (cuirass specification)
+  #:use-module (guix channels)
+  #:use-module (guix derivations)
+  #:use-module (guix inferior)
+  #:use-module (guix licenses)
+  #:use-module (guix monads)
+  #:use-module (guix store)
+  #:use-module (guix ui)
+  #:use-module (guix utils)
+  #:use-module (srfi srfi-1)
+  #:use-module (ice-9 match)
+  #:use-module (ice-9 pretty-print)
+  #:use-module (ice-9 threads)
+  #:export (cuirass-evaluate))
 
 (define (checkouts->channel-instances checkouts)
   "Return the list of CHANNEL-INSTANCE records describing the given
@@ -94,7 +90,7 @@ of channel instances."
           (built-derivations (list profile))
           (return (derivation->output-path profile)))))))
 
-(define* (main #:optional (args (command-line)))
+(define (cuirass-evaluate args)
   "This procedure spawns an inferior on the given channels.  An evaluation
 procedure is called within that inferior, it returns a list of jobs that are
 registered in database."

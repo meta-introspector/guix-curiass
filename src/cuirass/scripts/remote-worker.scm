@@ -16,9 +16,10 @@
 ;;; You should have received a copy of the GNU General Public License
 ;;; along with GNU Guix.  If not, see <http://www.gnu.org/licenses/>.
 
-(define-module (cuirass remote-worker)
+(define-module (cuirass scripts remote-worker)
   #:use-module (cuirass base)
   #:use-module (cuirass remote)
+  #:use-module (cuirass ui)
   #:use-module (gcrypt pk-crypto)
   #:use-module (guix avahi)
   #:use-module (guix config)
@@ -49,16 +50,15 @@
   #:use-module (ice-9 atomic)
   #:use-module (ice-9 match)
   #:use-module (ice-9 threads)
-
-  #:export (remote-worker))
+  #:export (cuirass-remote-worker))
 
 ;; Indicate if the process has to be stopped.
 (define %stop-process?
   (make-atomic-box #f))
 
 (define (show-help)
-  (format #t (G_ "Usage: remote-worker [OPTION]...
-Start a remote build worker.\n"))
+  (format #t "Usage: ~a remote-worker [OPTION]...
+Start a remote build worker.\n" (%program-name))
   (display (G_ "
   -w, --workers=COUNT       start COUNT parallel workers"))
   (display (G_ "
@@ -343,15 +343,10 @@ exiting."
 
         (exit 1)))))
 
-(define (remote-worker args)
+(define (cuirass-remote-worker args)
   (signal-handler)
-
-  ;; Always have stdout/stderr line-buffered.
-  (setvbuf (current-output-port) 'line)
-  (setvbuf (current-error-port) 'line)
-
   (with-error-handling
-    (let* ((opts (args-fold* args %options
+    (let* ((opts (args-fold* (cdr args) %options
                              (lambda (opt name arg result)
                                (leave (G_ "~A: unrecognized option~%") name))
                              (lambda (arg result)

@@ -16,11 +16,12 @@
 ;;; You should have received a copy of the GNU General Public License
 ;;; along with GNU Guix.  If not, see <http://www.gnu.org/licenses/>.
 
-(define-module (cuirass remote-server)
+(define-module (cuirass scripts remote-server)
   #:use-module (cuirass base)
   #:use-module (cuirass config)
   #:use-module (cuirass database)
   #:use-module (cuirass logging)
+  #:use-module (cuirass ui)
   #:use-module (cuirass notification)
   #:use-module (cuirass remote)
   #:use-module (cuirass utils)
@@ -59,8 +60,7 @@
   #:use-module (ice-9 rdelim)
   #:use-module (ice-9 regex)
   #:use-module (ice-9 threads)
-
-  #:export (remote-server))
+  #:export (cuirass-remote-server))
 
 ;; Indicate if the process has to be stopped.
 (define %stop-process?
@@ -88,8 +88,8 @@
   "Cuirass remote server")
 
 (define (show-help)
-  (format #t (G_ "Usage: remote-server [OPTION]...
-Start a remote build server.\n"))
+  (format #t (G_ "Usage: ~a remote-server [OPTION]...
+Start a remote build server.\n") (%program-name))
   (display (G_ "
   -b, --backend-port=PORT   listen worker connections on PORT"))
   (display (G_ "
@@ -440,15 +440,10 @@ exiting."
       (leave (G_ "user '~a' not found: ~a~%")
              user (apply format #f message args)))))
 
-(define (remote-server args)
+(define (cuirass-remote-server args)
   (signal-handler)
-
-  ;; Always have stdout/stderr line-buffered.
-  (setvbuf (current-output-port) 'line)
-  (setvbuf (current-error-port) 'line)
-
   (with-error-handling
-    (let* ((opts (args-fold* args %options
+    (let* ((opts (args-fold* (cdr args) %options
                              (lambda (opt name arg result)
                                (leave (G_ "~A: unrecognized option~%") name))
                              (lambda (arg result)

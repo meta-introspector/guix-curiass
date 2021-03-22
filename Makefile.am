@@ -23,10 +23,7 @@
 # along with Cuirass.  If not, see <http://www.gnu.org/licenses/>.
 
 bin_SCRIPTS =                    \
-  bin/cuirass      	  	 \
-  bin/evaluate      		 \
-  bin/remote-server		 \
-  bin/remote-worker
+  bin/cuirass
 
 noinst_SCRIPTS = pre-inst-env
 
@@ -58,9 +55,12 @@ dist_pkgmodule_DATA =				\
   src/cuirass/notification.scm			\
   src/cuirass/parameters.scm			\
   src/cuirass/remote.scm			\
-  src/cuirass/remote-server.scm			\
-  src/cuirass/remote-worker.scm			\
   src/cuirass/rss.scm				\
+  src/cuirass/scripts/evaluate.scm              \
+  src/cuirass/scripts/register.scm              \
+  src/cuirass/scripts/remote-server.scm         \
+  src/cuirass/scripts/remote-worker.scm         \
+  src/cuirass/scripts/web.scm                   \
   src/cuirass/specification.scm			\
   src/cuirass/ui.scm				\
   src/cuirass/utils.scm		                \
