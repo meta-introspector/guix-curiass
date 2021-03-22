@@ -1,6 +1,5 @@
-;;;; database.scm - tests for (cuirass metrics) module
-;;;
-;;; Copyright © 2020 Mathieu Othacehe <othacehe@gnu.org>
+;;; metrics.scm - tests for the (cuirass metrics) module
+;;; Copyright © 2020, 2021 Mathieu Othacehe <othacehe@gnu.org>
 ;;;
 ;;; This file is part of Cuirass.
 ;;;
@@ -60,6 +59,9 @@ INSERT INTO Evaluations (specification, status,
 timestamp, checkouttime, evaltime) VALUES ('guix', 1, 1600174547,
 1600174548, 1600174647);")
       (exec-query (%db) (format #f "\
+INSERT INTO Workers (name, address, machine, systems, last_seen) VALUES
+('worker', '10.0.0.1', 'machine', 'x86_64-linux', 0);"))
+      (exec-query (%db) (format #f "\
 INSERT INTO Builds (id, derivation, evaluation, job_name, system,
 nix_name, log, status, timestamp, starttime, stoptime) VALUES
 (1, '/gnu/store/1.drv', 2, '', '', '', '', 0, ~a, ~a, ~a);\
@@ -80,57 +82,68 @@ nix_name, log, status, timestamp, starttime, stoptime) VALUES
       (db-update-metric 'average-eval-duration-per-spec "guix")
       (db-get-metrics-with-id 'average-eval-duration-per-spec)))
 
-    (test-equal "builds-per-day"
-      1.0
-      (begin
-        (db-update-metric 'builds-per-day)
-        (db-get-metric 'builds-per-day yesterday)))
+  (test-equal "builds-per-day"
+    1.0
+    (begin
+      (db-update-metric 'builds-per-day)
+      (db-get-metric 'builds-per-day yesterday)))
 
-    (test-equal "pending-builds"
-      `((,today . 1.0))
-      (begin
-        (db-update-metric 'pending-builds)
-        (db-get-metrics-with-id 'pending-builds)))
+  (test-equal "pending-builds"
+    `((,today . 1.0))
+    (begin
+      (db-update-metric 'pending-builds)
+      (db-get-metrics-with-id 'pending-builds)))
 
-    (test-equal "new-derivations-per-day"
-      `((,yesterday . 1.0))
-      (begin
-        (db-update-metric 'new-derivations-per-day)
-        (db-get-metrics-with-id 'new-derivations-per-day)))
+  (test-equal "new-derivations-per-day"
+    `((,yesterday . 1.0))
+    (begin
+      (db-update-metric 'new-derivations-per-day)
+      (db-get-metrics-with-id 'new-derivations-per-day)))
 
-    (test-equal "percentage-failed-eval-per-spec"
-      `(("guix" . 50.0))
-      (begin
-        (db-update-metric 'percentage-failed-eval-per-spec "guix")
-        (db-get-metrics-with-id 'percentage-failed-eval-per-spec)))
+  (test-equal "percentage-failed-eval-per-spec"
+    `(("guix" . 50.0))
+    (begin
+      (db-update-metric 'percentage-failed-eval-per-spec "guix")
+      (db-get-metrics-with-id 'percentage-failed-eval-per-spec)))
 
-    (test-equal "db-update-metrics"
-      `((,today . 2.0))
-      (begin
-        (exec-query (%db) (format #f "\
+  (test-equal "db-update-metrics"
+    `((,today . 2.0))
+    (begin
+      (exec-query (%db) (format #f "\
 INSERT INTO Builds (id, derivation, evaluation, job_name, system,
 nix_name, log, status, timestamp, starttime, stoptime) VALUES
 (4, '/gnu/store/4.drv', 1, '', '', '', '', -2, 0, 0, 0);"))
-        (db-update-metrics)
-        (db-get-metrics-with-id 'pending-builds)))
+      (db-update-metrics)
+      (db-get-metrics-with-id 'pending-builds)))
 
-    (test-equal "average-eval-build-start-time"
-      `((2 . 1000.0))
-      (begin
-        (db-update-metric 'average-eval-build-start-time 2)
-        (db-get-metrics-with-id 'average-eval-build-start-time)))
+  (test-equal "average-eval-build-start-time"
+    `((2 . 1000.0))
+    (begin
+      (db-update-metric 'average-eval-build-start-time 2)
+      (db-get-metrics-with-id 'average-eval-build-start-time)))
 
-    (test-equal "average-eval-build-complete-time"
-      `((2 . 2000.0))
-      (begin
-        (db-update-metric 'average-eval-build-complete-time 2)
-        (db-get-metrics-with-id 'average-eval-build-complete-time)))
+  (test-equal "average-eval-build-complete-time"
+    `((2 . 2000.0))
+    (begin
+      (db-update-metric 'average-eval-build-complete-time 2)
+      (db-get-metrics-with-id 'average-eval-build-complete-time)))
 
-    (test-equal "evaluation-completion-speed"
-      900.0
-      (begin
-        (db-update-metric 'evaluation-completion-speed 4)
-        (db-get-metric 'evaluation-completion-speed 4)))
+  (test-equal "evaluation-completion-speed"
+    900.0
+    (begin
+      (db-update-metric 'evaluation-completion-speed 4)
+      (db-get-metric 'evaluation-completion-speed 4)))
+
+  (test-equal "builds-per-machine"
+    1.0
+    (begin
+      (exec-query (%db) (format #f "\
+INSERT INTO Builds (id, derivation, evaluation, job_name, system,
+worker, nix_name, log, status, timestamp, starttime, stoptime) VALUES
+(5, '/gnu/store/5.drv', 2, '', '', 'worker', '', '', 0, ~a, ~a, ~a);\
+" today (+ today 1600) (+ today 2600)))
+      (db-update-metric 'builds-per-machine-per-day "machine")
+      (db-get-metric 'builds-per-machine-per-day "machine")))
 
   (test-assert "db-close"
     (begin

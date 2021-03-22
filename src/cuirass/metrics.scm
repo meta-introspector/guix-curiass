@@ -207,6 +207,26 @@ status = 0 ORDER BY id DESC" days)))
            (loop rest
                  (cons id evaluations))))))))
 
+(define (db-get-machines)
+  "Return the list of build machines."
+  (with-db-worker-thread db
+    (let ((query "SELECT DISTINCT ON (machine) machine FROM Workers"))
+      (let loop ((rows (exec-query db query))
+                 (machines '()))
+        (match rows
+          (() (reverse machines))
+          (((machine) . rest)
+           (loop rest
+                 (cons machine machines))))))))
+
+(define (db-builds-count-per-machine machine)
+  "Return the number of builds performed by MACHINE during the last day."
+  (with-db-worker-thread db
+    (return-exact
+     (exec-query/bind db "SELECT COUNT(*) FROM Workers LEFT JOIN Builds ON
+Workers.name = Builds.worker WHERE machine = " machine "AND
+to_timestamp(stoptime)::date > 'today'::date - interval '1 day'"))))
+
 
 ;;;
 ;;; Definitions.
@@ -283,7 +303,12 @@ status = 0 ORDER BY id DESC" days)))
    ;; Evaluation completion speed in builds/hour.
    (metric
     (id 'evaluation-completion-speed)
-    (compute-proc db-evaluation-completion-speed))))
+    (compute-proc db-evaluation-completion-speed))
+
+   ;; Builds count per machine during the last day.
+   (metric
+    (id 'builds-per-machine-per-day)
+    (compute-proc db-builds-count-per-machine))))
 
 (define (metric->type metric)
   "Return the index of the given METRIC in %metrics list.  This index is used
@@ -359,10 +384,8 @@ for periodical metrics for instance."
             (log-message "Updating metric ~a (~a) to ~a."
                          (symbol->string id) field value)
             (exec-query/bind db "\
-INSERT INTO Metrics (field, type, value,
-timestamp) VALUES ("
-                             field ", "
-                             (metric->type metric) ", "
+INSERT INTO Metrics (field, type, value, timestamp) VALUES ("
+                             field ", " (metric->type metric) ", "
                              value ", "
                              now ")
 ON CONFLICT ON CONSTRAINT metrics_pkey DO
@@ -377,7 +400,8 @@ UPDATE SET value = " value ", timestamp = " now ";"))
   (with-db-worker-thread db
     (let ((specifications
            (map specification-name (db-get-specifications)))
-          (evaluations (db-latest-evaluations)))
+          (evaluations (db-latest-evaluations))
+          (machines (db-get-machines)))
       (exec-query db "BEGIN TRANSACTION;")
 
       (db-update-metric 'builds-per-day)
@@ -410,5 +434,11 @@ UPDATE SET value = " value ", timestamp = " now ";"))
                   (db-update-metric
                    'evaluation-completion-speed evaluation))
                 evaluations)
+
+      ;; Update machine related metrics.
+      (for-each (lambda (machine)
+                  (db-update-metric
+                   'builds-per-machine-per-day machine))
+                machines)
 
       (exec-query db "COMMIT;"))))
