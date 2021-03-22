@@ -49,20 +49,20 @@ format described [[https://www.postgresql.org/docs/10/libpq-connect.html#LIBPQ-C
 By default, this command:
 
 #+BEGIN_EXAMPLE
-  ./pre-inst-env cuirass
+  ./pre-inst-env cuirass register
 #+END_EXAMPLE
 
 will connect using the Unix socket at =/var/run/postgresql= to the =cuirass=
 database and is equivalent to:
 
 #+BEGIN_EXAMPLE
-  ./pre-inst-env cuirass --database="dbname=cuirass host=/var/run/postgresql"
+  ./pre-inst-env cuirass register --database="dbname=cuirass host=/var/run/postgresql"
 #+END_EXAMPLE
 
 To use a TCP connection, one can use:
 
 #+BEGIN_EXAMPLE
-  ./pre-inst-env cuirass --database="host=127.0.0.1"
+  ./pre-inst-env cuirass register --database="host=127.0.0.1"
 #+END_EXAMPLE
 
 * Run tests
@@ -80,7 +80,7 @@ path before running the usual:
 A quick way to manually test Cuirass is to execute:
 
 #+BEGIN_EXAMPLE
-  ./pre-inst-env cuirass --specifications=examples/hello.scm
+  ./pre-inst-env cuirass register --specifications=examples/hello.scm
 #+END_EXAMPLE
 
 This will read the file "examples/hello.scm" which contains a list of
@@ -93,13 +93,13 @@ To resume the evaluation/build process you can execute the same command
 without the '--specifications' option:
 
 #+BEGIN_EXAMPLE
-  ./pre-inst-env cuirass
+  ./pre-inst-env cuirass register
 #+END_EXAMPLE
 
 To start the web interface run:
 
 #+BEGIN_EXAMPLE
-  ./pre-inst-env cuirass --web
+  ./pre-inst-env cuirass web
 #+END_EXAMPLE
 
 * Contributing

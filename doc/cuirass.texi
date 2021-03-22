@@ -357,26 +357,68 @@ This mode is harder to setup but scales way better. This is the build
 mode that is used on the GNU Guix build farm at
 @url{https://ci.guix.gnu.org}.
 
-It can be enabled by passing the @code{build-remote} command line
-argument, see @ref{Invocation}.
+It can be enabled this way:
+
+@itemize
+@item
+Start the @code{cuirass register} process with the @code{build-remote}
+command line argument, see @ref{Invocation}.  This way, the
+registration process does not submit the new build jobs to the local
+Guix daemon.
+
+@item
+Start the @code{cuirass remote-server} process to dispatch the build
+jobs to the connected workers.
+
+@item
+Start at least one @code{cuirass remote-worker} process on any machine
+of the local network to actually perform the builds and report their
+status.
+
+@end itemize
+
+Note that some Cuirass features are only available when using this
+build mode. That's the case for:
+
+@itemize
+@item
+The build priority support.
+
+@item
+The notification mechanism, see @ref{Notifications}.
+
+@item
+The transmission of @code{timeout} and @code{max-silent-time} package
+properties to the Guix daemon.
+
+@item
+The live build log mechanism of the Web interface.
+
+@item
+The workers status page of the Web inferface accessible at
+@url{http://cuirass-url/workers}.
+
+@end itemize
+
+The easiest way to setup such an infrastructure is to rely on the GNU
+Guix Cuirass services definitions (@pxref{Continuous Integration,
+Continuous Integration,, guix, Guix}).
 
 @c *********************************************************************
 @node Invocation
 @chapter Invocation
-@section Invoking cuirass
-@cindex invoking cuirass
 
-The usual way to invoke @code{cuirass} is as follows:
+@section Invoking cuirass register
+@cindex register
+
+The usual way to invoke @code{cuirass} registration process is as follows:
 
 @example
-cuirass --specifications @var{specs} &
-cuirass --web &
+cuirass register --specifications @var{specs}
 @end example
 
-This starts a Cuirass instance building @var{specs} and storing the
-results using the default PostgreSQL database.  The second command
-starts a Cuirass web server, on the default port, using the same
-database.
+This starts a Cuirass registration instance building @var{specs} and
+storing the results using the default PostgreSQL database.
 
 Additionally the following options can be used.
 
@@ -418,15 +460,6 @@ Those GC roots are typically stored in
 @file{/var/guix/gcroots/profiles/per-user/@var{user}/cuirass}, where @var{user} is the
 user under which Cuirass is running.
 
-@item --port=@var{num}
-@itemx -p @var{num}
-Make the HTTP interface listen on port @var{num}.  Use port 8080 by
-default.
-
-@item --listen=@var{host}
-Make the HTTP interface listen on network interface for @var{host}.  Use
-localhost by default.
-
 @item --interval=@var{n}
 @itemx -I @var{n}
 Wait @var{n} seconds between each poll.
@@ -453,7 +486,51 @@ Display the actual version of @code{cuirass}.
 Display an help message that summarize all the options provided.
 @end table
 
-@section Invoking remote-server
+@section Invoking cuirass web
+@cindex web
+
+The usual way to invoke the @code{cuirass} web server is as follows:
+
+@example
+cuirass web
+@end example
+
+This starts a Cuirass web server on the default port. Additionally the
+following options can be used.
+
+@table @code
+@item --database=@var{database}
+@itemx -D @var{database}
+Use @var{database} as the database containing the jobs and the past
+build results. Since Cuirass uses PostgreSQL as a database engine,
+@var{database} must be a string such as @code{"dbname=cuirass
+host=localhost"}.  By default, Cuirass uses the following connection
+string: @code{dbname=cuirass host=/var/run/postgresql"}.
+
+@item --parameters=@var{parameters-file}
+@itemx -P @var{parameters-file}
+Read parameters from the given @var{parameters-file}.  The supported
+parameters are described here (@pxref{Parameters}).
+
+@item --port=@var{num}
+@itemx -p @var{num}
+Make the HTTP interface listen on port @var{num}.  Use port 8080 by
+default.
+
+@item --listen=@var{host}
+Make the HTTP interface listen on network interface for @var{host}.  Use
+localhost by default.
+
+@item --version
+@itemx -V
+Display the actual version of @code{cuirass}.
+
+@item --help
+@itemx -h
+Display an help message that summarize all the options provided.
+@end table
+
+@section Invoking cuirass remote-server
 @cindex remote-server
 
 The @code{remote-server} command starts a daemon that is able to
@@ -512,7 +589,7 @@ Display the actual version of @code{cuirass}.
 Display an help message that summarize all the options provided.
 @end table
 
-@section Invoking remote-worker
+@section Invoking cuirass remote-worker
 @cindex remote-worker
 
 The @code{remote-worker} command starts a daemon that is able to
