@@ -239,7 +239,7 @@
               (test-cuirass-uri
                "/api/latestbuilds?nr=1&jobset=guix"))))
       (#(build)
-       (lset= equal? (pk build)
+       (lset= equal? build
               (json-string->scm
                (object->json-string build-query-result))))))
 

@@ -102,18 +102,6 @@
    (systems '("a" "b"))
    (last-seen 1)))
 
-(define* (retry f #:key times delay)
-  (let loop ((attempt 1))
-    (let ((result (f)))
-      (cond
-       (result result)
-       (else
-        (if (>= attempt times)
-            #f
-            (begin
-              (sleep delay)
-              (loop (+ 1 attempt)))))))))
-
 (test-group-with-cleanup "database"
   (test-assert "db-init"
     (begin

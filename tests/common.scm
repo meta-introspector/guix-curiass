@@ -23,6 +23,7 @@
   #:use-module (ice-9 popen)
   #:use-module (ice-9 rdelim)
   #:export (%db
+            retry
             test-init-db!))
 
 (define %db
@@ -35,6 +36,18 @@
          (uri (read-string pipe)))
     (close-pipe pipe)
     uri))
+
+(define* (retry f #:key times delay)
+  (let loop ((attempt 1))
+    (let ((result (f)))
+      (cond
+       (result result)
+       (else
+        (if (>= attempt times)
+            #f
+            (begin
+              (sleep delay)
+              (loop (+ 1 attempt)))))))))
 
 (define (test-init-db!)
   "Initialize the test database."

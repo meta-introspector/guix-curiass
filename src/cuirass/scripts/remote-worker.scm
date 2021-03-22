@@ -56,6 +56,13 @@
 (define %stop-process?
   (make-atomic-box #f))
 
+;; The build request period.
+(define %request-period
+  (make-parameter
+   (or (string->number
+        (getenv "REQUEST_PERIOD"))
+       10)))
+
 (define (show-help)
   (format #t "Usage: ~a remote-worker [OPTION]...
 Start a remote build worker.\n" (%program-name))
@@ -306,7 +313,7 @@ and executing them.  The worker can reply on the same socket."
               (run-command (bv->string command) server
                            #:reply (reply socket)
                            #:worker worker)))
-           (sleep 10)
+           (sleep (%request-period))
            (loop)))))
     (pid pid)))
 

@@ -67,7 +67,8 @@
   (make-atomic-box #f))
 
 (define %cache-directory
-  (make-parameter #f))
+  (make-parameter
+   (string-append (cache-directory #:ensure? #t) "/cuirass")))
 
 (define %trigger-substitute-url
   (make-parameter #f))
@@ -464,8 +465,7 @@ exiting."
             (read-file-sexp
              (assoc-ref opts 'private-key-file))))
 
-      (parameterize ((%cache-directory cache)
-                     (%log-port log-port)
+      (parameterize ((%log-port log-port)
                      (%publish-port publish-port)
                      (%trigger-substitute-url trigger-substitute-url)
                      (%package-database database)
@@ -474,6 +474,11 @@ exiting."
 
         ;; Enable core dump generation.
         (setrlimit 'core #f #f)
+
+        (and cache
+             (%cache-directory cache))
+
+        (mkdir-p (%cache-directory))
 
         (when user
           (gather-user-privileges user))

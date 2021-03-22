@@ -25,6 +25,7 @@
 /configure
 /doc/version.texi
 /src/cuirass/config.scm
+/tests/cache
 Makefile
 Makefile.in
 pre-inst-env
