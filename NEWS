@@ -1,0 +1,45 @@
+                                                              -*- org -*-
+#+TITLE: Cuirass NEWS – history of user-visible changes
+#+STARTUP: content hidestars
+
+Copyright © 2021 Mathieu Othacehe <othacehe@gnu.org>
+
+  Copying and distribution of this file, with or without modification,
+  are permitted in any medium without royalty provided the copyright
+  notice and this notice are preserved.
+
+Please send Guix bug reports to bug-guix@gnu.org.
+
+* Changes in 1.0.0 (since 0.0.1)
+
+** Database
+*** Switch from SQLite to PostgreSQL
+*** New test cases covering most of the SQL queries
+** Notifications
+*** New notification mechanism with Email and Mastodon backends
+*** Add RSS events support
+
+** Remote building
+*** Add a remote building mechanism
+*** Add a live build log mechanism
+*** Honor timeout and max-silent-time package properties
+*** Add specification and package priorities support
+*** Add Workers monitoring support with Zabbix
+** Evaluation
+*** Rewrite evaluation mechanism to rely on Guix inferiors.
+*** Change the specifications format from an association list to a record.
+*** Use Guix Channels instead of custom Inputs.
+** Web
+*** Add a Workers status page to monitor the remote workers status
+*** Add actions
+- Add a specification
+- Edit a specification
+- Delete a specification
+- Cancel an evaluation pending builds
+- Retry all build of an evaluation
+- Retry an evaluation
+- Restart a build
+*** Improve the specification display
+*** Fix pagination
+*** Add build weather support
+*** Add build history support
