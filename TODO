@@ -8,9 +8,6 @@ Copyright © 2021 Mathieu Othacehe <othacehe@gnu.org>
 * Add "BuildSteps" table like in Hydra.
 This will prevent package dependencies to be built multiple times.
 
-* Add new metrics.
-- Add "build speed per machine" and "idle time per machine" metrics.
-
 * Add a user account section.
 - Add customized monitoring dashboards.
 - Add build failures notifications subscription page.
