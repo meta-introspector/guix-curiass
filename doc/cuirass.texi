@@ -355,7 +355,17 @@ mechanism described below should be preferred.
 
 This mode is harder to setup but scales way better. This is the build
 mode that is used on the GNU Guix build farm at
-@url{https://ci.guix.gnu.org}.
+@url{https://ci.guix.gnu.org}.  The build jobs are not submitted to
+the local Guix daemon.  Instead, a remote server dispatches build
+requests to the connect remote workers, according to the build
+priorities.
+
+The remote server and the connected workers communicate using ZMQ over
+TCP.  The workers are able to discover the remote server using Avahi.
+
+The built items are exchanged as substitutes (@pxref{Substitutes,
+Substitutes,, guix, Guix}) by spawning Guix publish servers both on
+the remote server and on each connected remote worker.
 
 It can be enabled this way:
 
