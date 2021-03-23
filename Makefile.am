@@ -37,6 +37,8 @@ pkgmoduledir = $(guilesitedir)/$(PACKAGE)
 pkgobjectdir = $(guileobjectdir)/$(PACKAGE)
 webmoduledir = $(guilesitedir)/web/server
 webobjectdir = $(guileobjectdir)/web/server
+scriptsmoduledir = $(guilesitedir)/$(PACKAGE)/scripts
+scriptsobjectdir = $(guileobjectdir)/$(PACKAGE)/scripts
 sqldir = $(pkgdatadir)/sql
 staticdir = $(pkgdatadir)/static
 cssdir = $(staticdir)/css
@@ -56,17 +58,19 @@ dist_pkgmodule_DATA =				\
   src/cuirass/parameters.scm			\
   src/cuirass/remote.scm			\
   src/cuirass/rss.scm				\
-  src/cuirass/scripts/evaluate.scm              \
-  src/cuirass/scripts/register.scm              \
-  src/cuirass/scripts/remote-server.scm         \
-  src/cuirass/scripts/remote-worker.scm         \
-  src/cuirass/scripts/web.scm                   \
   src/cuirass/specification.scm			\
   src/cuirass/ui.scm				\
   src/cuirass/utils.scm		                \
   src/cuirass/templates.scm                     \
   src/cuirass/watchdog.scm			\
   src/cuirass/zabbix.scm
+
+dist_scriptsmodule_DATA =			\
+  src/cuirass/scripts/evaluate.scm              \
+  src/cuirass/scripts/register.scm              \
+  src/cuirass/scripts/remote-server.scm         \
+  src/cuirass/scripts/remote-worker.scm         \
+  src/cuirass/scripts/web.scm
 
 nodist_pkgmodule_DATA = \
   src/cuirass/config.scm
@@ -161,9 +165,6 @@ CLEANFILES =					\
 EXTRA_DIST = \
   .dir-locals.el \
   bin/cuirass.in \
-  bin/evaluate.in \
-  bin/remote-server.in \
-  bin/remote-worker.in \
   bootstrap \
   build-aux/guix.scm \
   src/cuirass/config.scm.in \
@@ -222,10 +223,6 @@ generate_file = \
 # These files depend on Makefile so they are rebuilt if $(VERSION),
 # $(datadir) or other do_subst'ituted variables change.
 bin/cuirass: $(srcdir)/bin/cuirass.in
-bin/evaluate: $(srcdir)/bin/evaluate.in
-bin/remote-server: $(srcdir)/bin/remote-server.in
-bin/remote-worker: $(srcdir)/bin/remote-worker.in
-
 $(bin_SCRIPTS): Makefile
 	$(generate_file); chmod +x $@
 src/cuirass/config.scm: $(srcdir)/src/cuirass/config.scm.in Makefile
