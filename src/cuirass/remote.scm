@@ -272,9 +272,7 @@ PRIVATE-KEY to sign narinfos."
                                         (sockaddr:addr address)
                                         port))
                   (socket (open-server-socket socket-address)))
-             (run-publish-server socket store
-                                 #:compressions
-                                 (list %default-gzip-compression)))))))
+             (run-publish-server socket store))))))
     (pid pid)))
 
 
