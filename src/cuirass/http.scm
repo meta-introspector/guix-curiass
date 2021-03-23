@@ -274,6 +274,9 @@ Hydra format."
     #:builds-per-day
     (db-get-metrics-with-id 'builds-per-day
                             #:limit 100)
+    #:builds-per-machine
+    (db-get-metrics-with-id 'builds-per-machine-per-day
+                            #:order "field ASC")
     #:eval-completion-speed
     (db-get-metrics-with-id 'evaluation-completion-speed
                             #:limit 100

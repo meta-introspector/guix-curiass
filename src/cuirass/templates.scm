@@ -1314,6 +1314,7 @@ window.~a = new Chart\
                                  avg-eval-durations
                                  avg-eval-build-start-time
                                  builds-per-day
+                                 builds-per-machine
                                  eval-completion-speed
                                  new-derivations-per-day
                                  pending-builds
@@ -1336,6 +1337,14 @@ window.~a = new Chart\
                            (nearest-exact-integer duration))
                          "%"))
                   (map cdr percentages)))))
+
+  (define (builds-per-machine-rows builds)
+    (map (match-lambda
+           ((field . value)
+            `(tr (td ,field)
+                 (td ,(number->string
+                       (nearest-exact-integer value))))))
+         builds))
 
   (define (builds->json-scm builds)
     (apply vector
@@ -1393,6 +1402,15 @@ completed builds divided by the time required to build them.")
       (p "This is the sum of all the currently pending builds.")
       (br)
       (canvas (@ (id ,pending-builds-chart)))
+      (br)
+      (h6 "Builds per machine.")
+      (p "This is the builds count per machine during the last day.")
+      (table
+       (@ (class "table table-sm table-hover table-striped"))
+       (thead (tr (th (@ (scope "col")) "Machine")
+                  (th (@ (scope "col")) "Builds (last 24 hours)")))
+       (tbody
+        ,(builds-per-machine-rows builds-per-machine)))
       (br)
       (h6 "Percentage of failed evaluations.")
       (table

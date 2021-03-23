@@ -308,6 +308,7 @@ to_timestamp(stoptime)::date > 'today'::date - interval '1 day'"))))
    ;; Builds count per machine during the last day.
    (metric
     (id 'builds-per-machine-per-day)
+    (field-type 'string)
     (compute-proc db-builds-count-per-machine))))
 
 (define (metric->type metric)
