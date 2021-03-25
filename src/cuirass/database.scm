@@ -83,6 +83,7 @@
             db-delete-events-with-ids-<=-to
             db-get-pending-derivations
             db-get-checkouts
+            db-get-latest-checkout
             db-get-evaluation
             db-get-evaluations
             db-get-evaluations-build-summary
@@ -1179,6 +1180,21 @@ WHERE evaluation =" eval-id " ORDER BY channel ASC;"))
                        (#:channel . ,(string->symbol channel))
                        (#:directory . ,directory))
                      checkouts)))))))
+
+(define (db-get-latest-checkout spec channel eval-id)
+  "Return the first checkout for the CHANNEL channel, part of SPEC
+specification with an evaluation id inferior or equal to EVAL-ID."
+  (with-db-worker-thread db
+    (match (expect-one-row
+            (exec-query/bind
+             db " SELECT channel, revision, directory FROM Checkouts
+ WHERE specification = " spec " AND channel = " (symbol->string channel)
+ " AND evaluation <= " eval-id "ORDER BY evaluation DESC LIMIT 1;"))
+      (() #f)
+      ((channel revision directory)
+       `((#:commit . ,revision)
+         (#:channel . ,(string->symbol channel))
+         (#:directory . ,directory))))))
 
 (define (parse-evaluation evaluation)
   (match evaluation

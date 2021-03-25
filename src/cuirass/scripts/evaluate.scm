@@ -90,6 +90,16 @@ of channel instances."
           (built-derivations (list profile))
           (return (derivation->output-path profile)))))))
 
+(define (latest-checkouts spec eval-id)
+  "Return the latest checkouts for the EVAL-ID evaluation of the SPEC
+specification."
+  (let ((name (specification-name spec))
+        (channels (specification-channels spec)))
+    (map (lambda (channel)
+           (let ((channel (channel-name channel)))
+             (db-get-latest-checkout name channel eval-id)))
+         channels)))
+
 (define (cuirass-evaluate args)
   "This procedure spawns an inferior on the given channels.  An evaluation
 procedure is called within that inferior, it returns a list of jobs that are
@@ -101,7 +111,7 @@ registered in database."
            (let* ((eval-id (with-input-from-string eval-str read))
                   (name (db-get-evaluation-specification eval-id))
                   (spec (db-get-specification name))
-                  (checkouts (db-get-checkouts eval-id))
+                  (checkouts (latest-checkouts spec eval-id))
                   (instances (checkouts->channel-instances checkouts))
                   (profile (channel-instances->profile instances))
                   (build (specification-build spec))

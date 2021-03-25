@@ -146,6 +146,12 @@ timestamp, checkouttime, evaltime) VALUES ('guix', 0, 0, 0, 0);")
      (db-add-evaluation "guix"
                         (make-dummy-instances "fakesha3" "fakesha4"))))
 
+  (test-equal "db-get-latest-checkout"
+    '("fakesha3" "fakesha4")
+    (map (cut assq-ref <> #:commit)
+         (list (db-get-latest-checkout "guix" 'guix 3)
+               (db-get-latest-checkout "guix" 'my-channel 3))))
+
   (test-assert "db-set-evaluation-status"
     (db-set-evaluation-status 2 (evaluation-status started)))
 
