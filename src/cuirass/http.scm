@@ -220,6 +220,7 @@ Hydra format."
 (define* (evaluation-html-page evaluation
                                #:key
                                status
+                               (paginate? #t)
                                border-high-time border-low-time
                                border-high-id border-low-id)
   "Return the HTML page representing EVALUATION."
@@ -236,12 +237,14 @@ Hydra format."
      (handle-builds-request
       `((evaluation . ,id)
         (status . ,(and=> status string->symbol))
-        (nr . ,%page-size)
-        (order . finish-time+build-id)
-        (border-high-time . ,border-high-time)
-        (border-low-time . ,border-low-time)
-        (border-high-id . ,border-high-id)
-        (border-low-id . ,border-low-id)))))
+        ,@(if paginate?
+              `((nr . ,%page-size)
+                (border-high-time . ,border-high-time)
+                (border-low-time . ,border-low-time)
+                (border-high-id . ,border-high-id)
+                (border-low-id . ,border-low-id))
+              '())
+        (order . finish-time+build-id)))))
 
   (html-page
    "Evaluation"
@@ -760,6 +763,8 @@ into a specification record and return it."
     (('GET "eval" id)
      (let* ((params (request-parameters request))
             (status (assq-ref params 'status))
+            (paginate? (let ((arg (assq-ref params 'paginate)))
+                         (if arg (string=? arg "1") #t)))
             (border-high-time (assq-ref params 'border-high-time))
             (border-low-time (assq-ref params 'border-low-time))
             (border-high-id (assq-ref params 'border-high-id))
@@ -769,6 +774,7 @@ into a specification record and return it."
        (if specification
            (respond-html (evaluation-html-page evaluation
                                                #:status status
+                                               #:paginate? paginate?
                                                #:border-high-time
                                                border-high-time
                                                #:border-low-time

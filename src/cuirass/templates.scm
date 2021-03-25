@@ -1087,7 +1087,24 @@ evaluation."
 
   (define duration  (- evaltime timestamp))
 
-  `((p (@ (class "lead"))
+  `((script "
+$(document).ready(function() {
+  var url = new URL(window.location.href);
+  var params = url.searchParams;
+  var paginate = params.get('paginate');
+  var href;
+  console.log(paginate);
+  if (!paginate || paginate == '1') {
+    params.set('paginate', 0);
+    $('#paginate').attr('href', url.toString());
+  } else if (paginate == '0') {
+    params.set('paginate', 1);
+    $('#paginate').attr('class', 'oi oi-collapse-up');
+    $('#paginate').attr('href', url.toString());
+  }
+});
+")
+    (p (@ (class "lead"))
        ,(format #f "Evaluation #~a" id))
     ,@(if (= timestamp 0)
           '()
@@ -1122,7 +1139,13 @@ evaluation."
        ,(format #f "~@[~a~] ~:[B~;b~]uilds of evaluation #~a"
                 (and=> status string-capitalize)
                 status
-                id))
+                id)
+       "  "
+       (a (@ (id "paginate")
+             (class "oi oi-collapse-down")
+             (style "font-size:0.7em")
+             (href "")
+             (role "button"))))
     (ul (@ (class "nav nav-tabs"))
         (li (@ (class "nav-item"))
             (a (@ (class ,(string-append "nav-link "
