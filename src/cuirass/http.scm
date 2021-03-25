@@ -78,6 +78,7 @@
 (define %file-white-list
   '("css/bootstrap.css"
     "css/choices.min.css"
+    "css/datatables.min.css"
     "css/cuirass.css"
     "css/open-iconic-bootstrap.css"
     "fonts/open-iconic.otf"
@@ -85,6 +86,7 @@
     "images/icon.png"
     "images/guix.png"
     "js/chart.js"
+    "js/datatables.min.js"
     "js/jquery-3.6.0.min.js"
     "js/choices.min.js"))
 

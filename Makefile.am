@@ -94,6 +94,7 @@ dist_css_DATA =					\
   src/static/css/choices.min.css		\
   src/static/css/cuirass.css			\
   src/static/css/bootstrap.css			\
+  src/static/css/datatables.min.css		\
   src/static/css/open-iconic-bootstrap.css
 dist_fonts_DATA =				\
   src/static/fonts/open-iconic.eot		\
@@ -107,6 +108,7 @@ dist_images_DATA =				\
 dist_js_DATA =					\
   src/static/js/chart.js                        \
   src/static/js/choices.min.js                  \
+  src/static/js/datatables.min.js               \
   src/static/js/jquery-3.6.0.min.js
 
 TEST_EXTENSIONS = .scm .sh

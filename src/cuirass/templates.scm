@@ -118,6 +118,8 @@ system whose names start with " (code "guile-") ":" (br)
           (link (@ (rel "stylesheet")
                    (href "/static/css/bootstrap.css")))
           (link (@ (rel "stylesheet")
+                   (href "/static/css/datatables.min.css")))
+          (link (@ (rel "stylesheet")
                    (href "/static/css/open-iconic-bootstrap.css")))
           (link (@ (rel "stylesheet")
                    (href "/static/css/choices.min.css")))
@@ -125,6 +127,38 @@ system whose names start with " (code "guile-") ":" (br)
                    (href "/static/css/cuirass.css")))
           (link (@ (rel "icon") (type "image/png")
                    (href "/static/images/icon.png")))
+          (script (@ (src "/static/js/jquery-3.6.0.min.js")))
+          (script (@ (src "/static/js/datatables.min.js")))
+          (script "
+$(document).ready(function() {
+  var default_opts = {
+paging: false,
+searching: false,
+info: false,
+order: [],
+};
+  var spec_table = $('#spec-table');
+  if (spec_table.find('th').length > 1) {
+    spec_table.DataTable({
+...default_opts,
+/* Do not sort the 'Action' column. */
+columnDefs: [
+    { orderable: false, targets: 5 }
+  ],
+});
+}
+  var eval_table = $('#eval-table');
+  if (eval_table.find('th').length > 1) {
+    eval_table.DataTable({
+...default_opts,
+columnDefs: [
+    { orderable: false, targets: 0 },
+    { orderable: false, targets: 1 },
+    { orderable: false, targets: 8 }
+  ],
+});
+}
+});")
           (title ,title))
          (body
           (nav (@ (class "navbar navbar-expand-lg navbar-light bg-light"))
@@ -226,7 +260,8 @@ system whose names start with " (code "guile-") ":" (br)
                  (aria-hidden "true"))
                 "")))
     (table
-     (@ (class "table table-sm table-hover"))
+     (@ (id "spec-table")
+        (class "table table-sm table-hover"))
      ,@(if (null? specs)
            `((th (@ (scope "col")) "No elements here."))
            `((thead (tr (th (@ (scope "col")) Name)
@@ -349,11 +384,9 @@ the existing SPEC otherwise."
          ,(if spec
               (format #f "Edit ~a specification" name)
               "Create a new specification"))
-      (script (@ (src "/static/js/jquery-3.6.0.min.js")))
       (script (@ (src "/static/js/choices.min.js")))
       (script "
 $(document).ready(function() {
-var counter = 0;
 $('.remove-channel').click(function() {
    $(this).parent().remove();
 });
@@ -955,7 +988,8 @@ and BUILD-MAX are global minimal and maximal (stoptime, rowid) pairs."
       ((stoptime id) stoptime)))
 
   `((table
-     (@ (class "table table-sm table-hover table-striped"))
+     (@ (id "eval-table")
+        (class "table table-sm table-hover table-striped"))
      ,@(if (null? builds)
            `((th (@ (scope "col") (class "border-0")) "No elements here."))
            `(,(table-header)
