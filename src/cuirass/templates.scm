@@ -35,6 +35,7 @@
   #:use-module (guix store)
   #:use-module ((guix utils) #:select (string-replace-substring
                                        version>?))
+  #:use-module (cuirass config)
   #:use-module ((cuirass database) #:select (build-status
                                              build-weather
                                              evaluation-status))
@@ -198,7 +199,12 @@ columnDefs: [
                ,(search-form query))
           (main (@ (role "main") (class "container pt-4 px-1"))
                 ,body
-                (hr)))))
+                (hr))
+          (footer
+           (@ (class "footer text-center"))
+           (p (a (@ (href "http://guix.gnu.org/cuirass/"))
+                 ,(string-append "Cuirass " %package-version))
+              " — Copyright © 2016 - 2021 by the GNU Guix community.")))))
 
 (define (status-class status)
   (cond
