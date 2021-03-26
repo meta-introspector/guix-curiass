@@ -485,12 +485,19 @@ into a specification record and return it."
           (respond-file file-path)
           (respond-not-found file-name))))
 
-  (define (respond-gzipped-file file)
-    ;; Return FILE with 'gzip' content-encoding.
-    (respond `((content-type . (text/plain (charset . "UTF-8")))
-               (content-encoding . (gzip))
-               (content-disposition . (inline))
-               (x-raw-file . ,file))))
+  (define (respond-compressed-file file)
+    ;; Return FILE with 'gzip' or 'bzip2' content-encoding.
+    (let ((encoding
+           (cond ((string-suffix? ".gz" file)
+                  '((content-type . (text/plain (charset . "UTF-8")))
+                    (content-encoding . (gzip))))
+                 ((string-suffix? ".bz2" file)
+                  '((content-type . (application/bzip2
+                                     (charset . "ISO-8859-1")))))
+                 (else '()))))
+      (respond `(,@encoding
+                 (content-disposition . (inline))
+                 (x-raw-file . ,file)))))
 
   (define (respond-build-not-found build-id)
     (respond-json-with-error
@@ -668,7 +675,7 @@ into a specification record and return it."
      (let* ((build (and id (db-get-build id)))
             (log   (and build (assq-ref build #:log))))
        (if (and log (file-exists? log))
-           (respond-gzipped-file log)
+           (respond-compressed-file log)
            (respond-not-found (uri->string (request-uri request))))))
     (('GET "output" id)
      (let ((output (db-get-output
@@ -788,7 +795,7 @@ into a specification record and return it."
     (('GET "eval" (= string->number id) "log" "raw")
      (let ((log (and id (evaluation-log-file id))))
        (if (and log (file-exists? log))
-           (respond-gzipped-file log)
+           (respond-compressed-file log)
            (respond-not-found (uri->string (request-uri request))))))
 
     (('GET "search")
