@@ -483,7 +483,7 @@ items."
                                    ;; from PORT and eventually close it.
                                    (catch #t
                                      (lambda ()
-                                       (handle-build-event event))
+                                       (handle-build-event store event))
                                      (exception-reporter state)))
                                  #t)
               (close-port port)
@@ -499,7 +499,7 @@ items."
 
           (loop rest (max (- count max-batch-size) 0))))))
 
-(define* (handle-build-event event)
+(define* (handle-build-event store event)
   "Handle EVENT, a build event sexp as produced by 'build-event-output-port',
 updating the database accordingly."
   (define (valid? file)
@@ -521,7 +521,8 @@ updating the database accordingly."
      (if (valid? drv)
          (begin
            (log-message "build started: '~a'" drv)
-           (db-update-build-status! drv (build-status started)))
+           (db-update-build-status! drv (build-status started)
+                                    #:log-file (log-file store drv)))
          (log-message "bogus build-started event for '~a'" drv)))
     (('build-remote drv host _ ...)
      (log-message "'~a' offloaded to '~a'" drv host)
