@@ -387,7 +387,7 @@ Essentially this procedure inverts the inversion-of-control that
   ;; Our shuffling algorithm is simple: we sort by .drv file name.  :-)
   (sort drv string<?))
 
-(define* (set-build-successful! drv #:optional log)
+(define* (set-build-successful! drv)
   "Update the build status of DRV as successful and register any eventual
 build products."
   (let* ((build (db-get-build drv))
@@ -397,8 +397,7 @@ build products."
     (when (and spec build)
       (create-build-outputs build
                             (specification-build-outputs spec))))
-  (db-update-build-status! drv (build-status succeeded)
-                           #:log-file log))
+  (db-update-build-status! drv (build-status succeeded)))
 
 (define (update-build-statuses! store lst)
   "Update the build status of the derivations listed in LST, which have just
