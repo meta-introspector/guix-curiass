@@ -197,9 +197,8 @@ columnDefs: [
                                Home))
                         ,@(navigation-items navigation)))
                ,(search-form query))
-          (main (@ (role "main") (class "container pt-4 px-1"))
-                ,body
-                (hr))
+          (div (@ (class "container content"))
+               ,body)
           (footer
            (@ (class "footer text-center"))
            (p (a (@ (href "http://guix.gnu.org/cuirass/"))
