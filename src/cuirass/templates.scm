@@ -201,7 +201,8 @@ columnDefs: [
                ,body)
           (footer
            (@ (class "footer text-center"))
-           (p (a (@ (href "http://guix.gnu.org/cuirass/"))
+           (p (@ (class "mt-3"))
+              (a (@ (href "http://guix.gnu.org/cuirass/"))
                  ,(string-append "Cuirass " %package-version))
               " — Copyright © 2016 - 2021 by the GNU Guix community.")))))
 
