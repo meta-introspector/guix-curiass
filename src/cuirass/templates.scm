@@ -130,6 +130,7 @@ system whose names start with " (code "guile-") ":" (br)
                    (href "/static/images/icon.png")))
           (script (@ (src "/static/js/jquery-3.6.0.min.js")))
           (script (@ (src "/static/js/datatables.min.js")))
+          (script (@ (src "/static/js/d3.v6.min.js")))
           (script "
 $(document).ready(function() {
   var default_opts = {

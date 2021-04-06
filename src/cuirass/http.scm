@@ -86,6 +86,7 @@
     "images/icon.png"
     "images/guix.png"
     "js/chart.js"
+    "js/d3.v6.min.js"
     "js/datatables.min.js"
     "js/jquery-3.6.0.min.js"
     "js/choices.min.js"))
