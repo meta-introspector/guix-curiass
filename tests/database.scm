@@ -201,6 +201,18 @@ timestamp, checkouttime, evaltime) VALUES ('guix', 0, 0, 0, 0);")
                                ("foo2" . ,(format #f "~a.output.2" drv))))))
                           2 (db-get-specification "guix"))))
 
+  (test-assert "db-get-jobs"
+    (match (db-get-jobs 2
+                        '((#:system . "x86_64-linux")))
+      ((job)
+       (string=? (assq-ref job #:name) "test"))))
+
+  (test-assert "db-get-jobs names"
+    (match (db-get-jobs 2
+                        '((names "test")))
+      ((job)
+       (string=? (assq-ref job #:name) "test"))))
+
   (test-assert "db-update-build-status!"
     (db-update-build-status! "/test.drv"
                              (build-status failed)))

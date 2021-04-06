@@ -687,6 +687,19 @@ into a specification record and return it."
                (append output
                        `((#:build . ,(or build #nil)))))))
            (respond-output-not-found id))))
+    (('GET "api" "jobs")
+     (let* ((params (request-parameters request))
+            (eval-id (assq-ref params 'evaluation)))
+       (if eval-id
+           (respond-json
+            (object->json-string
+             (list->vector
+              (db-get-jobs eval-id
+                           `((names
+                              . ,(and=> (assq-ref params 'names)
+                                        (cut string-split <> #\,)))
+                             ,@params)))))
+           (respond-json-with-error 500 "Parameter not defined!"))))
     (('GET "api" "evaluation")
      (let* ((params (request-parameters request))
             (id (assq-ref params 'id)))

@@ -68,6 +68,7 @@
             db-get-outputs
             db-get-time-since-previous-build
             db-get-build-percentages
+            db-get-jobs
             db-register-builds
             db-update-build-status!
             db-update-build-worker!
@@ -677,6 +678,49 @@ AND b2.status >= 0 ORDER BY b1.id,  b2.id DESC) d;"))
          (loop rest
                (cons (string->number percentage) percentages)))))))
 
+(define (db-add-job job eval-id)
+  "Insert JOB into Jobs table for the EVAL-ID evaluation."
+  (let ((name       (assq-ref job #:job-name))
+        (derivation (assq-ref job #:derivation))
+        (system     (assq-ref job #:system)))
+    (with-db-worker-thread db
+      (exec-query/bind db "\
+INSERT INTO Jobs (name, evaluation, derivation, system)
+VALUES (" name ", " eval-id ", " derivation ", " system ")
+ON CONFLICT ON CONSTRAINT jobs_pkey DO NOTHING;"))))
+
+(define (db-get-jobs eval-id filters)
+  "Return the jobs inside Jobs table for the EVAL-ID evaluation that are
+matching the given FILTERS.  FILTERS is an assoc list whose possible keys are
+the symbols system and names."
+  (define (format-names names)
+    (format #f "{~a}" (string-join names ",")))
+
+  (with-db-worker-thread db
+    (let ((query "
+SELECT Builds.id, Builds.status, Jobs.name FROM Jobs
+INNER JOIN Builds ON Jobs.derivation = Builds.derivation
+WHERE Jobs.evaluation = :evaluation
+AND ((Jobs.system = :system) OR :system IS NULL)
+AND ((Jobs.name = ANY(:names)) OR :names IS NULL)
+ORDER BY Jobs.name")
+          (params
+           `((#:evaluation . ,eval-id)
+             (#:system . ,(assq-ref filters 'system))
+             (#:names . ,(and=> (assq-ref filters 'names)
+                                format-names)))))
+      (let loop ((rows (exec-query/bind-params db query params))
+                 (jobs '()))
+        (match rows
+          (() (reverse jobs))
+          (((id status name)
+            . rest)
+           (loop rest
+                 (cons `((#:build . ,(string->number id))
+                         (#:status . ,(string->number status))
+                         (#:name . ,name))
+                       jobs))))))))
+
 (define (db-register-builds jobs eval-id specification)
   (define (new-outputs? outputs)
     (let ((new-outputs
@@ -703,6 +747,9 @@ AND b2.status >= 0 ORDER BY b1.id,  b2.id DESC) d;"))
            (timeout    (assq-ref job #:timeout))
            (outputs    (assq-ref job #:outputs))
            (cur-time   (time-second (current-time time-utc))))
+      ;; Always register JOB inside the Jobs table.  If it triggers a new
+      ;; build, also register it into the Builds table below.
+      (db-add-job job eval-id)
       (and (new-outputs? outputs)
            (let ((build `((#:derivation . ,drv)
                           (#:eval-id . ,eval-id)

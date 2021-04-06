@@ -867,6 +867,56 @@ $ curl -s "http://localhost:8080/build/fff/log/raw"
 @{"error" : "Build with ID fff doesn't exist."@}
 @end example
 
+@subsection Jobs
+
+The list of jobs associated with a given evaluation can be obtained
+with the API "/api/jobs".  The output is a JSON array of
+jobs.
+
+This request accepts a mandatory parameter and multiple optional ones.
+
+@table @code
+@item evaluation
+The evaluation id. This parameter is @emph{mandatory}.
+
+@item names
+Filter query result to jobs which names are part of the given
+@code{names} list, a comma separated list of job names.
+
+@item system
+Filter query result to jobs with the given @code{system}.
+
+@end table
+
+For example, to ask for the jobs of evaluation @code{12} for
+@code{x86_64-linux}:
+
+@example
+$ curl "http://localhost:8080/api/jobs?evaluation=12&system=x86_64-linux"
+@end example
+
+or the @code{emacs} and @code{emacs-minimal} jobs of evaluation
+@code{12} for @code{x86_64-linux}:
+
+@example
+$ curl "http://localhost:8080/api/jobs?evaluation=12&names=emacs.x86_64-linux,emacs-minimal.x86_64-linux"
+@end example
+
+The nominal output is a JSON object whose fields are described
+hereafter.
+
+@table @code
+@item build
+The unique build id associated with the job.
+
+@item status
+The build status, as an integer.
+
+@item name
+The job name, as a string.
+
+@end table
+
 @subsection Latest builds
 
 The list of latest builds can be obtained with the API
@@ -1030,6 +1080,30 @@ The timestamp after channel checkout.
 
 @item evaltime
 The timestamp after evaluation completion.
+
+@end table
+
+@section Jobs
+@cindex jobs, database
+
+This table contains all the jobs associated with a given evaluation.
+If a new job produces build outputs that are not already stored inside
+the @code{Outputs} table then, it is added to the @code{Builds} table.
+
+@table @code
+@item name
+This text field holds the job name.
+
+@item evaluation
+This integer field references the evaluation identifier from the
+@code{Evaluations} table, indicating to which evaluation this job
+belongs.
+
+@item derivation
+This text field holds the absolute name of the job derivation file.
+
+@item system
+This text field holds the system name of the derivation.
 
 @end table
 
