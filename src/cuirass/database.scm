@@ -679,14 +679,25 @@ AND b2.status >= 0 ORDER BY b1.id,  b2.id DESC) d;"))
                (cons (string->number percentage) percentages)))))))
 
 (define (db-add-job job eval-id)
-  "Insert JOB into Jobs table for the EVAL-ID evaluation."
-  (let ((name       (assq-ref job #:job-name))
-        (derivation (assq-ref job #:derivation))
-        (system     (assq-ref job #:system)))
+  "Insert JOB into Jobs table for the EVAL-ID evaluation.  It is possible that
+another already built derivation has the same build outputs that the JOB
+derivation.  In that case, the JOB DERIVATION field is set to the existing
+derivation sharing the same build outputs, otherwise it is set to the given
+JOB derivation."
+  (let* ((name       (assq-ref job #:job-name))
+         (derivation (assq-ref job #:derivation))
+         (outputs    (assq-ref job #:outputs))
+         (output     (match outputs
+                       (((name . path) _ ...)
+                        path)))
+         (system     (assq-ref job #:system)))
+    (pk output derivation)
     (with-db-worker-thread db
       (exec-query/bind db "\
 INSERT INTO Jobs (name, evaluation, derivation, system)
-VALUES (" name ", " eval-id ", " derivation ", " system ")
+(SELECT " name ", " eval-id ",
+COALESCE((SELECT derivation FROM Outputs WHERE
+PATH = " output "), " derivation ")," system ")
 ON CONFLICT ON CONSTRAINT jobs_pkey DO NOTHING;"))))
 
 (define (db-get-jobs eval-id filters)

@@ -213,6 +213,28 @@ timestamp, checkouttime, evaltime) VALUES ('guix', 0, 0, 0, 0);")
       ((job)
        (string=? (assq-ref job #:name) "test"))))
 
+  (test-assert "db-register-builds same-outputs"
+    (let ((drv "/test2.drv"))
+      (db-add-evaluation "guix"
+                         (make-dummy-instances "fakesha5" "fakesha6"))
+      (db-register-builds `(((#:job-name . "test")
+                             (#:derivation . ,drv)
+                             (#:system . "x86_64-linux")
+                             (#:nix-name . "test")
+                             (#:log . "log")
+                             (#:outputs .
+                              (("foo" . "/test.drv.output")
+                               ("foo2" . "/test.drv.output.2")))))
+                          4 (db-get-specification "guix"))))
+
+  (test-assert "db-get-jobs same-outputs"
+    (match (db-get-jobs 4 '())
+      ((job)
+       (string=? (assq-ref (pk (db-get-build
+                                (assq-ref job #:build)))
+                           #:derivation)
+                 "/test.drv"))))
+
   (test-assert "db-update-build-status!"
     (db-update-build-status! "/test.drv"
                              (build-status failed)))
@@ -280,9 +302,9 @@ timestamp, checkouttime, evaltime) VALUES ('guix', 0, 0, 0, 0);")
          (db-get-evaluations 2)))
 
   (test-equal "db-get-evaluations-build-summary"
-    '((0 0 0) (0 1 1))
+    '((0 0 0) (0 0 0) (0 1 1))
     (let ((summaries
-           (db-get-evaluations-build-summary "guix" 2 #f #f)))
+           (db-get-evaluations-build-summary "guix" 3 #f #f)))
       (map (lambda (summary)
              (list
               (assq-ref summary #:succeeded)
@@ -299,7 +321,7 @@ timestamp, checkouttime, evaltime) VALUES ('guix', 0, 0, 0, 0);")
     (db-get-evaluations-id-min "foo"))
 
   (test-equal "db-get-evaluations-id-max"
-    3
+    4
     (db-get-evaluations-id-max "guix"))
 
   (test-equal "db-get-evaluations-id-max"
