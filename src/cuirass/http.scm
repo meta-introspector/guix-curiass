@@ -812,6 +812,25 @@ into a specification record and return it."
            (respond-compressed-file log)
            (respond-not-found (uri->string (request-uri request))))))
 
+    (('GET "eval" (= string->number id) "dashboard")
+     (let* ((params (request-parameters request))
+            (system (assq-ref params 'system))
+            (default-system "x86_64-linux")
+            (spec-name (db-get-evaluation-specification id))
+            (spec (db-get-specification spec-name))
+            (systems (specification-systems spec)))
+       (respond-html
+        (html-page
+         "Dashboard"
+         (evaluation-dashboard id systems
+                               #:current-system
+                               (or system default-system))
+         `(((#:name . ,spec-name)
+            (#:link . ,(string-append "/jobset/" spec-name)))
+           ((#:name . ,(string-append "Evaluation " (number->string id)))
+            (#:link . ,(string-append "/eval/" (number->string id)))))
+         #:margin? #f))))
+
     (('GET "search")
      (let* ((params (request-parameters request))
             (query (and=> (assq-ref params 'query) uri-decode))

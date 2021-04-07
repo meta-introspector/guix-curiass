@@ -15,6 +15,10 @@ body {
     padding: 1em 0em 1em;
 }
 
+.content-fixed-margin {
+    margin: 1em 3em;
+}
+
 #search input:focus {
     width: 500px;
 }
@@ -66,3 +70,24 @@ a.dropdown-toggle:focus + .dropdown-menu {
     background-color: #f5f5f5;
 }
 
+
+#dashboard {
+    display: block;
+    margin: auto;
+}
+
+div.tooltip {
+    position: absolute;
+    opacity:0.8;
+    z-index:1000;
+    text-align:left;
+    border-radius:4px;
+    -moz-border-radius:4px;
+    -webkit-border-radius:4px;
+    padding:8px;
+    color:#fff;
+    background-color:#000;
+    font: 12px sans-serif;
+    max-width: 1000px;
+    height: 30px;
+}

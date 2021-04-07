@@ -52,7 +52,8 @@
             running-builds-table
             global-metrics-content
             workers-status
-            machine-status))
+            machine-status
+            evaluation-dashboard))
 
 (define (navigation-items navigation)
   (match navigation
@@ -104,7 +105,9 @@ the " (code "guix-master") " specification for the " (code "i686-linux") "
 system whose names start with " (code "guile-") ":" (br)
 (code "spec:guix-master system:i686-linux status:success guile-")))))
 
-(define* (html-page title body navigation #:optional query)
+(define* (html-page title body navigation
+                    #:optional query
+                    #:key (margin? #t))
   "Return HTML page with given TITLE and BODY."
   `(html (@ (xmlns "http://www.w3.org/1999/xhtml")
             (xml:lang "en")
@@ -198,7 +201,10 @@ columnDefs: [
                                Home))
                         ,@(navigation-items navigation)))
                ,(search-form query))
-          (div (@ (class "container content"))
+          (div (@ (id "content")
+                  (class ,(if margin?
+                              "container content"
+                              "content-fixed-margin")))
                ,body)
           (footer
            (@ (class "footer text-center"))
@@ -844,8 +850,15 @@ if ($('.param-select-row').is(':visible')) {
                         (td ,(input-changes (assq-ref row #:checkouts)))
                         (td ,@(evaluation-badges row))
                         (td
+                         (a (@ (href "/eval/" ,(assq-ref row #:id)
+                                     "/dashboard"))
+                            (div
+                             (@ (class "oi oi-monitor d-inline-block")
+                                (title "Dashboard")
+                                (aria-hidden "true"))
+                             ""))
                          (div
-                          (@ (class "dropdown"))
+                          (@ (class "dropdown d-inline-block ml-2"))
                           (a (@ (class "oi oi-menu dropdown-toggle no-dropdown-arrow")
                                 (href "#")
                                 (data-toggle "dropdown")
@@ -1148,6 +1161,10 @@ $(document).ready(function() {
                 status
                 id)
        "  "
+       (a (@ (class "oi oi-monitor mr-2")
+             (style "font-size:0.8em")
+             (href "/eval/" ,id "/dashboard")
+             (role "button")))
        (a (@ (id "paginate")
              (class "oi oi-collapse-down")
              (style "font-size:0.7em")
@@ -1707,3 +1724,122 @@ text-dark d-flex position-absolute w-100"))
                                      #:labels
                                      '("Free store disk space percentage")
                                      #:colors (list "#3e95cd"))))))))
+
+(define* (evaluation-dashboard evaluation systems
+                               #:key current-system)
+  (let ((jobs
+         (format #f "/api/jobs?evaluation=~a&system=~a"
+                 evaluation current-system)))
+    `((p (@ (class "lead"))
+         ,(format #f "Dasboard evaluation #~a" evaluation))
+      (form (@ (id "get-dashboard")
+               (class "row g-3 mb-3")
+               (action "/eval/" ,evaluation "/dashboard")
+               (method "GET"))
+            (div (@ (class "col-auto"))
+                 (select (@ (id "system")
+                            (name "system")
+                            (class "form-control"))
+                         ,@(map (lambda (system)
+                                  `(option
+                                    (@ (value ,system)
+                                       ,@(if (string=? system current-system)
+                                             '((selected))
+                                             '()))
+                                    ,system))
+                                systems)))
+            (div (@ (class "col-auto"))
+                 (button
+                  (@ (type "submit")
+                     (class "btn btn-primary"))
+                  " Go")))
+      (script ,(format #f "
+      function radius(count) {
+          if (count < 100)
+              return 15;
+          else if (count < 1000)
+              return 10;
+          else
+              return 5;
+      }
+
+      function color(status) {
+          switch (status) {
+          case -3:
+          case -2:
+              return 'gray';
+          case -1:
+              return 'orange';
+          case 0:
+              return 'green';
+          case 1:
+          case 2:
+          case 3:
+          case 4:
+              return 'red';
+          }
+      }
+
+      function svgWidth() {
+          var width = d3.select('#content').style('width').slice(0, -2);
+          return Math.round(Number(width));
+      }
+
+      d3.json('~a').then(function (data) {
+          var width = svgWidth();
+          var circle_radius = radius(data.length);
+          var margin_x = circle_radius;
+          var margin_y = circle_radius;
+          var margin_circle_x = 3;
+          var margin_circle_y = (2.5 * circle_radius);
+          var circle_count_x =
+              Math.floor((width - 2 * margin_x) /
+                         ((2 * circle_radius) + margin_circle_x));
+          var height = ((data.length / circle_count_x) *
+                        margin_circle_y) +
+              circle_radius + 2 * margin_y;
+
+          console.log(width);
+          console.log(height);
+
+          var div = d3.select('body').append('div')
+                        .attr('class', 'tooltip')
+                        .style('opacity', 0);
+          var svg = d3.select('#content').append('svg')
+              .attr('width', width)
+              .attr('height', height);
+          var circles = svg.append('g')
+              .selectAll('circle')
+              .data(data)
+              .enter()
+              .append('a')
+              .attr('xlink:href', d => '/build/' + d.build + '/details')
+              .append('circle')
+              .attr('r', circle_radius)
+              .attr('cx', function(d, i) {
+                  return margin_x +
+                      (i % circle_count_x)
+                      * (circle_radius * 2 + margin_circle_x);
+              })
+              .attr('cy', function (d, i) {
+                  return margin_y + Math.floor(i / circle_count_x)
+                      * margin_circle_y;
+              })
+              .style('fill', d => color(d.status))
+              .on('mouseover', function(event, d) {
+                  var circle = d3.select(this)
+                      .style('fill', 'steelblue');
+                  div.style('opacity', .9);
+                  div.html(d.name)
+                      .style('left', (event.pageX + 30) + 'px')
+                      .style('top', (event.pageY - 30) + 'px');
+              })
+              .on('mouseout', function(event, d) {
+                  var circle = d3.select(this)
+                      .style('fill', color(d.status));
+                  div.style('opacity', 0);
+                  div.html('')
+                      .style('left', '0px')
+                      .style('top', '0px');
+              })
+      });" jobs)))))
