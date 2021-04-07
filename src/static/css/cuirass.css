@@ -16,6 +16,7 @@ body {
 }
 
 .content-fixed-margin {
+    flex: 1 0 auto;
     margin: 1em 3em;
 }
 
