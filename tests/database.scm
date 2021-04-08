@@ -254,6 +254,19 @@ timestamp, checkouttime, evaltime) VALUES ('guix', 0, 0, 0, 0);")
        (assoc-ref build #:status)
        (assoc-ref build #:job-name))))
 
+  (test-equal "db-get-specifications-summary"
+    '("guix" 0 0 1 0)
+    (begin
+      (db-set-evaluation-status 2 (evaluation-status succeeded))
+      (match (db-get-specifications-summary)
+        ((summary)
+         (list
+          (assq-ref summary #:specification)
+          (assq-ref summary #:percentage)
+          (assq-ref summary #:succeeded)
+          (assq-ref summary #:failed)
+          (assq-ref summary #:scheduled))))))
+
   (test-assert "db-get-builds"
     (let* ((build (match (db-get-builds `((order . build-id)
                                           (status . failed)))
@@ -311,17 +324,6 @@ timestamp, checkouttime, evaltime) VALUES ('guix', 0, 0, 0, 0);")
               (assq-ref summary #:failed)
               (assq-ref summary #:scheduled)))
            summaries)))
-
-  (test-equal "db-get-specifications-summary"
-    '("guix" 0 0 1 0)
-    (match (db-get-specifications-summary)
-      ((summary)
-       (list
-        (assq-ref summary #:specification)
-        (assq-ref summary #:percentage)
-        (assq-ref summary #:succeeded)
-        (assq-ref summary #:failed)
-        (assq-ref summary #:scheduled)))))
 
   (test-equal "db-get-evaluations-id-min"
     1
