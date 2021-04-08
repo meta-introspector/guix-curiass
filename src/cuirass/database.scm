@@ -67,7 +67,7 @@
             db-add-build-product
             db-get-output
             db-get-outputs
-            db-get-time-since-previous-build
+            db-get-time-since-previous-eval
             db-get-build-percentages
             db-get-jobs
             db-register-builds
@@ -410,13 +410,14 @@ RETURNING (specification, revision);"))
       (match (expect-one-row
               (exec-query/bind db "\
 INSERT INTO Specifications (name, build, channels, \
-build_outputs, notifications, priority, systems) \
+build_outputs, notifications, period, priority, systems) \
   VALUES ("
                                (specification-name spec) ", "
                                (specification-build spec) ", "
                                channels ", "
                                build-outputs ", "
                                notifications ", "
+                               (specification-period spec) ", "
                                (specification-priority spec) ", "
                                (specification-systems spec) ")
 ON CONFLICT(name) DO UPDATE
@@ -424,6 +425,7 @@ SET build = " (specification-build spec) ",
 channels = " channels ",
 build_outputs = " build-outputs ",
 notifications = " notifications ",
+period = " (specification-period spec) ",
 priority = " (specification-priority spec) ",
 systems = " (specification-systems spec)
 "RETURNING name;"))
@@ -446,14 +448,15 @@ DELETE FROM Specifications WHERE name=" name ";")))
         ((rows  (if name
                     (exec-query/bind db "
 SELECT name, build, channels, build_outputs, notifications,\
-priority, systems FROM Specifications WHERE name =" name ";")
+period, priority, systems FROM Specifications WHERE name =" name ";")
                     (exec-query db "
 SELECT name, build, channels, build_outputs, notifications,\
-priority, systems FROM Specifications ORDER BY name ASC;")))
+period, priority, systems FROM Specifications ORDER BY name ASC;")))
          (specs '()))
       (match rows
         (() (reverse specs))
-        (((name build channels build-outputs notifications priority systems)
+        (((name build channels build-outputs notifications
+                period priority systems)
           . rest)
          (loop rest
                (cons (specification
@@ -468,6 +471,7 @@ priority, systems FROM Specifications ORDER BY name ASC;")))
                       (notifications
                        (map sexp->notification
                             (with-input-from-string notifications read)))
+                      (period (string->number period))
                       (priority (string->number priority))
                       (systems (with-input-from-string systems read)))
                      specs)))))))
@@ -673,16 +677,14 @@ WHERE derivation =" derivation ";"))
                (cons `(,name . ((#:path . ,path)))
                      outputs)))))))
 
-(define (db-get-time-since-previous-build job-name specification)
-  "Return the time difference in seconds between the current time and the
-registration time of the last build for JOB-NAME and SPECIFICATION."
+(define (db-get-time-since-previous-eval specification)
+  "Return the time elapsed since the last evaluation of SPECIFICATION."
   (with-db-worker-thread db
     (match (expect-one-row
             (exec-query/bind db "
-SELECT extract(epoch from now())::int - Builds.timestamp FROM Builds
-INNER JOIN Evaluations on Builds.evaluation = Evaluations.id
-WHERE job_name  = " job-name "AND specification = " specification
-"ORDER BY Builds.timestamp DESC LIMIT 1"))
+SELECT extract(epoch from now())::int - Evaluations.timestamp FROM Evaluations
+WHERE specification = " specification
+"ORDER BY Evaluations.timestamp DESC LIMIT 1"))
       ((time)
        (string->number time))
       (else #f))))
@@ -786,7 +788,6 @@ ORDER BY Jobs.name")
            (system     (assq-ref job #:system))
            (nix-name   (assq-ref job #:nix-name))
            (log        (assq-ref job #:log))
-           (period     (assq-ref job #:period))
            (priority   (or (assq-ref job #:priority) max-priority))
            (max-silent (assq-ref job #:max-silent-time))
            (timeout    (assq-ref job #:timeout))
@@ -811,16 +812,7 @@ ORDER BY Jobs.name")
                           (#:timestamp . ,cur-time)
                           (#:starttime . 0)
                           (#:stoptime . 0))))
-             (if period
-                 (let* ((spec (specification-name specification))
-                        (time
-                         (db-get-time-since-previous-build job-name spec))
-                        (add-build? (cond
-                                     ((not time) #t)
-                                     ((> time period) #t)
-                                     (else #f))))
-                   (and add-build? (db-add-build build)))
-                 (db-add-build build))))
+             (db-add-build build)))
 
       ;; Always register JOB inside the Jobs table.  If there are new outputs,
       ;; JOB will refer to the newly created build.  Otherwise, it will refer

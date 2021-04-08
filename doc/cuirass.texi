@@ -208,6 +208,12 @@ will send build notifications emails from @code{build@@cuirass.org} to
 The different notification types are described in the
 @ref{Notifications} section.
 
+@item @code{period} (default: @code{0})
+When @code{period} is strictly superior to zero new evaluations will
+only be triggered if the latest evaluation occured more than
+@code{period} seconds ago.  Otherwise, the specification will be
+evaluated for each new commit in the declared @code{channels}.
+
 @item @code{priority} (default: @code{9})
 The specification priority relatively to the other specifications, as
 an integer ranging from 0 to 9 where 0 is the higher priority and 9
@@ -1003,6 +1009,9 @@ The build outputs to be saved by Cuirass as an SEXP string.
 
 @item notifications
 The build notifications to be sent by Cuirass as an SEXP string.
+
+@item period
+The specification periodicity as an integer.
 
 @item priority
 The specification priority relatively to the other specifications, as

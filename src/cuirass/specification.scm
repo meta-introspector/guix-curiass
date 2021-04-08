@@ -45,6 +45,7 @@
             specification-name
             specification-build
             specification-channels
+            specification-period
             specification-priority
             specification-build-outputs
             specification-notifications
@@ -153,6 +154,8 @@
                       (default '()))
   (notifications      specification-notifications
                       (default '()))
+  (period             specification-period
+                      (default 0)) ;integer
   (priority           specification-priority ;integer
                       (default 9))
   (systems            specification-systems ;list of strings
@@ -165,6 +168,7 @@
                   (channels ,(specification-channels spec))
                   (build-outputs ,(specification-build-outputs spec))
                   (notifications ,(specification-notifications spec))
+                  (period ,(specification-period spec))
                   (priority ,(specification-priority spec))
                   (systems ,(specification-systems spec))))
 
@@ -176,6 +180,7 @@
                      ('channels channels)
                      ('build-outputs build-outputs)
                      ('notifications notifications)
+                     ('period period)
                      ('priority priority)
                      ('systems systems))
      (specification (name name)
@@ -183,6 +188,7 @@
                     (channels channels)
                     (build-outputs build-outputs)
                     (notifications notifications)
+                    (period period)
                     (priority priority)
                     (systems systems)))))
 

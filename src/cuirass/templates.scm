@@ -446,6 +446,7 @@ the existing SPEC otherwise."
                            ((? symbol? build) build)
                            ((build _ ...) build))))
         (channels (and spec (specification-channels spec)))
+        (period (and spec (specification-period spec)))
         (priority (and spec (specification-priority spec)))
         (systems (and spec (specification-systems spec))))
     `(span
@@ -611,6 +612,18 @@ if ($('.param-select-row').is(':visible')) {
                                 (class "form-control build-param-input")))))
             ,@(channels->html
                (if spec channels (list %default-guix-channel)))
+            (div (@ (class "form-group row"))
+                 (label (@ (for "period")
+                           (class "col-sm-2 col-form-label"))
+                        "Period")
+                 (div (@ (class "col-sm-4"))
+                      (input
+                       (@ (type "number")
+                          (class "form-control")
+                          (id "period")
+                          (name "period")
+                          (min 0)
+                          (value ,(or period 0))))))
             (div (@ (class "form-group row"))
                  (label (@ (for "priority")
                            (class "col-sm-2 col-form-label"))

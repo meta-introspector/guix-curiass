@@ -186,8 +186,8 @@ timestamp, checkouttime, evaltime) VALUES ('guix', 0, 0, 0, 0);")
     '(("foo" (#:path . "/foo.drv.output")))
     (db-get-outputs "/foo.drv"))
 
-  (test-assert "db-get-time-since-previous-build"
-    (db-get-time-since-previous-build "job" "guix"))
+  (test-assert "db-get-time-since-previous-eval"
+    (db-get-time-since-previous-eval "guix"))
 
   (test-assert "db-register-builds"
     (let ((drv "/test.drv"))

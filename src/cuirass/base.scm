@@ -674,6 +674,17 @@ by BUILD-OUTPUTS."
 
 (define (process-specs jobspecs)
   "Evaluate and build JOBSPECS and store results in the database."
+  (define (new-eval? spec)
+    (let ((name (specification-name spec))
+          (period (specification-period spec)))
+      (or (= period 0)
+          (let ((time
+                 (db-get-time-since-previous-eval name)))
+            (cond
+             ((not time) #t)
+             ((> time period) #t)
+             (else #f))))))
+
   (define (process spec)
     (with-store store
       (let* ((name (specification-name spec))
@@ -709,7 +720,8 @@ by BUILD-OUTPUTS."
               ;; Catch Git errors, which might be transient, and keep going.
               (catch 'git-error
                 (lambda ()
-                  (process spec))
+                  (and (new-eval? spec)
+                       (process spec)))
                 (lambda (key error)
                   (log-message "Git error while fetching inputs of '~a': ~s~%"
                                (specification-name spec)

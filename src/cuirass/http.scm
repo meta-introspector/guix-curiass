@@ -168,6 +168,7 @@
     (#:notifications . ,(list->vector
                          (map notification->json-object
                               (specification-notifications spec))))
+    (#:period . ,(specification-period spec))
     (#:priority . ,(specification-priority spec))
     (#:systems . ,(list->vector
                    (specification-systems spec)))))
@@ -391,6 +392,8 @@ into a specification record and return it."
                         (filter-field 'channel-name)
                         (filter-field 'channel-url)
                         (filter-field 'channel-branch)))
+         (period (string->number
+                    (assq-ref params 'period)))
          (priority (string->number
                     (assq-ref params 'priority)))
          (systems (fold
@@ -406,6 +409,7 @@ into a specification record and return it."
                 (cons build build-params)
                 build))
      (channels channels)
+     (period period)
      (priority priority)
      (systems systems))))
 
