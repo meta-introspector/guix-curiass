@@ -1750,10 +1750,25 @@ text-dark d-flex position-absolute w-100"))
                                 systems)))
             (div (@ (class "col-auto"))
                  (button
-                  (@ (type "submit")
-                     (class "btn btn-primary"))
-                  " Go")))
+                  (@ (id "load-btn")
+                     (class "btn btn-primary")
+                     (type "submit")
+                     (disabled))
+                  (span
+                   (@ (class "spinner-border spinner-border-sm")))
+                  (span
+                   " Loading"))))
       (script ,(format #f "
+      function enableLoadButton() {
+          $('#load-btn').removeAttr('disabled');
+          $('#load-btn').children().eq(0).hide();
+          $('#load-btn').children().eq(1).text('Go');
+      }
+      function disableLoadButton() {
+          $('#load-btn').attr('disabled', 'true');
+          $('#load-btn').children().eq(0).show();
+          $('#load-btn').children().eq(1).text(' Loading');
+      }
       function radius(count) {
           if (count < 100)
               return 15;
@@ -1785,6 +1800,7 @@ text-dark d-flex position-absolute w-100"))
           return Math.round(Number(width));
       }
 
+      disableLoadButton();
       d3.json('~a').then(function (data) {
           var width = svgWidth();
           var circle_radius = radius(data.length);
@@ -1798,9 +1814,6 @@ text-dark d-flex position-absolute w-100"))
           var height = ((data.length / circle_count_x) *
                         margin_circle_y) +
               circle_radius + 2 * margin_y;
-
-          console.log(width);
-          console.log(height);
 
           var div = d3.select('body').append('div')
                         .attr('class', 'tooltip')
@@ -1842,4 +1855,5 @@ text-dark d-flex position-absolute w-100"))
                       .style('left', '0px')
                       .style('top', '0px');
               })
+          enableLoadButton();
       });" jobs)))))
