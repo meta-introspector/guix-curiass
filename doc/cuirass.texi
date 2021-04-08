@@ -1117,8 +1117,9 @@ This integer field references the evaluation identifier from the
 @code{Evaluations} table, indicating to which evaluation this job
 belongs.
 
-@item derivation
-This text field holds the absolute name of the job derivation file.
+@item builds
+This integer field references the build id from the @code{Builds}
+table, corresponding to this job.
 
 @item system
 This text field holds the system name of the derivation.

@@ -331,14 +331,13 @@ $('.job-toggle').click(function() {
                                 (specification-name spec))))
                           (if summary
                               `((div
-                                 (@ (class "badge badge-success job-per")
+                                 (@ (class "badge badge-success job-per mr-3")
                                     (title "Percentage succeeded"))
                                  ,(format #f "~1,2f%"
                                           (assq-ref summary #:percentage)))
                                 " "
                                 (div
-                                 (@ (class "job-val")
-                                    (style "display:none"))
+                                 (@ (class "job-val"))
                                  (div
                                   (@ (class "badge badge-success")
                                      (title "Succeeded"))
@@ -353,16 +352,18 @@ $('.job-toggle').click(function() {
                                   ,(assq-ref summary #:scheduled))))
                               '())))
                      (td
-                      ,(let ((eval (and=> (spec-summary
+                      ,@(let ((eval (and=> (spec-summary
                                            (specification-name spec))
                                           (cut assq-ref <> #:evaluation))))
-                         `(a (@ (href "/eval/" ,eval
-                                      "/dashboard"))
-                             (div
-                              (@ (class "oi oi-monitor d-inline-block ml-2")
-                                 (title "Dashboard")
-                                 (aria-hidden "true"))
-                              "")))
+                          (if eval
+                              `((a (@ (href "/eval/" ,eval
+                                             "/dashboard"))
+                                    (div
+                                     (@ (class "oi oi-monitor d-inline-block ml-2")
+                                        (title "Dashboard")
+                                        (aria-hidden "true"))
+                                     "")))
+                              '()))
                       (div
                        (@ (class "dropdown d-inline-block ml-2"))
                        (a (@ (class "oi oi-menu dropdown-toggle no-dropdown-arrow")
