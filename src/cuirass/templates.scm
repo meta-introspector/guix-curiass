@@ -264,12 +264,17 @@ columnDefs: [
 
   "Return HTML for the SPECS table."
   `((p (@ (class "lead")) "Specifications"
+
+       (button (@ (class "btn btn-outline-primary float-right job-toggle")
+                  (type "button"))
+               (span (@ (class "oi oi-contrast d-inline-block")
+                        (title "Toggle jobs"))))
        (a (@ (href "/events/rss/"))
-          (button (@ (class "btn btn-outline-warning float-right")
+          (button (@ (class "btn btn-outline-warning mr-1 float-right")
                      (type "button"))
-                  (span (@(class "oi oi-rss text-warning align-right")
-                         (title "RSS")
-                         (aria-hidden "true"))
+                  (span (@ (class "oi oi-rss text-warning align-right")
+                           (title "RSS")
+                           (aria-hidden "true"))
                         "")))
        (a (@ (class "btn btn-outline-primary mr-1 float-right")
              (href "/specification/add/")
@@ -278,6 +283,12 @@ columnDefs: [
                  (title "Add")
                  (aria-hidden "true"))
                 "")))
+    (script "
+$(document).ready(function() {
+$('.job-toggle').click(function() {
+  $('.job-per').toggle();
+  $('.job-val').toggle();
+})});")
     (table
      (@ (id "spec-table")
         (class "table table-sm table-hover"))
@@ -293,69 +304,83 @@ columnDefs: [
              (tbody
               ,@(map
                  (lambda (spec)
-                   `(tr (td (a (@ (href "/jobset/"
+                   `(tr
+                     (td (a (@ (href "/jobset/"
+                                     ,(specification-name spec)))
+                            ,(specification-name spec)))
+                     (td ,(match (specification-build spec)
+                            ((? symbol? build)
+                             (symbol->string build))
+                            ((build _ ...)
+                             (symbol->string build))))
+                     (td ,(string-join
+                           (map (lambda (channel)
+                                  (format #f "~a (on ~a)"
+                                          (channel-name channel)
+                                          (channel-branch channel)))
+                                (specification-channels spec)) ", "))
+                     (td ,(number->string
+                           (specification-priority spec)))
+                     (td ,(string-join
+                           (sort (specification-systems spec)
+                                 string<?)
+                           ", "))
+                     (td
+                      ,@(let ((summary
+                               (spec-summary
+                                (specification-name spec))))
+                          (if summary
+                              `((div
+                                 (@ (class "badge badge-success job-per")
+                                    (title "Percentage succeeded"))
+                                 ,(format #f "~1,2f%"
+                                          (assq-ref summary #:percentage)))
+                                " "
+                                (div
+                                 (@ (class "job-val")
+                                    (style "display:none"))
+                                 (div
+                                  (@ (class "badge badge-success")
+                                     (title "Succeeded"))
+                                  ,(assq-ref summary #:succeeded))
+                                 (div
+                                  (@ (class "badge badge-danger")
+                                     (title "Failed"))
+                                  ,(assq-ref summary #:failed))
+                                 (div
+                                  (@ (class "badge badge-secondary")
+                                     (title "Scheduled"))
+                                  ,(assq-ref summary #:scheduled))))
+                              '())))
+                     (td
+                      ,(let ((eval (and=> (spec-summary
+                                           (specification-name spec))
+                                          (cut assq-ref <> #:evaluation))))
+                         `(a (@ (href "/eval/" ,eval
+                                      "/dashboard"))
+                             (div
+                              (@ (class "oi oi-monitor d-inline-block ml-2")
+                                 (title "Dashboard")
+                                 (aria-hidden "true"))
+                              "")))
+                      (div
+                       (@ (class "dropdown d-inline-block ml-2"))
+                       (a (@ (class "oi oi-menu dropdown-toggle no-dropdown-arrow")
+                             (href "#")
+                             (data-toggle "dropdown")
+                             (role "button")
+                             (aria-haspopup "true")
+                             (aria-expanded "false"))
+                          " ")
+                       (div (@ (class "dropdown-menu"))
+                            (a (@ (class "dropdown-item")
+                                  (href "/specification/edit/"
                                         ,(specification-name spec)))
-                               ,(specification-name spec)))
-                        (td ,(match (specification-build spec)
-                               ((? symbol? build)
-                                (symbol->string build))
-                               ((build _ ...)
-                                (symbol->string build))))
-                        (td ,(string-join
-                              (map (lambda (channel)
-                                     (format #f "~a (on ~a)"
-                                             (channel-name channel)
-                                             (channel-branch channel)))
-                                   (specification-channels spec)) ", "))
-                        (td ,(number->string
-                              (specification-priority spec)))
-                        (td ,(string-join
-                              (sort (specification-systems spec)
-                                    string<?)
-                              ", "))
-                        (td
-                         ,@(let ((summary
-                                  (spec-summary
-                                   (specification-name spec))))
-                             (if summary
-                                 `((div
-                                    (@ (class "badge badge-success")
-                                       (title "Percentage succeeded"))
-                                    ,(format #f "~1,2f%"
-                                             (assq-ref summary #:percentage)))
-                                   " "
-                                   (div
-                                    (@ (class "badge badge-success")
-                                       (title "Succeeded"))
-                                    ,(assq-ref summary #:succeeded))
-                                   (div
-                                    (@ (class "badge badge-danger")
-                                       (title "Failed"))
-                                    ,(assq-ref summary #:failed))
-                                   (div
-                                    (@ (class "badge badge-secondary")
-                                       (title "Scheduled"))
-                                    ,(assq-ref summary #:scheduled)))
-                                 '())))
-                        (td
-                         (div
-                          (@ (class "dropdown"))
-                          (a (@ (class "oi oi-menu dropdown-toggle no-dropdown-arrow")
-                                (href "#")
-                                (data-toggle "dropdown")
-                                (role "button")
-                                (aria-haspopup "true")
-                                (aria-expanded "false"))
-                             " ")
-                          (div (@ (class "dropdown-menu"))
-                               (a (@ (class "dropdown-item")
-                                     (href "/specification/edit/"
-                                           ,(specification-name spec)))
-                                  " Edit")
-                               (a (@ (class "dropdown-item")
-                                     (href "/admin/specifications/delete/"
-                                           ,(specification-name spec)))
-                                  " Delete"))))))
+                               " Edit")
+                            (a (@ (class "dropdown-item")
+                                  (href "/admin/specifications/delete/"
+                                        ,(specification-name spec)))
+                               " Delete"))))))
                  specs)))))))
 
 (define* (specification-edit #:optional spec)

@@ -479,7 +479,7 @@ priority, systems FROM Specifications ORDER BY name ASC;")))
   (with-db-worker-thread db
     (let ((query "
 SELECT specification, 100 * CAST(succeeded AS FLOAT) / total,
-succeeded, failed, scheduled FROM
+succeeded, failed, scheduled, evaluation FROM
 (SELECT DISTINCT ON(specification) specification, MAX(id) FROM Specifications
 LEFT JOIN Evaluations ON Specifications.name = Evaluations.specification
 WHERE Evaluations.status = 0
@@ -494,9 +494,11 @@ GROUP BY Jobs.evaluation) b on evals.max = b.evaluation;"))
                  (summary '()))
         (match rows
           (() (reverse summary))
-          (((specification percentage succeeded failed scheduled) . rest)
+          (((specification percentage succeeded
+                           failed scheduled evaluation) . rest)
            (loop rest
                  (cons `((#:specification . ,specification)
+                         (#:evaluation . ,evaluation)
                          (#:percentage . ,(number percentage))
                          (#:succeeded . ,(number succeeded))
                          (#:failed . ,(number failed))
