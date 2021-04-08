@@ -24,15 +24,6 @@ CREATE TABLE Evaluations (
   FOREIGN KEY (specification) REFERENCES Specifications(name) ON DELETE CASCADE
 );
 
-CREATE TABLE Jobs (
-  name          TEXT NOT NULL,
-  evaluation    INTEGER NOT NULL,
-  derivation    TEXT NOT NULL,
-  system        TEXT NOT NULL,
-  PRIMARY KEY (evaluation, derivation),
-  FOREIGN KEY (evaluation) REFERENCES Evaluations(id) ON DELETE CASCADE
-);
-
 CREATE TABLE Checkouts (
   specification TEXT NOT NULL,
   revision      TEXT NOT NULL,
@@ -63,6 +54,16 @@ CREATE TABLE Builds (
   timestamp     INTEGER NOT NULL,
   starttime     INTEGER NOT NULL,
   stoptime      INTEGER NOT NULL,
+  FOREIGN KEY (evaluation) REFERENCES Evaluations(id) ON DELETE CASCADE
+);
+
+CREATE TABLE Jobs (
+  name          TEXT NOT NULL,
+  evaluation    INTEGER NOT NULL,
+  build         INTEGER NOT NULL,
+  system        TEXT NOT NULL,
+  PRIMARY KEY (evaluation, build),
+  FOREIGN KEY (build) REFERENCES Builds(id) ON DELETE CASCADE,
   FOREIGN KEY (evaluation) REFERENCES Evaluations(id) ON DELETE CASCADE
 );
 

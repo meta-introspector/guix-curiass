@@ -694,10 +694,11 @@ JOB derivation."
     (pk output derivation)
     (with-db-worker-thread db
       (exec-query/bind db "\
-INSERT INTO Jobs (name, evaluation, derivation, system)
+INSERT INTO Jobs (name, evaluation, build, system)
 (SELECT " name ", " eval-id ",
-COALESCE((SELECT derivation FROM Outputs WHERE
-PATH = " output "), " derivation ")," system ")
+(SELECT id FROM Builds WHERE derivation =
+(SELECT COALESCE((SELECT derivation FROM Outputs WHERE
+PATH = " output "), " derivation ")))," system ")
 ON CONFLICT ON CONSTRAINT jobs_pkey DO NOTHING;"))))
 
 (define (db-get-jobs eval-id filters)
@@ -710,7 +711,7 @@ the symbols system and names."
   (with-db-worker-thread db
     (let ((query "
 SELECT Builds.id, Builds.status, Jobs.name FROM Jobs
-INNER JOIN Builds ON Jobs.derivation = Builds.derivation
+INNER JOIN Builds ON Jobs.build = Builds.id
 WHERE Jobs.evaluation = :evaluation
 AND ((Jobs.system = :system) OR :system IS NULL)
 AND ((Jobs.name = ANY(:names)) OR :names IS NULL)
@@ -758,9 +759,6 @@ ORDER BY Jobs.name")
            (timeout    (assq-ref job #:timeout))
            (outputs    (assq-ref job #:outputs))
            (cur-time   (time-second (current-time time-utc))))
-      ;; Always register JOB inside the Jobs table.  If it triggers a new
-      ;; build, also register it into the Builds table below.
-      (db-add-job job eval-id)
       (and (new-outputs? outputs)
            (let ((build `((#:derivation . ,drv)
                           (#:eval-id . ,eval-id)
@@ -789,7 +787,12 @@ ORDER BY Jobs.name")
                                      ((> time period) #t)
                                      (else #f))))
                    (and add-build? (db-add-build build)))
-                 (db-add-build build))))))
+                 (db-add-build build))))
+
+      ;; Always register JOB inside the Jobs table.  If there are new outputs,
+      ;; JOB will refer to the newly created build.  Otherwise, it will refer
+      ;; to the last build with the same build outputs.
+      (db-add-job job eval-id)))
 
   (with-db-worker-thread db
     (log-message "Registering builds for evaluation ~a." eval-id)
