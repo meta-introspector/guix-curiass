@@ -127,6 +127,15 @@ pull} command.
 @item @code{hello}
 Build only the hello package.
 
+@item @code{images}
+Build only the Guix System images.
+
+@item @code{system-tests}
+Build only the Guix System tests.
+
+@item @code{tarball}
+Build only the Guix binary tarball.
+
 @item @code{(channels . list)}
 Build only the packages that are part of the given channel
 @code{list}.  For instance, @code{(channels my-channel)} will only

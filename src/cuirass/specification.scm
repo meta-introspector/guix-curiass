@@ -140,7 +140,16 @@
 
 ;; The list of possible build types.
 (define %build-types
-  '(all core guix hello channels packages manifests))
+  '(all
+    core
+    guix
+    hello
+    images
+    system-tests
+    tarball
+    channels
+    packages
+    manifests))
 
 (define-record-type* <specification>
   specification make-specification
