@@ -312,6 +312,17 @@ timestamp, checkouttime, evaltime) VALUES ('guix', 0, 0, 0, 0);")
               (assq-ref summary #:scheduled)))
            summaries)))
 
+  (test-equal "db-get-specifications-summary"
+    '("guix" 0 0 1 0)
+    (match (db-get-specifications-summary)
+      ((summary)
+       (list
+        (assq-ref summary #:specification)
+        (assq-ref summary #:percentage)
+        (assq-ref summary #:succeeded)
+        (assq-ref summary #:failed)
+        (assq-ref summary #:scheduled)))))
+
   (test-equal "db-get-evaluations-id-min"
     1
     (db-get-evaluations-id-min "guix"))

@@ -54,6 +54,7 @@
             db-remove-specification
             db-get-specification
             db-get-specifications
+            db-get-specifications-summary
             evaluation-status
             db-add-evaluation
             db-abort-pending-evaluations
@@ -471,6 +472,37 @@ priority, systems FROM Specifications ORDER BY name ASC;")))
                       (systems (with-input-from-string systems read)))
                      specs)))))))
 
+(define (db-get-specifications-summary)
+  (define (number n)
+    (if n (string->number n) 0))
+
+  (with-db-worker-thread db
+    (let ((query "
+SELECT specification, 100 * CAST(succeeded AS FLOAT) / total,
+succeeded, failed, scheduled FROM
+(SELECT DISTINCT ON(specification) specification, MAX(id) FROM Specifications
+LEFT JOIN Evaluations ON Specifications.name = Evaluations.specification
+WHERE Evaluations.status = 0
+GROUP BY Evaluations.specification) evals LEFT JOIN (SELECT
+SUM(CASE WHEN Builds.status > -100 THEN 1 ELSE 0 END) AS total,
+SUM(CASE WHEN Builds.status = 0 THEN 1 ELSE 0 END) AS succeeded,
+SUM(CASE WHEN Builds.status > 0 THEN 1 ELSE 0 END) AS failed,
+SUM(CASE WHEN Builds.status < 0 THEN 1 ELSE 0 END) AS scheduled,
+Jobs.evaluation FROM Jobs INNER JOIN Builds ON Jobs.build = Builds.id
+GROUP BY Jobs.evaluation) b on evals.max = b.evaluation;"))
+      (let loop ((rows (exec-query db query))
+                 (summary '()))
+        (match rows
+          (() (reverse summary))
+          (((specification percentage succeeded failed scheduled) . rest)
+           (loop rest
+                 (cons `((#:specification . ,specification)
+                         (#:percentage . ,(number percentage))
+                         (#:succeeded . ,(number succeeded))
+                         (#:failed . ,(number failed))
+                         (#:scheduled . ,(number scheduled)))
+                       summary))))))))
+
 (define-enumeration evaluation-status
   (started          -1)
   (succeeded         0)
@@ -691,7 +723,6 @@ JOB derivation."
                        (((name . path) _ ...)
                         path)))
          (system     (assq-ref job #:system)))
-    (pk output derivation)
     (with-db-worker-thread db
       (exec-query/bind db "\
 INSERT INTO Jobs (name, evaluation, build, system)

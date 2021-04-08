@@ -148,7 +148,8 @@ order: [],
 ...default_opts,
 /* Do not sort the 'Action' column. */
 columnDefs: [
-    { orderable: false, targets: 5 }
+    { orderable: false, targets: 5 },
+    { orderable: false, targets: 6 }
   ],
 });
 }
@@ -255,7 +256,12 @@ columnDefs: [
    (else
     "Invalid status")))
 
-(define (specifications-table specs)
+(define (specifications-table specs summary)
+  (define (spec-summary name)
+    (find (lambda (s)
+            (string=? (assq-ref s #:specification) name))
+          summary))
+
   "Return HTML for the SPECS table."
   `((p (@ (class "lead")) "Specifications"
        (a (@ (href "/events/rss/"))
@@ -282,6 +288,7 @@ columnDefs: [
                         (th (@ (scope "col")) Channels)
                         (th (@ (scope "col")) Priority)
                         (th (@ (scope "col")) Systems)
+                        (th (@ (scope "col")) Jobs)
                         (th (@ (scope "col")) Action)))
              (tbody
               ,@(map
@@ -306,6 +313,30 @@ columnDefs: [
                               (sort (specification-systems spec)
                                     string<?)
                               ", "))
+                        (td
+                         ,@(let ((summary
+                                  (spec-summary
+                                   (specification-name spec))))
+                             (if summary
+                                 `((div
+                                    (@ (class "badge badge-success")
+                                       (title "Percentage succeeded"))
+                                    ,(format #f "~1,2f%"
+                                             (assq-ref summary #:percentage)))
+                                   " "
+                                   (div
+                                    (@ (class "badge badge-success")
+                                       (title "Succeeded"))
+                                    ,(assq-ref summary #:succeeded))
+                                   (div
+                                    (@ (class "badge badge-danger")
+                                       (title "Failed"))
+                                    ,(assq-ref summary #:failed))
+                                   (div
+                                    (@ (class "badge badge-secondary")
+                                       (title "Scheduled"))
+                                    ,(assq-ref summary #:scheduled)))
+                                 '())))
                         (td
                          (div
                           (@ (class "dropdown"))

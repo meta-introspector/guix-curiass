@@ -760,7 +760,8 @@ into a specification record and return it."
      (respond-html (html-page
                     "Cuirass"
                     (specifications-table
-                     (db-get-specifications))
+                     (db-get-specifications)
+                     (db-get-specifications-summary))
                     '())))
 
     (('GET "jobset" name)
