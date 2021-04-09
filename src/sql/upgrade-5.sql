@@ -1,0 +1,5 @@
+BEGIN TRANSACTION;
+
+ALTER TABLE Jobs ADD PRIMARY KEY (evaluation, build);
+
+COMMIT;
