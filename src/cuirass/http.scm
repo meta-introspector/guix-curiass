@@ -778,11 +778,15 @@ into a specification record and return it."
              (evaluations (db-get-evaluations-build-summary name
                                                             %page-size
                                                             border-low
-                                                            border-high)))
+                                                            border-high))
+             (absolute-summary
+              (db-get-evaluations-absolute-summary evaluations)))
         (html-page name (evaluation-info-table name
                                                evaluations
                                                evaluation-id-min
-                                               evaluation-id-max)
+                                               evaluation-id-max
+                                               #:absolute-summary
+                                               absolute-summary)
                    `(((#:name . ,name)
                       (#:link . ,(string-append "/jobset/" name))))))))
 

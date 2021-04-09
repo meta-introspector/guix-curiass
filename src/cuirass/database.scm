@@ -92,6 +92,7 @@
             db-get-evaluations-id-min
             db-get-evaluations-id-max
             db-get-evaluation-summary
+            db-get-evaluations-absolute-summary
             db-get-builds-query-min
             db-get-builds-query-max
             db-get-builds-min
@@ -1395,6 +1396,37 @@ ORDER BY Evaluations.id ASC;"))
          (#:failed . ,(or (string->number failed) 0))
          (#:scheduled . ,(or (string->number scheduled) 0))))
       (else #f))))
+
+(define (db-get-evaluations-absolute-summary evaluations)
+  (define eval-ids
+    (format #f "{~a}"
+            (string-join
+             (map number->string
+                  (map (cut assq-ref <> #:id) evaluations))
+             ",")))
+
+  (define (number n)
+    (if n (string->number n) 0))
+
+  (with-db-worker-thread db
+    (let loop ((rows
+                (exec-query/bind db  "SELECT
+SUM(CASE WHEN Builds.status = 0 THEN 1 ELSE 0 END) AS succeeded,
+SUM(CASE WHEN Builds.status > 0 THEN 1 ELSE 0 END) AS failed,
+SUM(CASE WHEN Builds.status < 0 THEN 1 ELSE 0 END) AS scheduled,
+Jobs.evaluation FROM Jobs INNER JOIN Builds ON Jobs.build = Builds.id
+WHERE Jobs.evaluation = ANY(" eval-ids ")
+GROUP BY Jobs.evaluation;"))
+               (summary '()))
+      (match rows
+        (() (reverse summary))
+        (((succeeded failed scheduled evaluation) . rest)
+         (loop rest
+               (cons `((#:evaluation . ,(number evaluation))
+                       (#:succeeded . ,(number succeeded))
+                       (#:failed . ,(number failed))
+                       (#:scheduled . ,(number scheduled)))
+                     summary)))))))
 
 (define (db-get-builds-query-min filters)
   "Return the smallest build row identifier matching QUERY."

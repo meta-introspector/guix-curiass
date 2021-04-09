@@ -325,6 +325,19 @@ timestamp, checkouttime, evaltime) VALUES ('guix', 0, 0, 0, 0);")
               (assq-ref summary #:scheduled)))
            summaries)))
 
+  (test-equal "db-get-evaluations-absolute-summary"
+    '((0 1 0) (0 1 0))
+    (let* ((evaluations
+            (db-get-evaluations-build-summary "guix" 3 #f #f))
+           (summaries
+            (db-get-evaluations-absolute-summary evaluations)))
+      (map (lambda (summary)
+             (list
+              (assq-ref summary #:succeeded)
+              (assq-ref summary #:failed)
+              (assq-ref summary #:scheduled)))
+           summaries)))
+
   (test-equal "db-get-evaluations-id-min"
     1
     (db-get-evaluations-id-min "guix"))

@@ -856,7 +856,7 @@ if ($('.param-select-row').is(':visible')) {
           ", ")))
     (if (string=? changes "") '(em "None") changes)))
 
-(define (evaluation-badges evaluation)
+(define (evaluation-badges evaluation absolute)
   (let ((status (assq-ref evaluation #:status)))
     (if (= status (evaluation-status started))
         '((em "In progress…"))
@@ -874,33 +874,62 @@ if ($('.param-select-row').is(':visible')) {
                   (aria-hidden "true"))
                "")))
          ((= status (evaluation-status succeeded))
-          `((a (@ (href "/eval/" ,(assq-ref evaluation #:id)
-                        "?status=succeeded")
-                  (class "badge badge-success")
-                  (title "Succeeded"))
-               ,(assq-ref evaluation #:succeeded))
-            (a (@ (href "/eval/" ,(assq-ref evaluation #:id)
-                        "?status=failed")
-                  (class "badge badge-danger")
-                  (title "Failed"))
-               ,(assq-ref evaluation #:failed))
-            (a (@ (href "/eval/" ,(assq-ref evaluation #:id)
-                        "?status=pending")
-                  (class "badge badge-secondary")
-                  (title "Scheduled"))
-               ,(assq-ref evaluation #:scheduled))))))))
+          `((div
+             (@ (class "job-abs"))
+             (div (@ (class "badge badge-success")
+                     (title "Succeeded"))
+                  ,(assq-ref absolute #:succeeded))
+             (div (@ (class "badge badge-danger")
+                     (title "Failed"))
+                  ,(assq-ref absolute #:failed))
+             (div (@ (class "badge badge-secondary")
+                     (title "Scheduled"))
+                  ,(assq-ref absolute #:scheduled)))
+            (div
+             (@ (class "job-rel"))
+             (a (@ (href "/eval/" ,(assq-ref evaluation #:id)
+                         "?status=succeeded")
+                   (class "badge badge-success")
+                   (title "Succeeded"))
+                ,(assq-ref evaluation #:succeeded))
+             (a (@ (href "/eval/" ,(assq-ref evaluation #:id)
+                         "?status=failed")
+                   (class "badge badge-danger")
+                   (title "Failed"))
+                ,(assq-ref evaluation #:failed))
+             (a (@ (href "/eval/" ,(assq-ref evaluation #:id)
+                         "?status=pending")
+                   (class "badge badge-secondary")
+                   (title "Scheduled"))
+                ,(assq-ref evaluation #:scheduled)))))))))
 
-(define (evaluation-info-table name evaluations id-min id-max)
+(define* (evaluation-info-table name evaluations id-min id-max
+                                #:key absolute-summary)
   "Return HTML for the EVALUATION table NAME. ID-MIN and ID-MAX are
   global minimal and maximal id."
+  (define (eval-absolute-summary eval)
+    (find (lambda (e)
+            (= (assq-ref e #:evaluation) (assq-ref eval #:id)))
+          absolute-summary))
+
   `((p (@ (class "lead")) "Evaluations of " ,name
+       (button (@ (class "btn btn-outline-primary float-right job-toggle")
+                  (type "button"))
+               (span (@ (class "oi oi-contrast d-inline-block")
+                        (title "Toggle jobs"))))
        (a (@ (href "/events/rss/?specification=" ,name))
-          (button (@ (class "btn btn-outline-warning float-right")
+          (button (@ (class "btn btn-outline-warning float-right mr-1")
                      (type "button"))
                   (span (@(class "oi oi-rss text-warning align-right")
                          (title "RSS")
                          (aria-hidden "true"))
                         ""))))
+    (script "
+$(document).ready(function() {
+$('.job-toggle').click(function() {
+  $('.job-abs').toggle();
+  $('.job-rel').toggle();
+})});")
     (table
      (@ (class "table table-sm table-hover table-striped"))
      ,@(if (null? evaluations)
@@ -918,7 +947,9 @@ if ($('.param-select-row').is(':visible')) {
                             (a (@ (href "/eval/" ,(assq-ref row #:id)))
                                ,(assq-ref row #:id)))
                         (td ,(input-changes (assq-ref row #:checkouts)))
-                        (td ,@(evaluation-badges row))
+                        (td
+                         ,@(evaluation-badges row
+                                              (eval-absolute-summary row)))
                         (td
                          (a (@ (href "/eval/" ,(assq-ref row #:id)
                                      "/dashboard"))
