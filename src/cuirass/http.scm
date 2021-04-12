@@ -827,8 +827,8 @@ into a specification record and return it."
             (default-system "x86_64-linux")
             (spec-name (db-get-evaluation-specification id)))
        (if spec-name
-           (let ((spec (db-get-specification spec-name))
-                 (systems (specification-systems spec)))
+           (let* ((spec (db-get-specification spec-name))
+                  (systems (specification-systems spec)))
              (respond-html
               (html-page
                "Dashboard"
