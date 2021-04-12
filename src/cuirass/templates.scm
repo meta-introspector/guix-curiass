@@ -333,8 +333,9 @@ $('.job-toggle').click(function() {
                               `((div
                                  (@ (class "badge badge-success job-per mr-3")
                                     (title "Percentage succeeded"))
-                                 ,(format #f "~1,2f%"
-                                          (assq-ref summary #:percentage)))
+                                 ,(nearest-exact-integer
+                                   (assq-ref summary #:percentage))
+                                 "%")
                                 " "
                                 (div
                                  (@ (class "job-val"))
