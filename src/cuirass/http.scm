@@ -825,20 +825,23 @@ into a specification record and return it."
      (let* ((params (request-parameters request))
             (system (assq-ref params 'system))
             (default-system "x86_64-linux")
-            (spec-name (db-get-evaluation-specification id))
-            (spec (db-get-specification spec-name))
-            (systems (specification-systems spec)))
-       (respond-html
-        (html-page
-         "Dashboard"
-         (evaluation-dashboard id systems
-                               #:current-system
-                               (or system default-system))
-         `(((#:name . ,spec-name)
-            (#:link . ,(string-append "/jobset/" spec-name)))
-           ((#:name . ,(string-append "Evaluation " (number->string id)))
-            (#:link . ,(string-append "/eval/" (number->string id)))))
-         #:margin? #f))))
+            (spec-name (db-get-evaluation-specification id)))
+       (if spec-name
+           (let ((spec (db-get-specification spec-name))
+                 (systems (specification-systems spec)))
+             (respond-html
+              (html-page
+               "Dashboard"
+               (evaluation-dashboard id systems
+                                     #:current-system
+                                     (or system default-system))
+               `(((#:name . ,spec-name)
+                  (#:link . ,(string-append "/jobset/" spec-name)))
+                 ((#:name . ,(string-append "Evaluation "
+                                            (number->string id)))
+                  (#:link . ,(string-append "/eval/" (number->string id)))))
+               #:margin? #f)))
+           (respond-html-eval-not-found id))))
 
     (('GET "search")
      (let* ((params (request-parameters request))
