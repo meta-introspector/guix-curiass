@@ -356,7 +356,7 @@ $('.job-toggle').click(function() {
                                  (spec->latest-eval
                                   (specification-name spec))))
                                (percentage
-                                (summary->percentage summary))
+                                (and summary (summary->percentage summary)))
                                (style
                                    (format #f "width: ~a%" percentage)))
                           (if summary
