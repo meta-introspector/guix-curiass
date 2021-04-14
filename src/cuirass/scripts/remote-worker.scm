@@ -56,11 +56,11 @@
 (define %stop-process?
   (make-atomic-box #f))
 
-;; The build request period.
+;; The build request period in seconds.
 (define %request-period
   (make-parameter
-   (or (string->number
-        (getenv "REQUEST_PERIOD"))
+   (or (and=> (getenv "REQUEST_PERIOD")
+              string->number)
        10)))
 
 (define (show-help)
