@@ -668,13 +668,14 @@ WHERE specification = " specification
   (with-db-worker-thread db
     (let loop ((rows
                 (exec-query/bind db "
-SELECT LEAST(duration::float/last_duration * 100, 100)::int AS percentage
+SELECT COALESCE((SELECT
+LEAST(duration::float/last_duration * 100, 100)::int AS percentage
 FROM (SELECT  DISTINCT ON (b1.id) b1.id AS id,
 GREATEST((b2.stoptime - b2.starttime), 1) AS last_duration,
 (extract(epoch from now())::int - b1.starttime) AS duration FROM builds AS b1
 LEFT JOIN builds AS b2 ON b1.job_name = b2.job_name WHERE b1.id IN
 (SELECT id FROM builds WHERE id = ANY(" build-ids "))
-AND b2.status >= 0 ORDER BY b1.id,  b2.id DESC) d;"))
+AND b2.status >= 0 ORDER BY b1.id,  b2.id DESC) d), 0);"))
                (percentages '()))
       (match rows
         (() (reverse percentages))
