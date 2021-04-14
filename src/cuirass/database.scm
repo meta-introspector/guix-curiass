@@ -54,7 +54,6 @@
             db-remove-specification
             db-get-specification
             db-get-specifications
-            db-get-specifications-summary
             evaluation-status
             db-add-evaluation
             db-abort-pending-evaluations
@@ -91,6 +90,7 @@
             db-get-evaluations-build-summary
             db-get-evaluations-id-min
             db-get-evaluations-id-max
+            db-get-latest-evaluations
             db-get-evaluation-summary
             db-get-evaluations-absolute-summary
             db-get-builds-query-min
@@ -477,39 +477,6 @@ period, priority, systems FROM Specifications ORDER BY name ASC;")))
                       (systems (with-input-from-string systems read)))
                      specs)))))))
 
-(define (db-get-specifications-summary)
-  (define (number n)
-    (if n (string->number n) 0))
-
-  (with-db-worker-thread db
-    (let ((query "
-SELECT specification, 100 * CAST(succeeded AS FLOAT) / total,
-succeeded, failed, scheduled, evaluation FROM
-(SELECT DISTINCT ON(specification) specification, MAX(id) FROM Specifications
-LEFT JOIN Evaluations ON Specifications.name = Evaluations.specification
-WHERE Evaluations.status = 0
-GROUP BY Evaluations.specification) evals LEFT JOIN (SELECT
-SUM(CASE WHEN Builds.status > -100 THEN 1 ELSE 0 END) AS total,
-SUM(CASE WHEN Builds.status = 0 THEN 1 ELSE 0 END) AS succeeded,
-SUM(CASE WHEN Builds.status > 0 THEN 1 ELSE 0 END) AS failed,
-SUM(CASE WHEN Builds.status < 0 THEN 1 ELSE 0 END) AS scheduled,
-Jobs.evaluation FROM Jobs INNER JOIN Builds ON Jobs.build = Builds.id
-GROUP BY Jobs.evaluation) b on evals.max = b.evaluation;"))
-      (let loop ((rows (exec-query db query))
-                 (summary '()))
-        (match rows
-          (() (reverse summary))
-          (((specification percentage succeeded
-                           failed scheduled evaluation) . rest)
-           (loop rest
-                 (cons `((#:specification . ,specification)
-                         (#:evaluation . ,evaluation)
-                         (#:percentage . ,(number percentage))
-                         (#:succeeded . ,(number succeeded))
-                         (#:failed . ,(number failed))
-                         (#:scheduled . ,(number scheduled)))
-                       summary))))))))
-
 (define-enumeration evaluation-status
   (started          -1)
   (succeeded         0)
@@ -730,11 +697,12 @@ JOB derivation."
          (system     (assq-ref job #:system)))
     (with-db-worker-thread db
       (exec-query/bind db "\
-INSERT INTO Jobs (name, evaluation, build, system)
-(SELECT " name ", " eval-id ",
-(SELECT id FROM Builds WHERE derivation =
+WITH b AS
+(SELECT id, status FROM Builds WHERE derivation =
 (SELECT COALESCE((SELECT derivation FROM Outputs WHERE
-PATH = " output "), " derivation ")))," system ")
+PATH = " output "), " derivation ")))
+INSERT INTO Jobs (name, evaluation, build, status, system)
+(SELECT " name ", " eval-id ", b.id, b.status," system " FROM b)
 ON CONFLICT ON CONSTRAINT jobs_pkey DO NOTHING;"))))
 
 (define (db-get-jobs eval-id filters)
@@ -746,8 +714,7 @@ the symbols system and names."
 
   (with-db-worker-thread db
     (let ((query "
-SELECT Builds.id, Builds.status, Jobs.name FROM Jobs
-INNER JOIN Builds ON Jobs.build = Builds.id
+SELECT build, status, name FROM Jobs
 WHERE Jobs.evaluation = :evaluation
 AND ((Jobs.system = :system) OR :system IS NULL)
 AND ((Jobs.name = ANY(:names)) OR :names IS NULL)
@@ -901,7 +868,11 @@ UPDATE Builds SET stoptime =" now
                                          (build-weather new-failure)))
                             (db-push-notification notif
                                                   (assq-ref build #:id))))
-                        notifications)))))))
+                        notifications)))))
+    (exec-query/bind db
+                     "UPDATE Jobs SET status=" status
+                     "WHERE build = (SELECT id FROM Builds WHERE
+ derivation = " drv ");")))
 
 (define* (db-update-build-worker! drv worker)
   "Update the database so that DRV's worker is WORKER."
@@ -1368,6 +1339,23 @@ SELECT MAX(id) FROM Evaluations
 WHERE specification=" spec))
       ((max) (and max (string->number max))))))
 
+(define (db-get-latest-evaluations)
+  "Return the latest successful evaluation for each specification."
+  (with-db-worker-thread db
+    (let loop ((rows (exec-query db "
+SELECT specification, max(id) FROM Evaluations
+WHERE status = 0 GROUP BY Evaluations.specification;"))
+               (evaluations '()))
+      (match rows
+        (() (reverse evaluations))
+        (((specification evaluation)
+          . rest)
+         (loop rest
+               (cons `((#:specification . ,specification)
+                       (#:evaluation
+                        . ,(string->number evaluation)))
+                     evaluations)))))))
+
 (define (db-get-evaluation-summary id)
   (with-db-worker-thread db
     (match (expect-one-row
@@ -1411,18 +1399,19 @@ ORDER BY Evaluations.id ASC;"))
   (with-db-worker-thread db
     (let loop ((rows
                 (exec-query/bind db  "SELECT
-SUM(CASE WHEN Builds.status = 0 THEN 1 ELSE 0 END) AS succeeded,
-SUM(CASE WHEN Builds.status > 0 THEN 1 ELSE 0 END) AS failed,
-SUM(CASE WHEN Builds.status < 0 THEN 1 ELSE 0 END) AS scheduled,
-Jobs.evaluation FROM Jobs INNER JOIN Builds ON Jobs.build = Builds.id
-WHERE Jobs.evaluation = ANY(" eval-ids ")
+SUM(CASE WHEN Jobs.status > -100 THEN 1 ELSE 0 END) as total,
+SUM(CASE WHEN Jobs.status = 0 THEN 1 ELSE 0 END) AS succeeded,
+SUM(CASE WHEN Jobs.status > 0 THEN 1 ELSE 0 END) AS failed,
+SUM(CASE WHEN Jobs.status < 0 THEN 1 ELSE 0 END) AS scheduled,
+Jobs.evaluation FROM Jobs WHERE Jobs.evaluation = ANY(" eval-ids ")
 GROUP BY Jobs.evaluation;"))
                (summary '()))
       (match rows
         (() (reverse summary))
-        (((succeeded failed scheduled evaluation) . rest)
+        (((total succeeded failed scheduled evaluation) . rest)
          (loop rest
                (cons `((#:evaluation . ,(number evaluation))
+                       (#:total . ,(number total))
                        (#:succeeded . ,(number succeeded))
                        (#:failed . ,(number failed))
                        (#:scheduled . ,(number scheduled)))

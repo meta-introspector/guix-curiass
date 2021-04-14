@@ -97,6 +97,22 @@ div.tooltip {
     display: none;
 }
 
+.job-per {
+    min-height: 1.5em;
+    min-width: 8em;
+}
+
 .job-abs {
     display: none;
+}
+.progress {
+    position:relative;
+}
+.progress span {
+    position:absolute;
+    top: 0;
+    left:0;
+    width:100%;
+    text-align:center;
+    z-index:2;
 }

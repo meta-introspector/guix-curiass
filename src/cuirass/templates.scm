@@ -256,11 +256,22 @@ columnDefs: [
    (else
     "Invalid status")))
 
-(define (specifications-table specs summary)
-  (define (spec-summary name)
+(define (specifications-table specs evaluations summaries)
+  (define (spec->latest-eval name)
     (find (lambda (s)
             (string=? (assq-ref s #:specification) name))
-          summary))
+          evaluations))
+
+  (define (eval-summary eval)
+    (find (lambda (s)
+            (eq? (assq-ref s #:evaluation)
+                 (assq-ref eval #:evaluation)))
+          summaries))
+
+  (define (summary->percentage summary)
+    (let ((total (assq-ref summary #:total))
+          (succeeded (assq-ref summary #:succeeded)))
+      (nearest-exact-integer (* 100 (/ succeeded total)))))
 
   "Return HTML for the SPECS table."
   `((p (@ (class "lead")) "Specifications"
@@ -321,21 +332,47 @@ $('.job-toggle').click(function() {
                                 (specification-channels spec)) ", "))
                      (td ,(number->string
                            (specification-priority spec)))
-                     (td ,(string-join
-                           (sort (specification-systems spec)
-                                 string<?)
-                           ", "))
                      (td
-                      ,@(let ((summary
-                               (spec-summary
-                                (specification-name spec))))
+                      ,(let* ((systems (specification-systems spec))
+                              (systems*
+                               (string-join
+                                (sort systems string<?)
+                                ", "))
+                              (tooltip?
+                               (> (length systems) 1)))
+                         `(span
+                           (@ ,@(if tooltip?
+                                    `((data-toggle "tooltip")
+                                      (title ,systems*))
+                                    '()))
+                           ,(if tooltip?
+                                (string-append (car systems) ", ...")
+                                systems))))
+                     (td
+                      (@
+                       (style "vertical-align: middle"))
+                      ,@(let* ((summary
+                                (eval-summary
+                                 (spec->latest-eval
+                                  (specification-name spec))))
+                               (percentage
+                                (summary->percentage summary))
+                               (style
+                                   (format #f "width: ~a%" percentage)))
                           (if summary
                               `((div
-                                 (@ (class "badge badge-success job-per mr-3")
+                                 (@ (class "progress job-per")
                                     (title "Percentage succeeded"))
-                                 ,(nearest-exact-integer
-                                   (assq-ref summary #:percentage))
-                                 "%")
+                                 (div (@ (class "progress-bar")
+                                         (role "progressbar")
+                                         (style ,style)
+                                         (aria-valuemin "0")
+                                         (aria-valuemax "100"))
+                                      (strong
+                                       (span
+                                        (@ (class "text-dark"))
+                                        ,percentage
+                                        "%"))))
                                 " "
                                 (div
                                  (@ (class "job-val"))
@@ -353,8 +390,8 @@ $('.job-toggle').click(function() {
                                   ,(assq-ref summary #:scheduled))))
                               '())))
                      (td
-                      ,@(let ((eval (and=> (spec-summary
-                                           (specification-name spec))
+                      ,@(let ((eval (and=> (spec->latest-eval
+                                            (specification-name spec))
                                           (cut assq-ref <> #:evaluation))))
                           (if eval
                               `((a (@ (href "/eval/" ,eval

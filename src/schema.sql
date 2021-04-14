@@ -62,7 +62,8 @@ CREATE TABLE Jobs (
   name          TEXT NOT NULL,
   evaluation    INTEGER NOT NULL,
   build         INTEGER NOT NULL,
-  system        TEXT NOT NULL,
+  status        INTEGER NOT NULL, --caches Builds.status
+  system        TEXT NOT NULL, --caches Builds.system
   PRIMARY KEY (evaluation, build),
   FOREIGN KEY (build) REFERENCES Builds(id) ON DELETE CASCADE,
   FOREIGN KEY (evaluation) REFERENCES Evaluations(id) ON DELETE CASCADE
@@ -124,6 +125,7 @@ CREATE INDEX Builds_priority_timestamp on Builds(priority ASC, timestamp DESC);
 CREATE INDEX Builds_weather_evaluation ON Builds (weather, evaluation);
 
 CREATE INDEX Jobs_name ON Jobs (name);
+CREATE INDEX Jobs_system_status ON Jobs (system, status);
 
 CREATE INDEX Evaluations_status_index ON Evaluations (id, status);
 CREATE INDEX Evaluations_specification_index ON Evaluations (specification, id DESC);

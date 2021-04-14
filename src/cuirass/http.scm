@@ -763,9 +763,14 @@ into a specification record and return it."
     (('GET)
      (respond-html (html-page
                     "Cuirass"
-                    (specifications-table
-                     (db-get-specifications)
-                     (db-get-specifications-summary))
+                    (let ((evals (db-get-latest-evaluations)))
+                      (specifications-table
+                       (db-get-specifications)
+                       evals
+                       (db-get-evaluations-absolute-summary
+                        (map (lambda (e)
+                               `((#:id . ,(assq-ref e #:evaluation))))
+                             evals))))
                     '())))
 
     (('GET "jobset" name)
