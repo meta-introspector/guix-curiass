@@ -829,11 +829,14 @@ into a specification record and return it."
     (('GET "eval" (= string->number id) "dashboard")
      (let* ((params (request-parameters request))
             (system (assq-ref params 'system))
-            (default-system "x86_64-linux")
             (spec-name (db-get-evaluation-specification id)))
        (if spec-name
            (let* ((spec (db-get-specification spec-name))
-                  (systems (specification-systems spec)))
+                  (systems (specification-systems spec))
+                  (default-system
+                    (if (member "x86_64-linux" systems)
+                        "x86_64-linux"
+                        (car systems))))
              (respond-html
               (html-page
                "Dashboard"
