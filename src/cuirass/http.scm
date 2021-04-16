@@ -173,6 +173,18 @@
     (#:systems . ,(list->vector
                    (specification-systems spec)))))
 
+(define (jobs-history->json-object history)
+  "Turn HISTORY into a representation suitable for 'json->scm'."
+  (object->json-string
+   (list->vector
+    (map (lambda (eval)
+           `((#:evaluation . ,(assq-ref eval #:evaluation))
+             (#:checkouts . ,(list->vector
+                              (assq-ref eval #:checkouts)))
+             (#:jobs . ,(list->vector
+                         (assq-ref eval #:jobs)))))
+         history))))
+
 (define (handle-build-request build-id)
   "Retrieve build identified by BUILD-ID over the database and convert it to
 hydra format. Return #f is not build was found."
@@ -705,6 +717,27 @@ into a specification record and return it."
                                         (cut string-split <> #\,)))
                              ,@params)))))
            (respond-json-with-error 500 "Parameter not defined!"))))
+    (('GET "api" "jobs" "history")
+     (let* ((params (request-parameters request))
+            (names (and=> (assq-ref params 'names)
+                          (cut string-split <> #\,)))
+            (spec (assq-ref params 'spec))
+            (limit (assq-ref params 'nr)))
+       (cond
+        ((not (and names spec limit))
+         (respond-json-with-error 500 "Parameter not defined"))
+        ((> limit 100)
+         (respond-json-with-error 500 "Maximum limit exceeded"))
+        (else
+         (catch 'json-invalid
+           (lambda ()
+             (respond-json
+              (jobs-history->json-object
+               (db-get-jobs-history names
+                                    #:spec spec
+                                    #:limit limit))))
+           (lambda _
+             (respond-json-with-error 500 "Invalid body")))))))
     (('GET "api" "evaluation")
      (let* ((params (request-parameters request))
             (id (assq-ref params 'id)))

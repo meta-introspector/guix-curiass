@@ -69,6 +69,7 @@
             db-get-time-since-previous-eval
             db-get-build-percentages
             db-get-jobs
+            db-get-jobs-history
             db-register-builds
             db-update-build-status!
             db-update-build-worker!
@@ -736,6 +737,50 @@ ORDER BY Jobs.name")
                          (#:status . ,(string->number status))
                          (#:name . ,name))
                        jobs))))))))
+
+(define* (db-get-jobs-history names #:key spec limit)
+  "Return the list of jobs from Jobs table which name is a member of the given
+NAMES list, for the last LIMIT evaluations of SPEC specification."
+  (define (format-names names)
+    (format #f "{~a}" (string-join names ",")))
+
+  (with-db-worker-thread db
+    (let ((query "
+SELECT name, evaluation, build, status FROM Jobs
+WHERE Jobs.evaluation IN (SELECT id FROM Evaluations
+WHERE specification = :spec AND status = 0
+ORDER BY id DESC LIMIT :nr)
+AND Jobs.name = ANY(:names);")
+          (params
+           `((#:spec . ,spec)
+             (#:names . ,(format-names names)))))
+      (let loop ((rows (exec-query/bind-params db query params))
+                 (evaluations '()))
+        (match rows
+          (() (sort evaluations
+                    (lambda (a b)
+                      (let ((eval (cut assq-ref <> #:evaluation)))
+                        (> (eval a) (eval b))))))
+          (((name evaluation build status)
+            . rest)
+           (loop rest
+                 (let* ((eval (find (lambda (e)
+                                      (eq? (assq-ref e #:evaluation)
+                                           (string->number evaluation)))
+                                    evaluations))
+                        (jobs (and eval
+                                   (assq-ref eval #:jobs)))
+                        (job `((#:name . ,name)
+                               (#:build . ,(string->number build))
+                               (#:status . ,(string->number status)))))
+                   (if eval
+                       (begin
+                         (assq-set! eval #:jobs (cons job jobs))
+                         evaluations)
+                       (cons `((#:evaluation . ,(string->number evaluation))
+                               (#:checkouts . ,(db-get-checkouts evaluation))
+                               (#:jobs . ,(list job)))
+                             evaluations))))))))))
 
 (define (db-register-builds jobs eval-id specification)
   (define (new-outputs? outputs)

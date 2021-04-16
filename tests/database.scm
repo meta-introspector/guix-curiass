@@ -235,6 +235,16 @@ timestamp, checkouttime, evaltime) VALUES ('guix', 0, 0, 0, 0);")
                            #:derivation)
                  "/test.drv"))))
 
+  (test-assert "db-get-jobs-history"
+    (begin
+      (db-set-evaluation-status 4 (evaluation-status succeeded))
+      (match (db-get-jobs-history '("test")
+                                  #:spec "guix"
+                                  #:limit 2)
+        ((eval)
+         (and (eq? (assq-ref eval #:evaluation) 4)
+              (eq? (length (assq-ref eval #:jobs)) 1))))))
+
   (test-assert "db-update-build-status!"
     (db-update-build-status! "/test.drv"
                              (build-status failed)))
@@ -342,7 +352,7 @@ timestamp, checkouttime, evaltime) VALUES ('guix', 0, 0, 0, 0);")
     (db-get-evaluations-id-max "foo"))
 
   (test-equal "db-get-latest-evaluations"
-    1
+    4
     (match (db-get-latest-evaluations)
       ((eval)
        (assq-ref eval #:evaluation))))

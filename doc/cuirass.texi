@@ -932,6 +932,49 @@ The job name, as a string.
 
 @end table
 
+@subsection Jobs history
+
+The history of jobs across the last evaluations of a given
+specification can be optained with the API "/api/jobs/history".
+
+This request accepts three mandatory parameters.
+
+@table @code
+@item specification
+The specification name. This parameter is @emph{mandatory}.
+
+@item names
+Filter query result to jobs which names are part of the given
+@code{names} list, a comma separated list of job names.  This
+parameter is @emph{mandatory}.
+
+@item nr
+Limit query result to nr elements. This parameter is @emph{mandatory}.
+
+@end table
+
+For example, to ask for the history of @code{emacs.x86_64-linux} and
+@code{emacs-minimal.x86_64-linux} jobs of the @code{master}
+specification over the last 10 evaluations:
+
+@example
+$ curl "http://localhost:8080/api/jobs/history?spec=master&names=emacs.x86_64-linux,emacs-minimal.x86_64-linux&nr=10"
+@end example
+
+The nominal output is a JSON array which objects have the following field:
+
+@table @code
+@item evaluation
+The unique evaluation id.
+
+@item checkouts
+The evaluation checkouts as a JSON array.
+
+@item name
+The jobs list for this evaluation, as a JSON array.
+
+@end table
+
 @subsection Latest builds
 
 The list of latest builds can be obtained with the API
@@ -1117,12 +1160,18 @@ This integer field references the evaluation identifier from the
 @code{Evaluations} table, indicating to which evaluation this job
 belongs.
 
-@item builds
+@item build
 This integer field references the build id from the @code{Builds}
 table, corresponding to this job.
 
+@item status
+This integer field holds the build status of the above build.  The
+goal of this duplication is to avoid expensive joins between the Jobs
+and Builds table.
+
 @item system
-This text field holds the system name of the derivation.
+This text field holds the system name of the above build.  This field
+is duplicated for the same reason as the above status field.
 
 @end table
 
