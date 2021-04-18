@@ -227,6 +227,13 @@ timestamp, checkouttime, evaltime) VALUES ('guix', 0, 0, 0, 0);")
                                ("foo2" . "/test.drv.output.2")))))
                           4 (db-get-specification "guix"))))
 
+  (test-equal "db-get-previous-eval"
+    1
+    (db-get-previous-eval 4))
+
+  (test-assert "db-get-next-eval"
+    (not (db-get-next-eval 3)))
+
   (test-assert "db-get-jobs same-outputs"
     (match (db-get-jobs 4 '())
       ((job)

@@ -89,6 +89,8 @@
             db-get-evaluation
             db-get-evaluations
             db-get-evaluations-build-summary
+            db-get-previous-eval
+            db-get-next-eval
             db-get-evaluations-id-min
             db-get-evaluations-id-max
             db-get-latest-evaluations
@@ -1366,6 +1368,32 @@ ORDER BY E.id DESC;")
                          (#:failed . ,(or (string->number failed) 0))
                          (#:scheduled . ,(or (string->number scheduled) 0)))
                        evaluations))))))))
+
+(define (db-get-previous-eval eval-id)
+  "Return the successful evaluation preceeding EVAL-ID, for the same
+specification."
+  (with-db-worker-thread db
+    (match (expect-one-row
+            (exec-query/bind db "
+SELECT id FROM Evaluations WHERE id < " eval-id
+"AND specification =
+(SELECT specification FROM Evaluations WHERE id = " eval-id
+") AND status = 0 ORDER BY id DESC LIMIT 1;"))
+      ((id) (and id (string->number id)))
+      (else #f))))
+
+(define (db-get-next-eval eval-id)
+  "Return the successful evaluation succeeding EVAL-ID, for the same
+specification."
+  (with-db-worker-thread db
+    (match (expect-one-row
+            (exec-query/bind db "
+SELECT id FROM Evaluations WHERE id > " eval-id
+"AND specification =
+(SELECT specification FROM Evaluations WHERE id = " eval-id
+") AND status = 0 ORDER BY id ASC LIMIT 1;"))
+      ((id) (and id (string->number id)))
+      (else #f))))
 
 (define (db-get-evaluations-id-min spec)
   "Return the min id of evaluations for the given specification SPEC."
