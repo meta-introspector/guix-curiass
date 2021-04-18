@@ -1866,12 +1866,80 @@ text-dark d-flex position-absolute w-100"))
                                      #:colors (list "#3e95cd"))))))))
 
 (define* (evaluation-dashboard evaluation systems
-                               #:key current-system)
+                               #:key
+                               current-system
+                               names
+                               prev-eval
+                               next-eval)
   (let ((jobs
-         (format #f "/api/jobs?evaluation=~a&system=~a"
-                 evaluation current-system)))
-    `((p (@ (class "lead"))
-         ,(format #f "Dasboard evaluation #~a" evaluation))
+         (if names
+             (format #f "/api/jobs?evaluation=~a&names=~a"
+                     evaluation names)
+             (format #f "/api/jobs?evaluation=~a&system=~a"
+                     evaluation current-system))))
+    `((script "
+$(document).ready(function() {
+  var url = new URL(window.location.href);
+  var params = url.searchParams;
+  var size = Array.from(params).length;
+  if (params.get('names')) {
+    $('#get-dashboard').remove();
+  }
+  $('#prev-link').attr('href', function(i, href) {
+    if (size > 0)
+      return href + '?' + params;
+    else
+      return href;
+});
+  $('#next-link').attr('href', function(i, href) {
+   if (size > 0)
+     return href + '?' + params;
+   else
+     return href;
+});
+});")
+      (p (@ (class "lead mb-0"))
+         ,(format #f "Dasboard evaluation #~a" evaluation)
+         (nav
+          (@ (aria-label "Evaluation navigation")
+             (class "eval-nav ml-3"))
+          (ul (@ (class "pagination pagination-sm"))
+              (li (@ (class
+                       ,(string-append "page-item "
+                                       (if prev-eval
+                                           ""
+                                           "disabled"))))
+                  (a
+                   (@ (id "prev-link")
+                      (class "page-link")
+                      (href
+                       ,(if prev-eval
+                            (format #f "/eval/~a/dashboard" prev-eval)
+                            "#")))
+                     (span
+                      (@ (aria-hidden "true"))
+                      "«")
+                     (span
+                      (@ (class "sr-only"))
+                      "Previous")))
+              (li (@ (class
+                       ,(string-append "page-item "
+                                       (if next-eval
+                                           ""
+                                           "disabled"))))
+                  (a
+                   (@ (id "next-link")
+                      (class "page-link")
+                      (href
+                       ,(if next-eval
+                            (format #f "/eval/~a/dashboard" next-eval)
+                            "#")))
+                     (span
+                      (@ (aria-hidden "true"))
+                      "»")
+                     (span
+                      (@ (class "sr-only"))
+                      "Next"))))))
       (form (@ (id "get-dashboard")
                (class "row g-3 mb-3")
                (action "/eval/" ,evaluation "/dashboard")

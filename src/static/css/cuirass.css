@@ -116,3 +116,7 @@ div.tooltip {
     text-align:center;
     z-index:2;
 }
+
+.eval-nav  {
+    display: inline-block;
+}

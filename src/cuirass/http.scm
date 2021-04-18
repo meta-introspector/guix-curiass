@@ -861,6 +861,8 @@ into a specification record and return it."
 
     (('GET "eval" (= string->number id) "dashboard")
      (let* ((params (request-parameters request))
+            (names (and=> (assq-ref params 'names)
+                          uri-decode))
             (system (assq-ref params 'system))
             (spec-name (db-get-evaluation-specification id)))
        (if spec-name
@@ -869,13 +871,18 @@ into a specification record and return it."
                   (default-system
                     (if (member "x86_64-linux" systems)
                         "x86_64-linux"
-                        (car systems))))
+                        (car systems)))
+                  (prev (db-get-previous-eval id))
+                  (next (db-get-next-eval id)))
              (respond-html
               (html-page
                "Dashboard"
                (evaluation-dashboard id systems
                                      #:current-system
-                                     (or system default-system))
+                                     (or system default-system)
+                                     #:names names
+                                     #:prev-eval prev
+                                     #:next-eval next)
                `(((#:name . ,spec-name)
                   (#:link . ,(string-append "/jobset/" spec-name)))
                  ((#:name . ,(string-append "Evaluation "
