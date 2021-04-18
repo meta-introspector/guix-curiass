@@ -993,7 +993,13 @@ $('.job-toggle').click(function() {
                          (a (@ (href "/eval/" ,(assq-ref row #:id)
                                      "/dashboard"))
                             (div
-                             (@ (class "oi oi-monitor d-inline-block")
+                             (@ (class
+                                  ,(string-append
+                                    "oi oi-monitor d-inline-block "
+                                    (if (eq? (assq-ref row #:status)
+                                             (evaluation-status succeeded))
+                                        "visible"
+                                        "invisible")))
                                 (title "Dashboard")
                                 (aria-hidden "true"))
                              ""))
