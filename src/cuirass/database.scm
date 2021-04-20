@@ -740,7 +740,8 @@ ORDER BY Jobs.name")
                          (#:name . ,name))
                        jobs))))))))
 
-(define* (db-get-jobs-history names #:key spec limit)
+(define* (db-get-jobs-history names
+                              #:key spec (limit 10))
   "Return the list of jobs from Jobs table which name is a member of the given
 NAMES list, for the last LIMIT evaluations of SPEC specification."
   (define (format-names names)
@@ -755,7 +756,8 @@ ORDER BY id DESC LIMIT :nr)
 AND Jobs.name = ANY(:names);")
           (params
            `((#:spec . ,spec)
-             (#:names . ,(format-names names)))))
+             (#:names . ,(format-names names))
+             (#:nr . ,limit))))
       (let loop ((rows (exec-query/bind-params db query params))
                  (evaluations '()))
         (match rows
