@@ -133,10 +133,15 @@ CREATE INDEX Builds_weather_evaluation ON Builds (weather, evaluation);
 
 CREATE INDEX Jobs_name ON Jobs (name);
 CREATE INDEX Jobs_system_status ON Jobs (system, status);
+CREATE INDEX Jobs_build ON Jobs (build); --speeds up delete cascade.
 
 CREATE INDEX Evaluations_status_index ON Evaluations (id, status);
 CREATE INDEX Evaluations_specification_index ON Evaluations (specification, id DESC);
 
 CREATE INDEX Outputs_derivation_index ON Outputs (derivation);
+
+CREATE INDEX BuildProducts_build ON BuildProducts(build); --speeds up delete cascade.
+
+CREATE INDEX Notifications_build ON Notifications(build); --speeds up delete cascade.
 
 COMMIT;

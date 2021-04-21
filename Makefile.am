@@ -94,7 +94,9 @@ dist_sql_DATA = 				\
   src/sql/upgrade-4.sql				\
   src/sql/upgrade-5.sql				\
   src/sql/upgrade-6.sql				\
-  src/sql/upgrade-7.sql
+  src/sql/upgrade-7.sql				\
+  src/sql/upgrade-8.sql				\
+  src/sql/upgrade-9.sql
 
 dist_css_DATA =					\
   src/static/css/choices.min.css		\
