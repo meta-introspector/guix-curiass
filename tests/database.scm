@@ -674,6 +674,11 @@ timestamp, checkouttime, evaltime) VALUES ('guix', 0, 0, 0, 0);")
            (eq? (assq-ref (db-get-build drv-2) #:id)
                 (assq-ref build #:id)))))))
 
+  (test-equal "db-register-dashboard"
+    "guix"
+    (let ((id (db-register-dashboard "guix" "emacs")))
+      (assq-ref (db-get-dashboard id) #:specification)))
+
   (test-assert "db-close"
     (begin
       (false-if-exception (delete-file tmp-mail))

@@ -55,7 +55,8 @@
             essential-task
             bytevector-range
 
-            date->rfc822-str))
+            date->rfc822-str
+            random-string))
 
 (define (alist? obj)
   "Return #t if OBJ is an alist."
@@ -323,3 +324,28 @@ die silently while the rest of the program keeps going."
 
 (define (date->rfc822-str date)
   (date->string date "~a, ~d ~b ~Y ~T ~z"))
+
+(define %seed
+  (seed->random-state
+   (logxor (getpid) (car (gettimeofday)))))
+
+(define (integer->alphanumeric-char n)
+  "Map N, an integer in the [0..62] range, to an alphanumeric character."
+  (cond ((< n 10)
+         (integer->char (+ (char->integer #\0) n)))
+        ((< n 36)
+         (integer->char (+ (char->integer #\A) (- n 10))))
+        ((< n 62)
+         (integer->char (+ (char->integer #\a) (- n 36))))
+        (else
+         (error "integer out of bounds" n))))
+
+(define (random-string len)
+  "Compute a random string of size LEN where each character is alphanumeric."
+  (let loop ((chars '())
+             (len len))
+    (if (zero? len)
+        (list->string chars)
+        (let ((n (random 62 %seed)))
+          (loop (cons (integer->alphanumeric-char n) chars)
+                (- len 1))))))

@@ -975,6 +975,40 @@ The jobs list for this evaluation, as a JSON array.
 
 @end table
 
+@subsection Dashboard registration
+
+The user can register a dashboard using the "/api/dashboard/register"
+API.  This request accepts two mandatory parameters.
+
+@table @code
+@item specification
+The specification name. This parameter is @emph{mandatory}.
+
+@item names
+The dashboard jobs names, where names is a comma separated list of job
+names.  This parameter is @emph{mandatory}.
+
+@end table
+
+For example, to register a dashboard for the @code{emacs.x86_64-linux}
+and @code{emacs-minimal.x86_64-linux} jobs of the @code{master}
+specification:
+
+@example
+$ curl "http://localhost:8080/api/dashboard/register?spec=master&names=emacs.x86_64-linux,emacs-minimal.x86_64-linux"
+@end example
+
+The nominal output is a JSON object which contains a unique field:
+
+@table @code
+@item id
+The registered dashboard id.
+
+@end table
+
+The dashboard is then accessible at the following address:
+@code{http://localhost:8080/dashboard/<id>}.
+
 @subsection Latest builds
 
 The list of latest builds can be obtained with the API
@@ -1364,6 +1398,23 @@ the worker.
 
 @end table
 
+@section Dashboards
+@cindex dashboards, database
+
+This table contains the user registered Dashboards.
+
+@table @code
+@item id
+This is an automatically incrementing numeric identifier.
+
+@item specification
+This field holds the @code{name} of a specification from the
+@code{Specifications} table.
+
+@item jobs
+This text field holds a list of comma separated job names.
+
+@end table
 @c *********************************************************************
 
 @node Contributing

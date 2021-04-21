@@ -738,6 +738,22 @@ into a specification record and return it."
                                     #:limit limit))))
            (lambda _
              (respond-json-with-error 500 "Invalid body")))))))
+    (('GET "api" "dashboard" "register")
+     (let* ((params (request-parameters request))
+            (spec (assq-ref params 'spec))
+            (names (assq-ref params 'names)))
+       (cond
+        ((not (and names spec))
+         (respond-json-with-error 500 "Parameter not defined"))
+        (else
+         (let ((id (db-register-dashboard spec names)))
+           (if id
+               (respond-json
+                (object->json-string
+                 `((#:id . ,id))))
+               (respond-json-with-error
+                500
+                "Failed to register the dashboard")))))))
     (('GET "api" "evaluation")
      (let* ((params (request-parameters request))
             (id (assq-ref params 'id)))
@@ -805,7 +821,26 @@ into a specification record and return it."
                                `((#:id . ,(assq-ref e #:evaluation))))
                              evals))))
                     '())))
-
+    (('GET "dashboard" id)
+     (let ((dashboard (db-get-dashboard id)))
+       (if dashboard
+           (let* ((spec (assq-ref dashboard #:specification))
+                  (jobs (assq-ref dashboard #:jobs))
+                  (evaluations (db-get-latest-evaluations))
+                  (evaluation
+                   (any (lambda (eval)
+                          (and (string=? (assq-ref eval #:specification)
+                                         spec)
+                               (assq-ref eval #:evaluation)))
+                        evaluations))
+                  (uri
+                   (string->uri-reference
+                    (format #f "/eval/~a/dashboard?names=~a"
+                            evaluation jobs))))
+             (respond (build-response #:code 302
+                                      #:headers `((location . ,uri)))
+                      #:body ""))
+           (respond-html-eval-not-found id))))
     (('GET "jobset" name)
      (respond-html
       (let* ((evaluation-id-max (db-get-evaluations-id-max name))

@@ -18,6 +18,7 @@
 
 (define-module (cuirass remote)
   #:use-module (cuirass logging)
+  #:use-module (cuirass utils)
   #:use-module (guix avahi)
   #:use-module (guix config)
   #:use-module (guix derivations)
@@ -135,31 +136,6 @@
       (machine machine)
       (systems systems)
       (last-seen last-seen)))))
-
-(define %seed
-  (seed->random-state
-   (logxor (getpid) (car (gettimeofday)))))
-
-(define (integer->alphanumeric-char n)
-  "Map N, an integer in the [0..62] range, to an alphanumeric character."
-  (cond ((< n 10)
-         (integer->char (+ (char->integer #\0) n)))
-        ((< n 36)
-         (integer->char (+ (char->integer #\A) (- n 10))))
-        ((< n 62)
-         (integer->char (+ (char->integer #\a) (- n 36))))
-        (else
-         (error "integer out of bounds" n))))
-
-(define (random-string len)
-  "Compute a random string of size LEN where each character is alphanumeric."
-  (let loop ((chars '())
-             (len len))
-    (if (zero? len)
-        (list->string chars)
-        (let ((n (random 62 %seed)))
-          (loop (cons (integer->alphanumeric-char n) chars)
-                (- len 1))))))
 
 (define (generate-worker-name)
   "Return the service name of the server."

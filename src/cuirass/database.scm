@@ -104,6 +104,8 @@
             db-get-build-product-path
             db-push-notification
             db-pop-notification
+            db-register-dashboard
+            db-get-dashboard
             db-add-or-update-worker
             db-get-worker
             db-get-workers
@@ -1606,6 +1608,29 @@ DELETE FROM Notifications WHERE id =" id ";")
        (cons (sexp->notification
               (with-input-from-string type read))
              (db-get-build (string->number build))))
+      (else #f))))
+
+(define (db-register-dashboard specification jobs)
+  "Insert a new dashboard for SPECIFICATION and JOBS into Dashboards table."
+  (let ((id (random-string 16)))
+    (with-db-worker-thread db
+      (match (expect-one-row
+              (exec-query/bind db "\
+INSERT INTO Dashboards (id, specification, jobs)
+VALUES (" id ", " specification "," jobs ")
+RETURNING id;"))
+        ((id) id)
+        (else #f)))))
+
+(define (db-get-dashboard id)
+  "Return the dashboard specification and jobs with the given ID."
+  (with-db-worker-thread db
+    (match (expect-one-row
+            (exec-query/bind db "
+SELECT specification, jobs from Dashboards WHERE id = " id ";"))
+      ((specification jobs)
+       `((#:specification . ,specification)
+         (#:jobs . ,jobs)))
       (else #f))))
 
 (define (db-add-or-update-worker worker)

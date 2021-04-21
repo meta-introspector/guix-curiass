@@ -111,6 +111,13 @@ CREATE TABLE Workers (
   last_seen   INTEGER NOT NULL
 );
 
+CREATE TABLE Dashboards (
+  id              TEXT NOT NULL PRIMARY KEY,
+  specification   TEXT NOT NULL,
+  jobs            TEXT NOT NULL,
+  FOREIGN KEY (specification) REFERENCES Specifications(name) ON DELETE CASCADE
+);
+
 -- XXX: All queries targeting Builds and Outputs tables *must* be covered by
 -- an index.  It is also preferable for the other tables.
 CREATE INDEX Builds_status_index ON Builds (status);
