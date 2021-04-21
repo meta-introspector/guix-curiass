@@ -425,6 +425,39 @@ into a specification record and return it."
      (priority priority)
      (systems systems))))
 
+(define* (dashboard-page evaluation-id
+                         #:key dashboard-id system)
+  "Return a dashboard page for the evaluation EVALUATION-ID.  If DASHBOARD-ID
+is passed, only display jobs registered for this DASHBOARD-ID.  If SYSTEM is
+passed, only display JOBS targeting this SYSTEM."
+  (let* ((spec-name (db-get-evaluation-specification evaluation-id))
+         (spec (db-get-specification spec-name))
+         (systems (specification-systems spec))
+         (default-system
+           (if (member "x86_64-linux" systems)
+               "x86_64-linux"
+               (car systems)))
+         (dashboard (db-get-dashboard dashboard-id))
+         (names (and dashboard
+                     (assq-ref dashboard #:jobs)))
+         (prev (db-get-previous-eval evaluation-id))
+         (next (db-get-next-eval evaluation-id)))
+    (html-page
+     "Dashboard"
+     (evaluation-dashboard evaluation-id systems
+                           #:current-system
+                           (or system default-system)
+                           #:dashboard-id dashboard-id
+                           #:names names
+                           #:prev-eval prev
+                           #:next-eval next)
+     `(((#:name . ,spec-name)
+        (#:link . ,(string-append "/jobset/" spec-name)))
+       ((#:name . ,(string-append "Evaluation "
+                                  (number->string evaluation-id)))
+        (#:link . ,(string-append "/eval/" (number->string evaluation-id)))))
+     #:margin? #f)))
+
 
 ;;;
 ;;; Web server.
@@ -515,6 +548,11 @@ into a specification record and return it."
       (respond `(,@encoding
                  (content-disposition . (inline))
                  (x-raw-file . ,file)))))
+
+  (define (respond-dashboard-not-found dashboard-id)
+    (respond-json-with-error
+     404
+     (format #f "Dashboard with ID ~a doesn't exist." dashboard-id)))
 
   (define (respond-build-not-found build-id)
     (respond-json-with-error
@@ -825,7 +863,6 @@ into a specification record and return it."
      (let ((dashboard (db-get-dashboard id)))
        (if dashboard
            (let* ((spec (assq-ref dashboard #:specification))
-                  (jobs (assq-ref dashboard #:jobs))
                   (evaluations (db-get-latest-evaluations))
                   (evaluation
                    (any (lambda (eval)
@@ -835,8 +872,8 @@ into a specification record and return it."
                         evaluations))
                   (uri
                    (string->uri-reference
-                    (format #f "/eval/~a/dashboard?names=~a"
-                            evaluation jobs))))
+                    (format #f "/eval/~a/dashboard/~a"
+                            evaluation id))))
              (respond (build-response #:code 302
                                       #:headers `((location . ,uri)))
                       #:body ""))
@@ -896,35 +933,26 @@ into a specification record and return it."
 
     (('GET "eval" (= string->number id) "dashboard")
      (let* ((params (request-parameters request))
-            (names (and=> (assq-ref params 'names)
-                          uri-decode))
-            (system (assq-ref params 'system))
-            (spec-name (db-get-evaluation-specification id)))
-       (if spec-name
-           (let* ((spec (db-get-specification spec-name))
-                  (systems (specification-systems spec))
-                  (default-system
-                    (if (member "x86_64-linux" systems)
-                        "x86_64-linux"
-                        (car systems)))
-                  (prev (db-get-previous-eval id))
-                  (next (db-get-next-eval id)))
-             (respond-html
-              (html-page
-               "Dashboard"
-               (evaluation-dashboard id systems
-                                     #:current-system
-                                     (or system default-system)
-                                     #:names names
-                                     #:prev-eval prev
-                                     #:next-eval next)
-               `(((#:name . ,spec-name)
-                  (#:link . ,(string-append "/jobset/" spec-name)))
-                 ((#:name . ,(string-append "Evaluation "
-                                            (number->string id)))
-                  (#:link . ,(string-append "/eval/" (number->string id)))))
-               #:margin? #f)))
+            (spec (db-get-evaluation-specification id))
+            (system (assq-ref params 'system)))
+       (if spec
+           (respond-html
+            (dashboard-page id #:system system))
            (respond-html-eval-not-found id))))
+
+    (('GET "eval" (= string->number evaluation-id) "dashboard" dashboard-id)
+     (let* ((params (request-parameters request))
+            (eval (db-get-evaluation evaluation-id))
+            (dashboard (db-get-dashboard dashboard-id)))
+       (cond
+        ((not eval)
+         (respond-html-eval-not-found evaluation-id))
+        ((not dashboard)
+         (respond-html-eval-not-found dashboard-id))
+        (else
+         (respond-html
+          (dashboard-page evaluation-id
+                          #:dashboard-id dashboard-id))))))
 
     (('GET "search")
      (let* ((params (request-parameters request))

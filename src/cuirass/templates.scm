@@ -1874,6 +1874,7 @@ text-dark d-flex position-absolute w-100"))
 (define* (evaluation-dashboard evaluation systems
                                #:key
                                current-system
+                               dashboard-id
                                names
                                prev-eval
                                next-eval)
@@ -1888,9 +1889,6 @@ $(document).ready(function() {
   var url = new URL(window.location.href);
   var params = url.searchParams;
   var size = Array.from(params).length;
-  if (params.get('names')) {
-    $('#get-dashboard').remove();
-  }
   $('#prev-link').attr('href', function(i, href) {
     if (size > 0)
       return href + '?' + params;
@@ -1920,7 +1918,11 @@ $(document).ready(function() {
                       (class "page-link")
                       (href
                        ,(if prev-eval
-                            (format #f "/eval/~a/dashboard" prev-eval)
+                            (format #f "/eval/~a/dashboard~a"
+                                    prev-eval
+                                    (if dashboard-id
+                                        (format #f "/~a" dashboard-id)
+                                        ""))
                             "#")))
                      (span
                       (@ (aria-hidden "true"))
@@ -1938,7 +1940,11 @@ $(document).ready(function() {
                       (class "page-link")
                       (href
                        ,(if next-eval
-                            (format #f "/eval/~a/dashboard" next-eval)
+                            (format #f "/eval/~a/dashboard~a"
+                                    next-eval
+                                    (if dashboard-id
+                                        (format #f "/~a" dashboard-id)
+                                        ""))
                             "#")))
                      (span
                       (@ (aria-hidden "true"))
@@ -1947,7 +1953,11 @@ $(document).ready(function() {
                       (@ (class "sr-only"))
                       "Next"))))))
       (form (@ (id "get-dashboard")
-               (class "row g-3 mb-3")
+               (class
+                 ,(string-append "row g-3 mb-3 "
+                                 (if names
+                                     "d-none"
+                                     "")))
                (action "/eval/" ,evaluation "/dashboard")
                (method "GET"))
             (div (@ (class "col-auto"))
