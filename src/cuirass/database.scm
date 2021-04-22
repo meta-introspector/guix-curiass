@@ -673,7 +673,7 @@ WHERE specification = " specification
   (with-db-worker-thread db
     (let loop ((rows
                 (exec-query/bind db "
-SELECT CASE WHEN last_duration = 0 THEN
+SELECT id, CASE WHEN last_duration = 0 THEN
 0 ELSE LEAST(duration::float/last_duration * 100, 100)::int END AS percentage
 FROM (SELECT  DISTINCT ON (b1.id) b1.id AS id,
 COALESCE((b2.stoptime - b2.starttime), 0) AS last_duration,
@@ -685,9 +685,16 @@ ORDER BY b1.id,  b2.id DESC) d;"))
                (percentages '()))
       (match rows
         (() (reverse percentages))
-        (((percentage) . rest)
-         (loop rest
-               (cons (string->number percentage) percentages)))))))
+        (((id percentage) . rest)
+         (let ((build
+                (find (lambda (build)
+                        (eq? (assq-ref build #:id)
+                             (string->number id)))
+                      builds)))
+           (loop rest
+                 (cons `(,@build
+                         (#:percentage . ,(string->number percentage)))
+                       percentages))))))))
 
 (define (db-add-job job eval-id)
   "Insert JOB into Jobs table for the EVAL-ID evaluation.  It is possible that

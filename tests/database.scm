@@ -539,8 +539,8 @@ timestamp, checkouttime, evaltime) VALUES ('guix', 0, 0, 0, 0);")
         (db-add-build new)
         (match (db-get-build-percentages
                 (list (db-get-build (assq-ref new #:derivation))))
-          ((percentage)
-           (>= percentage 50))))))
+          ((build)
+           (>= (assq-ref build #:percentage) 50))))))
 
   (test-equal "db-update-build-status!"
     (list #f 1)

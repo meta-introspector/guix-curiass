@@ -1054,12 +1054,8 @@ passed, only display JOBS targeting this SYSTEM."
        "Workers status"
        (let* ((workers (db-get-workers))
               (builds (db-worker-current-builds))
-              (percentages (db-get-build-percentages builds))
               (builds*
-               (map (lambda (build percentage)
-                      `(,@build
-                        (#:percentage . ,percentage)))
-                    builds percentages)))
+               (db-get-build-percentages builds)))
          (workers-status workers builds*))
        '())))
 
