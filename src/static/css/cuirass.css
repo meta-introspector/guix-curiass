@@ -26,7 +26,7 @@ body {
 #search #search-hints {
     display: none;
     position: absolute;
-    z-index: 1;
+    z-index: 3;
     top: 3em;
     background: white;
     border: 1px solid #ced4da;
@@ -71,18 +71,11 @@ div.tooltip {
     height: 30px;
 }
 
-.job-val {
-    display: none;
-}
-
-.job-per {
+.job-abs {
     min-height: 1.5em;
     min-width: 8em;
 }
 
-.job-abs {
-    display: none;
-}
 .progress {
     position:relative;
 }

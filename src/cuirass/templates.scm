@@ -70,11 +70,15 @@
             (class "form-inline")
             (action "/search"))
          (div
-          (@ (class "input-group"))
+          (@ (class "input-group")
+             (role "search"))
+          (label (@ (for "query")
+                    (class "invisible")))
           (input (@ (type "text")
                     (class "form-control")
                     (id   "query")
                     (name "query")
+                    (aria-describedby "search-hints")
                     ,(if query
                          `(value ,query)
                          '(placeholder "search for builds"))))
@@ -109,9 +113,7 @@ system whose names start with " (code "guile-") ":" (br)
                     #:optional query
                     #:key (margin? #t))
   "Return HTML page with given TITLE and BODY."
-  `(html (@ (xmlns "http://www.w3.org/1999/xhtml")
-            (xml:lang "en")
-            (lang "en"))
+  `(html (@ (lang "en"))
          (head
           (meta (@ (charset "utf-8")))
           (meta (@ (name "viewport")
@@ -138,6 +140,8 @@ system whose names start with " (code "guile-") ":" (br)
           (script (@ (src "/static/js/bootstrap.min.js")) "")
           (script (@ (src "/static/js/datatables.min.js")) "")
           (script (@ (src "/static/js/d3.v6.min.js")) "")
+          (script (@ (src "/static/js/choices.min.js")) "")
+          (script (@ (src "/static/js/chart.js")) "")
           (script (@ (src "/static/js/cuirass.js")) "")
           (title ,title))
          (body
@@ -293,12 +297,6 @@ system whose names start with " (code "guile-") ":" (br)
                          (type "button"))
                       (i (@ (class "oi oi-contrast d-inline-block py-1"))
                          "")))))
-    (script "
-$(document).ready(function() {
-$('.job-toggle').click(function() {
-  $('.job-per').toggle();
-  $('.job-val').toggle();
-})});")
     (table
      (@ (id "spec-table")
         (class "table table-sm table-hover"))
@@ -360,7 +358,7 @@ $('.job-toggle').click(function() {
                                    (format #f "width: ~a%" percentage)))
                           (if summary
                               `((div
-                                 (@ (class "progress job-per")
+                                 (@ (class "progress job-abs")
                                     (title "Percentage succeeded"))
                                  (div (@ (class "progress-bar")
                                          (role "progressbar")
@@ -374,7 +372,7 @@ $('.job-toggle').click(function() {
                                         "%"))))
                                 " "
                                 (div
-                                 (@ (class "job-val"))
+                                 (@ (class "job-rel d-none"))
                                  (div
                                   (@ (class "badge badge-success")
                                      (title "Succeeded"))
@@ -452,9 +450,9 @@ the existing SPEC otherwise."
                  `(div (@ (class ,(if first-row?
                                       "form-group row channel"
                                       "form-group row channel-new")))
-                       (label (@ (for "name")
-                                 (class "col-sm-2 col-form-label"))
-                              ,(if first-row? "Channels" ""))
+                       (span (@ (for "channel-name")
+                                (class "col-sm-2 col-form-label"))
+                             ,(if first-row? "Channels" ""))
                        (div (@ (class "col-sm-2"))
                             (input
                              (@ (type "text")
@@ -462,7 +460,10 @@ the existing SPEC otherwise."
                                 (name "channel-name")
                                 (placeholder "name")
                                 (value ,name)
-                                (required))))
+                                (required)))
+                            (label (@ (for "channel-name")
+                                      (class "sr-only"))
+                                   "Channel name"))
                        (div (@ (class "col-sm-4"))
                             (input
                              (@ (type "text")
@@ -470,7 +471,10 @@ the existing SPEC otherwise."
                                 (name "channel-url")
                                 (placeholder "url")
                                 (value ,url)
-                                (required))))
+                                (required)))
+                            (label (@ (for "channel-url")
+                                      (class "sr-only"))
+                                   "Channel url"))
                        (div (@ (class "col-sm-2"))
                             (input
                              (@ (type "text")
@@ -478,7 +482,10 @@ the existing SPEC otherwise."
                                 (name "channel-branch")
                                 (placeholder "branch")
                                 (value ,branch)
-                                (required))))
+                                (required)))
+                            (label (@ (for "channel-branch")
+                                      (class "sr-only"))
+                                   "Channel branch"))
                        ,@(if first-row?
                              '((a (@ (class "btn btn-success add-channel")
                                      (href "#")
@@ -493,7 +500,10 @@ the existing SPEC otherwise."
             channels)))
       (match (reverse html)
         ((first . rest)
-         (list first `(div (@ (class "channels")) ,@rest))))))
+         (list first `(div (@ (class "channels"))
+                           ,@(if (null? rest)
+                                 '("")
+                                 rest)))))))
 
   (let ((name (and spec (specification-name spec)))
         (build (and spec (match (specification-build spec)
@@ -504,102 +514,10 @@ the existing SPEC otherwise."
         (priority (and spec (specification-priority spec)))
         (systems (and spec (specification-systems spec))))
     `(span
-      (p (@ (class "lead"))
+      (p (@ (class "lead edit-channel"))
          ,(if spec
               (format #f "Edit ~a specification" name)
               "Create a new specification"))
-      (script (@ (src "/static/js/choices.min.js")))
-      (script "
-$(document).ready(function() {
-$('.remove-channel').click(function() {
-   $(this).parent().remove();
-});
-$('.add-channel').click(function() {
-  var clone = $('.channel').clone();
-  clone.attr('class', 'form-group row channel-new');
-  clone.find('.col-form-label').text('');
-
-  var new_button = clone.find('.add-channel');
-  new_button.attr('class', 'btn btn-danger remove-channel');
-  new_button.text('Remove');
-  new_button.click(function() {
-   $(this).parent().remove();
-  });
-  clone.appendTo('.channels');
-});
-var cbs = $('.system');
-cbs.change(function(){
-  if(cbs.is(':checked')) {
-    cbs.removeAttr('required');
-  } else {
-    cbs.attr('required', 'required');
-  }
-});
-var checked_cbs = $('.system:checkbox:checked').length;
-if (checked_cbs == 0) {
-  cbs.attr('required', 'required');
-}
-
-(function () {
-  'use strict'
-  var forms = document.querySelectorAll('.needs-validation')
-  Array.prototype.slice.call(forms)
-    .forEach(function (form) {
-      form.addEventListener('submit', function (event) {
-        if (!form.checkValidity()) {
-          event.preventDefault()
-          event.stopPropagation()
-        }
-        form.classList.add('was-validated')
-      }, false)
-    })
-})();
-
-const select_choices = new Choices($('.build-param-select')[0], {
-  removeItemButton: true,
-  duplicateItemsAllowed: false,
-});
-const input_choices = new Choices($('.build-param-input')[0], {
-  removeItemButton: true,
-  duplicateItemsAllowed: false,
-});
-$('.build-param-select').on('showDropdown', function() {
-  var names = $('.channel-name').map(function() {
-    var name = $(this).val();
-    return { 'value': name, 'label': name};
-  }).toArray();
-  select_choices.setChoices(names, 'value', 'label', true);
-});
-var param_select = $('.build-select');
-var param_select_cb = function(){
-  var val = param_select.val();
-  if (['packages', 'manifests'].indexOf(val) >= 0) {
-    input_choices.clearStore();
-    $('.param-input-row').show();
-  } else {
-    $('.param-input-row').hide();
-  }
-
-  if (['channels'].indexOf(val) >= 0) {
-    $('.param-select-row').show();
-  } else {
-    $('.param-select-row').hide();
-  }
-};
-param_select_cb();
-param_select.change(param_select_cb);
-
-const default_param = $('.default-build-param');
-if (default_param.length) {
-var items = default_param.text().split(',').map(function(name) {
-  return { 'value': name, 'label': name, selected: true};
-});
-if ($('.param-select-row').is(':visible')) {
-  select_choices.setChoices(items, 'value', 'label', true);
-} else if ($('.param-input-row').is(':visible')) {
-  input_choices.setValue(items);
-}}
-});")
       (form (@ (id "add-specification")
                (class "needs-validation")
                ,@(if spec
@@ -692,9 +610,8 @@ if ($('.param-select-row').is(':visible')) {
                           (max 9)
                           (value ,(or priority 9))))))
             (div (@ (class "form-group row"))
-                 (label (@ (for "systems")
-                           (class "col-sm-2 col-form-label"))
-                        "Systems")
+                 (span (@ (class "col-sm-2 col-form-label"))
+                       "Systems")
                  ,@(map (lambda (system)
                           `(div (@ (class "form-check form-check-inline"))
                                 (input (@ (class "form-check-input system")
@@ -759,20 +676,24 @@ if ($('.param-select-row').is(':visible')) {
       (td ,(assq-ref build #:nix-name))
       (td ,(time->string (assq-ref build #:stoptime)))))
 
-  `((p (@ (class "lead")) "Build details"
-       (div (@ (class "dropdown float-right"))
-            (a (@ (class "btn btn-warning dropdown-toggle")
-                  (href "#")
-                  (data-toggle "dropdown")
-                  (role "button")
-                  (aria-haspopup "true")
-                  (aria-expanded "false"))
-               "Action")
-            (div (@ (class "dropdown-menu"))
-                 (a (@ (class "dropdown-item")
-                       (href "/admin/build/"
-                             ,(assq-ref build #:id) "/restart"))
-                    " Restart"))))
+  `((div (@ (class "d-flex flex-row mb-3"))
+         (div (@ (class "lead mr-auto"))
+              "Build details")
+         (div (@ (class "dropdown"))
+              (a (@ (class "btn btn-warning dropdown-toggle")
+                    (href "#")
+                    (data-toggle "dropdown")
+                    (role "button")
+                    (aria-haspopup "true")
+                    (aria-expanded "false"))
+                 "Action")
+              (ul (@ (class "dropdown-menu")
+                     (role "menu"))
+                  (li (@ (role "menuitem"))
+                      (a (@ (class "dropdown-item")
+                            (href "/admin/build/"
+                                  ,(assq-ref build #:id) "/restart"))
+                         " Restart")))))
     (table
      (@ (class "table table-sm table-hover"))
      (tbody
@@ -928,7 +849,7 @@ if ($('.param-select-row').is(':visible')) {
                "")))
          ((= status (evaluation-status succeeded))
           `((div
-             (@ (class "job-abs"))
+             (@ (class "job-abs d-none"))
              (div (@ (class "badge badge-success")
                      (title "Succeeded"))
                   ,(assq-ref absolute #:succeeded))
@@ -986,12 +907,6 @@ if ($('.param-select-row').is(':visible')) {
                          (type "button"))
                       (i (@ (class "oi oi-contrast d-inline-block py-1"))
                          "")))))
-    (script "
-$(document).ready(function() {
-$('.job-toggle').click(function() {
-  $('.job-abs').toggle();
-  $('.job-rel').toggle();
-})});")
     (table
      (@ (class "table table-sm table-hover table-striped"))
      ,@(if (null? evaluations)
@@ -1294,24 +1209,7 @@ evaluation."
 
   (define duration  (- evaltime timestamp))
 
-  `((script "
-$(document).ready(function() {
-  var url = new URL(window.location.href);
-  var params = url.searchParams;
-  var paginate = params.get('paginate');
-  var href;
-  console.log(paginate);
-  if (!paginate || paginate == '1') {
-    params.set('paginate', 0);
-    $('#paginate').attr('href', url.toString());
-  } else if (paginate == '0') {
-    params.set('paginate', 1);
-    $('#paginate').attr('class', 'oi oi-collapse-up');
-    $('#paginate').attr('href', url.toString());
-  }
-});
-")
-    (p (@ (class "lead"))
+  `((p (@ (class "lead"))
        ,(format #f "Evaluation #~a" id))
     ,@(if (= timestamp 0)
           '()
@@ -1572,11 +1470,12 @@ and BUILD-MAX are global minimal and maximal row identifiers."
                               (title . ((display . #f)
                                         (text . ,title)))
                               (scales . ,scales))))))
-    `((script ,(format #f "window.addEventListener(\"load\",
+    `((script ,(format #f "window.addEventListener('load',
 function(event) {\
 window.~a = new Chart\
 (document.getElementById('~a').getContext('2d'), ~a);\
-});" id id (scm->json-string chart))))))
+});" id id (string-replace-substring
+            (scm->json-string chart) "\"" "'"))))))
 
 (define* (global-metrics-content #:key
                                  avg-eval-durations
@@ -1652,24 +1551,24 @@ window.~a = new Chart\
       (h6 "Builds completion.")
       (p "This shows the difference between newly added derivations and built
 derivations per day.")
-      (canvas (@ (id ,builds-chart)))
+      (canvas (@ (id ,builds-chart)) "")
       (br)
       (h6 "Evaluation average build start time.")
       (p "This is the average time required for an evaluation to start its
 builds.")
       (br)
-      (canvas (@ (id ,build-start-chart)))
+      (canvas (@ (id ,build-start-chart)) "")
       (br)
       (h6 "Evaluation completion speed.")
       (p "The evaluation completion speed is the sum of an evaluation
 completed builds divided by the time required to build them.")
       (br)
-      (canvas (@ (id ,evaluation-speed-chart)))
+      (canvas (@ (id ,evaluation-speed-chart)) "")
       (br)
       (h6 "Pending builds.")
       (p "This is the sum of all the currently pending builds.")
       (br)
-      (canvas (@ (id ,pending-builds-chart)))
+      (canvas (@ (id ,pending-builds-chart)) "")
       (br)
       (h6 "Builds per machine.")
       (p "This is the builds count per machine during the last day.")
@@ -1690,7 +1589,6 @@ completed builds divided by the time required to build them.")
        (tbody
         ,(apply map percentage-failed-eval-row percentage-failed-eval)))
       ;; Scripts.
-      (script (@ (src "/static/js/chart.js")))
       ,@(make-line-chart builds-chart
                          (list (builds->json-scm new-derivations-per-day)
                                (builds->json-scm builds-per-day))
@@ -1862,9 +1760,8 @@ text-dark d-flex position-absolute w-100"))
           `((h6 "CPU idle time")
             ,@(let ((cpu-idle (assq-ref info #:cpu-idle))
                     (cpu-idle-chart "cpu_idle_chart"))
-                `((script (@ (src "/static/js/chart.js")))
-                  (br)
-                  (canvas (@ (id ,cpu-idle-chart)))
+                `((br)
+                  (canvas (@ (id ,cpu-idle-chart)) "")
                   ,@(make-line-chart cpu-idle-chart
                                      (list (history->json-scm cpu-idle))
                                      #:time-x-axes? #t
@@ -1878,9 +1775,8 @@ text-dark d-flex position-absolute w-100"))
             (h6 "Available memory")
             ,@(let ((ram-available (assq-ref info #:ram-available))
                     (ram-available-chart "ram_available_chart"))
-                `((script (@ (src "/static/js/chart.js")))
-                  (br)
-                  (canvas (@ (id ,ram-available-chart)))
+                `((br)
+                  (canvas (@ (id ,ram-available-chart)) "")
                   ,@(make-line-chart ram-available-chart
                                      (list
                                       (ram-available->json-scm ram-available))
@@ -1897,9 +1793,8 @@ text-dark d-flex position-absolute w-100"))
             (h6 "Free store disk space percentage")
             ,@(let ((store-free (assq-ref info #:store-free))
                     (store-free-chart "store_free_chart"))
-                `((script (@ (src "/static/js/chart.js")))
-                  (br)
-                  (canvas (@ (id ,store-free-chart)))
+                `((br)
+                  (canvas (@ (id ,store-free-chart)) "")
                   ,@(make-line-chart store-free-chart
                                      (list (history->json-scm store-free))
                                      #:time-x-axes? #t
@@ -1925,70 +1820,53 @@ text-dark d-flex position-absolute w-100"))
                      evaluation names)
              (format #f "/api/jobs?evaluation=~a&system=~a"
                      evaluation current-system))))
-    `((script "
-$(document).ready(function() {
-  var url = new URL(window.location.href);
-  var params = url.searchParams;
-  var size = Array.from(params).length;
-  $('#prev-link').attr('href', function(i, href) {
-    if (size > 0)
-      return href + '?' + params;
-    else
-      return href;
-});
-  $('#next-link').attr('href', function(i, href) {
-   if (size > 0)
-     return href + '?' + params;
-   else
-     return href;
-});
-});")
-      (p (@ (class "lead mb-0"))
-         ,(format #f "Dasboard evaluation #~a" evaluation)
-         (nav
-          (@ (aria-label "Evaluation navigation")
-             (class "eval-nav ml-3"))
-          (ul (@ (class "pagination pagination-sm"))
-              (li (@ (class
-                       ,(string-append "page-item "
-                                       (if prev-eval
-                                           ""
-                                           "disabled"))))
-                  ,(let ((name "Previous evaluation"))
-                     `(a
-                       (@ (id "prev-link")
-                          (class "page-link")
-                          (title ,name)
-                          (aria-label ,name)
-                          (href
-                           ,(if prev-eval
-                                (format #f "/eval/~a/dashboard~a"
-                                        prev-eval
-                                        (if dashboard-id
-                                            (format #f "/~a" dashboard-id)
-                                            ""))
-                                "#")))
-                       "«")))
-              (li (@ (class
-                       ,(string-append "page-item "
-                                       (if next-eval
-                                           ""
-                                           "disabled"))))
-                  ,(let ((name "Next evaluation"))
-                     `(a
-                       (@ (id "next-link")
-                          (class "page-link")
-                          (title ,name)
-                          (aria-label ,name)
-                          (href
-                           ,(if next-eval
-                                (format #f "/eval/~a/dashboard~a"
-                                        next-eval
-                                        (if dashboard-id
-                                            (format #f "/~a" dashboard-id)
-                                            ""))
-                                "#")))
-                       "»"))))))
+    `((nav
+       (@ (aria-label "Evaluation navigation")
+          (class "eval-nav"))
+       (ul (@ (class "pagination pagination-sm"))
+           (li
+            (p (@ (class "lead mb-0 mr-3"))
+               ,(format #f "Dasboard evaluation #~a" evaluation)))
+           (li (@ (class
+                    ,(string-append "page-item "
+                                    (if prev-eval
+                                        ""
+                                        "disabled"))))
+               ,(let ((name "Previous evaluation"))
+                  `(a
+                    (@ (id "dashboard-prev-link")
+                       (class "page-link")
+                       (title ,name)
+                       (aria-label ,name)
+                       (href
+                        ,(if prev-eval
+                             (format #f "/eval/~a/dashboard~a"
+                                     prev-eval
+                                     (if dashboard-id
+                                         (format #f "/~a" dashboard-id)
+                                         ""))
+                             "#")))
+                    "«")))
+           (li (@ (class
+                    ,(string-append "page-item "
+                                    (if next-eval
+                                        ""
+                                        "disabled"))))
+               ,(let ((name "Next evaluation"))
+                  `(a
+                    (@ (id "dashboard-next-link")
+                       (class "page-link")
+                       (title ,name)
+                       (aria-label ,name)
+                       (href
+                        ,(if next-eval
+                             (format #f "/eval/~a/dashboard~a"
+                                     next-eval
+                                     (if dashboard-id
+                                         (format #f "/~a" dashboard-id)
+                                         ""))
+                             "#")))
+                    "»")))))
       (form (@ (id "get-dashboard")
                (class
                  ,(string-append "row g-3 mb-3 "
@@ -2016,105 +1894,11 @@ $(document).ready(function() {
                      (type "submit")
                      (disabled))
                   (span
-                   (@ (class "spinner-border spinner-border-sm")))
-                  (span
-                   " Loading"))))
-      (script ,(format #f "
-      function enableLoadButton() {
-          $('#load-btn').removeAttr('disabled');
-          $('#load-btn').children().eq(0).hide();
-          $('#load-btn').children().eq(1).text('Go');
-      }
-      function disableLoadButton() {
-          $('#load-btn').attr('disabled', 'true');
-          $('#load-btn').children().eq(0).show();
-          $('#load-btn').children().eq(1).text(' Loading');
-      }
-      function radius(count) {
-          if (count < 100)
-              return 15;
-          else if (count < 1000)
-              return 10;
-          else
-              return 5;
-      }
-
-      function color(status) {
-          switch (status) {
-          case -3:
-          case -2:
-              return 'gray';
-          case -1:
-              return 'orange';
-          case 0:
-              return 'green';
-          case 1:
-          case 2:
-          case 3:
-          case 4:
-              return 'red';
-          }
-      }
-
-      function svgWidth() {
-          var width = d3.select('#content').style('width').slice(0, -2);
-          return Math.round(Number(width));
-      }
-
-      disableLoadButton();
-      d3.json('~a').then(function (data) {
-          var width = svgWidth();
-          var circle_radius = radius(data.length);
-          var margin_x = circle_radius;
-          var margin_y = circle_radius;
-          var margin_circle_x = 3;
-          var margin_circle_y = (2.5 * circle_radius);
-          var circle_count_x =
-              Math.floor((width - 2 * margin_x) /
-                         ((2 * circle_radius) + margin_circle_x));
-          var height = ((data.length / circle_count_x) *
-                        margin_circle_y) +
-              circle_radius + 2 * margin_y;
-
-          var div = d3.select('body').append('div')
-                        .attr('class', 'tooltip')
-                        .style('opacity', 0);
-          var svg = d3.select('#content').append('svg')
-              .attr('width', width)
-              .attr('height', height);
-          var circles = svg.append('g')
-              .selectAll('circle')
-              .data(data)
-              .enter()
-              .append('a')
-              .attr('xlink:href', d => '/build/' + d.build + '/details')
-              .append('circle')
-              .attr('r', circle_radius)
-              .attr('cx', function(d, i) {
-                  return margin_x +
-                      (i % circle_count_x)
-                      * (circle_radius * 2 + margin_circle_x);
-              })
-              .attr('cy', function (d, i) {
-                  return margin_y + Math.floor(i / circle_count_x)
-                      * margin_circle_y;
-              })
-              .style('fill', d => color(d.status))
-              .on('mouseover', function(event, d) {
-                  var circle = d3.select(this)
-                      .style('fill', 'steelblue');
-                  div.style('opacity', .9);
-                  div.html(d.name)
-                      .style('left', (event.pageX + 30) + 'px')
-                      .style('top', (event.pageY - 30) + 'px');
-              })
-              .on('mouseout', function(event, d) {
-                  var circle = d3.select(this)
-                      .style('fill', color(d.status));
-                  div.style('opacity', 0);
-                  div.html('')
-                      .style('left', '0px')
-                      .style('top', '0px');
-              })
-          enableLoadButton();
-      });" jobs)))))
+                   (@ (class "spinner-border spinner-border-sm")
+                      (role "status")
+                      (aria-hidden "true"))
+                   "")
+                  " Loading")))
+      (div (@ (id "dashboard")
+              (class "invisible")
+              (url ,jobs))))))
