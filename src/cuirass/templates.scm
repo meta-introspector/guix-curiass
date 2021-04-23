@@ -120,7 +120,7 @@ system whose names start with " (code "guile-") ":" (br)
                                             "shrink-to-fit=no")
                                           ", "))))
           (link (@ (rel "stylesheet")
-                   (href "/static/css/bootstrap.css")))
+                   (href "/static/css/bootstrap.min.css")))
           (link (@ (rel "stylesheet")
                    (href "/static/css/datatables.min.css")))
           (link (@ (rel "stylesheet")
@@ -131,41 +131,14 @@ system whose names start with " (code "guile-") ":" (br)
                    (href "/static/css/cuirass.css")))
           (link (@ (rel "icon") (type "image/png")
                    (href "/static/images/icon.png")))
-          (script (@ (src "/static/js/jquery-3.6.0.min.js")))
-          (script (@ (src "/static/js/bootstrap.bundle.min.js")))
-          (script (@ (src "/static/js/datatables.min.js")))
-          (script (@ (src "/static/js/d3.v6.min.js")))
-          (script "
-$(document).ready(function() {
-  var default_opts = {
-paging: false,
-searching: false,
-info: false,
-order: [],
-};
-  var spec_table = $('#spec-table');
-  if (spec_table.find('th').length > 1) {
-    spec_table.DataTable({
-...default_opts,
-/* Do not sort the 'Action' column. */
-columnDefs: [
-    { orderable: false, targets: 5 },
-    { orderable: false, targets: 6 }
-  ],
-});
-}
-  var eval_table = $('#eval-table');
-  if (eval_table.find('th').length > 1) {
-    eval_table.DataTable({
-...default_opts,
-columnDefs: [
-    { orderable: false, targets: 0 },
-    { orderable: false, targets: 1 },
-    { orderable: false, targets: 8 }
-  ],
-});
-}
-});")
+          ;; The empty strings are mandatory to force the SXML parser to
+          ;; create end script tags.
+          (script (@ (src "/static/js/jquery-3.3.1.min.js")) "")
+          (script (@ (src "/static/js/popper.min.js")) "")
+          (script (@ (src "/static/js/bootstrap.min.js")) "")
+          (script (@ (src "/static/js/datatables.min.js")) "")
+          (script (@ (src "/static/js/d3.v6.min.js")) "")
+          (script (@ (src "/static/js/cuirass.js")) "")
           (title ,title))
          (body
           (header

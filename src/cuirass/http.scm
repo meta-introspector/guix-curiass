@@ -76,7 +76,7 @@
     ("html" . (text/html))))
 
 (define %file-white-list
-  '("css/bootstrap.css"
+  '("css/bootstrap.min.css"
     "css/choices.min.css"
     "css/datatables.min.css"
     "css/cuirass.css"
@@ -85,11 +85,13 @@
     "fonts/open-iconic.woff"
     "images/icon.png"
     "images/guix.png"
-    "js/bootstrap.bundle.min.js"
     "js/chart.js"
+    "js/cuirass.js"
     "js/d3.v6.min.js"
     "js/datatables.min.js"
-    "js/jquery-3.6.0.min.js"
+    "js/jquery-3.3.1.min.js"
+    "js/popper.min.js"
+    "js/bootstrap.min.js"
     "js/choices.min.js"))
 
 (define (build->hydra-build build)
