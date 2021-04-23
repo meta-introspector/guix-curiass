@@ -414,15 +414,15 @@ $('.job-toggle').click(function() {
                      (td
                       ,@(let ((eval (and=> (spec->latest-eval
                                             (specification-name spec))
-                                          (cut assq-ref <> #:evaluation))))
+                                           (cut assq-ref <> #:evaluation))))
                           (if eval
                               `((a (@ (href "/eval/" ,eval
-                                             "/dashboard"))
-                                    (div
-                                     (@ (class "oi oi-monitor d-inline-block ml-2")
-                                        (title "Dashboard")
-                                        (aria-hidden "true"))
-                                     "")))
+                                            "/dashboard"))
+                                   (div
+                                    (@ (class "oi oi-monitor d-inline-block ml-2")
+                                       (title "Dashboard")
+                                       (aria-hidden "true"))
+                                    "")))
                               '()))
                       (div
                        (@ (class "dropdown d-inline-block ml-2"))
