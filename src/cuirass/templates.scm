@@ -274,8 +274,7 @@ system whose names start with " (code "guile-") ":" (br)
                     (title ,name)
                     (aria-label ,name)
                     (role "button"))
-                 (i (@ (class "oi oi-plus text-primary py-1")
-                       (aria-hidden "true"))
+                 (i (@ (class "oi oi-plus text-primary py-1"))
                     ""))))
          ,(let ((name "RSS events"))
             `(div
@@ -284,9 +283,7 @@ system whose names start with " (code "guile-") ":" (br)
                     (title ,name)
                     (aria-label ,name)
                     (role "button"))
-                 (i (@ (class "oi oi-rss text-warning py-1")
-                       (title "RSS")
-                       (aria-hidden "true"))
+                 (i (@ (class "oi oi-rss text-warning py-1"))
                     ""))))
          ,(let ((name "Toggle jobs"))
             `(div
@@ -403,7 +400,6 @@ $('.job-toggle').click(function() {
                                    (div
                                     (@ (class "oi oi-monitor d-inline-block ml-2")
                                        (title ,dashboard-name)
-                                       (aria-hidden "true")
                                        (aria-label ,dashboard-name))
                                     "")))
                               '()))
@@ -969,18 +965,27 @@ if ($('.param-select-row').is(':visible')) {
             (= (assq-ref e #:evaluation) (assq-ref eval #:id)))
           absolute-summary))
 
-  `((p (@ (class "lead")) "Evaluations of " ,name
-       (button (@ (class "btn btn-outline-primary float-right job-toggle")
-                  (type "button"))
-               (span (@ (class "oi oi-contrast d-inline-block")
-                        (title "Toggle jobs"))))
-       (a (@ (href "/events/rss/?specification=" ,name))
-          (button (@ (class "btn btn-outline-warning float-right mr-1")
-                     (type "button"))
-                  (span (@(class "oi oi-rss text-warning align-right")
-                         (title "RSS")
-                         (aria-hidden "true"))
-                        ""))))
+  `((div (@ (class "d-flex flex-row mb-3"))
+         (div (@ (class "lead mr-auto"))
+              "Evaluations of " ,name)
+         ,(let ((rss-name "RSS events"))
+            `(div
+              (a (@ (class "btn btn-outline-warning mr-1")
+                    (href "/events/rss/?specification=" ,name)
+                    (title ,rss-name)
+                    (aria-label ,rss-name)
+                    (role "button"))
+                 (i (@ (class "oi oi-rss text-warning py-1")
+                       (aria-hidden "true"))
+                    ""))))
+         ,(let ((name "Toggle jobs"))
+            `(div
+              (button (@ (class "btn btn-outline-primary job-toggle")
+                         (title ,name)
+                         (aria-label ,name)
+                         (type "button"))
+                      (i (@ (class "oi oi-contrast d-inline-block py-1"))
+                         "")))))
     (script "
 $(document).ready(function() {
 $('.job-toggle').click(function() {
@@ -1007,45 +1012,63 @@ $('.job-toggle').click(function() {
                         (td
                          ,@(evaluation-badges row
                                               (eval-absolute-summary row)))
-                        (td
-                         (a (@ (href "/eval/" ,(assq-ref row #:id)
-                                     "/dashboard"))
-                            (div
-                             (@ (class
-                                  ,(string-append
-                                    "oi oi-monitor d-inline-block "
-                                    (if (eq? (assq-ref row #:status)
-                                             (evaluation-status succeeded))
-                                        "visible"
-                                        "invisible")))
-                                (title "Dashboard")
-                                (aria-hidden "true"))
-                             ""))
-                         (div
-                          (@ (class "dropdown d-inline-block ml-2"))
-                          (a (@ (class "oi oi-menu dropdown-toggle no-dropdown-arrow")
-                                (href "#")
-                                (data-toggle "dropdown")
-                                (role "button")
-                                (aria-haspopup "true")
-                                (aria-expanded "false"))
-                             " ")
-                          (div (@ (class "dropdown-menu"))
-                               (a (@ (class "dropdown-item")
-                                     (href "/admin/evaluation/"
-                                           ,(assq-ref row #:id)
-                                           "/cancel"))
-                                  " Cancel pending builds")
-                               (a (@ (class "dropdown-item")
-                                     (href "/admin/evaluation/"
-                                           ,(assq-ref row #:id)
-                                           "/restart"))
-                                  " Restart all builds")
-                               (a (@ (class "dropdown-item")
-                                     (href "/admin/evaluation/"
-                                           ,(assq-ref row #:id)
-                                           "/retry"))
-                                  " Retry the evaluation"))))))
+                        ,(let* ((id (assq-ref row #:id))
+                                (title
+                                 (string-append "Dashboard evaluation "
+                                                (number->string id))))
+                           `(td
+                             (a (@ (href "/eval/" ,id "/dashboard"))
+                                (div
+                                 (@ (class
+                                      ,(string-append
+                                        "oi oi-monitor d-inline-block "
+                                        (if (eq? (assq-ref row #:status)
+                                                 (evaluation-status succeeded))
+                                            "visible"
+                                            "invisible")))
+                                    (title ,title)
+                                    (aria-label ,title))
+                                 ""))
+                             ,(let ((dropdown-id
+                                     (string-append
+                                      "evaluationDropdown-"
+                                      (number->string id)))
+                                    (name
+                                     (string-append "Options evaluation "
+                                                    (number->string id))))
+                                `(div
+                                  (@ (id ,id)
+                                     (title ,name)
+                                     (aria-label ,name)
+                                     (class "dropdown d-inline-block ml-2"))
+                                  (a (@ (class "oi oi-menu dropdown-toggle no-dropdown-arrow")
+                                        (href "#")
+                                        (data-toggle "dropdown")
+                                        (role "button")
+                                        (aria-haspopup "true")
+                                        (aria-expanded "false"))
+                                     " ")
+                                  (ul (@ (class "dropdown-menu")
+                                         (role "menu")
+                                         (aria-labelledby ,id))
+                                      (li (@ (role "menuitem"))
+                                          (a (@ (class "dropdown-item")
+                                                (href "/admin/evaluation/"
+                                                      ,(assq-ref row #:id)
+                                                      "/cancel"))
+                                             " Cancel pending builds"))
+                                      (li (@ (role "menuitem"))
+                                          (a (@ (class "dropdown-item")
+                                                (href "/admin/evaluation/"
+                                                      ,(assq-ref row #:id)
+                                                      "/restart"))
+                                             " Restart all builds"))
+                                      (li (@ (role "menuitem"))
+                                          (a (@ (class "dropdown-item")
+                                                (href "/admin/evaluation/"
+                                                      ,(assq-ref row #:id)
+                                                      "/retry"))
+                                             " Retry the evaluation")))))))))
                  evaluations)))))
     ,(if (null? evaluations)
          (pagination "" "" "" "")
@@ -1931,45 +1954,41 @@ $(document).ready(function() {
                                        (if prev-eval
                                            ""
                                            "disabled"))))
-                  (a
-                   (@ (id "prev-link")
-                      (class "page-link")
-                      (href
-                       ,(if prev-eval
-                            (format #f "/eval/~a/dashboard~a"
-                                    prev-eval
-                                    (if dashboard-id
-                                        (format #f "/~a" dashboard-id)
-                                        ""))
-                            "#")))
-                     (span
-                      (@ (aria-hidden "true"))
-                      "«")
-                     (span
-                      (@ (class "sr-only"))
-                      "Previous")))
+                  ,(let ((name "Previous evaluation"))
+                     `(a
+                       (@ (id "prev-link")
+                          (class "page-link")
+                          (title ,name)
+                          (aria-label ,name)
+                          (href
+                           ,(if prev-eval
+                                (format #f "/eval/~a/dashboard~a"
+                                        prev-eval
+                                        (if dashboard-id
+                                            (format #f "/~a" dashboard-id)
+                                            ""))
+                                "#")))
+                       "«")))
               (li (@ (class
                        ,(string-append "page-item "
                                        (if next-eval
                                            ""
                                            "disabled"))))
-                  (a
-                   (@ (id "next-link")
-                      (class "page-link")
-                      (href
-                       ,(if next-eval
-                            (format #f "/eval/~a/dashboard~a"
-                                    next-eval
-                                    (if dashboard-id
-                                        (format #f "/~a" dashboard-id)
-                                        ""))
-                            "#")))
-                     (span
-                      (@ (aria-hidden "true"))
-                      "»")
-                     (span
-                      (@ (class "sr-only"))
-                      "Next"))))))
+                  ,(let ((name "Next evaluation"))
+                     `(a
+                       (@ (id "next-link")
+                          (class "page-link")
+                          (title ,name)
+                          (aria-label ,name)
+                          (href
+                           ,(if next-eval
+                                (format #f "/eval/~a/dashboard~a"
+                                        next-eval
+                                        (if dashboard-id
+                                            (format #f "/~a" dashboard-id)
+                                            ""))
+                                "#")))
+                       "»"))))))
       (form (@ (id "get-dashboard")
                (class
                  ,(string-append "row g-3 mb-3 "
