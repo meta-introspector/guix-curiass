@@ -265,14 +265,14 @@ system whose names start with " (code "guile-") ":" (br)
       (nearest-exact-integer (* 100 (/ succeeded total)))))
 
   "Return HTML for the SPECS table."
-  `((div (@ (class "d-flex flex-row"))
+  `((div (@ (class "d-flex flex-row mb-3"))
          (div (@ (class "lead mr-auto"))
               "Specifications")
          (div
           (a (@ (class "btn btn-outline-primary mr-1")
                 (href "/specification/add/")
                 (role "button"))
-             (span (@ (class "oi oi-plus text-primary")
+             (i (@ (class "oi oi-plus text-primary py-1")
                       (title "Add")
                       (aria-hidden "true"))
                    "")))
@@ -280,14 +280,14 @@ system whose names start with " (code "guile-") ":" (br)
           (a (@ (class "btn btn-outline-warning mr-1")
                 (href "/events/rss/")
                 (role "button"))
-             (span (@ (class "oi oi-rss text-warning")
+             (i (@ (class "oi oi-rss text-warning py-1")
                       (title "RSS")
                       (aria-hidden "true"))
                    "")))
          (div
           (button (@ (class "btn btn-outline-primary job-toggle")
                      (type "button"))
-                  (span (@ (class "oi oi-contrast d-inline-block")
+                  (span (@ (class "oi oi-contrast d-inline-block py-1")
                            (title "Toggle jobs"))))))
     (script "
 $(document).ready(function() {
