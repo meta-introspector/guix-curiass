@@ -496,7 +496,7 @@ passed, only display JOBS targeting this SYSTEM."
 
   (define* (respond-html body #:key code)
     (respond
-     (let ((content-type '((content-type . (application/xhtml+xml)))))
+     (let ((content-type '((content-type . (text/html)))))
        (if code
            (build-response #:headers content-type #:code code)
            content-type))
