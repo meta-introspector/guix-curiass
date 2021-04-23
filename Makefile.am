@@ -114,6 +114,7 @@ dist_images_DATA =				\
   src/static/images/guix.png			\
   src/static/images/icon.png
 dist_js_DATA =					\
+  src/static/js/bootstrap.bundle.min.js         \
   src/static/js/chart.js                        \
   src/static/js/choices.min.js                  \
   src/static/js/d3.v6.min.js	                \

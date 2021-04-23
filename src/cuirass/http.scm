@@ -85,6 +85,7 @@
     "fonts/open-iconic.woff"
     "images/icon.png"
     "images/guix.png"
+    "js/bootstrap.bundle.min.js"
     "js/chart.js"
     "js/d3.v6.min.js"
     "js/datatables.min.js"

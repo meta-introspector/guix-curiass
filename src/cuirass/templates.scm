@@ -132,6 +132,7 @@ system whose names start with " (code "guile-") ":" (br)
           (link (@ (rel "icon") (type "image/png")
                    (href "/static/images/icon.png")))
           (script (@ (src "/static/js/jquery-3.6.0.min.js")))
+          (script (@ (src "/static/js/bootstrap.bundle.min.js")))
           (script (@ (src "/static/js/datatables.min.js")))
           (script (@ (src "/static/js/d3.v6.min.js")))
           (script "
