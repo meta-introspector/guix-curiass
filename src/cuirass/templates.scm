@@ -292,26 +292,30 @@ columnDefs: [
       (nearest-exact-integer (* 100 (/ succeeded total)))))
 
   "Return HTML for the SPECS table."
-  `((p (@ (class "lead")) "Specifications"
-
-       (button (@ (class "btn btn-outline-primary float-right job-toggle")
-                  (type "button"))
-               (span (@ (class "oi oi-contrast d-inline-block")
-                        (title "Toggle jobs"))))
-       (a (@ (href "/events/rss/"))
-          (button (@ (class "btn btn-outline-warning mr-1 float-right")
+  `((div (@ (class "d-flex flex-row"))
+         (div (@ (class "lead mr-auto"))
+              "Specifications")
+         (div
+          (a (@ (class "btn btn-outline-primary mr-1")
+                (href "/specification/add/")
+                (role "button"))
+             (span (@ (class "oi oi-plus text-primary")
+                      (title "Add")
+                      (aria-hidden "true"))
+                   "")))
+         (div
+          (a (@ (class "btn btn-outline-warning mr-1")
+                (href "/events/rss/")
+                (role "button"))
+             (span (@ (class "oi oi-rss text-warning")
+                      (title "RSS")
+                      (aria-hidden "true"))
+                   "")))
+         (div
+          (button (@ (class "btn btn-outline-primary job-toggle")
                      (type "button"))
-                  (span (@ (class "oi oi-rss text-warning align-right")
-                           (title "RSS")
-                           (aria-hidden "true"))
-                        "")))
-       (a (@ (class "btn btn-outline-primary mr-1 float-right")
-             (href "/specification/add/")
-             (role "button"))
-          (span (@(class "oi oi-plus text-primary align-right")
-                 (title "Add")
-                 (aria-hidden "true"))
-                "")))
+                  (span (@ (class "oi oi-contrast d-inline-block")
+                           (title "Toggle jobs"))))))
     (script "
 $(document).ready(function() {
 $('.job-toggle').click(function() {
