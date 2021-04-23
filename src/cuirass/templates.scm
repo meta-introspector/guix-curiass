@@ -166,7 +166,6 @@ system whose names start with " (code "guile-") ":" (br)
                                    (data-toggle "dropdown")
                                    (href "#")
                                    (role "button")
-                                   (data-bs-toggle "dropdown")
                                    (aria-haspopup "true")
                                    (aria-expanded "false"))
                                 "Status")
@@ -268,27 +267,35 @@ system whose names start with " (code "guile-") ":" (br)
   `((div (@ (class "d-flex flex-row mb-3"))
          (div (@ (class "lead mr-auto"))
               "Specifications")
-         (div
-          (a (@ (class "btn btn-outline-primary mr-1")
-                (href "/specification/add/")
-                (role "button"))
-             (i (@ (class "oi oi-plus text-primary py-1")
-                      (title "Add")
-                      (aria-hidden "true"))
-                   "")))
-         (div
-          (a (@ (class "btn btn-outline-warning mr-1")
-                (href "/events/rss/")
-                (role "button"))
-             (i (@ (class "oi oi-rss text-warning py-1")
-                      (title "RSS")
-                      (aria-hidden "true"))
-                   "")))
-         (div
-          (button (@ (class "btn btn-outline-primary job-toggle")
-                     (type "button"))
-                  (span (@ (class "oi oi-contrast d-inline-block py-1")
-                           (title "Toggle jobs"))))))
+         ,(let ((name "Add a specification"))
+            `(div
+              (a (@ (class "btn btn-outline-primary mr-1")
+                    (href "/specification/add/")
+                    (title ,name)
+                    (aria-label ,name)
+                    (role "button"))
+                 (i (@ (class "oi oi-plus text-primary py-1")
+                       (aria-hidden "true"))
+                    ""))))
+         ,(let ((name "RSS events"))
+            `(div
+              (a (@ (class "btn btn-outline-warning mr-1")
+                    (href "/events/rss/")
+                    (title ,name)
+                    (aria-label ,name)
+                    (role "button"))
+                 (i (@ (class "oi oi-rss text-warning py-1")
+                       (title "RSS")
+                       (aria-hidden "true"))
+                    ""))))
+         ,(let ((name "Toggle jobs"))
+            `(div
+              (button (@ (class "btn btn-outline-primary job-toggle")
+                         (title ,name)
+                         (aria-label ,name)
+                         (type "button"))
+                      (i (@ (class "oi oi-contrast d-inline-block py-1"))
+                         "")))))
     (script "
 $(document).ready(function() {
 $('.job-toggle').click(function() {
@@ -385,36 +392,53 @@ $('.job-toggle').click(function() {
                                   ,(assq-ref summary #:scheduled))))
                               '())))
                      (td
-                      ,@(let ((eval (and=> (spec->latest-eval
-                                            (specification-name spec))
-                                           (cut assq-ref <> #:evaluation))))
+                      ,@(let* ((name (specification-name spec))
+                               (dashboard-name
+                                (string-append "Dashboard " name))
+                               (eval (and=> (spec->latest-eval name)
+                                            (cut assq-ref <> #:evaluation))))
                           (if eval
                               `((a (@ (href "/eval/" ,eval
                                             "/dashboard"))
                                    (div
                                     (@ (class "oi oi-monitor d-inline-block ml-2")
-                                       (title "Dashboard")
-                                       (aria-hidden "true"))
+                                       (title ,dashboard-name)
+                                       (aria-hidden "true")
+                                       (aria-label ,dashboard-name))
                                     "")))
                               '()))
-                      (div
-                       (@ (class "dropdown d-inline-block ml-2"))
-                       (a (@ (class "oi oi-menu dropdown-toggle no-dropdown-arrow")
-                             (href "#")
-                             (data-toggle "dropdown")
-                             (role "button")
-                             (aria-haspopup "true")
-                             (aria-expanded "false"))
-                          " ")
-                       (div (@ (class "dropdown-menu"))
-                            (a (@ (class "dropdown-item")
-                                  (href "/specification/edit/"
-                                        ,(specification-name spec)))
-                               " Edit")
-                            (a (@ (class "dropdown-item")
-                                  (href "/admin/specifications/delete/"
-                                        ,(specification-name spec)))
-                               " Delete"))))))
+                      ,(let ((id
+                              (string-append
+                               "specDropdown-"
+                               (specification-name spec)))
+                             (name
+                              (string-append "Options "
+                                             (specification-name spec))))
+                         `(div
+                           (@ (id ,id)
+                              (title ,name)
+                              (aria-label ,name)
+                              (class "dropdown d-inline-block ml-2"))
+                           (a (@ (class "oi oi-menu dropdown-toggle no-dropdown-arrow")
+                                 (href "#")
+                                 (data-toggle "dropdown")
+                                 (role "button")
+                                 (aria-haspopup "true")
+                                 (aria-expanded "false"))
+                              " ")
+                           (ul (@ (class "dropdown-menu")
+                                  (role "menu")
+                                  (aria-labelledby ,id))
+                               (li (@ (role "menuitem"))
+                                   (a (@ (class "dropdown-item")
+                                         (href "/specification/edit/"
+                                               ,(specification-name spec)))
+                                      " Edit"))
+                               (li (@ (role "menuitem"))
+                                   (a (@ (class "dropdown-item")
+                                         (href "/admin/specifications/delete/"
+                                               ,(specification-name spec)))
+                                      " Delete"))))))))
                  specs)))))))
 
 (define* (specification-edit #:optional spec)
