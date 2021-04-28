@@ -928,11 +928,7 @@ UPDATE Builds SET stoptime =" now
                                          (build-weather new-failure)))
                             (db-push-notification notif
                                                   (assq-ref build #:id))))
-                        notifications)))))
-    (exec-query/bind db
-                     "UPDATE Jobs SET status=" status
-                     "WHERE build = (SELECT id FROM Builds WHERE
- derivation = " drv ");")))
+                        notifications)))))))
 
 (define* (db-update-build-worker! drv worker)
   "Update the database so that DRV's worker is WORKER."
