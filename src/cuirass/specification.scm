@@ -147,6 +147,7 @@
     images
     system-tests
     tarball
+    custom
     channels
     packages
     manifests))

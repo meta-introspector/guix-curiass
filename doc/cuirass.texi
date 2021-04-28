@@ -136,6 +136,10 @@ Build only the Guix System tests.
 @item @code{tarball}
 Build only the Guix binary tarball.
 
+@item @code{(custom . list)}
+Build only the jobs returned by the @code{cuirass-jobs} procedure of
+each module in @code{list}.
+
 @item @code{(channels . list)}
 Build only the packages that are part of the given channel
 @code{list}.  For instance, @code{(channels my-channel)} will only
