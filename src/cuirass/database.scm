@@ -968,7 +968,7 @@ DELETE FROM Checkouts WHERE evaluation=" eval-id ";")))
     (exec-query/bind db "UPDATE Builds SET status="
                      (build-status canceled)
                      "WHERE evaluation=" eval-id
-                     "AND status = " (build-status started) ";")))
+                     "AND status < 0;")))
 
 (define (query->bind-arguments query-string)
   "Return a list of keys to query strings by parsing QUERY-STRING."
