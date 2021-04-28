@@ -131,6 +131,20 @@ CREATE INDEX Builds_status_ts_id on Builds(status DESC, timestamp DESC, id ASC);
 CREATE INDEX Builds_priority_timestamp on Builds(priority ASC, timestamp DESC);
 CREATE INDEX Builds_weather_evaluation ON Builds (weather, evaluation);
 
+-- Make sure that the cached Job build status is always synchronized with the
+-- matching build status.
+CREATE FUNCTION update_job_status()
+RETURNS TRIGGER AS $$
+BEGIN
+UPDATE Jobs SET status = NEW.status WHERE Jobs.build = NEW.id;
+RETURN null;
+END
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER build_status AFTER UPDATE ON Builds
+FOR EACH ROW
+EXECUTE PROCEDURE update_job_status();
+
 CREATE INDEX Jobs_name ON Jobs (name);
 CREATE INDEX Jobs_system_status ON Jobs (system, status);
 CREATE INDEX Jobs_build ON Jobs (build); --speeds up delete cascade.
