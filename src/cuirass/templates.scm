@@ -561,9 +561,11 @@ the existing SPEC otherwise."
                                (hidden "true"))
                             ,(string-join
                               (map (lambda (param)
-                                     (if (symbol? param)
-                                         (symbol->string param)
-                                         param))
+                                     (cond
+                                      ((string? param)
+                                       param)
+                                      (else
+                                       (object->string param))))
                                    rest)
                               ","))))
                    (else ""))

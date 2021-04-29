@@ -397,8 +397,15 @@ into a specification record and return it."
                            (let ((param (assq-ref params 'param-input)))
                              (and param
                                   (not (string=? param ""))
-                                  (string-split
-                                   (uri-decode param) #\,)))))
+                                  (let ((param (string-split
+                                                (uri-decode param) #\,)))
+                                    (cond
+                                     ((eq? build 'custom)
+                                      (map
+                                       (cut with-input-from-string <> read)
+                                       param))
+                                     (else
+                                      param)))))))
          (channels (map (lambda (name url branch)
                           (channel
                            (name (string->symbol name))

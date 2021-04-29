@@ -226,7 +226,7 @@ $(document).ready(function() {
             var param_select = $('.build-select');
             var param_select_cb = function(){
                 var val = param_select.val();
-                if (['packages', 'manifests'].indexOf(val) >= 0) {
+                if (['custom', 'packages', 'manifests'].indexOf(val) >= 0) {
                     input_choices.clearStore();
                     $('.param-input-row').show();
                 } else {
