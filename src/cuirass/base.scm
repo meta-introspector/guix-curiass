@@ -694,6 +694,11 @@ by BUILD-OUTPUTS."
                          (log-message "Fetching channels for spec '~a'." name)
                          (latest-channel-instances* store channels
                                                     #:authenticate? #f)))
+             (new-channels (map channel-instance-channel instances))
+             (new-spec (specification
+                        (inherit spec)
+                        (channels new-channels))) ;include possible channel
+                                                  ;dependencies.
              (checkouttime (time-second (current-time time-utc)))
              (eval-id (db-add-evaluation name instances
                                          #:timestamp timestamp
@@ -709,6 +714,11 @@ by BUILD-OUTPUTS."
                         #f))
                (log-message "evaluating spec '~a'" name)
                (with-store store
+                 ;; The LATEST-CHANNEL-INSTANCES procedure may return channel
+                 ;; dependencies that are not declared in the initial
+                 ;; specification channels.  Update the given SPEC to take
+                 ;; them into account.
+                 (db-add-or-update-specification new-spec)
                  (evaluate store spec eval-id)
                  (db-set-evaluation-time eval-id)
                  (build-packages store eval-id)))))
