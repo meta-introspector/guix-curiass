@@ -118,9 +118,9 @@ registered in database."
                   (systems (specification-systems spec)))
 
              ;; Evaluate jobs on a per-system basis for two reasons.  It
-             ;; speeds up the evaluation speed as the evaluations can be
-             ;; performed concurrently.  It also decreases the amount of
-             ;; memory needed per evaluation process.
+             ;; speeds up the evaluation as the evaluations can be performed
+             ;; concurrently.  It also decreases the amount of memory needed
+             ;; per evaluation process.
              (par-for-each
               (lambda (system)
                 (with-store store
