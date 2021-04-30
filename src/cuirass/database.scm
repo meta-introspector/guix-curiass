@@ -36,6 +36,7 @@
   #:use-module (ice-9 ftw)
   #:use-module (ice-9 rdelim)
   #:use-module (ice-9 regex)
+  #:use-module (ice-9 textual-ports)
   #:use-module (ice-9 threads)
   #:use-module (srfi srfi-1)
   #:use-module (srfi srfi-19)
@@ -293,16 +294,8 @@ DB is bound to the argument of that critical section: the database connection."
     (exec-query db "COMMIT;")))
 
 (define (read-sql-file file-name)
-  "Return a list of string containing SQL instructions from FILE-NAME."
-  (call-with-input-file file-name
-    (lambda (port)
-      (let loop ((insts '()))
-        (let ((inst (read-delimited ";" port 'concat)))
-          (if (or (eof-object? inst)
-                  ;; Don't cons the spaces after the last instructions.
-                  (string-every char-whitespace? inst))
-              (reverse! insts)
-              (loop (cons inst insts))))))))
+  "Return a string containing SQL instructions from FILE-NAME."
+  (call-with-input-file file-name get-string-all))
 
 (define (expect-one-row rows)
   "Several SQL queries expect one result, or zero if not found.  This gets rid
@@ -313,8 +306,7 @@ of the list, and returns #f when there is no result."
 
 (define (db-load db schema)
   "Evaluate the file SCHEMA, which may contain SQL queries, into DB."
-  (for-each (cut exec-query db <>)
-            (read-sql-file schema)))
+  (exec-query db (read-sql-file schema)))
 
 (define (db-schema-version db)
   (catch 'psql-query-error
