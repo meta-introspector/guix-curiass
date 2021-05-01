@@ -637,33 +637,21 @@ the existing SPEC otherwise."
                           (class "btn btn-primary"))
                        " Submit")))))))
 
-(define (build-details build products history)
+(define (build-details build dependencies products history)
   "Return HTML showing details for the BUILD."
   (define status (assq-ref build #:status))
   (define weather (assq-ref build #:weather))
-  (define blocking-outputs
-    (or (and-let* (((= (build-status failed-dependency) status))
-                   (drv (false-if-exception
-                         (read-derivation-from-file
-                          (assq-ref build #:derivation)))))
-          (append-map (lambda (drv)
-                        (match (derivation->output-paths drv)
-                          (((_ . items) ...)
-                           items)))
-                      (filter (compose derivation-log-file
-                                       derivation-file-name)
-                              (with-store store
-                                (derivation-build-plan
-                                 store (list (derivation-input drv))
-                                 #:substitutable-info (const #f))))))
-        '()))
-
   (define completed?
     (or (= (build-status succeeded) status)
         (= (build-status failed) status)))
 
   (define evaluation
     (assq-ref build #:eval-id))
+
+  (define (find-dependency id)
+    (find (lambda (build)
+            (eq? (assoc-ref build #:id) id))
+          dependencies))
 
   (define (history-table-row build)
     (define status
@@ -710,12 +698,7 @@ the existing SPEC otherwise."
       (tr (th "Status")
           (td (span (@ (class ,(status-class status))
                        (title ,(status-title status)))
-                    ,(string-append " " (status-title status)))
-              ,@(map (lambda (output)
-                       `((br)
-                         (a (@ (href ,(string-append "/log/" (basename output))))
-                            ,output)))
-                     blocking-outputs)))
+                    ,(string-append " " (status-title status)))))
       (tr (th "System")
           (td ,(assq-ref build #:system)))
       (tr (th "Name")
@@ -746,6 +729,40 @@ the existing SPEC otherwise."
                  "raw")))
       (tr (th "Derivation")
           (td (pre ,(assq-ref build #:derivation))))
+      (tr (th "Dependencies")
+          (td
+           (@ (class "dependencies"))
+           ,@(let ((dependencies
+                    (assq-ref build #:builddependencies))
+                   (max-items 9))
+               `(,(map (lambda (id index)
+                         (let* ((build (find-dependency id))
+                                (status (assoc-ref build #:status)))
+                           `((div
+                              ,@(if (> index max-items)
+                                    '((@ (class "collapse collapse-dep")))
+                                    '())
+                              (span (@ (class ,(status-class status))
+                                       (title ,(status-title status))
+                                       (aria-hidden "true"))
+                                    "")
+                              " "
+                              (a (@ (href "/build/" ,id "/details"))
+                                 ,(assoc-ref build #:nix-name))
+                              (br)))))
+                       dependencies
+                       (iota (length dependencies)))
+                 ,@(if (> (length dependencies) max-items)
+                       '((button (@ (id "collapse-dep-btn")
+                                    (class "btn btn-primary")
+                                    (type "button")
+                                    (data-toggle "collapse")
+                                    (data-target ".collapse-dep")
+                                    (aria-expanded "false")
+                                    (aria-controls "collapse-dep")
+                                    (aria-label "Toggle dependencies dropdown"))
+                                 "Show more"))
+                       '())))))
       (tr (th "Outputs")
           (td ,(map (match-lambda ((out (#:path . path))
                                    `(pre ,path)))

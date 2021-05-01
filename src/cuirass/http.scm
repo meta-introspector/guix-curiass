@@ -718,6 +718,10 @@ passed, only display JOBS targeting this SYSTEM."
     (('GET "build" (= string->number id) "details")
      (let* ((build (and id (db-get-build id)))
             (products (and build (assoc-ref build #:buildproducts)))
+            (dependencies
+             (and build
+                  (db-get-builds
+                   `((ids . ,(assoc-ref build #:builddependencies))))))
             (history
              (db-get-builds
               `((jobset . ,(assq-ref build #:specification))
@@ -728,10 +732,13 @@ passed, only display JOBS targeting this SYSTEM."
                 (nr . 5)))))
        (if build
            (respond-html
-            (html-page (string-append "Build " (number->string id))
-                       (build-details build products history)
-                       `(((#:name . ,(assq-ref build #:specification))
-                          (#:link . ,(string-append "/jobset/" (assq-ref build #:specification)))))))
+            (html-page
+             (string-append "Build " (number->string id))
+             (build-details build dependencies products history)
+             `(((#:name . ,(assq-ref build #:specification))
+                (#:link
+                 . ,(string-append "/jobset/"
+                                   (assq-ref build #:specification)))))))
            (respond-build-not-found id))))
     (('GET "build" (= string->number id) "log" "raw")
      (let* ((build (and id (db-get-build id)))

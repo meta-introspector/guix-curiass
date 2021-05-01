@@ -182,6 +182,7 @@ Start a remote build server.\n") (%program-name))
            (match (db-get-builds `((status . scheduled)
                                    (system . ,system)
                                    (order . priority+timestamp)
+                                   (no-dependencies . #t)
                                    (nr . 1)))
              ((build) build)
              (() #f))))))
@@ -217,7 +218,11 @@ be used to reply to the worker."
                                          #:timeout timeout
                                          #:max-silent max-silent)))
            (reply-worker
-            (zmq-no-build-message)))))
+            (zmq-no-build-message)))
+
+       ;; Do some clean-up and remove the scheduled builds with failed
+       ;; dependencies.
+       (db-update-failed-builds!)))
     (('worker-ping worker)
      (update-worker! worker))
     (('build-started ('drv drv) ('worker worker))

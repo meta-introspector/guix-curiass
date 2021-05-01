@@ -679,6 +679,76 @@ timestamp, checkouttime, evaltime) VALUES ('guix', 0, 0, 0, 0);")
     (let ((id (db-register-dashboard "guix" "emacs")))
       (assq-ref (db-get-dashboard id) #:specification)))
 
+  (test-assert "db-add-build-dependencies"
+    (begin
+      (db-add-build-dependencies "/build-1.drv"
+                                 (list "/build-2.drv"))))
+
+  (test-assert "db-get-build-dependencies"
+    (begin
+      (let* ((drv1 "/build-1.drv")
+             (drv2 "/build-2.drv")
+             (id1 (assq-ref (db-get-build drv1) #:id))
+             (id2 (assq-ref (db-get-build drv2) #:id)))
+        (match (db-get-build-dependencies id1)
+          ((id) (eq? id id2))))))
+
+  (test-assert "db-get-builds no-dependencies"
+    (begin
+      (db-update-build-status! "/build-2.drv"
+                               (build-status scheduled))
+      (let ((builds
+             (map (cut assq-ref <> #:derivation)
+                  (db-get-builds `((no-dependencies . #t))))))
+        (and (member "/build-2.drv" builds)
+             (not (member "/build-1.drv" builds))))))
+
+  (test-assert "db-get-builds no-dependencies"
+    (begin
+      (db-update-build-status! "/build-1.drv"
+                               (build-status scheduled))
+      (db-update-build-status! "/build-2.drv"
+                               (build-status succeeded))
+      (let ((builds
+             (map (cut assq-ref <> #:derivation)
+                  (db-get-builds `((no-dependencies . #t))))))
+        (member "/build-1.drv" builds))))
+
+  (test-assert "dependencies trigger"
+    (begin
+      (let ((drv-1
+             (db-add-build (make-dummy-build "/build-dep-1.drv")))
+            (drv-2
+             (db-add-build (make-dummy-build "/build-dep-2.drv")))
+            (drv-3
+             (db-add-build (make-dummy-build "/build-dep-3.drv")))
+            (drv-4
+             (db-add-build (make-dummy-build "/build-dep-4.drv")))
+            (drv-5
+             (db-add-build (make-dummy-build "/build-dep-5.drv")))
+            (drv-6
+             (db-add-build (make-dummy-build "/build-dep-6.drv")))
+            (drv-7
+             (db-add-build (make-dummy-build "/build-dep-7.drv")))
+            (status (lambda (drv)
+                      (assq-ref (db-get-build drv) #:status))))
+        (db-add-build-dependencies "/build-dep-2.drv"
+                                   (list "/build-dep-1.drv"))
+        (db-add-build-dependencies "/build-dep-4.drv"
+                                   (list "/build-dep-1.drv"
+                                         "/build-dep-3.drv"))
+        (db-add-build-dependencies "/build-dep-6.drv"
+                                   (list "/build-dep-4.drv"
+                                         "/build-dep-5.drv"))
+        (db-add-build-dependencies "/build-dep-7.drv"
+                                   (list "/build-dep-4.drv"))
+        (db-update-build-status! drv-1 (build-status failed))
+        (db-update-build-status! drv-2 (build-status succeeded))
+        (db-update-build-status! drv-5 (build-status canceled))
+        (and (eq? (status drv-4) (build-status failed-dependency))
+             (eq? (status drv-6) (build-status canceled))
+             (eq? (status drv-7) (build-status failed-dependency))))))
+
   (test-assert "db-close"
     (begin
       (false-if-exception (delete-file tmp-mail))

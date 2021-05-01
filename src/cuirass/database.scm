@@ -71,6 +71,9 @@
             db-get-build-percentages
             db-get-jobs
             db-get-jobs-history
+            db-add-build-dependencies
+            db-get-build-dependencies
+            db-update-failed-builds!
             db-register-builds
             db-update-build-status!
             db-update-build-worker!
@@ -788,6 +791,45 @@ AND Jobs.name = ANY(:names);")
                                (#:jobs . ,(list job)))
                              evaluations))))))))))
 
+(define (db-add-build-dependencies source-derivation target-derivations)
+  "Insert into the BuildDependencies table the TARGET-DERIVATIONS as
+dependencies of the given SOURCE-DERIVATION."
+  (define target
+    (format #f "{~a}"
+            (string-join target-derivations ",")))
+
+  (with-db-worker-thread db
+    (exec-query/bind db "
+INSERT INTO BuildDependencies
+(SELECT Builds.id, deps.id FROM Builds,
+(SELECT id FROM Builds WHERE derivation = ANY(" target ")) deps
+WHERE Builds.derivation = " source-derivation ")
+ON CONFLICT ON CONSTRAINT builddependencies_pkey DO NOTHING;")))
+
+(define (db-get-build-dependencies build)
+  "Return the list of the given BUILD dependencies."
+  (with-db-worker-thread db
+    (let loop ((rows (exec-query/bind db "
+SELECT target FROM BuildDependencies WHERE source = " build))
+               (dependencies '()))
+      (match rows
+        (() (reverse dependencies))
+        (((target) . rest)
+         (loop rest
+               (cons (string->number target) dependencies)))))))
+
+(define (db-update-failed-builds!)
+  "Update the build status of the scheduled builds with failed dependencies to
+failed-dependency."
+  (with-db-worker-thread db
+    (exec-query/bind db "
+UPDATE Builds SET status = " (build-status failed-dependency)
+" FROM (SELECT Builds.id, count(dep.id) as deps FROM Builds
+LEFT JOIN BuildDependencies as bd ON bd.source = Builds.id
+INNER JOIN Builds AS dep ON bd.target = dep.id AND dep.status > 0
+WHERE Builds.status = " (build-status scheduled)
+" GROUP BY Builds.id) AS deps WHERE deps.id = Builds.id")))
+
 (define (db-register-builds jobs eval-id specification)
   (define (new-outputs? outputs)
     (let ((new-outputs
@@ -812,39 +854,50 @@ AND Jobs.name = ANY(:names);")
            (max-silent (assq-ref job #:max-silent-time))
            (timeout    (assq-ref job #:timeout))
            (outputs    (assq-ref job #:outputs))
-           (cur-time   (time-second (current-time time-utc))))
-      (and (new-outputs? outputs)
-           (let ((build `((#:derivation . ,drv)
-                          (#:eval-id . ,eval-id)
-                          (#:job-name . ,job-name)
-                          (#:system . ,system)
-                          (#:nix-name . ,nix-name)
+           (cur-time   (time-second (current-time time-utc)))
+           (result
+            (and (new-outputs? outputs)
+                 (let ((build `((#:derivation . ,drv)
+                                (#:eval-id . ,eval-id)
+                                (#:job-name . ,job-name)
+                                (#:system . ,system)
+                                (#:nix-name . ,nix-name)
 
-                          ;; XXX: We'd leave LOG to #f (i.e., NULL) but that
-                          ;; currently violates the non-NULL constraint.
-                          (#:log . ,(or log ""))
+                                ;; XXX: We'd leave LOG to #f (i.e., NULL) but
+                                ;; that currently violates the non-NULL
+                                ;; constraint.
+                                (#:log . ,(or log ""))
 
-                          (#:status . ,(build-status scheduled))
-                          (#:priority . ,(build-priority priority))
-                          (#:max-silent . ,max-silent)
-                          (#:timeout . ,timeout)
-                          (#:outputs . ,outputs)
-                          (#:timestamp . ,cur-time)
-                          (#:starttime . 0)
-                          (#:stoptime . 0))))
-             (db-add-build build)))
+                                (#:status . ,(build-status scheduled))
+                                (#:priority . ,(build-priority priority))
+                                (#:max-silent . ,max-silent)
+                                (#:timeout . ,timeout)
+                                (#:outputs . ,outputs)
+                                (#:timestamp . ,cur-time)
+                                (#:starttime . 0)
+                                (#:stoptime . 0))))
+                   (db-add-build build)
+                   job))))
 
       ;; Always register JOB inside the Jobs table.  If there are new outputs,
       ;; JOB will refer to the newly created build.  Otherwise, it will refer
       ;; to the last build with the same build outputs.
-      (db-add-job job eval-id)))
+      (db-add-job job eval-id)
+      result))
+
+  (define (register-dependencies job)
+    (let ((drv    (assq-ref job #:derivation))
+          (inputs (or (assq-ref job #:inputs) '())))
+      (db-add-build-dependencies drv inputs)))
 
   (with-db-worker-thread db
     (log-message "Registering builds for evaluation ~a." eval-id)
     (exec-query db "BEGIN TRANSACTION;")
-    (let ((derivations (filter-map register jobs)))
-      (exec-query db "COMMIT;")
-      derivations)))
+    (let ((new-jobs (filter-map register jobs)))
+      ;; Register build dependencies after registering all the evaluation
+      ;; derivations.
+      (for-each register-dependencies new-jobs)
+      (exec-query db "COMMIT;"))))
 
 (define (db-get-last-status drv)
   "Return the status of the last completed build with the same 'job_name' and
@@ -1097,6 +1150,7 @@ CASE WHEN CAST(:borderlowid AS integer) IS NULL THEN
   (define (where-conditions filters)
     (define filter-name->sql
       `((id              . "Builds.id = :id")
+        (ids             . "Builds.id = ANY(:ids)")
         (jobset          . "Specifications.name = :jobset")
         (derivation      . "Builds.derivation = :derivation")
         (job             . "Builds.job_name = :job")
@@ -1104,6 +1158,7 @@ CASE WHEN CAST(:borderlowid AS integer) IS NULL THEN
         (worker          . "Builds.worker = :worker")
         (oldevaluation   . "Builds.evaluation < :oldevaluation")
         (evaluation      . "Builds.evaluation = :evaluation")
+        (no-dependencies . "PD.deps = 0")
         (status          . ,(match (assq-ref filters 'status)
                               (#f         #f)
                               ('done      "Builds.status >= 0")
@@ -1159,6 +1214,11 @@ OR :borderhightime IS NULL OR :borderhighid IS NULL)")))
          (split checksums)
          (split paths)))
 
+  (define (format-build-dependencies dependencies)
+    (if dependencies
+        (map string->number (string-split dependencies #\,))
+        '()))
+
   (with-db-worker-thread db
     (let* ((order (filters->order filters))
            (where (match (where-conditions filters)
@@ -1175,7 +1235,7 @@ Builds.last_status, Builds.weather, Builds.priority, Builds.max_silent,
 Builds.timeout, Builds.job_name, Builds.system,
 Builds.worker, Builds.nix_name, Builds.evaluation, agg.name, agg.outputs_name,
 agg.outputs_path,agg.bp_build, agg.bp_type, agg.bp_file_size,
-agg.bp_checksum, agg.bp_path
+agg.bp_checksum, agg.bp_path, agg.bd_target
 FROM
 (SELECT B.id, B.derivation, B.name,
 string_agg(Outputs.name, ',') AS outputs_name,
@@ -1184,10 +1244,12 @@ string_agg(cast(BP.id AS text), ',') AS bp_build,
 string_agg(BP.type, ',') AS bp_type,
 string_agg(cast(BP.file_size AS text), ',') AS bp_file_size,
 string_agg(BP.checksum, ',') AS bp_checksum,
-string_agg(BP.path, ',') AS bp_path FROM
+string_agg(BP.path, ',') AS bp_path,
+build_dependencies(B.id) AS bd_target FROM
 (SELECT Builds.id, Builds.derivation, Specifications.name FROM Builds
 INNER JOIN Evaluations ON Builds.evaluation = Evaluations.id
 INNER JOIN Specifications ON Evaluations.specification = Specifications.name
+LEFT JOIN pending_dependencies as PD on PD.id = Builds.id
 ~a
 ORDER BY ~a
 LIMIT :nr) B
@@ -1209,6 +1271,11 @@ ORDER BY ~a;"
                                 name)
                                name))
                           (match name
+                            ('ids
+                             (format #f "{~a}"
+                                     (string-join
+                                      (map number->string value)
+                                      ",")))
                             ('nr value)
                             ('order #f) ; Doesn't need binding.
                             ('status #f) ; Doesn't need binding.
@@ -1224,7 +1291,7 @@ ORDER BY ~a;"
                         job-name system worker nix-name eval-id
                         specification outputs-name outputs-path
                         products-id products-type products-file-size
-                        products-checksum products-path)
+                        products-checksum products-path dependencies)
             . rest)
            (loop rest
                  (cons `((#:derivation . ,derivation)
@@ -1248,6 +1315,8 @@ ORDER BY ~a;"
                          (#:nix-name . ,nix-name)
                          (#:eval-id . ,(string->number eval-id))
                          (#:specification . ,specification)
+                         (#:builddependencies .
+                          ,(format-build-dependencies dependencies))
                          (#:outputs . ,(format-outputs outputs-name
                                                        outputs-path))
                          (#:buildproducts .

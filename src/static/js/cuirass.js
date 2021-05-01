@@ -52,6 +52,16 @@ $(document).ready(function() {
             }
         }
     });
+    /* Build details page. */
+    $('.dependencies').collapse({
+        toggle: false
+    })
+    $('.dependencies').on('hide.bs.collapse', function () {
+        $('#collapse-dep-btn').text("Show more");
+    })
+    $('.dependencies').on('show.bs.collapse', function () {
+        $('#collapse-dep-btn').text("Show less");
+    })
 
     /* Dashboard page. */
     $(function(){

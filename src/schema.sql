@@ -58,6 +58,14 @@ CREATE TABLE Builds (
   FOREIGN KEY (evaluation) REFERENCES Evaluations(id) ON DELETE CASCADE
 );
 
+CREATE TABLE BuildDependencies (
+  source        INTEGER NOT NULL,
+  target        INTEGER NOT NULL,
+  PRIMARY KEY (source, target),
+  FOREIGN KEY (source) REFERENCES Builds(id) ON DELETE CASCADE,
+  FOREIGN KEY (target) REFERENCES Builds(id) ON DELETE CASCADE
+);
+
 CREATE TABLE Jobs (
   name          TEXT NOT NULL,
   evaluation    INTEGER NOT NULL,
@@ -145,17 +153,61 @@ CREATE TRIGGER build_status AFTER UPDATE ON Builds
 FOR EACH ROW
 EXECUTE PROCEDURE update_job_status();
 
+-- Return the list of comma separated dependencies of BUILD.
+CREATE FUNCTION build_dependencies(build bigint)
+RETURNS TABLE (dependencies text) AS $$
+SELECT string_agg(cast(BD.target AS text), ',')
+FROM BuildDependencies as BD
+WHERE BD.source = $1
+$$ LANGUAGE sql;
+
+-- Return the count of pending dependencies for all the scheduled builds.
+CREATE VIEW pending_dependencies AS
+SELECT Builds.id, count(dep.id) as deps FROM Builds
+LEFT JOIN BuildDependencies as bd ON bd.source = Builds.id
+LEFT JOIN Builds AS dep ON bd.target = dep.id AND dep.status != 0
+WHERE Builds.status = -2 GROUP BY Builds.id;
+
+-- When a build status is set to failed, update the build status of all the
+-- depending builds.
+CREATE OR REPLACE FUNCTION update_build_dependencies()
+RETURNS TRIGGER AS $$
+BEGIN
+-- Check if the build is failing.
+IF NEW.status > 0 AND NEW.status != OLD.status THEN
+
+-- Select all the builds depending of the failing build.
+WITH RECURSIVE deps AS (
+SELECT source FROM BuildDependencies WHERE target = NEW.id
+UNION
+SELECT BD.source FROM deps INNER JOIN BuildDependencies as BD
+ON BD.target = deps.source)
+
+-- If the build is cancelled, update all the depending build status to
+-- cancelled. Otherwise update the build status of the depending builds to
+-- failed-dependency.
+UPDATE Builds SET status =
+CASE
+WHEN NEW.status = 4 THEN 4 ELSE 2 END
+FROM deps WHERE Builds.id = deps.source;
+END IF;
+RETURN null;
+END
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER build_dependencies AFTER UPDATE ON Builds
+FOR EACH ROW
+WHEN (pg_trigger_depth() = 0) --disable trigger cascading.
+EXECUTE PROCEDURE update_build_dependencies();
+
 CREATE INDEX Jobs_name ON Jobs (name);
 CREATE INDEX Jobs_system_status ON Jobs (system, status);
 CREATE INDEX Jobs_build ON Jobs (build); --speeds up delete cascade.
-
 CREATE INDEX Evaluations_status_index ON Evaluations (id, status);
 CREATE INDEX Evaluations_specification_index ON Evaluations (specification, id DESC);
-
 CREATE INDEX Outputs_derivation_index ON Outputs (derivation);
-
 CREATE INDEX BuildProducts_build ON BuildProducts(build); --speeds up delete cascade.
-
 CREATE INDEX Notifications_build ON Notifications(build); --speeds up delete cascade.
+CREATE INDEX BuildDependencies_target ON BuildDependencies(target); --speeds up delete cascade.
 
 COMMIT;
