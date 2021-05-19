@@ -63,6 +63,7 @@
   #:use-module (rnrs bytevectors)
   #:export (;; Procedures.
             call-with-time-display
+            register-gc-roots
             read-parameters
             evaluate
             build-derivations&
@@ -147,6 +148,13 @@
   ;; The "time to live" (TTL) of GC roots.
   (make-parameter (* 30 24 3600)))
 
+(define (gc-roots directory)
+  ;; Return the list of GC roots (symlinks) in DIRECTORY.
+  (map (cut string-append directory "/" <>)
+       (scandir directory
+                (lambda (file)
+                  (not (member file '("." "..")))))))
+
 (define (gc-root-expiration-time file)
   "Return \"expiration time\" of FILE (a symlink in %GC-ROOT-DIRECTORY)
 computed as its modification time + TTL seconds."
@@ -165,6 +173,18 @@ computed as its modification time + TTL seconds."
       ;; If the symlink already exist, assume it points to ITEM.
       (unless (= EEXIST (system-error-errno args))
         (apply throw args)))))
+
+(define (register-gc-roots drv)
+  "Register GC roots for the outputs of the given DRV and remove the expired
+GC roots if any."
+  (for-each (match-lambda
+              ((name . output)
+               (register-gc-root output)))
+            (derivation-path->output-paths drv))
+  (maybe-remove-expired-cache-entries (%gc-root-directory)
+                                      gc-roots
+                                      #:entry-expiration
+                                      gc-root-expiration-time))
 
 (define (call-with-time thunk kont)
   "Call THUNK and pass KONT the elapsed time followed by THUNK's return
@@ -509,13 +529,6 @@ updating the database accordingly."
     (and (store-path? file)
          (string-suffix? ".drv" file)))
 
-  (define (gc-roots directory)
-    ;; Return the list of GC roots (symlinks) in DIRECTORY.
-    (map (cut string-append directory "/" <>)
-         (scandir directory
-                  (lambda (file)
-                    (not (member file '("." "..")))))))
-
   (match event
     (('build-started drv _ ...)
      (if (valid? drv)
@@ -532,15 +545,7 @@ updating the database accordingly."
          (begin
            (log-message "build succeeded: '~a'" drv)
            (set-build-successful! drv)
-
-           (for-each (match-lambda
-                       ((name . output)
-                        (register-gc-root output)))
-                     (derivation-path->output-paths drv))
-           (maybe-remove-expired-cache-entries (%gc-root-directory)
-                                               gc-roots
-                                               #:entry-expiration
-                                               gc-root-expiration-time))
+           (register-gc-roots drv))
          (log-message "bogus build-succeeded event for '~a'" drv)))
     (('build-failed drv _ ...)
      (if (valid? drv)
