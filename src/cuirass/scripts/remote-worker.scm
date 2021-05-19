@@ -44,6 +44,7 @@
   #:use-module (rnrs bytevectors)
   #:use-module (srfi srfi-1)
   #:use-module (srfi srfi-11)
+  #:use-module (srfi srfi-19)
   #:use-module (srfi srfi-26)
   #:use-module (srfi srfi-34)
   #:use-module (srfi srfi-37)
@@ -70,6 +71,8 @@ Start a remote build worker.\n" (%program-name))
   -w, --workers=COUNT       start COUNT parallel workers"))
   (display (G_ "
   -p, --publish-port=PORT   publish substitutes on PORT"))
+  (display (G_ "
+  -t, --ttl=DURATION        keep build results live for at least DURATION"))
   (display (G_ "
   -s, --server=SERVER       connect to SERVER"))
   (display (G_ "
@@ -100,6 +103,9 @@ Start a remote build worker.\n" (%program-name))
         (option '(#\p "publish-port") #t #f
                 (lambda (opt name arg result)
                   (alist-cons 'publish-port (string->number* arg) result)))
+        (option '(#\t "ttl") #t #f
+                (lambda (opt name arg result)
+                  (alist-cons 'ttl arg result)))
         (option '(#\s "server") #t #f
                 (lambda (opt name arg result)
                   (alist-cons 'server arg result)))
@@ -117,6 +123,7 @@ Start a remote build worker.\n" (%program-name))
 (define %default-options
   `((workers . 1)
     (publish-port . 5558)
+    (ttl . "3d")
     (systems . ,(list (%current-system)))
     (public-key-file . ,%public-key-file)
     (private-key-file . ,%private-key-file)))
@@ -187,6 +194,7 @@ still be substituted."
           (if result
               (begin
                 (info (G_ "Derivation ~a build succeeded.~%") drv)
+                (register-gc-roots drv)
                 (reply (zmq-build-succeeded-message drv local-publish-url)))
               (begin
                 (info (G_ "Derivation ~a build failed.~%") drv)
@@ -361,6 +369,7 @@ exiting."
                              %default-options))
            (workers (assoc-ref opts 'workers))
            (publish-port (assoc-ref opts 'publish-port))
+           (ttl (assoc-ref opts 'ttl))
            (server-address (assoc-ref opts 'server))
            (systems (assoc-ref opts 'systems))
            (public-key
@@ -370,52 +379,55 @@ exiting."
             (read-file-sexp
              (assoc-ref opts 'private-key-file))))
 
-      (atomic-box-set! %local-publish-port publish-port)
+      (parameterize
+          ((%gc-root-ttl
+            (time-second (string->duration ttl))))
+        (atomic-box-set! %local-publish-port publish-port)
 
-      (atomic-box-set!
-       %publish-pid
-       (publish-server publish-port
-                       #:public-key public-key
-                       #:private-key private-key))
+        (atomic-box-set!
+         %publish-pid
+         (publish-server publish-port
+                         #:public-key public-key
+                         #:private-key private-key))
 
-      (if server-address
-          (for-each
-           (lambda (n)
-             (let* ((worker (worker
-                             (name (generate-worker-name))
-                             (machine (gethostname))
-                             (systems systems)))
-                    (addr (string-split server-address #\:))
-                    (server (match addr
-                              ((address port)
-                               (server
-                                (address address)
-                                (port (string->number port)))))))
-               (add-to-worker-pids!
-                (start-worker worker server))))
-           (iota workers))
-          (avahi-browse-service-thread
-           (lambda (action service)
-             (case action
-               ((new-service)
-                (for-each
-                 (lambda (n)
-                   (let* ((address (avahi-service-local-address service))
-                          (publish-url (local-publish-url address)))
-                     (add-to-worker-pids!
-                      (start-worker (worker
-                                     (name (generate-worker-name))
-                                     (address address)
-                                     (machine (gethostname))
-                                     (publish-url publish-url)
-                                     (systems systems))
-                                    (avahi-service->server service)))))
-                 (iota workers))
-                (atomic-box-set! %stop-process? #t))))
-           #:ignore-local? #f
-           #:types (list remote-server-service-type)
-           #:stop-loop? (lambda ()
-                          (atomic-box-ref %stop-process?))))
+        (if server-address
+            (for-each
+             (lambda (n)
+               (let* ((worker (worker
+                               (name (generate-worker-name))
+                               (machine (gethostname))
+                               (systems systems)))
+                      (addr (string-split server-address #\:))
+                      (server (match addr
+                                ((address port)
+                                 (server
+                                  (address address)
+                                  (port (string->number port)))))))
+                 (add-to-worker-pids!
+                  (start-worker worker server))))
+             (iota workers))
+            (avahi-browse-service-thread
+             (lambda (action service)
+               (case action
+                 ((new-service)
+                  (for-each
+                   (lambda (n)
+                     (let* ((address (avahi-service-local-address service))
+                            (publish-url (local-publish-url address)))
+                       (add-to-worker-pids!
+                        (start-worker (worker
+                                       (name (generate-worker-name))
+                                       (address address)
+                                       (machine (gethostname))
+                                       (publish-url publish-url)
+                                       (systems systems))
+                                      (avahi-service->server service)))))
+                   (iota workers))
+                  (atomic-box-set! %stop-process? #t))))
+             #:ignore-local? #f
+             #:types (list remote-server-service-type)
+             #:stop-loop? (lambda ()
+                            (atomic-box-ref %stop-process?))))
 
-      (while #t
-        (sleep 1)))))
+        (while #t
+          (sleep 1))))))
