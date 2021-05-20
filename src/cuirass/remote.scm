@@ -248,7 +248,9 @@ PRIVATE-KEY to sign narinfos."
                                         (sockaddr:addr address)
                                         port))
                   (socket (open-server-socket socket-address)))
-             (run-publish-server socket store))))))
+             ;; Do not cache missing store items on workers.
+             (run-publish-server socket store
+                                 #:narinfo-negative-ttl 0))))))
     (pid pid)))
 
 
