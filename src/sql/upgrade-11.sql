@@ -1,5 +1,13 @@
 BEGIN TRANSACTION;
 
+CREATE TABLE BuildDependencies (
+  source        INTEGER NOT NULL,
+  target        INTEGER NOT NULL,
+  PRIMARY KEY (source, target),
+  FOREIGN KEY (source) REFERENCES Builds(id) ON DELETE CASCADE,
+  FOREIGN KEY (target) REFERENCES Builds(id) ON DELETE CASCADE
+);
+
 CREATE FUNCTION build_dependencies(build bigint)
 RETURNS TABLE (dependencies text) AS $$
 SELECT string_agg(cast(BD.target AS text), ',')
