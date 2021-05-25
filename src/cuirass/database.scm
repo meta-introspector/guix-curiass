@@ -897,7 +897,8 @@ WHERE Builds.status = " (build-status scheduled)
       ;; Register build dependencies after registering all the evaluation
       ;; derivations.
       (for-each register-dependencies new-jobs)
-      (exec-query db "COMMIT;"))))
+      (exec-query db "COMMIT;")
+      #t)))
 
 (define (db-get-last-status drv)
   "Return the status of the last completed build with the same 'job_name' and
