@@ -816,13 +816,14 @@ passed, only display JOBS targeting this SYSTEM."
            (respond-json-with-error 500 "Parameter not defined!"))))
     (('GET "api" "evaluations")
      (let* ((params (request-parameters request))
+            (spec (assq-ref params 'spec)) ;optional
             ;; 'nr parameter is mandatory to limit query size.
             (nr (assq-ref params 'nr)))
        (if nr
            (respond-json (object->json-string
                           (list->vector
                            (map evaluation->json-object
-                                (db-get-evaluations nr)))))
+                                (db-get-evaluations nr spec)))))
            (respond-json-with-error 500 "Parameter not defined!"))))
     (('GET "api" "latestbuilds")
      (let* ((params (request-parameters request))

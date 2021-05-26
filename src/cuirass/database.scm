@@ -1392,17 +1392,25 @@ FROM Evaluations WHERE id = " id)
       ((evaluation)
        (parse-evaluation evaluation)))))
 
-(define (db-get-evaluations limit)
+(define* (db-get-evaluations limit
+                             #:optional spec)
   (with-db-worker-thread db
-    (let loop ((rows  (exec-query/bind db "SELECT id, specification, status,
+    (let ((query "SELECT id, specification, status,
 timestamp, checkouttime, evaltime
-FROM Evaluations ORDER BY id DESC LIMIT " limit ";"))
-               (evaluations '()))
-      (match rows
-        (() (reverse evaluations))
-        ((evaluation . rest)
-         (loop rest
-               (cons (parse-evaluation evaluation) evaluations)))))))
+FROM Evaluations
+WHERE specification = :spec OR :spec IS NULL
+ORDER BY id DESC LIMIT :limit;")
+          (params
+           `((#:spec . ,spec)
+             (#:limit . ,limit))))
+      (let loop ((rows
+                  (exec-query/bind-params db query params))
+                 (evaluations '()))
+        (match rows
+          (() (reverse evaluations))
+          ((evaluation . rest)
+           (loop rest
+                 (cons (parse-evaluation evaluation) evaluations))))))))
 
 (define (db-get-evaluations-build-summary spec limit border-low border-high)
   (with-db-worker-thread db

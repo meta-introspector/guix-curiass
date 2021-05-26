@@ -739,10 +739,13 @@ The latest evaluations list can be obtained with the API
 evaluations. Evaluations are represented as in the
 "/api/evaluation?id=@var{eval-id}" API.
 
-This request accepts a mandatory parameter.
+This request accepts a mandatory parameter and an optional one.
 @table @code
 @item nr
 Limit query result to nr elements. This parameter is @emph{mandatory}.
+@item spec
+Only consider evaluations that are part of the given @code{spec}
+specification.
 @end table
 
 @subsection Build information
