@@ -174,13 +174,19 @@ computed as its modification time + TTL seconds."
       (unless (= EEXIST (system-error-errno args))
         (apply throw args)))))
 
-(define (register-gc-roots drv)
-  "Register GC roots for the outputs of the given DRV and remove the expired
-GC roots if any."
-  (for-each (match-lambda
-              ((name . output)
-               (register-gc-root output)))
-            (derivation-path->output-paths drv))
+(define* (register-gc-roots drv
+                            #:key (mode 'outputs))
+  "Register GC roots for the outputs of the given DRV when MODE is 'outputs or
+for DRV itself when MODE is 'derivation.  Also remove the expired GC roots if
+any."
+  (case mode
+    ((outputs)
+     (for-each (match-lambda
+                 ((name . output)
+                  (register-gc-root output)))
+               (derivation-path->output-paths drv)))
+    ((derivation)
+     (register-gc-root drv)))
   (maybe-remove-expired-cache-entries (%gc-root-directory)
                                       gc-roots
                                       #:entry-expiration
@@ -636,6 +642,10 @@ by BUILD-OUTPUTS."
   (define derivations
     (map (cut assq-ref <> #:derivation) builds))
 
+  ;; Register a GC root for each derivation so that they are not garbage
+  ;; collected before getting built.
+  (for-each (cut register-gc-roots <> #:mode 'derivation)
+            derivations)
   (log-message "evaluation ~a registered ~a new derivations"
                eval-id (length derivations))
   (db-set-evaluation-status eval-id
