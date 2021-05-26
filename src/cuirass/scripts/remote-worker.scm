@@ -123,7 +123,7 @@ Start a remote build worker.\n" (%program-name))
 (define %default-options
   `((workers . 1)
     (publish-port . 5558)
-    (ttl . "3d")
+    (ttl . "1d")
     (systems . ,(list (%current-system)))
     (public-key-file . ,%public-key-file)
     (private-key-file . ,%private-key-file)))
