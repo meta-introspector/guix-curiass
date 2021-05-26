@@ -51,6 +51,7 @@
   #:use-module (simple-zmq)
   #:use-module (rnrs bytevectors)
   #:use-module (srfi srfi-1)
+  #:use-module ((srfi srfi-19) #:select (time-second))
   #:use-module (srfi srfi-26)
   #:use-module (srfi srfi-34)
   #:use-module (srfi srfi-37)
@@ -100,11 +101,13 @@ Start a remote build server.\n") (%program-name))
   (display (G_ "
   -P, --parameters=FILE     Read parameters from FILE"))
   (display (G_ "
+  -t, --ttl=DURATION        keep build results live for at least DURATION"))
+  (display (G_ "
   -D, --database=DB         Use DB to read and store build results"))
   (display (G_ "
   -c, --cache=DIRECTORY     cache built items to DIRECTORY"))
   (display (G_ "
-  -t, --trigger-substitute-url=URL
+  -T, --trigger-substitute-url=URL
                             trigger substitute baking at URL"))
   (display (G_ "
   -u, --user=USER           change privileges to USER as soon as possible"))
@@ -140,13 +143,16 @@ Start a remote build server.\n") (%program-name))
         (option '(#\P "parameters") #t #f
                 (lambda (opt name arg result)
                   (alist-cons 'parameters arg result)))
+        (option '(#\t "ttl") #t #f
+                (lambda (opt name arg result)
+                  (alist-cons 'ttl arg result)))
         (option '(#\D "database") #t #f
                 (lambda (opt name arg result)
                   (alist-cons 'database arg result)))
         (option '(#\c "cache") #t #f
                 (lambda (opt name arg result)
                   (alist-cons 'cache arg result)))
-        (option '(#\t "trigger-substitute-url") #t #f
+        (option '(#\T "trigger-substitute-url") #t #f
                 (lambda (opt name arg result)
                   (alist-cons 'trigger-substitute-url arg result)))
         (option '(#\u "user") #t #f
@@ -163,6 +169,7 @@ Start a remote build server.\n") (%program-name))
   `((backend-port     . 5555)
     (log-port         . 5556)
     (publish-port     . 5557)
+    (ttl              . "3d")
     (public-key-file  . ,%public-key-file)
     (private-key-file . ,%private-key-file)))
 
@@ -313,8 +320,13 @@ directory."
      (let ((outputs (build-outputs drv)))
        (log-message "fetching '~a' from ~a" drv url)
        (add-to-store outputs url)
+       (register-gc-roots drv)
+
+       ;; Force the baking of the NAR substitutes so that the first client
+       ;; doesn't receive a 404 error.
        (when (%trigger-substitute-url)
          (trigger-substitutes-baking outputs (%trigger-substitute-url)))
+
        (log-message "build succeeded: '~a'" drv)
        (set-build-successful! drv)))
     (('build-failed ('drv drv) ('url url) _ ...)
@@ -460,6 +472,7 @@ exiting."
            (publish-port (assoc-ref opts 'publish-port))
            (cache (assoc-ref opts 'cache))
            (parameters (assoc-ref opts 'parameters))
+           (ttl (assoc-ref opts 'ttl))
            (database (assoc-ref opts 'database))
            (trigger-substitute-url (assoc-ref opts 'trigger-substitute-url))
            (user (assoc-ref opts 'user))
@@ -474,6 +487,8 @@ exiting."
                      (%publish-port publish-port)
                      (%trigger-substitute-url trigger-substitute-url)
                      (%package-database database)
+                     (%gc-root-ttl
+                      (time-second (string->duration ttl)))
                      (%public-key public-key)
                      (%private-key private-key))
 
