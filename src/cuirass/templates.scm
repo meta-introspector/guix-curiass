@@ -735,13 +735,13 @@ the existing SPEC otherwise."
            (@ (class "dependencies"))
            ,@(let ((dependencies
                     (assq-ref build #:builddependencies))
-                   (max-items 9))
+                   (max-items 10))
                (if (> (length dependencies) 0)
                    `(,(map (lambda (id index)
                              (let* ((build (find-dependency id))
                                     (status (assoc-ref build #:status)))
                                `((div
-                                  ,@(if (> index max-items)
+                                  ,@(if (> index (1- max-items))
                                         '((@ (class "collapse collapse-dep")))
                                         '())
                                   (span (@ (class ,(status-class status))
