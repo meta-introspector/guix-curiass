@@ -115,7 +115,6 @@ dist_fonts_DATA =				\
 dist_images_DATA =				\
   src/static/images/badge-error.svg		\
   src/static/images/badge-per.svg		\
-  src/static/images/badge-running.svg		\
   src/static/images/guix.png			\
   src/static/images/icon.png
 dist_js_DATA =					\

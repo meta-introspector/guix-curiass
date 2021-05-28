@@ -1076,10 +1076,8 @@ passed, only display JOBS targeting this SYSTEM."
 
     (('GET "jobset" spec "badge")
      (let* ((params (request-parameters request))
-            (summary
-             (match (db-get-evaluations-build-summary spec 1 #f #f)
-               ((summary) summary)
-               (else #f))))
+            (summary (db-get-evaluation-absolute-summary
+                      (db-get-latest-evaluation spec))))
        (respond-svg
         (badge-svg badge-string summary))))
 

@@ -329,6 +329,16 @@ timestamp, checkouttime, evaltime) VALUES ('guix', 0, 0, 0, 0);")
               (assq-ref summary #:scheduled)))
            summaries)))
 
+  (test-equal "db-get-evaluation-absolute-summary"
+    '(0 1 0)
+    (let ((summary
+           (db-get-evaluation-absolute-summary
+            (db-get-latest-evaluation "guix"))))
+      (list
+       (assq-ref summary #:succeeded)
+       (assq-ref summary #:failed)
+       (assq-ref summary #:scheduled))))
+
   (test-equal "db-get-evaluations-absolute-summary"
     '((0 1 0) (0 1 0))
     (let* ((evaluations
@@ -357,6 +367,10 @@ timestamp, checkouttime, evaltime) VALUES ('guix', 0, 0, 0, 0);")
   (test-equal "db-get-evaluations-id-max"
     #f
     (db-get-evaluations-id-max "foo"))
+
+  (test-equal "db-get-latest-evaluation"
+    4
+    (db-get-latest-evaluation "guix"))
 
   (test-equal "db-get-latest-evaluations"
     4

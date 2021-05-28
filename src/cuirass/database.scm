@@ -97,8 +97,10 @@
             db-get-next-eval
             db-get-evaluations-id-min
             db-get-evaluations-id-max
+            db-get-latest-evaluation
             db-get-latest-evaluations
             db-get-evaluation-summary
+            db-get-evaluation-absolute-summary
             db-get-evaluations-absolute-summary
             db-get-builds-query-min
             db-get-builds-query-max
@@ -1491,6 +1493,16 @@ SELECT MAX(id) FROM Evaluations
 WHERE specification=" spec))
       ((max) (and max (string->number max))))))
 
+(define (db-get-latest-evaluation spec)
+  "Return the latest successful evaluation for the given specification SPEC."
+  (with-db-worker-thread db
+    (match (expect-one-row
+            (exec-query/bind db "
+SELECT max(id) FROM Evaluations
+WHERE status = 0 AND specification =  " spec
+" GROUP BY Evaluations.specification;"))
+      ((eval) (and eval (string->number eval))))))
+
 (define (db-get-latest-evaluations)
   "Return the latest successful evaluation for each specification."
   (with-db-worker-thread db
@@ -1537,12 +1549,20 @@ ORDER BY Evaluations.id ASC;"))
          (#:scheduled . ,(or (string->number scheduled) 0))))
       (else #f))))
 
+(define (db-get-evaluation-absolute-summary evaluation)
+  (expect-one-row
+   (db-get-evaluations-absolute-summary (list evaluation))))
+
 (define (db-get-evaluations-absolute-summary evaluations)
   (define eval-ids
     (format #f "{~a}"
             (string-join
-             (map number->string
-                  (map (cut assq-ref <> #:id) evaluations))
+             (map (lambda (eval)
+                    (number->string
+                     (if (number? eval)
+                         eval
+                         (assq-ref eval #:id))))
+                  evaluations)
              ",")))
 
   (define (number n)

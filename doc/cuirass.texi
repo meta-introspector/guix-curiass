@@ -306,10 +306,8 @@ your favorite forge.
 @item @url{http://cuirass-url/jobset/spec/badge}
 Generates a badge for the @code{spec} specification. The badge
 represents the percentage of successful jobs for the latest evaluation
-of the @code{spec} specification.  If the latest evaluation is still
-being processed, a @code{running} badge is generated.  If no
-evaluation could be found for the @code{spec} specification, an
-@code{error} badge is generated.
+of the @code{spec} specification.  If no evaluation could be found for
+the @code{spec} specification, an @code{error} badge is generated.
 
 @end itemize
 
