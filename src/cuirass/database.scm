@@ -1501,7 +1501,8 @@ WHERE specification=" spec))
 SELECT max(id) FROM Evaluations
 WHERE status = 0 AND specification =  " spec
 " GROUP BY Evaluations.specification;"))
-      ((eval) (and eval (string->number eval))))))
+      ((eval) (and eval (string->number eval)))
+      (else #f))))
 
 (define (db-get-latest-evaluations)
   "Return the latest successful evaluation for each specification."
