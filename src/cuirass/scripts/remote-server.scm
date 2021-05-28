@@ -506,6 +506,11 @@ exiting."
         (and parameters
              (read-parameters parameters))
 
+        ;; Reset the GC root directory now that we have gathered user
+        ;; privileges.
+        (%gc-root-directory
+         (default-gc-root-directory))
+
         (atomic-box-set!
          %publish-pid
          (publish-server publish-port

@@ -62,6 +62,7 @@
   #:use-module (srfi srfi-35)
   #:use-module (rnrs bytevectors)
   #:export (;; Procedures.
+            default-gc-root-directory
             call-with-time-display
             register-gc-roots
             read-parameters
@@ -136,13 +137,16 @@
           (scm-error 'wrong-type-arg
                      "%package-cachedir" "Not a string: ~S" (list #f) #f)))))
 
+(define (default-gc-root-directory)
+  (string-append %state-directory
+                 "/gcroots/profiles/per-user/"
+                 (passwd:name (getpwuid (getuid)))
+                 "/cuirass"))
+
 (define %gc-root-directory
   ;; Directory where garbage collector roots are stored.  We register build
   ;; outputs there.
-  (make-parameter (string-append %state-directory
-                                 "/gcroots/profiles/per-user/"
-                                 (passwd:name (getpwuid (getuid)))
-                                 "/cuirass")))
+  (make-parameter (default-gc-root-directory)))
 
 (define %gc-root-ttl
   ;; The "time to live" (TTL) of GC roots.
