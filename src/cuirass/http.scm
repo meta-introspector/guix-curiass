@@ -38,6 +38,7 @@
   #:use-module (srfi srfi-26)
   #:use-module (ice-9 binary-ports)
   #:use-module (ice-9 match)
+  #:use-module (ice-9 textual-ports)
   #:use-module (ice-9 format)
   #:use-module (json)
   #:use-module (web request)
@@ -468,6 +469,12 @@ passed, only display JOBS targeting this SYSTEM."
         (#:link . ,(string-append "/eval/" (number->string evaluation-id)))))
      #:margin? #f)))
 
+(define (badge-string name)
+  "Return the content of the badge file with the given NAME as a string."
+  (call-with-input-file
+      (string-append (%static-directory) "/images/" name)
+    get-string-all))
+
 
 ;;;
 ;;; Web server.
@@ -491,6 +498,10 @@ passed, only display JOBS targeting this SYSTEM."
 
   (define-syntax-rule (respond-text body ...)
     (respond '((content-type . (text/plain)))
+             #:body body ...))
+
+  (define-syntax-rule (respond-svg body ...)
+    (respond '((content-type . (image/svg+xml)))
              #:body body ...))
 
   (define-syntax-rule (respond-json-with-error error-code message)
@@ -1062,6 +1073,15 @@ passed, only display JOBS targeting this SYSTEM."
                           (order . evaluation)
                           ,@params))
          #:params params))))
+
+    (('GET "jobset" spec "badge")
+     (let* ((params (request-parameters request))
+            (summary
+             (match (db-get-evaluations-build-summary spec 1 #f #f)
+               ((summary) summary)
+               (else #f))))
+       (respond-svg
+        (badge-svg badge-string summary))))
 
     (('GET "workers")
      (respond-html

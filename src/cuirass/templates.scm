@@ -53,7 +53,8 @@
             global-metrics-content
             workers-status
             machine-status
-            evaluation-dashboard))
+            evaluation-dashboard
+            badge-svg))
 
 (define (navigation-items navigation)
   (match navigation
@@ -1925,3 +1926,34 @@ text-dark d-flex position-absolute w-100"))
       (div (@ (id "dashboard")
               (class "invisible")
               (url ,jobs))))))
+
+(define (badge-svg badge-string summary)
+  "Return the badge SVG for the specification with the given SUMMARY.  The
+BADGE-STRING procedure takes a badge name as input an returns the badge
+content as a string."
+  (define complete?
+    (eq? (assq-ref summary #:status) 0))
+
+  (cond
+   ((not summary)
+    (badge-string "badge-error.svg"))
+   (complete?
+    (let* ((succeeded
+            (assq-ref summary #:succeeded))
+           (failed
+            (assq-ref summary #:failed))
+           (scheduled
+            (assq-ref summary #:scheduled))
+           (percentage
+            (nearest-exact-integer
+             (* 100
+                (/ succeeded
+                   (+ succeeded failed scheduled)))))
+           (percentage-str
+            (string-append
+             (number->string percentage) "%")))
+      (string-replace-substring
+       (badge-string "badge-per.svg")
+       "X%" percentage-str)))
+   (else
+    (badge-string "badge-running.svg"))))

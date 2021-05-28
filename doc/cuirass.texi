@@ -53,6 +53,7 @@ Documentation License''.
 * Introduction::                What is Cuirass about?
 * Specifications::              Writing Cuirass specifications.
 * Notifications::               Build notifications.
+* Badges::                      Cuirass badges.
 * Parameters::                  Cuirass parameters.
 * Build modes::                 Build modes.
 * Invocation::                  How to run Cuirass.
@@ -290,6 +291,25 @@ URL:
 By default build notifications are sent for all specifications.  If
 the @code{specification} argument is passed, they can be restricted to
 the @var{spec} specification.
+
+@end itemize
+
+@c *********************************************************************
+@node Badges
+@chapter Badges
+@cindex cuirass badges
+
+Cuirass is able to generate SVG badges that can be integrated inside
+your favorite forge.
+
+@itemize
+@item @url{http://cuirass-url/jobset/spec/badge}
+Generates a badge for the @code{spec} specification. The badge
+represents the percentage of successful jobs for the latest evaluation
+of the @code{spec} specification.  If the latest evaluation is still
+being processed, a @code{running} badge is generated.  If no
+evaluation could be found for the @code{spec} specification, an
+@code{error} badge is generated.
 
 @end itemize
 
