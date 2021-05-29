@@ -73,6 +73,7 @@
             db-get-jobs-history
             db-add-build-dependencies
             db-get-build-dependencies
+            db-update-resumable-builds!
             db-update-failed-builds!
             db-register-builds
             db-update-build-status!
@@ -819,6 +820,19 @@ SELECT target FROM BuildDependencies WHERE source = " build))
         (((target) . rest)
          (loop rest
                (cons (string->number target) dependencies)))))))
+
+(define (db-update-resumable-builds!)
+  "Update the build status of the failed-dependency builds which all
+dependencies are successful to scheduled."
+  (with-db-worker-thread db
+    (exec-query/bind db "
+UPDATE Builds SET status = " (build-status scheduled)
+" FROM (SELECT Builds.id, count(dep.id) as deps FROM Builds
+LEFT JOIN BuildDependencies as bd ON bd.source = Builds.id
+LEFT JOIN Builds AS dep ON bd.target = dep.id AND dep.status != 0
+WHERE Builds.status = " (build-status failed-dependency)
+" GROUP BY Builds.id HAVING count(dep.id) = 0) AS deps
+ WHERE deps.id = Builds.id")))
 
 (define (db-update-failed-builds!)
   "Update the build status of the scheduled builds with failed dependencies to

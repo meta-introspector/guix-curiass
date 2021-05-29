@@ -225,11 +225,7 @@ be used to reply to the worker."
                                          #:timeout timeout
                                          #:max-silent max-silent)))
            (reply-worker
-            (zmq-no-build-message)))
-
-       ;; Do some clean-up and remove the scheduled builds with failed
-       ;; dependencies.
-       (db-update-failed-builds!)))
+            (zmq-no-build-message)))))
     (('worker-ping worker)
      (update-worker! worker))
     (('build-started ('drv drv) ('worker worker))
@@ -348,6 +344,24 @@ socket."
             (run-fetch (bv->string
                         (zmq-message-content message)))))
          (loop))))))
+
+
+;;;
+;;; Periodic updates.
+;;;
+
+(define (start-periodic-updates-thread)
+  "Start a thread running periodic update queries."
+  (call-with-new-thread
+   (lambda ()
+     (set-thread-name "periodic-updates")
+     (let loop ()
+       (let ((resumable (db-update-resumable-builds!))
+             (failed (db-update-failed-builds!)))
+         (log-message "period update: ~a resumable, ~a failed builds."
+                      resumable failed))
+       (sleep 30)
+       (loop)))))
 
 
 ;;;
@@ -534,6 +548,7 @@ exiting."
 
         (with-database
             (start-notification-thread)
+            (start-periodic-updates-thread)
             (for-each (lambda (number)
                         (start-fetch-worker
                          (string-append "fetch-worker-"
