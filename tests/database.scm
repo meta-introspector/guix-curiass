@@ -759,8 +759,11 @@ timestamp, checkouttime, evaltime) VALUES ('guix', 0, 0, 0, 0);")
         (db-update-build-status! drv-1 (build-status failed))
         (db-update-build-status! drv-2 (build-status succeeded))
         (db-update-build-status! drv-5 (build-status canceled))
+        (let loop ()
+          (unless (eq? (db-update-failed-builds!) 0)
+            (loop)))
         (and (eq? (status drv-4) (build-status failed-dependency))
-             (eq? (status drv-6) (build-status canceled))
+             (eq? (status drv-6) (build-status failed-dependency))
              (eq? (status drv-7) (build-status failed-dependency))))))
 
   (test-assert "db-close"
