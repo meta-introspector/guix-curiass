@@ -303,7 +303,7 @@ Cuirass is able to generate SVG badges that can be integrated inside
 your favorite forge.
 
 @itemize
-@item @url{http://cuirass-url/jobset/spec/badge?type=0}
+@item @url{http://cuirass-url/jobset/spec/badge.svg?type=0}
 Generates a badge for the @code{spec} specification.  If no evaluation
 could be found for the @code{spec} specification, an @code{error}
 badge is generated.

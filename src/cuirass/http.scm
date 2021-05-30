@@ -1074,7 +1074,7 @@ passed, only display JOBS targeting this SYSTEM."
                           ,@params))
          #:params params))))
 
-    (('GET "jobset" spec "badge")
+    (('GET "jobset" spec "badge.svg")
      (let* ((params (request-parameters request))
             (type (and=> (assq-ref params 'type)
                          string->number))
