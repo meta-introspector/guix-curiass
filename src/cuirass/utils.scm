@@ -56,7 +56,8 @@
             bytevector-range
 
             date->rfc822-str
-            random-string))
+            random-string
+            call-with-time))
 
 (define (alist? obj)
   "Return #t if OBJ is an alist."
@@ -349,3 +350,11 @@ die silently while the rest of the program keeps going."
         (let ((n (random 62 %seed)))
           (loop (cons (integer->alphanumeric-char n) chars)
                 (- len 1))))))
+
+(define (call-with-time thunk kont)
+  "Call THUNK and pass KONT the elapsed time followed by THUNK's return
+values."
+  (let* ((start  (current-time time-monotonic))
+         (result (call-with-values thunk list))
+         (end    (current-time time-monotonic)))
+    (apply kont (time-difference end start) result)))

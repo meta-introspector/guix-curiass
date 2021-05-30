@@ -196,14 +196,6 @@ any."
                                       #:entry-expiration
                                       gc-root-expiration-time))
 
-(define (call-with-time thunk kont)
-  "Call THUNK and pass KONT the elapsed time followed by THUNK's return
-values."
-  (let* ((start  (current-time time-monotonic))
-         (result (call-with-values thunk list))
-         (end    (current-time time-monotonic)))
-    (apply kont (time-difference end start) result)))
-
 (define (call-with-time-display thunk)
   "Call THUNK and write to the current output port its duration."
   (call-with-time thunk
