@@ -1,5 +1,5 @@
 ;;; remote-server.scm -- Remote build server.
-;;; Copyright © 2020 Mathieu Othacehe <othacehe@gnu.org>
+;;; Copyright © 2020, 2021 Mathieu Othacehe <othacehe@gnu.org>
 ;;;
 ;;; This file is part of Cuirass.
 ;;;
@@ -93,6 +93,10 @@
 (define %fetch-workers
   (make-parameter 8))
 
+;; The number of queued fetch requests.
+(define %fetch-queue-size
+  (make-atomic-box 0))
+
 (define (show-help)
   (format #t (G_ "Usage: ~a remote-server [OPTION]...
 Start a remote build server.\n") (%program-name))
@@ -176,6 +180,29 @@ Start a remote build server.\n") (%program-name))
     (ttl              . "3d")
     (public-key-file  . ,%public-key-file)
     (private-key-file . ,%private-key-file)))
+
+
+;;;
+;;; Atomic procedures.
+;;;
+
+(define (atomic-box-fetch-and-update! box proc)
+  "Atomically fetch the value stored inside BOX, pass it to the PROC procedure
+and store the result inside the BOX."
+  (let lp ((cur (atomic-box-ref box)))
+    (let* ((next (proc cur))
+           (cur* (atomic-box-compare-and-swap! box cur next)))
+      (if (eqv? cur cur*)
+          cur
+          (lp cur*)))))
+
+(define (atomic-box-fetch-and-inc! box)
+  "Atomically increment the value of the integer stored inside the given BOX."
+  (atomic-box-fetch-and-update! box 1+))
+
+(define (atomic-box-fetch-and-dec! box)
+  "Atomically decrement the value of the integer stored inside the given BOX."
+  (atomic-box-fetch-and-update! box 1-))
 
 
 ;;;
@@ -346,7 +373,8 @@ socket."
          (match (zmq-message-receive* socket)
            ((message)
             (run-fetch (bv->string
-                        (zmq-message-content message)))))
+                        (zmq-message-content message)))
+            (atomic-box-fetch-and-dec! %fetch-queue-size)))
          (loop))))))
 
 
@@ -363,7 +391,9 @@ socket."
        (let ((resumable (db-update-resumable-builds!))
              (failed (db-update-failed-builds!)))
          (log-message "period update: ~a resumable, ~a failed builds."
-                      resumable failed))
+                      resumable failed)
+         (log-message "period update: ~a items in the fetch queue."
+                      (atomic-box-ref %fetch-queue-size)))
        (sleep 30)
        (loop)))))
 
@@ -423,7 +453,9 @@ frontend to the workers connected through the TCP backend."
                                   (zmq-empty-delimiter)
                                   (string->bv message)))))))
                (if (need-fetching? command)
-                   (zmq-message-send fetch-socket fetch-msg)
+                   (begin
+                     (atomic-box-fetch-and-inc! %fetch-queue-size)
+                     (zmq-message-send fetch-socket fetch-msg))
                    (read-worker-exp rest
                                     #:reply-worker reply-worker))))))
         (db-remove-unresponsive-workers (%worker-timeout))
