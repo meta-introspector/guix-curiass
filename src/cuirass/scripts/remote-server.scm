@@ -89,6 +89,10 @@
 (define service-name
   "Cuirass remote server")
 
+;; The number of fetch worker threads.
+(define %fetch-workers
+  (make-parameter 8))
+
 (define (show-help)
   (format #t (G_ "Usage: ~a remote-server [OPTION]...
 Start a remote build server.\n") (%program-name))
@@ -553,6 +557,6 @@ exiting."
                         (start-fetch-worker
                          (string-append "fetch-worker-"
                                         (number->string number))))
-                      (iota 4))
+                      (iota (%fetch-workers)))
 
             (zmq-start-proxy backend-port))))))
