@@ -1079,7 +1079,7 @@ passed, only display JOBS targeting this SYSTEM."
             (summary (and=> (db-get-latest-evaluation spec)
                             db-get-evaluation-absolute-summary)))
        (respond-svg
-        (badge-svg badge-string summary))))
+        (badge-svg spec badge-string summary))))
 
     (('GET "workers")
      (respond-html
