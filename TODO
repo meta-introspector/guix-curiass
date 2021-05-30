@@ -4,12 +4,3 @@
 #+STARTUP: content hidestars
 
 Copyright © 2021 Mathieu Othacehe <othacehe@gnu.org>
-
-* Add "BuildSteps" table like in Hydra.
-This will prevent package dependencies to be built multiple times.
-
-* Add a user account section.
-- Add customized monitoring dashboards.
-- Add build failures notifications subscription page.
-- Add a substitutes availability service, so that users can be notified when
-  the substitutes coverage of their manifest is passing a threshold.
