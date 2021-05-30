@@ -51,7 +51,7 @@
   #:use-module (simple-zmq)
   #:use-module (rnrs bytevectors)
   #:use-module (srfi srfi-1)
-  #:use-module ((srfi srfi-19) #:select (time-second))
+  #:use-module ((srfi srfi-19) #:select (time-second time-nanosecond))
   #:use-module (srfi srfi-26)
   #:use-module (srfi srfi-34)
   #:use-module (srfi srfi-37)
@@ -346,7 +346,15 @@ directory."
     (('build-succeeded ('drv drv) ('url url) _ ...)
      (let ((outputs (build-outputs drv)))
        (log-message "fetching '~a' from ~a" drv url)
-       (add-to-store outputs url)
+       (call-with-time
+        (lambda ()
+          (add-to-store outputs url))
+        (lambda (time result)
+          (let ((duration (+ (time-second time)
+                             (/ (time-nanosecond time) 1e9))))
+            (when (> duration 60)
+              (log-message "fetching '~a' took ~a seconds."
+                           drv duration)))))
        (register-gc-roots drv)
 
        ;; Force the baking of the NAR substitutes so that the first client
