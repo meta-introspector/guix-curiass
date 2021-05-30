@@ -1927,7 +1927,8 @@ text-dark d-flex position-absolute w-100"))
               (class "invisible")
               (url ,jobs))))))
 
-(define (badge-svg spec badge-string summary)
+(define* (badge-svg spec badge-string summary
+                    #:key type)
   "Return the badge SVG for the specification with the given SUMMARY.  The
 BADGE-STRING procedure takes a badge name as input an returns the badge
 content as a string."
@@ -1948,7 +1949,12 @@ content as a string."
              (percentage-str
               (string-append
                (number->string percentage) "%")))
-        (replace (badge-string "badge-per.svg")
-          `(("X%" ,percentage-str)
-            ("_name" ,spec))))
+        (case type
+          ((0)
+           (replace (badge-string "badge-percentage.svg")
+             `(("X%" ,percentage-str))))
+          (else
+           (replace (badge-string "badge-spec-percentage.svg")
+             `(("X%" ,percentage-str)
+               ("_name" ,spec))))))
       (badge-string "badge-error.svg")))

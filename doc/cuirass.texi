@@ -303,11 +303,23 @@ Cuirass is able to generate SVG badges that can be integrated inside
 your favorite forge.
 
 @itemize
-@item @url{http://cuirass-url/jobset/spec/badge}
-Generates a badge for the @code{spec} specification. The badge
-represents the percentage of successful jobs for the latest evaluation
-of the @code{spec} specification.  If no evaluation could be found for
-the @code{spec} specification, an @code{error} badge is generated.
+@item @url{http://cuirass-url/jobset/spec/badge?type=0}
+Generates a badge for the @code{spec} specification.  If no evaluation
+could be found for the @code{spec} specification, an @code{error}
+badge is generated.
+
+Multiple badge types are supported through the @code{type} parameter.
+
+@table @asis
+@item @code{0}
+The default type. The badge represents the percentage of successful
+jobs for the latest evaluation of the @code{spec} specification.
+
+@item @code{1}
+The badge represents the specification name as well as the percentage
+of successful jobs for the latest evaluation of the @code{spec}
+specification.
+@end table
 
 @end itemize
 

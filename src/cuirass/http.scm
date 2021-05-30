@@ -1076,10 +1076,13 @@ passed, only display JOBS targeting this SYSTEM."
 
     (('GET "jobset" spec "badge")
      (let* ((params (request-parameters request))
+            (type (and=> (assq-ref params 'type)
+                         string->number))
             (summary (and=> (db-get-latest-evaluation spec)
                             db-get-evaluation-absolute-summary)))
        (respond-svg
-        (badge-svg spec badge-string summary))))
+        (badge-svg spec badge-string summary
+                   #:type (or type 0)))))
 
     (('GET "workers")
      (respond-html

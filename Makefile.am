@@ -115,7 +115,8 @@ dist_fonts_DATA =				\
   src/static/fonts/open-iconic.woff
 dist_images_DATA =				\
   src/static/images/badge-error.svg		\
-  src/static/images/badge-per.svg		\
+  src/static/images/badge-spec-percentage.svg	\
+  src/static/images/badge-percentage.svg	\
   src/static/images/guix.png			\
   src/static/images/icon.png
 dist_js_DATA =					\
