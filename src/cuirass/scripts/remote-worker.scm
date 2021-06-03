@@ -379,6 +379,8 @@ exiting."
             (read-file-sexp
              (assoc-ref opts 'private-key-file))))
 
+      (false-if-exception (mkdir-p (%gc-root-directory)))
+
       (parameterize
           ((%gc-root-ttl
             (time-second (string->duration ttl))))
