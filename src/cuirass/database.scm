@@ -677,7 +677,7 @@ FROM (SELECT  DISTINCT ON (b1.id) b1.id AS id,
 COALESCE((b2.stoptime - b2.starttime), 0) AS last_duration,
 (extract(epoch from now())::int - b1.starttime) AS duration FROM builds AS b1
 LEFT JOIN builds AS b2 ON b1.job_name = b2.job_name
-AND b2.status >= 0 WHERE b1.id IN
+AND b2.status = 0 OR b2.status = 1 WHERE b1.id IN
 (SELECT id FROM builds WHERE id = ANY(" build-ids "))
 ORDER BY b1.id,  b2.id DESC) d;"))
                (percentages '()))
