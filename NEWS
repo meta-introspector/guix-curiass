@@ -10,6 +10,29 @@ Copyright © 2021 Mathieu Othacehe <othacehe@gnu.org>
 
 Please send Guix bug reports to bug-guix@gnu.org.
 
+* Changes in 1.1.0 (since 1.0.0)
+** Database
+*** Add Jobs table
+*** Add BuildDependencies table
+*** Add Dashboards table
+** Remote building
+*** Add GC roots for the build outputs
+*** Increase the fetch workers count to 8
+*** Build derivations in a topological order using the BuildDependencies table
+*** Resume dependent builds when a build is successful after a restart
+*** Display the remote-server fetch queue size
+** Specifications
+*** Add period support
+*** Add "images", "system-tests" and tarball build types
+** Web
+*** Add a footer with the Cuirass version
+*** Add table order buttons
+*** Add a pagination button on the evaluation page
+*** Add a build dashboard page
+*** Improve accessibility and add the Accessiblity Foundation report
+*** Add badges support
+*** Display build dependencies in the build details page
+
 * Changes in 1.0.0 (since 0.0.1)
 
 ** Database
