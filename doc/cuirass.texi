@@ -1324,6 +1324,24 @@ Currently, it has the same value as the @code{timestamp} above.
 
 @end table
 
+@section BuildDependencies
+@cindex builddependencies, database
+
+This table contains the dependencies between the builds registered in
+the @code{Builds} table.
+
+@table @code
+@item source
+This integer field holds a reference to the build @code{id} from the
+@code{Builds} table.
+
+@item target
+This integer field holds a reference to the build @code{id} from the
+@code{Builds} table, indicating that the @code{source} build id
+depends from the @code{target} build id.
+
+@end table
+
 @section Outputs
 @cindex outputs, database
 
