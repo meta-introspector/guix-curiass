@@ -126,19 +126,6 @@ CREATE TABLE Dashboards (
   FOREIGN KEY (specification) REFERENCES Specifications(name) ON DELETE CASCADE
 );
 
--- XXX: All queries targeting Builds and Outputs tables *must* be covered by
--- an index.  It is also preferable for the other tables.
-CREATE INDEX Builds_status_index ON Builds (status);
-CREATE INDEX Builds_evaluation_index ON Builds (evaluation, status);
-CREATE INDEX Builds_job_name_timestamp on Builds(job_name, timestamp);
-CREATE INDEX Builds_nix_name ON Builds (nix_name);
-CREATE INDEX Builds_timestamp_stoptime on Builds(timestamp, stoptime);
-CREATE INDEX Builds_stoptime on Builds(stoptime DESC);
-CREATE INDEX Builds_stoptime_id on Builds(stoptime DESC, id DESC);
-CREATE INDEX Builds_status_ts_id on Builds(status DESC, timestamp DESC, id ASC);
-CREATE INDEX Builds_priority_timestamp on Builds(priority ASC, timestamp DESC);
-CREATE INDEX Builds_weather_evaluation ON Builds (weather, evaluation);
-
 -- Make sure that the cached Job build status is always synchronized with the
 -- matching build status.
 CREATE FUNCTION update_job_status()
@@ -168,6 +155,18 @@ LEFT JOIN BuildDependencies as bd ON bd.source = Builds.id
 LEFT JOIN Builds AS dep ON bd.target = dep.id AND dep.status != 0
 WHERE Builds.status = -2 GROUP BY Builds.id;
 
+-- XXX: All queries targeting Builds and Outputs tables *must* be covered by
+-- an index.  It is also preferable for the other tables.
+CREATE INDEX Builds_status_index ON Builds (status);
+CREATE INDEX Builds_evaluation_index ON Builds (evaluation, status);
+CREATE INDEX Builds_job_name_timestamp on Builds(job_name, timestamp);
+CREATE INDEX Builds_nix_name ON Builds (nix_name);
+CREATE INDEX Builds_timestamp_stoptime on Builds(timestamp, stoptime);
+CREATE INDEX Builds_stoptime on Builds(stoptime DESC);
+CREATE INDEX Builds_stoptime_id on Builds(stoptime DESC, id DESC);
+CREATE INDEX Builds_status_ts_id on Builds(status DESC, timestamp DESC, id ASC);
+CREATE INDEX Builds_priority_timestamp on Builds(priority ASC, timestamp DESC);
+CREATE INDEX Builds_weather_evaluation ON Builds (weather, evaluation);
 CREATE INDEX Jobs_name ON Jobs (name);
 CREATE INDEX Jobs_system_status ON Jobs (system, status);
 CREATE INDEX Jobs_build ON Jobs (build); --speeds up delete cascade.
