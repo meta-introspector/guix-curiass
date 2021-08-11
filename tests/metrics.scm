@@ -42,7 +42,16 @@
       (exec-query (%db) "\
 INSERT INTO Specifications (name, build, channels, build_outputs,
 notifications, priority, systems)
-VALUES ('guix', 'hello', '()', '()', '()', 9, '()');")
+VALUES ('guix', 'hello', '()', '()', '()', 9, '()');")))
+
+  (test-equal "percentage-failed-eval-per-spec"
+    `(("guix" . 0.0))
+    (begin
+      (db-update-metric 'percentage-failed-eval-per-spec "guix")
+      (db-get-metrics-with-id 'percentage-failed-eval-per-spec)))
+
+  (test-assert "exec-query"
+    (begin
       (exec-query (%db) "\
 INSERT INTO Evaluations (specification, status,
 timestamp, checkouttime, evaltime) VALUES ('guix', -1, 1600174547, 0, 0);")

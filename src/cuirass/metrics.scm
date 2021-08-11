@@ -116,11 +116,12 @@ WHERE status < 0;"))))
 the percentage computation to the most recent LIMIT records."
   (with-db-worker-thread db
     (let ((query "\
-SELECT 100 *
-CAST(SUM(CASE WHEN m.status > 0 THEN 1 ELSE 0 END) as float) /
-COUNT(*) FROM
+WITH last_evals AS
 (SELECT status from Evaluations WHERE specification = :spec
-ORDER BY id DESC LIMIT ~a) m")
+ORDER BY id DESC LIMIT ~a)
+SELECT CASE WHEN COUNT(*) = 0 THEN 0 ELSE
+100 * CAST(SUM(CASE WHEN status > 0 THEN 1 ELSE 0 END) as float) /
+COUNT(*) END FROM last_evals;")
           (params `((#:spec . ,spec))))
       (return-inexact
        (exec-query/bind-params db
