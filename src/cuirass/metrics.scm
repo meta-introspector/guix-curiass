@@ -170,10 +170,11 @@ expressed in builds per hour."
      (exec-query/bind db "\
 SELECT
 3600.0 * SUM(CASE WHEN B.status = 0 THEN 1 ELSE 0 END) /
+GREATEST(
 (CASE SUM(CASE WHEN status < 0 THEN 1 ELSE 0 END)
    WHEN 0 THEN MAX(stoptime)
    ELSE extract(epoch from 'today'::date)
-END - E.evaltime) FROM
+END - E.evaltime), 1) FROM
 (SELECT id, evaltime
 FROM Evaluations WHERE id = " eval ") E
 LEFT JOIN Builds as B
