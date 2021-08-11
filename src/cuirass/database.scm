@@ -1036,7 +1036,7 @@ DELETE FROM Checkouts WHERE evaluation=" eval-id ";")))
       ("failed-dependency" . ,(build-status failed-dependency))
       ("failed-other" . ,(build-status failed-other))
       ("canceled" . ,(build-status canceled))))
-  (let ((args (map
+  (let ((args (filter-map
                (lambda (token)
                  (match (string-split token #\:)
                    (("system" system)
@@ -1045,7 +1045,7 @@ DELETE FROM Checkouts WHERE evaluation=" eval-id ";")))
                     `(#:spec . ,spec))
                    (("status" status)
                     `(#:status . ,(assoc-ref status-values status)))
-                   ((_ invalid) '())    ; ignore
+                   ((_ invalid) #f)    ; ignore
                    ((query)
                     ;; Remove any '%' that could make the search too slow and
                     ;; add one at the end of the query.
