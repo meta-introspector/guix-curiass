@@ -137,6 +137,7 @@ list ATTRS and the child nodes in BODY."
 (define* (build->rss-item build)
   "Convert BUILD into an RSS <item> node."
   (let* ((url (build-details-url build))
+         (id (assq-ref build #:id))
          (job-name (assq-ref build #:job-name))
          (specification (assq-ref build #:specification))
          (weather  (assq-ref build #:weather))
@@ -147,10 +148,11 @@ list ATTRS and the child nodes in BODY."
                          "broken")))
          (stoptime (assq-ref build #:stoptime)))
     `(item
+      (guid ,url)
       (title
        ,(format #f "Build ~a on ~a is ~a."
                 job-name specification weather-text))
-      (author "Cuirass")
+      (author "cuirass@gnu.org (Cuirass)")
       (pubDate ,(date->rfc822-str
                  (time-utc->date
                   (make-time time-utc 0 stoptime))))
@@ -165,11 +167,22 @@ You can find the detailed information about this build "
              "."))))))
 
 (define* (rss-feed builds #:key params)
-  (let ((specification (and params
-                            (assq-ref params 'specification))))
-    `(rss (@ (version "2.0"))
+  (let* ((specification (and params
+                             (assq-ref params 'specification)))
+         (cuirass-url (or (%cuirass-url)
+                          "https://cuirass.org"))
+         (url (format #f "~a/events/rss/~a"
+                      cuirass-url
+                      (if specification
+                          (string-append "?specification=" specification)
+                          ""))))
+    `(rss (@ (version "2.0")
+             (xmlns:atom "http://www.w3.org/2005/Atom"))
           (channel
            (title "GNU Guix continuous integration system build events.")
+           (atom:link (@ (href ,url)
+                         (rel "self")
+                         (type "application/rss+xml")))
            (description
             ,(string-append
               "Build events for "
@@ -177,5 +190,5 @@ You can find the detailed information about this build "
                   (string-append "specification " specification ".")
                   "all specifications.")))
            (pubDate ,(date->rfc822-str (current-date)))
-           (link (@ (href "/")))
+           (link ,cuirass-url)
            ,@(map build->rss-item builds)))))

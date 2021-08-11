@@ -523,15 +523,14 @@ passed, only display JOBS targeting this SYSTEM."
        (format port "<!DOCTYPE html>")
        (sxml->xml body port))))
 
-  (define* (respond-xml body #:key code)
+  (define* (respond-rss body #:key code)
     (respond
-     (let ((content-type '((content-type . (application/xhtml+xml)))))
+     (let ((content-type '((content-type . (application/rss+xml)))))
        (if code
            (build-response #:headers content-type #:code code)
            content-type))
      #:body
      (lambda (port)
-       (format port "<?xml version=\"1.0\" encoding=\"utf-8\"?>")
        (sxml->xml body port))))
 
   (define* (respond-file file)
@@ -1065,7 +1064,7 @@ passed, only display JOBS targeting this SYSTEM."
      (let* ((params (request-parameters request))
             (specification (and params
                                 (assq-ref params 'specification))))
-       (respond-xml
+       (respond-rss
         (rss-feed
          (db-get-builds `((weather . new)
                           (jobset . ,specification)
