@@ -209,7 +209,8 @@ given NAME."
                              #:key
                              timeout
                              max-silent)
-  "Add URL to the list of STORE substitutes-urls."
+  "Maybe add URL to the list of STORE substitutes-urls, set TIMEOUT and
+MAX-SILENT store properties."
   (set-build-options store
                      #:use-substitutes? #t
                      #:fallback? #t
@@ -218,7 +219,9 @@ given NAME."
                      #:max-silent-time max-silent
                      #:verbosity 1
                      #:substitute-urls
-                     (cons url %default-substitute-urls)))
+                     (if url
+                         (cons url %default-substitute-urls)
+                         %default-substitute-urls)))
 
 (define* (publish-server port
                          #:key
