@@ -30,7 +30,8 @@
   #:use-module (guix scripts)
   #:use-module (guix serialization)
   #:use-module ((guix store)
-                #:select (current-build-output-port
+                #:select (%default-substitute-urls
+                          current-build-output-port
                           store-error?
                           store-protocol-error?
                           store-protocol-error-message
@@ -42,6 +43,7 @@
   #:use-module (guix scripts publish)
   #:use-module (simple-zmq)
   #:use-module (rnrs bytevectors)
+  #:use-module (web uri)
   #:use-module (srfi srfi-1)
   #:use-module (srfi srfi-11)
   #:use-module (srfi srfi-19)
@@ -64,6 +66,9 @@
               string->number)
        10)))
 
+(define %substitute-urls
+  (make-parameter #f))
+
 (define (show-help)
   (format #t "Usage: ~a remote-worker [OPTION]...
 Start a remote build worker.\n" (%program-name))
@@ -77,6 +82,9 @@ Start a remote build worker.\n" (%program-name))
   -s, --server=SERVER       connect to SERVER"))
   (display (G_ "
   -S, --systems=SYSTEMS     list of supported SYSTEMS"))
+  (display (G_ "
+      --substitute-urls=URLS
+                            check for available substitutes at URLS"))
   (display (G_ "
       --public-key=FILE     use FILE as the public key for signatures"))
   (display (G_ "
@@ -113,6 +121,17 @@ Start a remote build worker.\n" (%program-name))
                 (lambda (opt name arg result)
                   (alist-cons 'systems
                               (string-split arg #\,) result)))
+        (option '("substitute-urls") #t #f
+                (lambda (opt name arg result . rest)
+                  (let ((urls (string-tokenize arg)))
+                    (for-each (lambda (url)
+                                (unless (string->uri url)
+                                  (leave (G_ "~a: invalid URL~%") url)))
+                              urls)
+                    (apply values
+                           (alist-cons 'substitute-urls urls
+                                       (alist-delete 'substitute-urls result))
+                           rest))))
         (option '("public-key") #t #f
                 (lambda (opt name arg result)
                   (alist-cons 'public-key-file arg result)))
@@ -125,6 +144,7 @@ Start a remote build worker.\n" (%program-name))
     (publish-port . 5558)
     (ttl . "1d")
     (systems . ,(list (%current-system)))
+    (substitute-urls . ,%default-substitute-urls)
     (public-key-file . ,%public-key-file)
     (private-key-file . ,%private-key-file)))
 
@@ -177,7 +197,9 @@ still be substituted."
           (publish-url (server-publish-url server))
           (local-publish-url (worker-publish-url worker))
           (name (worker-name worker)))
-      (set-build-options* store publish-url
+      (set-build-options* store (if publish-url
+                                    (cons publish-url (%substitute-urls))
+                                    (%substitute-urls))
                           #:timeout timeout
                           #:max-silent max-silent)
       (reply (zmq-build-started-message drv name))
@@ -373,6 +395,7 @@ exiting."
            (ttl (assoc-ref opts 'ttl))
            (server-address (assoc-ref opts 'server))
            (systems (assoc-ref opts 'systems))
+           (urls    (assoc-ref opts 'substitute-urls))
            (public-key
             (read-file-sexp
              (assoc-ref opts 'public-key-file)))
@@ -384,7 +407,8 @@ exiting."
 
       (parameterize
           ((%gc-root-ttl
-            (time-second (string->duration ttl))))
+            (time-second (string->duration ttl)))
+           (%substitute-urls urls))
         (atomic-box-set! %local-publish-port publish-port)
 
         (atomic-box-set!

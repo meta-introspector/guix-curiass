@@ -309,7 +309,7 @@ be used to reply to the worker."
 store."
   (parameterize ((current-build-output-port (%make-void-port "w")))
     (with-store store
-      (set-build-options* store url)
+      (set-build-options* store (list url))
       (for-each (lambda (output)
                   (ensure-path* store output))
                 (map derivation-output-path outputs)))))

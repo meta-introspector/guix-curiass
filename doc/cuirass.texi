@@ -681,6 +681,9 @@ Do not use Avahi discovery and connect to the given
 Only request builds for the given @var{systems}.  It defaults to
 @code{(list (%current-system))}.
 
+@item @code{substitute-urls} (default: @code{%default-substitute-urls})
+The list of URLs where to look for substitutes by default.
+
 @item --public-key=@var{file}
 @itemx --private-key=@var{file}
 Use the specific @var{file}s as the public/private key pair used to sign

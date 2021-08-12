@@ -207,12 +207,13 @@ given NAME."
 ;;; Store publishing.
 ;;;
 
-(define* (set-build-options* store url
+(define* (set-build-options* store urls
                              #:key
                              timeout
                              max-silent)
-  "Maybe add URL to the list of STORE substitutes-urls, set TIMEOUT and
-MAX-SILENT store properties."
+  "Use URLS as substitution servers, set TIMEOUT and MAX-SILENT store
+properties."
+  (pk urls)
   (set-build-options store
                      #:use-substitutes? #t
                      #:fallback? #t
@@ -220,10 +221,7 @@ MAX-SILENT store properties."
                      #:timeout timeout
                      #:max-silent-time max-silent
                      #:verbosity 1
-                     #:substitute-urls
-                     (if url
-                         (cons url %default-substitute-urls)
-                         %default-substitute-urls)))
+                     #:substitute-urls urls))
 
 (define* (publish-server port
                          #:key
