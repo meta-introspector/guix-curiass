@@ -213,7 +213,6 @@ given NAME."
                              max-silent)
   "Use URLS as substitution servers, set TIMEOUT and MAX-SILENT store
 properties."
-  (pk urls)
   (set-build-options store
                      #:use-substitutes? #t
                      #:fallback? #t
