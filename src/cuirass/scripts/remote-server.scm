@@ -120,6 +120,8 @@ Start a remote build server.\n") (%program-name))
   (display (G_ "
   -u, --user=USER           change privileges to USER as soon as possible"))
   (display (G_ "
+      --no-publish          do not start a publish server"))
+  (display (G_ "
       --public-key=FILE     use FILE as the public key for signatures"))
   (display (G_ "
       --private-key=FILE    use FILE as the private key for signatures"))
@@ -160,6 +162,9 @@ Start a remote build server.\n") (%program-name))
         (option '(#\c "cache") #t #f
                 (lambda (opt name arg result)
                   (alist-cons 'cache arg result)))
+        (option '(#\s "no-publish") #f #f
+                (lambda (opt name arg result)
+                  (alist-cons 'no-publish #t result)))
         (option '(#\T "trigger-substitute-url") #t #f
                 (lambda (opt name arg result)
                   (alist-cons 'trigger-substitute-url arg result)))
@@ -177,6 +182,7 @@ Start a remote build server.\n") (%program-name))
   `((backend-port     . 5555)
     (log-port         . 5556)
     (publish-port     . 5557)
+    (no-publish       . #f)
     (ttl              . "3d")
     (public-key-file  . ,%public-key-file)
     (private-key-file . ,%private-key-file)))
@@ -527,7 +533,9 @@ exiting."
                              %default-options))
            (backend-port (assoc-ref opts 'backend-port))
            (log-port (assoc-ref opts 'log-port))
-           (publish-port (assoc-ref opts 'publish-port))
+           (no-publish (assoc-ref opts 'no-publish))
+           (publish-port (and (not no-publish)
+                              (assoc-ref opts 'publish-port)))
            (cache (assoc-ref opts 'cache))
            (parameters (assoc-ref opts 'parameters))
            (ttl (assoc-ref opts 'ttl))
@@ -569,11 +577,12 @@ exiting."
         (%gc-root-directory
          (default-gc-root-directory))
 
-        (atomic-box-set!
-         %publish-pid
-         (publish-server publish-port
-                         #:public-key public-key
-                         #:private-key private-key))
+        (unless no-publish
+          (atomic-box-set!
+           %publish-pid
+           (publish-server publish-port
+                           #:public-key public-key
+                           #:private-key private-key)))
 
         (atomic-box-set!
          %avahi-thread
@@ -583,10 +592,12 @@ exiting."
           #:port backend-port
           #:stop-loop? (lambda ()
                          (atomic-box-ref %stop-process?))
-          #:txt (list (string-append "log-port="
-                                     (number->string log-port))
-                      (string-append "publish-port="
-                                     (number->string publish-port)))))
+          #:txt `(,(string-append "log-port="
+                                  (number->string log-port))
+                  ,@(if publish-port
+                      (list (string-append "publish-port="
+                                           (number->string publish-port)))
+                      '()))))
 
         (receive-logs log-port (%cache-directory))
 

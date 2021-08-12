@@ -285,8 +285,9 @@ and executing them.  The worker can reply on the same socket."
   (define (server-info->server info serv)
     (match info
       ((_ log-port publish-port)
-       (let ((url (publish-url (server-address serv)
-                               publish-port)))
+       (let ((url (and publish-port
+                       (publish-url (server-address serv)
+                                    publish-port))))
          (server
           (inherit serv)
           (log-port log-port)

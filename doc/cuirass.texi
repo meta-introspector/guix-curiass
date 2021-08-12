@@ -634,6 +634,11 @@ at @var{URL}.
 Change privileges to @var{user} as soon as possible---i.e., once the
 signing key has been read.
 
+@item --no-publish
+Do not start a publish server and ignore the @code{publish-port}
+argument. This can be useful if there is a standalone publish server
+standing next to the remote server.
+
 @item --public-key=@var{file}
 @itemx --private-key=@var{file}
 Use the specific @var{file}s as the public/private key pair used to sign

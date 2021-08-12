@@ -183,8 +183,10 @@ given NAME."
          (txt (avahi-service-txt service))
          (params (service-txt->params txt))
          (log-port (number-param params 'log-port))
-         (publish-port (number-param params 'publish-port))
-         (publish-url (publish-url address publish-port)))
+         (publish-port (and=> (assq-ref params 'publish-port)
+                              string->number))
+         (publish-url (and publish-port
+                           (publish-url address publish-port))))
     `((#:log-port . ,log-port)
       (#:publish-url . ,publish-url))))
 
