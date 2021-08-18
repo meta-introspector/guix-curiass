@@ -5,6 +5,7 @@
 ;;; Copyright © 2018 Clément Lassieur <clement@lassieur.org>
 ;;; Copyright © 2018 Tatiana Sholokhova <tanja201396@gmail.com>
 ;;; Copyright © 2019, 2020 Ricardo Wurmus <rekado@elephly.net>
+;;; Copyright © 2021 Sarah Morgensen <iskarian@mgsn.dev>
 ;;;
 ;;; This file is part of Cuirass.
 ;;;
@@ -1060,7 +1061,11 @@ DELETE FROM Checkouts WHERE evaluation=" eval-id ";")))
             (if (assq key acc)
                 acc
                 (cons (cons key #f) acc)))
-          args '(#:spec #:system))))
+          (if (or (assq-ref args #:query)
+                  (null? (alist-delete #:query args)))
+              args
+              (cons '(#:query . "%") args))
+          '(#:spec #:system))))
 
 (define (db-get-build-products build-id)
   "Return the build products associated to the given BUILD-ID."
