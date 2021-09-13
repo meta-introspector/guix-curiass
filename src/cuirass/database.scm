@@ -121,6 +121,7 @@
             db-remove-unresponsive-workers
             db-clear-workers
             db-clear-build-queue
+            db-get-log-from-output
             ;; Parameters.
             %create-database?
             %package-database
@@ -1836,6 +1837,17 @@ WHERE status = -1 AND
   "Reset the status of builds in the database that are marked as \"started\"."
   (with-db-worker-thread db
     (exec-query db "UPDATE Builds SET status = -2 WHERE status < 0;")))
+
+(define (db-get-log-from-output output)
+  "Return the log file corresponding to the OUTPUT build."
+  (with-db-worker-thread db
+    (match (expect-one-row
+            (exec-query/bind db "
+SELECT log FROM Outputs
+LEFT JOIN Builds ON outputs.derivation = builds.derivation
+WHERE Outputs.path = " output ";"))
+      ((log) log)
+      (else #f))))
 
 ;;; Local Variables:
 ;;; eval: (put 'with-db-worker-thread 'scheme-indent-function 1)

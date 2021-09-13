@@ -1,6 +1,6 @@
 ;;;; http.scm -- HTTP API
 ;;; Copyright © 2016 Mathieu Lirzin <mthl@gnu.org>
-;;; Copyright © 2017, 2020 Mathieu Othacehe <othacehe@gnu.org>
+;;; Copyright © 2017, 2020, 2021 Mathieu Othacehe <othacehe@gnu.org>
 ;;; Copyright © 2018, 2019, 2020 Ludovic Courtès <ludo@gnu.org>
 ;;; Copyright © 2018 Clément Lassieur <clement@lassieur.org>
 ;;; Copyright © 2018 Tatiana Sholokhova <tanja201396@gmail.com>
@@ -978,6 +978,14 @@ passed, only display JOBS targeting this SYSTEM."
          (respond-html
           (dashboard-page evaluation-id
                           #:dashboard-id dashboard-id))))))
+
+    ;; Replicate the Guix publish log interface for compatibility purposes.
+    (('GET "log" output)
+     (let* ((output (string-append (%store-prefix) "/" output))
+            (log (pk (db-get-log-from-output (pk output)))))
+       (if (and log (file-exists? log))
+           (respond-compressed-file log)
+           (respond-not-found (uri->string (request-uri request))))))
 
     (('GET "search")
      (let* ((params (request-parameters request))
