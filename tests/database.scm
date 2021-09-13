@@ -237,8 +237,8 @@ timestamp, checkouttime, evaltime) VALUES ('guix', 0, 0, 0, 0);")
   (test-assert "db-get-jobs same-outputs"
     (match (db-get-jobs 4 '())
       ((job)
-       (string=? (assq-ref (pk (db-get-build
-                                (assq-ref job #:build)))
+       (string=? (assq-ref (db-get-build
+                            (assq-ref job #:build))
                            #:derivation)
                  "/test.drv"))))
 

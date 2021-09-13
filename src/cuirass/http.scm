@@ -982,7 +982,7 @@ passed, only display JOBS targeting this SYSTEM."
     ;; Replicate the Guix publish log interface for compatibility purposes.
     (('GET "log" output)
      (let* ((output (string-append (%store-prefix) "/" output))
-            (log (db-get-log-from-output (pk output))))
+            (log (db-get-log-from-output output)))
        (if (and log (file-exists? log))
            (respond-compressed-file log)
            (respond-not-found (uri->string (request-uri request))))))
