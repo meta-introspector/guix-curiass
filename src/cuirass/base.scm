@@ -76,6 +76,7 @@
             prepare-git
             process-specs
             evaluation-log-file
+            latest-checkouts
 
             ;; Parameters.
             %package-cachedir
@@ -671,6 +672,16 @@ by BUILD-OUTPUTS."
                  (current-error-port (%make-void-port "w"))
                  (guix-warning-port (%make-void-port "w")))
     (apply latest-channel-instances args)))
+
+(define (latest-checkouts spec eval-id)
+  "Return the latest checkouts for the EVAL-ID evaluation of the SPEC
+specification."
+  (let ((name (specification-name spec))
+        (channels (specification-channels spec)))
+    (map (lambda (channel)
+           (let ((channel (channel-name channel)))
+             (db-get-latest-checkout name channel eval-id)))
+         channels)))
 
 (define (process-specs jobspecs)
   "Evaluate and build JOBSPECS and store results in the database."

@@ -20,6 +20,7 @@
 ;;; along with Cuirass.  If not, see <http://www.gnu.org/licenses/>.
 
 (define-module (cuirass scripts evaluate)
+  #:use-module (cuirass base)
   #:use-module (cuirass database)
   #:use-module (cuirass specification)
   #:use-module (guix channels)
@@ -89,16 +90,6 @@ of channel instances."
           (show-what-to-build* (list profile))
           (built-derivations (list profile))
           (return (derivation->output-path profile)))))))
-
-(define (latest-checkouts spec eval-id)
-  "Return the latest checkouts for the EVAL-ID evaluation of the SPEC
-specification."
-  (let ((name (specification-name spec))
-        (channels (specification-channels spec)))
-    (map (lambda (channel)
-           (let ((channel (channel-name channel)))
-             (db-get-latest-checkout name channel eval-id)))
-         channels)))
 
 (define (cuirass-evaluate args)
   "This procedure spawns an inferior on the given channels.  An evaluation
