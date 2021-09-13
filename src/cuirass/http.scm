@@ -22,6 +22,7 @@
 ;;; along with Cuirass.  If not, see <http://www.gnu.org/licenses/>.
 
 (define-module (cuirass http)
+  #:use-module (cuirass base)
   #:use-module (cuirass config)
   #:use-module (cuirass database)
   #:use-module ((cuirass base) #:select (evaluation-log-file))
@@ -243,12 +244,12 @@ Hydra format."
                                border-high-id border-low-id)
   "Return the HTML page representing EVALUATION."
   (define id             (assq-ref evaluation #:id))
-  (define builds-id-max (db-get-builds-max id status))
-  (define builds-id-min (db-get-builds-min id status))
-  (define specification (db-get-evaluation-specification id))
-  (define channels      (specification-channels
-                         (db-get-specification specification)))
-  (define checkouts     (db-get-checkouts id))
+  (define builds-id-max  (db-get-builds-max id status))
+  (define builds-id-min  (db-get-builds-min id status))
+  (define specification  (db-get-evaluation-specification id))
+  (define specification* (db-get-specification specification))
+  (define channels       (specification-channels specification*))
+  (define checkouts      (latest-checkouts specification* id))
 
   (define builds
     (vector->list
