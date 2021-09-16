@@ -47,6 +47,7 @@ GUILE_MODULE_REQUIRED([avahi])
 GUILE_MODULE_REQUIRED([fibers])
 GUILE_MODULE_REQUIRED([guix])
 GUILE_MODULE_REQUIRED([guix git])
+GUILE_MODULE_REQUIRED([guix config])
 GUILE_MODULE_REQUIRED([git])
 GUILE_MODULE_REQUIRED([json])
 GUILE_MODULE_REQUIRED([mailutils mailutils])
@@ -57,6 +58,9 @@ GUILE_MODULE_REQUIRED([zlib])
 
 # We depend on new Guile-Git errors.
 GUILE_MODULE_REQUIRED_EXPORT([(git)], git-error-message)
+
+guix_localstatedir="$($GUILE -c '(import (guix config)) (display %localstatedir)')"
+AC_SUBST(guix_localstatedir)
 
 AC_CONFIG_FILES([Makefile])
 AC_CONFIG_FILES([pre-inst-env:build-aux/pre-inst-env.in],

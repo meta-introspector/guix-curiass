@@ -24,6 +24,7 @@
 /config.cache
 /configure
 /doc/version.texi
+/etc/cuirass-remote-worker.service
 /src/cuirass/config.scm
 /tests/cache
 Makefile

@@ -45,6 +45,7 @@ cssdir = $(staticdir)/css
 fontsdir = $(staticdir)/fonts
 imagesdir = $(staticdir)/images
 jsdir = $(staticdir)/js
+systemdservicedir = $(libdir)/systemd/system
 
 dist_pkgmodule_DATA =				\
   src/cuirass/base.scm				\
@@ -129,6 +130,9 @@ dist_js_DATA =					\
   src/static/js/jquery-3.3.1.min.js		\
   src/static/js/popper.min.js
 
+dist_systemdservice_DATA =			\
+  etc/cuirass-remote-worker.service
+
 TEST_EXTENSIONS = .scm .sh
 AM_TESTS_ENVIRONMENT = \
   env GUILE_AUTO_COMPILE='0' \
@@ -188,6 +192,7 @@ EXTRA_DIST = \
   bootstrap \
   build-aux/guix.scm \
   src/cuirass/config.scm.in \
+  etc/cuirass-remote-worker.service.in \
   $(TESTS)
 
 dist-hook: gen-ChangeLog
@@ -246,6 +251,9 @@ bin/cuirass: $(srcdir)/bin/cuirass.in
 $(bin_SCRIPTS): Makefile
 	$(generate_file); chmod +x $@
 src/cuirass/config.scm: $(srcdir)/src/cuirass/config.scm.in Makefile
+	$(generate_file)
+etc/cuirass-remote-worker.service: $(srcdir)/etc/cuirass-remote-worker.service.in \
+					Makefile
 	$(generate_file)
 
 # Guile modules require 'src/cuirass/config.scm' to exist before their

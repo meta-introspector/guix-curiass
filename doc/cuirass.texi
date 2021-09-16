@@ -463,6 +463,19 @@ The easiest way to setup such an infrastructure is to rely on the GNU
 Guix Cuirass services definitions (@pxref{Continuous Integration,
 Continuous Integration,, guix, Guix}).
 
+Alternatively, there is a systemd service unit file installed at
+@code{$CUIRASS_PREFIX/lib/systemd/system/cuirass-remote-worker.service}
+to launch the @code{cuirass remote-worker} on systems which use
+systemd. It can be installed and enabled as follows:
+
+@example
+sudo install -o root -g root -m 644 \
+     $CUIRASS_PREFIX/lib/systemd/system/cuirass-remote-worker.service \
+     /etc/systemd/system
+sudo systemctl enable cuirass-remote-worker.service
+sudo systemctl start cuirass-remote-worker.service
+@end example
+
 @c *********************************************************************
 @node Invocation
 @chapter Invocation
