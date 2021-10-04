@@ -17,7 +17,9 @@
 ;;; along with GNU Guix.  If not, see <http://www.gnu.org/licenses/>.
 
 (define-module (cuirass parameters)
-  #:export (%cuirass-database
+  #:export (%debug
+
+            %cuirass-database
             %cuirass-host
             %cuirass-url
 
@@ -31,6 +33,9 @@
 
 ;; This variable is looked up by 'mu-message-send'.
 (define-public mu-debug 0)
+
+(define %debug
+  (make-parameter #true))
 
 ;; The Cuirass PostgreSQL database name.
 (define %cuirass-database

@@ -23,6 +23,7 @@
   #:use-module (cuirass logging)
   #:use-module (cuirass ui)
   #:use-module (cuirass notification)
+  #:use-module (cuirass parameters)
   #:use-module (cuirass remote)
   #:use-module (cuirass utils)
   #:use-module (gcrypt pk-crypto)
@@ -242,26 +243,45 @@ be used to reply to the worker."
      (reply-worker
       (zmq-server-info (zmq-remote-address msg) (%log-port) (%publish-port))))
     (('worker-request-work name)
-     (let ((build (pop-build name)))
-       (if build
-           (let ((derivation (assq-ref build #:derivation))
-                 (priority (assq-ref build #:priority))
-                 (timeout (assq-ref build #:timeout))
-                 (max-silent (assq-ref build #:max-silent)))
-             (db-update-build-worker! derivation name)
-             (db-update-build-status! derivation (build-status submitted))
-             (reply-worker
-              (zmq-build-request-message derivation
-                                         #:priority priority
-                                         #:timeout timeout
-                                         #:max-silent max-silent)))
-           (reply-worker
-            (zmq-no-build-message)))))
+     (let ((worker (db-get-worker name)))
+       (when (%debug)
+         (log-message "~a (~a): request work."
+                      (worker-address worker)
+                      (worker-name worker)))
+       (let ((build (pop-build name)))
+         (if build
+             (let ((derivation (assq-ref build #:derivation))
+                   (priority (assq-ref build #:priority))
+                   (timeout (assq-ref build #:timeout))
+                   (max-silent (assq-ref build #:max-silent)))
+               (when (%debug)
+                 (log-message "~a (~a): build ~a submitted."
+                              (worker-address worker)
+                              (worker-name worker)
+                              derivation))
+               (db-update-build-worker! derivation name)
+               (db-update-build-status! derivation (build-status submitted))
+               (reply-worker
+                (zmq-build-request-message derivation
+                                           #:priority priority
+                                           #:timeout timeout
+                                           #:max-silent max-silent)))
+             (begin
+               (when (%debug)
+                 (log-message "~a (~a): no available build."
+                              (worker-address worker)
+                              (worker-name worker)))
+               (reply-worker
+                (zmq-no-build-message)))))))
     (('worker-ping worker)
      (update-worker! worker))
     (('build-started ('drv drv) ('worker worker))
-     (let ((log-file (log-path (%cache-directory) drv)))
-       (log-message "build started: '~a' on ~a." drv worker)
+     (let ((log-file (log-path (%cache-directory) drv))
+           (worker (db-get-worker worker)))
+       (log-message "~a (~a): build started: '~a'."
+                    (worker-address worker)
+                    (worker-name worker)
+                    drv)
        (db-update-build-worker! drv worker)
        (db-update-build-status! drv (build-status started)
                                 #:log-file log-file)))))
