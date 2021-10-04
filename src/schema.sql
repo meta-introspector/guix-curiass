@@ -148,13 +148,6 @@ FROM BuildDependencies as BD
 WHERE BD.source = $1
 $$ LANGUAGE sql;
 
--- Return the count of pending dependencies for all the scheduled builds.
-CREATE VIEW pending_dependencies AS
-SELECT Builds.id, count(dep.id) as deps FROM Builds
-LEFT JOIN BuildDependencies as bd ON bd.source = Builds.id
-LEFT JOIN Builds AS dep ON bd.target = dep.id AND dep.status != 0
-WHERE Builds.status = -2 GROUP BY Builds.id;
-
 -- XXX: All queries targeting Builds and Outputs tables *must* be covered by
 -- an index.  It is also preferable for the other tables.
 CREATE INDEX Builds_status_index ON Builds (status);

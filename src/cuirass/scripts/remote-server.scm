@@ -223,13 +223,7 @@ and store the result inside the BOX."
     (and worker
          (let ((system (random-system
                         (worker-systems worker))))
-           (match (db-get-builds `((status . scheduled)
-                                   (system . ,system)
-                                   (order . priority+timestamp)
-                                   (no-dependencies . #t)
-                                   (nr . 1)))
-             ((build) build)
-             (() #f))))))
+           (db-get-pending-build system)))))
 
 (define* (read-worker-exp msg #:key reply-worker)
   "Read the given MSG sent by a worker.  REPLY-WORKER is a procedure that can

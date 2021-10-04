@@ -90,6 +90,7 @@
             db-get-events
             db-delete-events-with-ids-<=-to
             db-get-pending-derivations
+            db-get-pending-build
             db-get-checkouts
             db-get-latest-checkout
             db-get-evaluation
@@ -1181,7 +1182,6 @@ CASE WHEN CAST(:borderlowid AS integer) IS NULL THEN
         (worker          . "Builds.worker = :worker")
         (oldevaluation   . "Builds.evaluation < :oldevaluation")
         (evaluation      . "Builds.evaluation = :evaluation")
-        (no-dependencies . "PD.deps = 0")
         (status          . ,(match (assq-ref filters 'status)
                               (#f         #f)
                               ('done      "Builds.status >= 0")
@@ -1272,7 +1272,6 @@ build_dependencies(B.id) AS bd_target FROM
 (SELECT Builds.id, Builds.derivation, Specifications.name FROM Builds
 INNER JOIN Evaluations ON Builds.evaluation = Evaluations.id
 INNER JOIN Specifications ON Evaluations.specification = Specifications.name
-LEFT JOIN pending_dependencies as PD on PD.id = Builds.id
 ~a
 ORDER BY ~a
 LIMIT :nr) B
@@ -1362,6 +1361,23 @@ the database.  The returned list is guaranteed to not have any duplicates."
     (map (match-lambda ((drv) drv))
          (exec-query db "
 SELECT derivation FROM Builds WHERE Builds.status < 0;"))))
+
+(define (db-get-pending-build system)
+  "Return the pending build with no dependencies for SYSTEM that has the
+lowest priority and the highest timestamp."
+  (with-db-worker-thread db
+    (match (expect-one-row
+            (exec-query/bind db "
+WITH pending_dependencies AS
+(SELECT Builds.id, count(dep.id) as deps FROM Builds
+LEFT JOIN BuildDependencies as bd ON bd.source = Builds.id
+LEFT JOIN Builds AS dep ON bd.target = dep.id AND dep.status != 0
+WHERE Builds.status = -2 AND Builds.system = " system
+" GROUP BY Builds.id
+ORDER BY Builds.priority ASC, Builds.timestamp DESC)
+SELECT id FROM pending_dependencies WHERE deps = 0 LIMIT 1;"))
+      ((id) (db-get-build (string->number id)))
+      (else #f))))
 
 (define (db-get-checkouts eval-id)
   (with-db-worker-thread db

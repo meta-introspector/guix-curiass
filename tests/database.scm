@@ -709,24 +709,13 @@ timestamp, checkouttime, evaltime) VALUES ('guix', 0, 0, 0, 0);")
 
   (test-assert "db-get-builds no-dependencies"
     (begin
-      (db-update-build-status! "/build-2.drv"
-                               (build-status scheduled))
-      (let ((builds
-             (map (cut assq-ref <> #:derivation)
-                  (db-get-builds `((no-dependencies . #t))))))
-        (and (member "/build-2.drv" builds)
-             (not (member "/build-1.drv" builds))))))
-
-  (test-assert "db-get-builds no-dependencies"
-    (begin
       (db-update-build-status! "/build-1.drv"
                                (build-status scheduled))
       (db-update-build-status! "/build-2.drv"
-                               (build-status succeeded))
-      (let ((builds
-             (map (cut assq-ref <> #:derivation)
-                  (db-get-builds `((no-dependencies . #t))))))
-        (member "/build-1.drv" builds))))
+                               (build-status scheduled))
+      (string=? (assq-ref (db-get-pending-build "x86_64-linux")
+                          #:derivation)
+                "/build-2.drv")))
 
   (test-assert "dependencies trigger"
     (begin
