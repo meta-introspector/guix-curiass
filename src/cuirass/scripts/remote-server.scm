@@ -275,14 +275,14 @@ be used to reply to the worker."
                 (zmq-no-build-message)))))))
     (('worker-ping worker)
      (update-worker! worker))
-    (('build-started ('drv drv) ('worker worker))
+    (('build-started ('drv drv) ('worker name))
      (let ((log-file (log-path (%cache-directory) drv))
-           (worker (db-get-worker worker)))
+           (worker (db-get-worker name)))
        (log-message "~a (~a): build started: '~a'."
                     (worker-address worker)
                     (worker-name worker)
                     drv)
-       (db-update-build-worker! drv worker)
+       (db-update-build-worker! drv name)
        (db-update-build-status! drv (build-status started)
                                 #:log-file log-file)))))
 
