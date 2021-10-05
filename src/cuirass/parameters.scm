@@ -35,7 +35,7 @@
 (define-public mu-debug 0)
 
 (define %debug
-  (make-parameter #true))
+  (make-parameter #false))
 
 ;; The Cuirass PostgreSQL database name.
 (define %cuirass-database
