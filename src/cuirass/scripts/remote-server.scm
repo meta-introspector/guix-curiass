@@ -244,7 +244,7 @@ be used to reply to the worker."
       (zmq-server-info (zmq-remote-address msg) (%log-port) (%publish-port))))
     (('worker-request-work name)
      (let ((worker (db-get-worker name)))
-       (when (%debug)
+       (when (and (%debug) worker)
          (log-message "~a (~a): request work."
                       (worker-address worker)
                       (worker-name worker)))
@@ -254,7 +254,7 @@ be used to reply to the worker."
                    (priority (assq-ref build #:priority))
                    (timeout (assq-ref build #:timeout))
                    (max-silent (assq-ref build #:max-silent)))
-               (when (%debug)
+               (when (and (%debug) worker)
                  (log-message "~a (~a): build ~a submitted."
                               (worker-address worker)
                               (worker-name worker)
@@ -267,7 +267,7 @@ be used to reply to the worker."
                                            #:timeout timeout
                                            #:max-silent max-silent)))
              (begin
-               (when (%debug)
+               (when (and (%debug) worker)
                  (log-message "~a (~a): no available build."
                               (worker-address worker)
                               (worker-name worker)))
@@ -278,10 +278,11 @@ be used to reply to the worker."
     (('build-started ('drv drv) ('worker name))
      (let ((log-file (log-path (%cache-directory) drv))
            (worker (db-get-worker name)))
-       (log-message "~a (~a): build started: '~a'."
-                    (worker-address worker)
-                    (worker-name worker)
-                    drv)
+       (when worker
+         (log-message "~a (~a): build started: '~a'."
+                      (worker-address worker)
+                      (worker-name worker)
+                      drv))
        (db-update-build-worker! drv name)
        (db-update-build-status! drv (build-status started)
                                 #:log-file log-file)))))
