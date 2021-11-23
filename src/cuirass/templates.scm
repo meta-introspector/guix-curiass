@@ -1,6 +1,6 @@
 ;;; templates.scm -- HTTP API
 ;;; Copyright © 2018 Tatiana Sholokhova <tanja201396@gmail.com>
-;;; Copyright © 2018, 2019, 2020 Ludovic Courtès <ludo@gnu.org>
+;;; Copyright © 2018, 2019, 2020, 2021 Ludovic Courtès <ludo@gnu.org>
 ;;; Copyright © 2019, 2020 Ricardo Wurmus <rekado@elephly.net>
 ;;; Copyright © 2020 Mathieu Othacehe <othacehe@gnu.org>
 ;;;
@@ -726,8 +726,13 @@ the existing SPEC otherwise."
                        (aria-hidden "true"))
                     "")))
       (tr (th "Log file")
-          (td (a (@ (href "/build/" ,(assq-ref build #:id) "/log/raw"))
-                 "raw")))
+          (td ,(if (or (= (build-status started) status)
+                       (= (build-status succeeded) status)
+                       (= (build-status failed) status)
+                       (= (build-status canceled) status))
+                   `(a (@ (href "/build/" ,(assq-ref build #:id) "/log/raw"))
+                       "raw")
+                   "—")))
       (tr (th "Derivation")
           (td (pre ,(assq-ref build #:derivation))))
       (tr (th "Dependencies")
@@ -1122,8 +1127,10 @@ and BUILD-MAX are global minimal and maximal (stoptime, rowid) pairs."
       (td ,(assq-ref build #:job))
       (td ,(assq-ref build #:nixname))
       (td ,(assq-ref build #:system))
-      (td (a (@ (href "/build/" ,(assq-ref build #:id) "/log/raw"))
-               "raw"))))
+      (td ,(if completed?
+               `(a (@ (href "/build/" ,(assq-ref build #:id) "/log/raw"))
+                   "raw")
+               "—"))))
 
   (define (build-id build)
     (match build
