@@ -11,7 +11,7 @@ server.
 @copying
 Copyright @copyright{} 2016, 2017 Mathieu Lirzin@*
 Copyright @copyright{} 2017, 2020, 2021 Mathieu Othacehe@*
-Copyright @copyright{} 2018 Ludovic Courtès@*
+Copyright @copyright{} 2018, 2021 Ludovic Courtès@*
 Copyright @copyright{} 2018 Clément Lassieur
 
 @quotation
@@ -287,7 +287,7 @@ Cuirass is proposing a build notification RSS feed at the following
 URL:
 
 @itemize
-@item @url{http://cuirass-url/events/rss[?specification=spec]}
+@item @indicateurl{http://cuirass-url/events/rss[?specification=spec]}
 By default build notifications are sent for all specifications.  If
 the @code{specification} argument is passed, they can be restricted to
 the @var{spec} specification.
@@ -303,7 +303,7 @@ Cuirass is able to generate SVG badges that can be integrated inside
 your favorite forge.
 
 @itemize
-@item @url{http://cuirass-url/jobset/spec/badge.svg?type=0}
+@item @indicateurl{http://cuirass-url/jobset/spec/badge.svg?type=0}
 Generates a badge for the @code{spec} specification.  If no evaluation
 could be found for the @code{spec} specification, an @code{error}
 badge is generated.
@@ -455,7 +455,7 @@ The live build log mechanism of the Web interface.
 
 @item
 The workers status page of the Web inferface accessible at
-@url{http://cuirass-url/workers}.
+@indicateurl{http://cuirass-url/workers}.
 
 @end itemize
 
