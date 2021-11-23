@@ -658,6 +658,10 @@ the existing SPEC otherwise."
     (define status
       (assq-ref build #:status))
 
+    (define completed?
+      (or (= (build-status succeeded) status)
+          (= (build-status failed) status)))
+
     `(tr
       (td (span (@ (class ,(status-class status))
                    (title ,(status-title status))
@@ -667,7 +671,9 @@ the existing SPEC otherwise."
           (a (@ (href "/build/" ,(assq-ref build #:id) "/details"))
              ,(assq-ref build #:id)))
       (td ,(assq-ref build #:nix-name))
-      (td ,(time->string (assq-ref build #:stoptime)))))
+      (td ,(if completed?
+               (time->string (assq-ref build #:stoptime))
+               "—"))))
 
   `((div (@ (class "d-flex flex-row mb-3"))
          (div (@ (class "lead mr-auto"))
