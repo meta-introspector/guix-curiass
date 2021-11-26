@@ -160,6 +160,7 @@ CREATE INDEX Builds_stoptime_id on Builds(stoptime DESC, id DESC);
 CREATE INDEX Builds_status_ts_id on Builds(status DESC, timestamp DESC, id ASC);
 CREATE INDEX Builds_priority_timestamp on Builds(priority ASC, timestamp DESC);
 CREATE INDEX Builds_weather_evaluation ON Builds (weather, evaluation);
+CREATE INDEX Builds_id_job_status_index ON Builds (id DESC, job_name, status);
 CREATE INDEX Jobs_name ON Jobs (name);
 CREATE INDEX Jobs_system_status ON Jobs (system, status);
 CREATE INDEX Jobs_build ON Jobs (build); --speeds up delete cascade.
