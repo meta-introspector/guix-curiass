@@ -50,6 +50,7 @@
             specification-build-outputs
             specification-notifications
             specification-systems
+            specification-is-active?
 
             specification->sexp
             sexp->specification
@@ -169,7 +170,9 @@
   (priority           specification-priority ;integer
                       (default 9))
   (systems            specification-systems ;list of strings
-                      (default (list (%current-system)))))
+                      (default (list (%current-system))))
+  (is-active?         specification-is-active? ;boolean
+                      (default #t)))
 
 (define (specification->sexp spec)
   "Return an sexp describing SPEC."
@@ -180,7 +183,8 @@
                   (notifications ,(specification-notifications spec))
                   (period ,(specification-period spec))
                   (priority ,(specification-priority spec))
-                  (systems ,(specification-systems spec))))
+                  (systems ,(specification-systems spec))
+                  (is-active? ,(specification-is-active? spec))))
 
 (define (sexp->specification sexp)
   "Return the specification corresponding to SEXP."
@@ -192,7 +196,8 @@
                      ('notifications notifications)
                      ('period period)
                      ('priority priority)
-                     ('systems systems))
+                     ('systems systems)
+                     ('is-active? is-active?))
      (specification (name name)
                     (build build)
                     (channels channels)
@@ -200,7 +205,8 @@
                     (notifications notifications)
                     (period period)
                     (priority priority)
-                    (systems systems)))))
+                    (systems systems)
+                    (is-active? is-active?)))))
 
 (define (read-specifications file)
   (let ((modules (make-user-module '((guix channels)

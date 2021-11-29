@@ -432,9 +432,9 @@ system whose names start with " (code "guile-") ":" (br)
                                       " Edit"))
                                (li (@ (role "menuitem"))
                                    (a (@ (class "dropdown-item")
-                                         (href "/admin/specifications/delete/"
+                                         (href "/admin/specifications/deactivate/"
                                                ,(specification-name spec)))
-                                      " Delete"))))))))
+                                      " Deactivate"))))))))
                  specs)))))))
 
 (define* (specification-edit #:optional spec)

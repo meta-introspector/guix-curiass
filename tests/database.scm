@@ -123,6 +123,16 @@
       (specification-build
        (db-get-specification "guix"))))
 
+  (test-assert "db-add-or-update-specification 3"
+    (begin
+      (db-add-or-update-specification
+       (specification
+        (inherit example-spec)
+        (name "tmp")
+        (build 'core)))
+      (db-deactivate-specification "tmp")
+      (not (db-get-specification "tmp"))))
+
   (test-assert "exec-query"
     (begin
       (exec-query (%db) "\

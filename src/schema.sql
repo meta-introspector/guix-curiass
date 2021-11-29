@@ -12,7 +12,8 @@ CREATE TABLE Specifications (
   notifications TEXT NOT NULL,
   period        INTEGER NOT NULL DEFAULT 0,
   priority      INTEGER NOT NULL DEFAULT 0,
-  systems       TEXT NOT NULL
+  systems       TEXT NOT NULL,
+  is_active     INTEGER NOT NULL DEFAULT 1
 );
 
 CREATE TABLE Evaluations (

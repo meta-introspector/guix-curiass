@@ -53,6 +53,7 @@
             read-sql-file
             db-add-checkout
             db-add-or-update-specification
+            db-deactivate-specification
             db-remove-specification
             db-get-specification
             db-get-specifications
@@ -413,11 +414,13 @@ RETURNING (specification, revision);"))
           (build-outputs (map build-output->sexp
                               (specification-build-outputs spec)))
           (notifications (map notification->sexp
-                              (specification-notifications spec))))
+                              (specification-notifications spec)))
+          (bool->int (lambda (bool)
+                       (if bool 1 0))))
       (match (expect-one-row
               (exec-query/bind db "\
 INSERT INTO Specifications (name, build, channels, \
-build_outputs, notifications, period, priority, systems) \
+build_outputs, notifications, period, priority, systems, is_active) \
   VALUES ("
                                (specification-name spec) ", "
                                (specification-build spec) ", "
@@ -426,7 +429,9 @@ build_outputs, notifications, period, priority, systems) \
                                notifications ", "
                                (specification-period spec) ", "
                                (specification-priority spec) ", "
-                               (specification-systems spec) ")
+                               (specification-systems spec) ", "
+                               (bool->int
+                                (specification-is-active? spec)) ")
 ON CONFLICT(name) DO UPDATE
 SET build = " (specification-build spec) ",
 channels = " channels ",
@@ -439,6 +444,12 @@ systems = " (specification-systems spec)
         ((name) name)
         (else #f)))))
 
+(define (db-deactivate-specification name)
+  "Deactivate the specification matching NAME from the database."
+  (with-db-worker-thread db
+    (exec-query/bind db "\
+UPDATE Specifications SET is_active = 0 WHERE name=" name ";")))
+
 (define (db-remove-specification name)
   "Remove the specification matching NAME from the database."
   (with-db-worker-thread db
@@ -449,39 +460,49 @@ DELETE FROM Specifications WHERE name=" name ";")))
   "Retrieve a specification in the database with the given NAME."
   (expect-one-row (db-get-specifications name)))
 
-(define* (db-get-specifications #:optional name)
+(define* (db-get-specifications #:optional name
+                                #:key (filter-inactive? #t))
   (with-db-worker-thread db
     (let loop
         ((rows  (if name
                     (exec-query/bind db "
 SELECT name, build, channels, build_outputs, notifications,\
-period, priority, systems FROM Specifications WHERE name =" name ";")
+period, priority, systems, is_active \
+FROM Specifications WHERE name =" name ";")
                     (exec-query db "
 SELECT name, build, channels, build_outputs, notifications,\
-period, priority, systems FROM Specifications ORDER BY name ASC;")))
+period, priority, systems, is_active \
+FROM Specifications ORDER BY name ASC;")))
          (specs '()))
       (match rows
         (() (reverse specs))
         (((name build channels build-outputs notifications
-                period priority systems)
+                period priority systems is-active?)
           . rest)
          (loop rest
-               (cons (specification
-                      (name name)
-                      (build (with-input-from-string build read))
-                      (channels
-                       (map sexp->channel*
-                            (with-input-from-string channels read)))
-                      (build-outputs
-                       (map sexp->build-output
-                            (with-input-from-string build-outputs read)))
-                      (notifications
-                       (map sexp->notification
-                            (with-input-from-string notifications read)))
-                      (period (string->number period))
-                      (priority (string->number priority))
-                      (systems (with-input-from-string systems read)))
-                     specs)))))))
+               (let ((is-active?
+                      (eq? (with-input-from-string is-active? read) 1)))
+                 (if (and filter-inactive?
+                          (not is-active?))
+                     specs
+                     (cons
+                      (specification
+                       (name name)
+                       (build (with-input-from-string build read))
+                       (channels
+                        (map sexp->channel*
+                             (with-input-from-string channels read)))
+                       (build-outputs
+                        (map sexp->build-output
+                             (with-input-from-string build-outputs read)))
+                       (notifications
+                        (map sexp->notification
+                             (with-input-from-string notifications read)))
+                       (period (string->number period))
+                       (priority (string->number priority))
+                       (systems (with-input-from-string systems read))
+                       (is-active? is-active?))
+                      specs)))))))))
 
 (define-enumeration evaluation-status
   (started          -1)

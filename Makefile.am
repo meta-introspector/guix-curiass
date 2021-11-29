@@ -102,7 +102,8 @@ dist_sql_DATA = 				\
   src/sql/upgrade-11.sql			\
   src/sql/upgrade-12.sql			\
   src/sql/upgrade-13.sql			\
-  src/sql/upgrade-14.sql
+  src/sql/upgrade-14.sql			\
+  src/sql/upgrade-15.sql
 
 dist_css_DATA =					\
   src/static/css/choices.min.css		\

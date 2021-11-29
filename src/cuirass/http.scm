@@ -644,6 +644,13 @@ passed, only display JOBS targeting this SYSTEM."
                         `((location . ,(string->uri-reference "/"))))
         #:body "")))
 
+    (('GET "admin" "specifications" "deactivate" name)
+     (db-deactivate-specification name)
+     (respond
+      (build-response #:code 302
+                      #:headers
+                      `((location . ,(string->uri-reference "/"))))
+      #:body ""))
     (('GET "admin" "specifications" "delete" name)
      (db-remove-specification name)
      (respond
