@@ -340,7 +340,7 @@ and executing them.  The worker can reply on the same socket."
          (ready socket worker)
          (worker-ping worker server)
          (let loop ()
-           (info (G_ "~a: request work.~%") (worker-name worker))
+           (info (G_ "~a: request work.~%") (worker-name wrk))
            (request-work socket worker)
            (match (zmq-get-msg-parts-bytevector socket '())
              ((empty command)
