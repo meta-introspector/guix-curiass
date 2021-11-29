@@ -242,7 +242,7 @@ command.  REPLY is a procedure that can be used to reply to this server."
                 #:timeout timeout
                 #:max-silent max-silent))
     (('no-build)
-     (info (G_ "No available build.~%") drv)
+     (info (G_ "No available build.~%"))
      #t)))
 
 (define (worker-ping worker server)
