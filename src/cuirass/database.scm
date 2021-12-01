@@ -1561,12 +1561,19 @@ WHERE status = 0 AND specification =  " spec
       ((eval) (and eval (string->number eval)))
       (else #f))))
 
-(define (db-get-latest-evaluations)
-  "Return the latest successful evaluation for each specification."
+(define* (db-get-latest-evaluations
+          #:key (status (evaluation-status succeeded)))
+  "Return the latest evaluation for each specification. Only consider
+evaluations with the given STATUS.  If status is #f, the latest evaluation is
+returned regardless of its status."
   (with-db-worker-thread db
-    (let loop ((rows (exec-query db "
+    (let loop ((rows (if status
+                         (exec-query/bind db "
 SELECT specification, max(id) FROM Evaluations
-WHERE status = 0 GROUP BY Evaluations.specification;"))
+WHERE status = " status " GROUP BY Evaluations.specification;")
+                        (exec-query/bind db "
+SELECT specification, max(id) FROM Evaluations
+GROUP BY Evaluations.specification;") ))
                (evaluations '()))
       (match rows
         (() (reverse evaluations))
@@ -1575,7 +1582,8 @@ WHERE status = 0 GROUP BY Evaluations.specification;"))
          (loop rest
                (cons `((#:specification . ,specification)
                        (#:evaluation
-                        . ,(string->number evaluation)))
+                        . ,(and=> (string->number evaluation)
+                                  db-get-evaluation)))
                      evaluations)))))))
 
 (define (db-get-evaluation-summary id)

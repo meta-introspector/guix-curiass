@@ -386,7 +386,13 @@ timestamp, checkouttime, evaltime) VALUES ('guix', 0, 0, 0, 0);")
     4
     (match (db-get-latest-evaluations)
       ((eval)
-       (assq-ref eval #:evaluation))))
+       (assq-ref (assq-ref eval #:evaluation) #:id))))
+
+  (test-equal "db-get-latest-evaluations 2"
+    4
+    (match (db-get-latest-evaluations #:status #f)
+      ((eval)
+       (assq-ref (assq-ref eval #:evaluation) #:id))))
 
   (test-equal "db-get-evaluation-summary"
     '(2 0 1 1)

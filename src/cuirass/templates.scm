@@ -252,16 +252,24 @@ system whose names start with " (code "guile-") ":" (br)
    (else
     "Invalid status")))
 
-(define (specifications-table specs evaluations summaries)
-  (define (spec->latest-eval name)
+(define (specifications-table specs evaluations summaries latest-evaluations)
+  (define (spec->latest-eval-ok name)
     (find (lambda (s)
             (string=? (assq-ref s #:specification) name))
           evaluations))
 
+  (define (spec->latest-eval name)
+    (any (lambda (s)
+           (and (string=? (assq-ref s #:specification) name)
+                (assq-ref s #:evaluation)))
+          latest-evaluations))
+
   (define (eval-summary eval)
     (find (lambda (s)
             (eq? (assq-ref s #:evaluation)
-                 (assq-ref eval #:evaluation)))
+                 (assq-ref
+                  (assq-ref eval #:evaluation)
+                  #:id)))
           summaries))
 
   (define (summary->percentage summary)
@@ -352,50 +360,60 @@ system whose names start with " (code "guile-") ":" (br)
                        (style "vertical-align: middle"))
                       ,@(let* ((summary
                                 (eval-summary
-                                 (spec->latest-eval
+                                 (spec->latest-eval-ok
                                   (specification-name spec))))
+                               (last-eval
+                                (spec->latest-eval
+                                 (specification-name spec)))
+                               (last-eval-status-ok?
+                                (<= (assq-ref last-eval #:status)
+                                    (evaluation-status succeeded)))
                                (percentage
                                 (and summary (summary->percentage summary)))
                                (style
                                    (format #f "width: ~a%" percentage)))
-                          (if summary
-                              `((div
-                                 (@ (class "progress job-abs")
-                                    (title "Percentage succeeded"))
-                                 (div (@ (class "progress-bar")
-                                         (role "progressbar")
-                                         (style ,style)
-                                         (aria-valuemin "0")
-                                         (aria-valuemax "100"))
-                                      (strong
-                                       (span
-                                        (@ (class "text-dark"))
-                                        ,percentage
-                                        "%"))))
-                                " "
-                                (div
-                                 (@ (class "job-rel d-none"))
-                                 (div
-                                  (@ (class "badge badge-success")
-                                     (title "Succeeded"))
-                                  ,(assq-ref summary #:succeeded))
-                                 (div
-                                  (@ (class "badge badge-danger")
-                                     (title "Failed"))
-                                  ,(assq-ref summary #:failed))
-                                 (div
-                                  (@ (class "badge badge-secondary")
-                                     (title "Scheduled"))
-                                  ,(assq-ref summary #:scheduled))))
-                              '())))
+                          (cond
+                           ((and summary last-eval-status-ok?)
+                            `((div
+                               (@ (class "progress job-abs")
+                                  (title "Percentage succeeded"))
+                               (div (@ (class "progress-bar")
+                                       (role "progressbar")
+                                       (style ,style)
+                                       (aria-valuemin "0")
+                                       (aria-valuemax "100"))
+                                    (strong
+                                     (span
+                                      (@ (class "text-dark"))
+                                      ,percentage
+                                      "%"))))
+                              " "
+                              (div
+                               (@ (class "job-rel d-none"))
+                               (div
+                                (@ (class "badge badge-success")
+                                   (title "Succeeded"))
+                                ,(assq-ref summary #:succeeded))
+                               (div
+                                (@ (class "badge badge-danger")
+                                   (title "Failed"))
+                                ,(assq-ref summary #:failed))
+                               (div
+                                (@ (class "badge badge-secondary")
+                                   (title "Scheduled"))
+                                ,(assq-ref summary #:scheduled)))))
+                           ((not last-eval-status-ok?)
+                            `((center
+                               ,@(evaluation-badges last-eval #f))))
+                           (else '()))))
                      (td
                       ,@(let* ((name (specification-name spec))
                                (dashboard-name
                                 (string-append "Dashboard " name))
-                               (eval (and=> (spec->latest-eval name)
+                               (eval (and=> (spec->latest-eval-ok name)
                                             (cut assq-ref <> #:evaluation))))
                           (if eval
-                              `((a (@ (href "/eval/" ,eval
+                              `((a (@ (href "/eval/" ,(assq-ref eval #:id)
                                             "/dashboard"))
                                    (div
                                     (@ (class "oi oi-monitor d-inline-block ml-2")

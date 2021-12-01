@@ -889,8 +889,13 @@ passed, only display JOBS targeting this SYSTEM."
                        evals
                        (db-get-evaluations-absolute-summary
                         (map (lambda (e)
-                               `((#:id . ,(assq-ref e #:evaluation))))
-                             evals))))
+                               `((#:id . ,(assq-ref
+                                           (assq-ref e #:evaluation)
+                                           #:id))))
+                             evals))
+                       ;; Get all the latest evaluations, regardless of their
+                       ;; status.
+                       (db-get-latest-evaluations #:status #f)))
                     '())))
     (('GET "dashboard" id)
      (let ((dashboard (db-get-dashboard id)))
