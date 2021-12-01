@@ -65,6 +65,8 @@ $(document).ready(function() {
 
     /* Dashboard page. */
     $(function(){
+        var cache_data;
+
         if ($("#get-dashboard").length > 0) {
             function enableLoadButton() {
                 $('#load-btn').removeAttr('disabled');
@@ -107,67 +109,86 @@ $(document).ready(function() {
                 return Math.round(Number(width));
             }
 
+            function drawPage(data) {
+                var width = svgWidth();
+                var circle_radius = radius(data.length);
+                var margin_x = circle_radius;
+                var margin_y = circle_radius;
+                var margin_circle_x = 3;
+                var margin_circle_y = (2.5 * circle_radius);
+                var circle_count_x =
+                    Math.floor((width - 2 * margin_x) /
+                               ((2 * circle_radius) + margin_circle_x));
+                var height = ((data.length / circle_count_x) *
+                              margin_circle_y) +
+                    circle_radius + 2 * margin_y;
+
+                var div = d3.select('body').append('div')
+                    .attr('class', 'tooltip')
+                    .style('opacity', 0);
+                var svg = d3.select('#content').append('svg')
+                    .attr('width', width)
+                    .attr('height', height);
+
+                var circles = svg.append('g')
+                    .selectAll('circle')
+                    .data(data)
+                    .enter()
+                    .append('a')
+                    .attr('xlink:href', d => '/build/' + d.build + '/details')
+                    .append('circle')
+                    .attr('r', circle_radius)
+                    .attr('cx', function(d, i) {
+                        return margin_x +
+                            (i % circle_count_x)
+                            * (circle_radius * 2 + margin_circle_x);
+                    })
+                    .attr('cy', function (d, i) {
+                        return margin_y + Math.floor(i / circle_count_x)
+                            * margin_circle_y;
+                    })
+                    .style('fill', d => color(d.status))
+                    .on('mouseover', function(event, d) {
+                        var circle = d3.select(this)
+                            .style('fill', 'steelblue');
+                        div.style('opacity', .9);
+                        div.html(d.name)
+                            .style('left', (event.pageX + 30) + 'px')
+                            .style('top', (event.pageY - 30) + 'px');
+                    })
+                    .on('mouseout', function(event, d) {
+                        var circle = d3.select(this)
+                            .style('fill', color(d.status));
+                        div.style('opacity', 0);
+                        div.html('')
+                            .style('left', '0px')
+                            .style('top', '0px');
+                    })
+                enableLoadButton();
+            }
+
+            function filterSvg(str) {
+                d3.selectAll("svg").remove();
+                drawPage(cache_data.filter(function (c, i) {
+                    return c.name.includes(str);
+                }));
+            }
+
             function initSvg(jobs) {
                 d3.json(jobs).then(function (data) {
-                    var width = svgWidth();
-                    var circle_radius = radius(data.length);
-                    var margin_x = circle_radius;
-                    var margin_y = circle_radius;
-                    var margin_circle_x = 3;
-                    var margin_circle_y = (2.5 * circle_radius);
-                    var circle_count_x =
-                        Math.floor((width - 2 * margin_x) /
-                                   ((2 * circle_radius) + margin_circle_x));
-                    var height = ((data.length / circle_count_x) *
-                                  margin_circle_y) +
-                        circle_radius + 2 * margin_y;
-
-                    var div = d3.select('body').append('div')
-                        .attr('class', 'tooltip')
-                        .style('opacity', 0);
-                    var svg = d3.select('#content').append('svg')
-                        .attr('width', width)
-                        .attr('height', height);
-                    var circles = svg.append('g')
-                        .selectAll('circle')
-                        .data(data)
-                        .enter()
-                        .append('a')
-                        .attr('xlink:href', d => '/build/' + d.build + '/details')
-                        .append('circle')
-                        .attr('r', circle_radius)
-                        .attr('cx', function(d, i) {
-                            return margin_x +
-                                (i % circle_count_x)
-                                * (circle_radius * 2 + margin_circle_x);
-                        })
-                        .attr('cy', function (d, i) {
-                            return margin_y + Math.floor(i / circle_count_x)
-                                * margin_circle_y;
-                        })
-                        .style('fill', d => color(d.status))
-                        .on('mouseover', function(event, d) {
-                            var circle = d3.select(this)
-                                .style('fill', 'steelblue');
-                            div.style('opacity', .9);
-                            div.html(d.name)
-                                .style('left', (event.pageX + 30) + 'px')
-                                .style('top', (event.pageY - 30) + 'px');
-                        })
-                        .on('mouseout', function(event, d) {
-                            var circle = d3.select(this)
-                                .style('fill', color(d.status));
-                            div.style('opacity', 0);
-                            div.html('')
-                                .style('left', '0px')
-                                .style('top', '0px');
-                        })
-                    enableLoadButton();
+                    cache_data = data;
+                    drawPage(data);
                 });
             }
 
+            $('#query-jobs').on('input', function(e){
+                filterSvg($(this).val());
+            });
+
             var dashboard = $('#dashboard');
             initSvg(dashboard.attr('url'));
+
+            window.filterSvg = filterSvg;
         }
     });
 
