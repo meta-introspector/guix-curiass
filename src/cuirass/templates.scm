@@ -371,8 +371,9 @@ system whose names start with " (code "guile-") ":" (br)
                                 (spec->latest-eval
                                  (specification-name spec)))
                                (last-eval-status-ok?
-                                (<= (assq-ref last-eval #:status)
-                                    (evaluation-status succeeded)))
+                                (and last-eval
+                                     (<= (assq-ref last-eval #:status)
+                                         (evaluation-status succeeded))))
                                (percentage
                                 (and summary (summary->percentage summary)))
                                (style
@@ -407,7 +408,7 @@ system whose names start with " (code "guile-") ":" (br)
                                 (@ (class "badge badge-secondary")
                                    (title "Scheduled"))
                                 ,(assq-ref summary #:scheduled)))))
-                           ((not last-eval-status-ok?)
+                           ((and last-eval (not last-eval-status-ok?))
                             `((center
                                ,@(evaluation-badges last-eval #f))))
                            (else '()))))
