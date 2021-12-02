@@ -54,7 +54,8 @@
             workers-status
             machine-status
             evaluation-dashboard
-            badge-svg))
+            badge-svg
+            javascript-licenses))
 
 (define (navigation-items navigation)
   (match navigation
@@ -148,6 +149,10 @@ system whose names start with " (code "guile-") ":" (br)
           (title ,title))
          (body
           (header
+           (a (@ (href "/static/about/javascript")
+                 (rel "jslicense")
+                 (class "d-none"))
+              "Javascript license information")
            (nav (@ (class "navbar navbar-expand-lg navbar-light bg-light"))
                 (a (@ (class "navbar-brand pt-0")
                       (href "/"))
@@ -2003,3 +2008,43 @@ content as a string."
              `(("X%" ,percentage-str)
                ("_name" ,spec))))))
       (badge-string "badge-error.svg")))
+
+(define (javascript-licenses)
+  "Return the Javascript licenses table, for compatibility with LibreJS. See:
+https://www.gnu.org/software/librejs/free-your-javascript.html."
+  '((table
+     (@ (id "jslicense-labels1"))
+     (tr
+      (td (a (@ (href "/static/js/popper.min.js")) "popper.min.js"))
+      (td (a (@ (href "https://github.com/popperjs/popper-core/blob/master/LICENSE.md"))
+             "Expat"))
+      (td (a (@ (href "/static/js/popper.min.js")) "popper.js") ))
+     (tr
+      (td (a (@ (href "/static/js/datatables.min.js")) "datatables.min.js"))
+      (td (a (@ (href "https://datatables.net/license/mit")) "Expat"))
+      (td (a (@ (href "https://cdn.datatables.net/1.10.24/js/dataTables.bootstrap.js"))
+             "dataTables.bootstrap.js")))
+     (tr
+      (td (a (@ (href "/static/js/d3.v6.min.js")) "d3.v6.min.js"))
+      (td (a (@ (href "https://raw.githubusercontent.com/d3/d3/main/LICENSE"))
+             "BSD-3-Clause"))
+      (td (a (@ (href "https://github.com/d3/d3/releases/tag/v6.6.2"))
+             "d3.js")))
+     (tr
+      (td (a (@ (href "/static/js/choices.min.js")) "choices.min.js"))
+      (td (a (@ (href "https://github.com/Choices-js/Choices/blob/master/LICENSE"))
+             "Expat"))
+      (td (a (@ (href "http://libs.wware.org/choices.js/9.0.1/scripts/choices.js"))
+             "choices.js")))
+     (tr
+      (td (a (@ (href "/static/js/chart.js")) "chart.js"))
+      (td (a (@ (href "https://github.com/chartjs/Chart.js/blob/master/LICENSE.md"))
+             "Expat"))
+      (td (a (@ (href "https://github.com/chartjs/Chart.js/releases/tag/v2.9.3"))
+             "Chart.js")))
+     (tr
+      (td (a (@ (href "/static/js/bootstrap.min.js")) "bootstrap.min.js"))
+      (td (a (@ (href "https://github.com/twbs/bootstrap/blob/master/LICENSE"))
+             "Expat"))
+      (td (a (@ (href "https://github.com/twbs/bootstrap/releases/download/v4.2.1/bootstrap-4.2.1-dist.zip"))
+             "bootstrap.js"))))))

@@ -1140,6 +1140,10 @@ passed, only display JOBS targeting this SYSTEM."
      (respond-html
       (machine-page name)))
 
+    (('GET "static" "about" "javascript")
+     (respond-html
+      (javascript-licenses)))
+
     (('GET "static" path ...)
      (respond-static-file path))
     (_
