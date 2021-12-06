@@ -36,6 +36,7 @@
   #:use-module (guix packages)
   #:use-module (guix pki)
   #:use-module (guix scripts)
+  #:use-module (guix serialization)
   #:use-module ((guix store)
                 #:select (current-build-output-port
                           ensure-path
