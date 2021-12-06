@@ -184,14 +184,20 @@ computed as its modification time + TTL seconds."
   "Register GC roots for the outputs of the given DRV when MODE is 'outputs or
 for DRV itself when MODE is 'derivation.  Also remove the expired GC roots if
 any."
-  (case mode
-    ((outputs)
-     (for-each (match-lambda
-                 ((name . output)
-                  (register-gc-root output)))
-               (derivation-path->output-paths drv)))
-    ((derivation)
-     (register-gc-root drv)))
+  (catch 'system-error
+    (lambda ()
+      (case mode
+        ((outputs)
+         (for-each (match-lambda
+                     ((name . output)
+                      (register-gc-root output)))
+                   (derivation-path->output-paths drv)))
+        ((derivation)
+         (register-gc-root drv))))
+    (lambda args
+      (unless (= ENOENT (system-error-errno args)) ;collected in the meantime
+        (apply throw args))))
+
   (maybe-remove-expired-cache-entries (%gc-root-directory)
                                       gc-roots
                                       #:entry-expiration

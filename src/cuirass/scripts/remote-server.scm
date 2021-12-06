@@ -376,10 +376,7 @@ directory."
             (when (> duration 60)
               (log-message "fetching '~a' took ~a seconds."
                            drv duration)))))
-       ;; The derivation may have been GC'ed by that time. Do not try to
-       ;; register its outputs in that case.
-       (when (file-exists? drv)
-         (register-gc-roots drv))
+       (register-gc-roots drv)
 
        ;; Force the baking of the NAR substitutes so that the first client
        ;; doesn't receive a 404 error.
