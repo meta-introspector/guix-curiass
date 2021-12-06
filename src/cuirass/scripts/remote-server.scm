@@ -325,6 +325,15 @@ be used to reply to the worker."
              #f))
     (ensure-path store output)))
 
+(define (trigger-substitutes-baking output url)
+  (let* ((store-hash (strip-store-prefix output))
+         (narinfo-url (publish-narinfo-url url store-hash)))
+    (when (%debug)
+      (log-message "Bake: ~a" narinfo-url))
+    (call-with-temporary-output-file
+     (lambda (tmp-file port)
+       (url-fetch* narinfo-url tmp-file)))))
+
 (define (add-to-store outputs url)
   "Add the OUTPUTS that are available from the substitute server at URL to the
 store."
@@ -342,15 +351,6 @@ store."
                 (trigger-substitutes-baking output
                                             (%trigger-substitute-url)))))
        (map derivation-output-path outputs)))))
-
-(define (trigger-substitutes-baking output url)
-  (let* ((store-hash (strip-store-prefix output))
-         (narinfo-url (publish-narinfo-url url store-hash)))
-    (when (%debug)
-      (log-message "Bake: ~a" narinfo-url))
-    (call-with-temporary-output-file
-     (lambda (tmp-file port)
-       (url-fetch* narinfo-url tmp-file)))))
 
 (define (need-fetching? message)
   "Return #t if the received MESSAGE implies that some output fetching is
