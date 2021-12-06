@@ -330,27 +330,38 @@ store."
   (parameterize ((current-build-output-port (%make-void-port "w")))
     (with-store store
       (set-build-options* store (list url))
-      (for-each (lambda (output)
-                  (ensure-path* store output))
-                (map derivation-output-path outputs)))))
+      (for-each
+       (lambda (output)
+         (and (ensure-path* store output)
+              (register-gc-roots drv)
 
-(define (trigger-substitutes-baking outputs url)
-  (for-each (lambda (output)
-              (let* ((path (derivation-output-path output))
-                     (store-hash (strip-store-prefix path))
-                     (narinfo-url (publish-narinfo-url url store-hash)))
-                (call-with-temporary-output-file
-                 (lambda (tmp-file port)
-                   (url-fetch* narinfo-url tmp-file)))))
-            outputs))
+              ;; Force the baking of the NAR substitutes so that the
+              ;; first client doesn't receive a 404 error.
+              (when (%trigger-substitute-url)
+                (trigger-substitutes-baking output
+                                            (%trigger-substitute-url)))))
+       (map derivation-output-path outputs)))))
+
+(define (trigger-substitutes-baking output url)
+  (let* ((store-hash (strip-store-prefix output))
+         (narinfo-url (publish-narinfo-url url store-hash)))
+    (when (%debug)
+      (log-message "Bake: ~a" narinfo-url))
+    (call-with-temporary-output-file
+     (lambda (tmp-file port)
+       (url-fetch* narinfo-url tmp-file)))))
 
 (define (need-fetching? message)
   "Return #t if the received MESSAGE implies that some output fetching is
 required and #f otherwise."
   (match (zmq-read-message message)
-    (('build-succeeded _ ...)
+    (('build-succeeded ('drv drv) _ ...)
+     (when (%debug)
+       (log-message "Fetching required for ~a (success)" drv))
      #t)
-    (('build-failed _ ...)
+    (('build-failed ('drv drv) _ ...)
+     (when (%debug)
+       (log-message "Fetching required for ~a (fail)" drv))
      #t)
     (else #f)))
 
@@ -381,13 +392,6 @@ directory."
             (when (> duration 60)
               (log-message "fetching '~a' took ~a seconds."
                            drv duration)))))
-       (register-gc-roots drv)
-
-       ;; Force the baking of the NAR substitutes so that the first client
-       ;; doesn't receive a 404 error.
-       (when (%trigger-substitute-url)
-         (trigger-substitutes-baking outputs (%trigger-substitute-url)))
-
        (log-message "build succeeded: '~a'" drv)
        (set-build-successful! drv)))
     (('build-failed ('drv drv) ('url url) _ ...)
