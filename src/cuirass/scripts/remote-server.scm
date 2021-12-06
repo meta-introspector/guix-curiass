@@ -334,9 +334,10 @@ be used to reply to the worker."
      (lambda (tmp-file port)
        (url-fetch* narinfo-url tmp-file)))))
 
-(define (add-to-store outputs url)
+(define (add-to-store drv outputs url)
   "Add the OUTPUTS that are available from the substitute server at URL to the
-store."
+store.  Register GC roots for the matching DRV and trigger a substitute baking
+at URL."
   (parameterize ((current-build-output-port (%make-void-port "w")))
     (with-store store
       (set-build-options* store (list url))
@@ -386,7 +387,7 @@ directory."
        (log-message "fetching '~a' from ~a" drv url)
        (call-with-time
         (lambda ()
-          (add-to-store outputs url))
+          (add-to-store drv outputs url))
         (lambda (time result)
           (let ((duration (+ (time-second time)
                              (/ (time-nanosecond time) 1e9))))
