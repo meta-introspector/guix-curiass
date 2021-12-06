@@ -317,7 +317,7 @@ be used to reply to the worker."
 (define (ensure-path* store output)
   (guard (c ((store-protocol-error? c)
              (log-message "Failed to add ~a to store: store protocol error." output)
-             (log-message "The remote-worker signing key might be authorized.")
+             (log-message "The remote-worker signing key might not be authorized.")
              #f)
             ((nar-error? c)
              (log-message "Failed to add ~a to store: nar error." output)
