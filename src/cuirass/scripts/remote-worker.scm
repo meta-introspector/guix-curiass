@@ -205,9 +205,8 @@ still be substituted."
                           #:max-silent max-silent)
       (reply (zmq-build-started-message drv name))
       (guard (c ((store-protocol-error? c)
-                 (log-message (G_ "~a: derivation `~a' build failed: ~a")
-                       name
-                       drv (store-protocol-error-message c))
+                 (log-info (G_ "~a: derivation `~a' build failed: ~a")
+                           name drv (store-protocol-error-message c))
                  (reply (zmq-build-failed-message drv local-publish-url))))
         (let ((result
                (let-values (((port finish)
@@ -217,13 +216,13 @@ still be substituted."
                  (finish))))
           (if result
               (begin
-                (log-message (G_ "~a: derivation ~a build succeeded.")
-                             name drv)
+                (log-info (G_ "~a: derivation ~a build succeeded.")
+                          name drv)
                 (register-gc-roots drv)
                 (reply (zmq-build-succeeded-message drv local-publish-url)))
               (begin
-                (log-message (G_ "~a: derivation ~a build failed.")
-                             name drv)
+                (log-info (G_ "~a: derivation ~a build failed.")
+                          name drv)
                 (reply
                  (zmq-build-failed-message drv local-publish-url)))))))))
 
@@ -239,16 +238,16 @@ command.  REPLY is a procedure that can be used to reply to this server."
              ('max-silent max-silent)
              ('timestamp timestamp)
              ('system system))
-     (log-message (G_ "~a: building `~a' derivation.")
-           (worker-name worker) drv)
+     (log-info (G_ "~a: building `~a' derivation.")
+               (worker-name worker) drv)
      (run-build drv server
                 #:reply reply
                 #:worker worker
                 #:timeout timeout
                 #:max-silent max-silent))
     (('no-build)
-     (log-message (G_ "~a: no available build.")
-           (worker-name worker))
+     (log-info (G_ "~a: no available build.")
+               (worker-name worker))
      #t)))
 
 (define (worker-ping worker server)
@@ -267,7 +266,7 @@ command.  REPLY is a procedure that can be used to reply to this server."
             (endpoint (zmq-backend-endpoint address port)))
        (zmq-connect socket endpoint)
        (let loop ()
-         (log-message (G_ "~a: ping ~a.") (worker-name worker) endpoint)
+         (log-info (G_ "~a: ping ~a.") (worker-name worker) endpoint)
          (ping socket)
          (sleep 60)
          (loop))))))
@@ -346,7 +345,7 @@ and executing them.  The worker can reply on the same socket."
          (ready socket worker)
          (worker-ping worker server)
          (let loop ()
-           (log-message (G_ "~a: request work.") (worker-name wrk))
+           (log-info (G_ "~a: request work.") (worker-name wrk))
            (request-work socket worker)
            (match (zmq-get-msg-parts-bytevector socket '())
              ((empty command)

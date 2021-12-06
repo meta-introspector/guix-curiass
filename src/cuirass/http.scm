@@ -600,8 +600,8 @@ passed, only display JOBS targeting this SYSTEM."
              #:body (string-append "Resource not found: "
                                    resource_name)))
 
-  (log-message "~a ~a" (request-method request)
-               (uri-path (request-uri request)))
+  (log-info "~a ~a" (request-method request)
+            (uri-path (request-uri request)))
 
   (match (cons (request-method request)
                (request-path-components request))
@@ -1153,7 +1153,7 @@ passed, only display JOBS targeting this SYSTEM."
   (let* ((host-info  (gethostbyname host))
          (address    (inet-ntop (hostent:addrtype host-info)
                                 (car (hostent:addr-list host-info)))))
-    (log-message "listening on ~A:~A" address port)
+    (log-info "listening on ~A:~A" address port)
 
     ;; Here we use our own web backend, call 'fiberized'.  We cannot use the
     ;; 'fibers' backend that comes with Fibers 1.0.0 because it does its own

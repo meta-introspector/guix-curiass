@@ -285,13 +285,13 @@ DB is bound to the argument of that critical section: the database connection."
      #:send-timeout send-timeout
      #:send-timeout-proc
      (lambda ()
-       (log-message
+       (log-warning
         (format #f "No available database workers for ~a seconds."
                 (number->string send-timeout))))
      #:receive-timeout receive-timeout
      #:receive-timeout-proc
      (lambda ()
-       (log-message
+       (log-warning
         (format #f "Database worker unresponsive for ~a seconds (~a)."
                 (number->string receive-timeout)
                 caller-name))))))
@@ -931,7 +931,7 @@ WHERE Builds.status = " (build-status scheduled)
       (db-add-build-dependencies drv inputs)))
 
   (with-db-worker-thread db
-    (log-message "Registering builds for evaluation ~a." eval-id)
+    (log-info "Registering builds for evaluation ~a." eval-id)
     (exec-query db "BEGIN TRANSACTION;")
     (let ((new-jobs (filter-map register jobs)))
       ;; Register build dependencies after registering all the evaluation

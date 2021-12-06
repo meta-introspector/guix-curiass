@@ -384,8 +384,8 @@ for periodical metrics for instance."
            (value (compute-metric metric field)))
       (if value
           (begin
-            (log-message "Updating metric ~a (~a) to ~a."
-                         (symbol->string id) field value)
+            (log-info "Updating metric ~a (~a) to ~a."
+                      (symbol->string id) field value)
             (exec-query/bind db "\
 INSERT INTO Metrics (field, type, value, timestamp) VALUES ("
                              field ", " (metric->type metric) ", "
@@ -393,7 +393,7 @@ INSERT INTO Metrics (field, type, value, timestamp) VALUES ("
                              now ")
 ON CONFLICT ON CONSTRAINT metrics_pkey DO
 UPDATE SET value = " value ", timestamp = " now ";"))
-          (log-message "Failed to compute metric ~a (~a)."
+          (log-warning "Failed to compute metric ~a (~a)."
                        (symbol->string id) field)))))
 
 (define (db-update-metrics)

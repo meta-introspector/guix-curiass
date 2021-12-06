@@ -291,9 +291,9 @@ die silently while the rest of the program keeps going."
       (lambda (key . args)
         ;; If something goes wrong in this fiber, we have a problem, so stop
         ;; everything.
-        (log-message "fatal: uncaught exception '~a' in '~a' fiber!"
-                     key name)
-        (log-message "exception arguments: ~s" args)
+        (log-error "fatal: uncaught exception '~a' in '~a' fiber!"
+                   key name)
+        (log-error "exception arguments: ~s" args)
 
         (false-if-exception
          (let ((stack (make-stack #t)))

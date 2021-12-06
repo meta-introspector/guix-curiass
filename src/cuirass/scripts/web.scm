@@ -92,7 +92,7 @@
                              (min (current-processor-count) 4))))
           (prepare-git)
 
-          (log-message "running Fibers on ~a kernel threads" threads)
+          (log-info "running Fibers on ~a kernel threads" threads)
           (run-fibers
            (lambda ()
              (with-database

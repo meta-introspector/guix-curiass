@@ -60,7 +60,7 @@ printed."
                ((scheduler . time)
                 (let ((diff-ping (- cur-time time)))
                   (when (> diff-ping timeout)
-                    (log-message "Scheduler ~a blocked since ~a seconds."
+                    (log-warning "Scheduler ~a blocked since ~a seconds."
                                  scheduler diff-ping)))))
              pings)
             cur-time)

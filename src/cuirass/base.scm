@@ -311,7 +311,7 @@ Return a list of jobs that are associated to EVAL-ID."
     (close-port (cdr log-pipe))
     (close-pipe port)
     (let ((spec-name (specification-name spec)))
-      (log-message "evaluation ~a for '~a' completed" eval-id spec-name))))
+      (log-info "evaluation ~a for '~a' completed" eval-id spec-name))))
 
 
 ;;;
@@ -473,26 +473,26 @@ items."
 
   (define total (length drv))
 
-  (log-message "building ~a derivations in batches of ~a"
-               total max-batch-size)
+  (log-info "building ~a derivations in batches of ~a"
+            total max-batch-size)
 
   ;; Shuffle DRV so that we don't build sequentially i686/x86_64/aarch64,
   ;; master/core-updates, etc., which would be suboptimal.
   (let loop ((drv   (shuffle-derivations drv))
              (count total))
     (if (zero? count)
-        (log-message "done with ~a derivations" total)
+        (log-info "done with ~a derivations" total)
         (let*-values (((batch rest)
                        (if (> count max-batch-size)
                            (split-at drv max-batch-size)
                            (values drv '()))))
           (guard (c ((store-protocol-error? c)
-                     (log-message "batch of builds (partially) failed: \
+                     (log-error "batch of builds (partially) failed: \
 ~a (status: ~a)"
-                                  (store-protocol-error-message c)
-                                  (store-protocol-error-status c))))
-            (log-message "building batch of ~a derivations (~a/~a)"
-                         max-batch-size (- total count) total)
+                                (store-protocol-error-message c)
+                                (store-protocol-error-status c))))
+            (log-info "building batch of ~a derivations (~a/~a)"
+                      max-batch-size (- total count) total)
             (let-values (((port finish)
                           (build-derivations& store batch)))
               (process-build-log port
@@ -531,32 +531,32 @@ updating the database accordingly."
     (('build-started drv _ ...)
      (if (valid? drv)
          (begin
-           (log-message "build started: '~a'" drv)
+           (log-error "build started: '~a'" drv)
            (db-update-build-status! drv (build-status started)
                                     #:log-file (log-file store drv)))
-         (log-message "bogus build-started event for '~a'" drv)))
+         (log-error "bogus build-started event for '~a'" drv)))
     (('build-remote drv host _ ...)
-     (log-message "'~a' offloaded to '~a'" drv host)
+     (log-error "'~a' offloaded to '~a'" drv host)
      (db-update-build-worker! drv host))
     (('build-succeeded drv _ ...)
      (if (valid? drv)
          (begin
-           (log-message "build succeeded: '~a'" drv)
+           (log-error "build succeeded: '~a'" drv)
            (set-build-successful! drv)
            (register-gc-roots drv))
-         (log-message "bogus build-succeeded event for '~a'" drv)))
+         (log-error "bogus build-succeeded event for '~a'" drv)))
     (('build-failed drv _ ...)
      (if (valid? drv)
          (begin
-           (log-message "build failed: '~a'" drv)
+           (log-error "build failed: '~a'" drv)
            (db-update-build-status! drv (build-status failed)))
-         (log-message "bogus build-failed event for '~a'" drv)))
+         (log-error "bogus build-failed event for '~a'" drv)))
     (('substituter-started item _ ...)
-     (log-message "substituter started: '~a'" item))
+     (log-error "substituter started: '~a'" item))
     (('substituter-succeeded item _ ...)
-     (log-message "substituter succeeded: '~a'" item))
+     (log-error "substituter succeeded: '~a'" item))
     (_
-     (log-message "build event: ~s" event))))
+     (log-error "build event: ~s" event))))
 
 (define (build-derivation=? build1 build2)
   "Return true if BUILD1 and BUILD2 correspond to the same derivation."
@@ -566,29 +566,29 @@ updating the database accordingly."
 (define (clear-build-queue)
   "Reset the status of builds in the database that are marked as \"started\".
 This procedure is meant to be called at startup."
-  (log-message "marking stale builds as \"scheduled\"...")
+  (log-info "marking stale builds as \"scheduled\"...")
   (db-clear-build-queue))
 
 (define (restart-builds)
   "Restart builds whose status in the database is \"pending\" (scheduled or
 started)."
   (with-store store
-    (log-message "retrieving list of pending builds...")
+    (log-info "retrieving list of pending builds...")
     (let*-values (((valid stale)
                    (partition (cut valid-path? store <>)
                               (db-get-pending-derivations))))
       ;; We cannot restart builds listed in STALE, so mark them as canceled.
-      (log-message "canceling ~a stale builds" (length stale))
+      (log-info "canceling ~a stale builds" (length stale))
       (for-each (lambda (drv)
                   (db-update-build-status! drv (build-status canceled)))
                 stale)
 
       ;; Those in VALID can be restarted.  If some of them were built in the
       ;; meantime behind our back, that's fine: 'spawn-builds' will DTRT.
-      (log-message "restarting ~a pending builds" (length valid))
+      (log-info "restarting ~a pending builds" (length valid))
       (unless (%build-remote?)
         (spawn-builds store valid))
-      (log-message "done with restarted builds"))))
+      (log-info "done with restarted builds"))))
 
 (define (create-build-outputs build build-outputs)
   "Given BUILDS a list of built derivations, save the build products described
@@ -616,7 +616,7 @@ by BUILD-OUTPUTS."
                                    (build-output-job build-output))
                                   (find-product build build-output))))
                 (when (and product (file-exists? product))
-                  (log-message "Adding build product ~a" product)
+                  (log-info "Adding build product ~a" product)
                   (db-add-build-product
                    `((#:build . ,(assq-ref build #:id))
                      (#:type . ,(build-output-type build-output))
@@ -638,8 +638,8 @@ by BUILD-OUTPUTS."
   ;; collected before getting built.
   (for-each (cut register-gc-roots <> #:mode 'derivation)
             derivations)
-  (log-message "evaluation ~a registered ~a new derivations"
-               eval-id (length derivations))
+  (log-info "evaluation ~a registered ~a new derivations"
+            eval-id (length derivations))
   (db-set-evaluation-status eval-id
                             (evaluation-status succeeded))
 
@@ -658,7 +658,7 @@ by BUILD-OUTPUTS."
                              outputs))
            (fail (- (length derivations) success)))
 
-      (log-message "outputs:\n~a" (string-join outs "\n"))
+      (log-info "outputs:\n~a" (string-join outs "\n"))
       results)))
 
 (define (prepare-git)
@@ -708,7 +708,7 @@ specification."
              (timestamp (time-second (current-time time-utc)))
              (channels (specification-channels spec))
              (instances (non-blocking
-                         (log-message "Fetching channels for spec '~a'." name)
+                         (log-info "Fetching channels for spec '~a'." name)
                          (latest-channel-instances* store channels
                                                     #:authenticate? #f)))
              (new-channels (map channel-instance-channel instances))
@@ -724,12 +724,12 @@ specification."
           (spawn-fiber
            (lambda ()
              (guard (c ((evaluation-error? c)
-                        (log-message "failed to evaluate spec '~a'; see ~a"
-                                     (evaluation-error-spec-name c)
-                                     (evaluation-log-file
-                                      (evaluation-error-id c)))
+                        (log-error "failed to evaluate spec '~a'; see ~a"
+                                   (evaluation-error-spec-name c)
+                                   (evaluation-log-file
+                                    (evaluation-error-id c)))
                         #f))
-               (log-message "evaluating spec '~a'" name)
+               (log-info "evaluating spec '~a'" name)
                (with-store store
                  ;; The LATEST-CHANNEL-INSTANCES procedure may return channel
                  ;; dependencies that are not declared in the initial
@@ -750,7 +750,7 @@ specification."
                   (and (new-eval? spec)
                        (process spec)))
                 (lambda (key error)
-                  (log-message "Git error while fetching inputs of '~a': ~s~%"
-                               (specification-name spec)
-                               (git-error-message error)))))
+                  (log-error "Git error while fetching inputs of '~a': ~s~%"
+                             (specification-name spec)
+                             (git-error-message error)))))
             jobspecs))

@@ -139,8 +139,8 @@ the detailed information about this build here: ~a."
                     #:subject subject
                     #:text text))
       (lambda args
-        (log-message "Failed to send the email notification: ~a."
-                     args)))))
+        (log-error "Failed to send the email notification: ~a."
+                   args)))))
 
 (define (send-mastodon build)
   "Send a new status for the given NOTIFICATION."
@@ -149,8 +149,8 @@ the detailed information about this build here: ~a."
       (lambda ()
         (send-status text))
       (lambda args
-        (log-message "Failed to send the mastodon notification: ~a."
-                     args)))))
+        (log-error "Failed to send the mastodon notification: ~a."
+                   args)))))
 
 (define (start-notification-thread)
   "Start a thread sending build notifications."

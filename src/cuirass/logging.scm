@@ -24,6 +24,10 @@
   #:export (current-logging-port
             current-logging-procedure
             log-message
+            log-info
+            log-debug
+            log-warning
+            log-error
             with-time-logging
             log-monitoring-stats
             query-logging-port
@@ -47,20 +51,41 @@
   (make-parameter (lambda (str)
                     (log-to-port (current-logging-port) str))))
 
-(define (log-message fmt . args)
+(define (log-message fmt level . args)
   "Log the given message as one line."
   ;; Note: Use '@' to make sure -Wformat detects this use of 'format'.
-  ((current-logging-procedure)
-   (apply (@ (ice-9 format) format) #f fmt args)))
+  (let ((fmt (cond
+              ((eq? level 'info)
+               fmt)
+              ((eq? level 'debug)
+               (string-append "debug: " fmt))
+              ((eq? level 'warning)
+               (string-append "warning: " fmt))
+              ((eq? level 'error)
+               (string-append "error: " fmt)))))
+    ((current-logging-procedure)
+     (apply (@ (ice-9 format) format) #f fmt args))))
+
+(define-syntax-rule (log-info fmt args ...)
+  (log-message fmt 'info args ...))
+
+(define-syntax-rule (log-debug fmt args ...)
+  (log-message fmt 'debug args ...))
+
+(define-syntax-rule (log-warning fmt args ...)
+  (log-message fmt 'warning args ...))
+
+(define-syntax-rule (log-error fmt args ...)
+  (log-message fmt 'error args ...))
 
 (define (call-with-time-logging name thunk)
   (let* ((start   (current-time time-utc))
          (result  (thunk))
          (end     (current-time time-utc))
          (elapsed (time-difference end start)))
-    (log-message "~a took ~a seconds" name
-                 (+ (time-second elapsed)
-                    (/ (time-nanosecond elapsed) 1e9)))
+    (log-info "~a took ~a seconds" name
+              (+ (time-second elapsed)
+                 (/ (time-nanosecond elapsed) 1e9)))
     result))
 
 (define-syntax-rule (with-time-logging name exp ...)
@@ -69,16 +94,16 @@
 
 (define (log-monitoring-stats)
   "Log info about useful metrics: heap size, number of threads, etc."
-  (log-message "heap: ~,2f MiB; threads: ~a; file descriptors: ~a"
-               (/ (assoc-ref (gc-stats) 'heap-size) (expt 2. 20))
-               (length (all-threads))
-               (length
-                ;; In theory 'scandir' cannot return #f, but in practice,
-                ;; we've seen it before.
-                (or (scandir "/proc/self/fd"
-                             (lambda (file)
-                               (not (member file '("." "..")))))
-                    '()))))
+  (log-info "heap: ~,2f MiB; threads: ~a; file descriptors: ~a"
+            (/ (assoc-ref (gc-stats) 'heap-size) (expt 2. 20))
+            (length (all-threads))
+            (length
+             ;; In theory 'scandir' cannot return #f, but in practice,
+             ;; we've seen it before.
+             (or (scandir "/proc/self/fd"
+                          (lambda (file)
+                            (not (member file '("." "..")))))
+                 '()))))
 
 (define query-logging-port
   (make-parameter #f))

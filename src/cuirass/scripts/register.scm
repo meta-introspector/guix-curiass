@@ -119,7 +119,7 @@
                              (min (current-processor-count) 4))))
           (prepare-git)
 
-          (log-message "running Fibers on ~a kernel threads" threads)
+          (log-info "running Fibers on ~a kernel threads" threads)
           (run-fibers
            (lambda ()
              (with-database
@@ -155,7 +155,7 @@
                        (lambda ()
                          (while #t
                            (process-specs (db-get-specifications))
-                           (log-message
+                           (log-info
                             "next evaluation in ~a seconds" interval)
                            (sleep interval)))))
 

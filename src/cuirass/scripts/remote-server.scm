@@ -246,9 +246,9 @@ be used to reply to the worker."
     (('worker-request-work name)
      (let ((worker (db-get-worker name)))
        (when (and (%debug) worker)
-         (log-message "~a (~a): request work."
-                      (worker-address worker)
-                      (worker-name worker)))
+         (log-debug "~a (~a): request work."
+                    (worker-address worker)
+                    (worker-name worker)))
        (let ((build (pop-build name)))
          (if build
              (let ((derivation (assq-ref build #:derivation))
@@ -256,10 +256,10 @@ be used to reply to the worker."
                    (timeout (assq-ref build #:timeout))
                    (max-silent (assq-ref build #:max-silent)))
                (when (and (%debug) worker)
-                 (log-message "~a (~a): build ~a submitted."
-                              (worker-address worker)
-                              (worker-name worker)
-                              derivation))
+                 (log-debug "~a (~a): build ~a submitted."
+                            (worker-address worker)
+                            (worker-name worker)
+                            derivation))
                (db-update-build-worker! derivation name)
                (db-update-build-status! derivation (build-status submitted))
                (reply-worker
@@ -269,7 +269,7 @@ be used to reply to the worker."
                                            #:max-silent max-silent)))
              (begin
                (when (and (%debug) worker)
-                 (log-message "~a (~a): no available build."
+                 (log-info "~a (~a): no available build."
                               (worker-address worker)
                               (worker-name worker)))
                (reply-worker
@@ -280,7 +280,7 @@ be used to reply to the worker."
      (let ((log-file (log-path (%cache-directory) drv))
            (worker (db-get-worker name)))
        (when worker
-         (log-message "~a (~a): build started: '~a'."
+         (log-info "~a (~a): build started: '~a'."
                       (worker-address worker)
                       (worker-name worker)
                       drv))
@@ -316,12 +316,12 @@ be used to reply to the worker."
 
 (define (ensure-path* store output)
   (guard (c ((store-protocol-error? c)
-             (log-message "Failed to add ~a to store: store protocol error." output)
-             (log-message "The remote-worker signing key might not be authorized.")
+             (log-error "Failed to add ~a to store: store protocol error." output)
+             (log-error "The remote-worker signing key might not be authorized.")
              #f)
             ((nar-error? c)
-             (log-message "Failed to add ~a to store: nar error." output)
-             (log-message "The guix-daemon process may have returned unexpectedly.")
+             (log-error "Failed to add ~a to store: nar error." output)
+             (log-error "The guix-daemon process may have returned unexpectedly.")
              #f))
     (ensure-path store output)))
 
@@ -329,7 +329,7 @@ be used to reply to the worker."
   (let* ((store-hash (strip-store-prefix output))
          (narinfo-url (publish-narinfo-url url store-hash)))
     (when (%debug)
-      (log-message "Bake: ~a" narinfo-url))
+      (log-debug "Bake: ~a" narinfo-url))
     (call-with-temporary-output-file
      (lambda (tmp-file port)
        (url-fetch* narinfo-url tmp-file)))))
@@ -359,11 +359,11 @@ required and #f otherwise."
   (match (zmq-read-message message)
     (('build-succeeded ('drv drv) _ ...)
      (when (%debug)
-       (log-message "Fetching required for ~a (success)" drv))
+       (log-debug "fetching required for ~a (success)" drv))
      #t)
     (('build-failed ('drv drv) _ ...)
      (when (%debug)
-       (log-message "Fetching required for ~a (fail)" drv))
+       (log-debug "fetching required for ~a (fail)" drv))
      #t)
     (else #f)))
 
@@ -384,7 +384,7 @@ directory."
   (match (zmq-read-message message)
     (('build-succeeded ('drv drv) ('url url) _ ...)
      (let ((outputs (build-outputs drv)))
-       (log-message "fetching '~a' from ~a" drv url)
+       (log-info "fetching '~a' from ~a" drv url)
        (call-with-time
         (lambda ()
           (add-to-store drv outputs url))
@@ -392,12 +392,12 @@ directory."
           (let ((duration (+ (time-second time)
                              (/ (time-nanosecond time) 1e9))))
             (when (> duration 60)
-              (log-message "fetching '~a' took ~a seconds."
+              (log-warning "fetching '~a' took ~a seconds."
                            drv duration)))))
-       (log-message "build succeeded: '~a'" drv)
+       (log-info "build succeeded: '~a'" drv)
        (set-build-successful! drv)))
     (('build-failed ('drv drv) ('url url) _ ...)
-     (log-message "build failed: '~a'" drv)
+     (log-info "build failed: '~a'" drv)
      (db-update-build-status! drv (build-status failed)))))
 
 (define (start-fetch-worker name)
@@ -430,9 +430,9 @@ socket."
      (let loop ()
        (let ((resumable (db-update-resumable-builds!))
              (failed (db-update-failed-builds!)))
-         (log-message "period update: ~a resumable, ~a failed builds."
+         (log-info "period update: ~a resumable, ~a failed builds."
                       resumable failed)
-         (log-message "period update: ~a items in the fetch queue."
+         (log-info "period update: ~a items in the fetch queue."
                       (atomic-box-ref %fetch-queue-size)))
        (sleep 30)
        (loop)))))
@@ -501,7 +501,7 @@ frontend to the workers connected through the TCP backend."
         (db-remove-unresponsive-workers (%worker-timeout))
         (let ((delta (- (current-time) start-time)))
           (when (> delta %loop-timeout)
-            (log-message "Poll loop busy during ~a seconds." delta)))
+            (log-warning "Poll loop busy during ~a seconds." delta)))
         (loop)))))
 
 
