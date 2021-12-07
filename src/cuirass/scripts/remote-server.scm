@@ -269,9 +269,9 @@ be used to reply to the worker."
                                            #:max-silent max-silent)))
              (begin
                (when (and (%debug) worker)
-                 (log-info "~a (~a): no available build."
-                              (worker-address worker)
-                              (worker-name worker)))
+                 (log-debug "~a (~a): no available build."
+                            (worker-address worker)
+                            (worker-name worker)))
                (reply-worker
                 (zmq-no-build-message)))))))
     (('worker-ping worker)
