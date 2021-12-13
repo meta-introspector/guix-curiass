@@ -737,7 +737,7 @@ $ curl -s "http://localhost:8080/api/evaluation?id=1" | jq
 
 @{
   "id": 1,
-  "specification": "guix-master",
+  "specification": "master",
   "status": 0,
   "timestamp": 1615289011,
   "checkouttime": 1615289011,

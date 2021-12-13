@@ -95,7 +95,7 @@
           (p "You can limit the search results with the following keywords:")
           (ul
            (li (code "spec")
-               ", a " (em "specification") " such as " (code "guix-master"))
+               ", a " (em "specification") " such as " (code "master"))
            (li (code "system")
                ", a build for the given " (em "target system")
                " such as " (code "x86_64-linux"))
@@ -108,9 +108,9 @@
                (code "failed-other") ", or "
                (code "canceled") "."))
           (p "For example, the following query will list successful builds of
-the " (code "guix-master") " specification for the " (code "i686-linux") "
+the " (code "master") " specification for the " (code "i686-linux") "
 system whose names start with " (code "guile-") ":" (br)
-(code "spec:guix-master system:i686-linux status:success guile-")))))
+(code "spec:master system:i686-linux status:success guile-")))))
 
 (define* (html-page title body navigation
                     #:optional query
