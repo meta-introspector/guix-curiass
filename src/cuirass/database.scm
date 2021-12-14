@@ -1881,7 +1881,8 @@ WHERE status = -1 AND
 (define (db-clear-build-queue)
   "Reset the status of builds in the database that are marked as \"started\"."
   (with-db-worker-thread db
-    (exec-query db "UPDATE Builds SET status = -2 WHERE status < 0;")))
+    (exec-query db "UPDATE Builds SET status = -2
+WHERE status != -2 AND status < 0;")))
 
 (define (db-get-log-from-output output)
   "Return the log file corresponding to the OUTPUT build."
