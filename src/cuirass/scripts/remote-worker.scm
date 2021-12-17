@@ -211,7 +211,13 @@ still be substituted."
         (let ((result
                (let-values (((port finish)
                              (build-derivations& store (list drv))))
-                 (send-log address log-port drv port)
+                 (catch 'system-error
+                   (lambda ()
+                     (send-log address log-port drv port))
+                   (lambda args
+                     (log-error (G_ "could not send logs to ~a:~a")
+                                address log-port)
+                     (dump-port port (%make-void-port "w"))))
                  (close-port port)
                  (finish))))
           (if result
