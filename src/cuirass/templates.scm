@@ -57,6 +57,15 @@
             badge-svg
             javascript-licenses))
 
+(define (completed? status)
+    (or (= (build-status succeeded) status)
+        (= (build-status failed) status)
+        (= (build-status failed-dependency) status)))
+
+(define (completed-with-logs? status)
+    (or (= (build-status succeeded) status)
+        (= (build-status failed) status)))
+
 (define (navigation-items navigation)
   (match navigation
     (() '())
@@ -666,9 +675,6 @@ the existing SPEC otherwise."
   "Return HTML showing details for the BUILD."
   (define status (assq-ref build #:status))
   (define weather (assq-ref build #:weather))
-  (define completed?
-    (or (= (build-status succeeded) status)
-        (= (build-status failed) status)))
 
   (define evaluation
     (assq-ref build #:eval-id))
@@ -682,10 +688,6 @@ the existing SPEC otherwise."
     (define status
       (assq-ref build #:status))
 
-    (define completed?
-      (or (= (build-status succeeded) status)
-          (= (build-status failed) status)))
-
     `(tr
       (td (span (@ (class ,(status-class status))
                    (title ,(status-title status))
@@ -695,7 +697,7 @@ the existing SPEC otherwise."
           (a (@ (href "/build/" ,(assq-ref build #:id) "/details"))
              ,(assq-ref build #:id)))
       (td ,(assq-ref build #:nix-name))
-      (td ,(if completed?
+      (td ,(if (completed? status)
                (time->string (assq-ref build #:stoptime))
                "—"))))
 
@@ -747,7 +749,7 @@ the existing SPEC otherwise."
                                   " seconds"))
                   (else "—")))))
       (tr (th "Finished")
-          (td ,(if completed?
+          (td ,(if (completed? status)
                    (time->string (assq-ref build #:stoptime))
                    "—")))
       (tr (th "Weather")
@@ -1134,10 +1136,6 @@ and BUILD-MAX are global minimal and maximal (stoptime, rowid) pairs."
     (define weather
       (assq-ref build #:weather))
 
-    (define completed?
-      (or (= (build-status succeeded) status)
-          (= (build-status failed) status)))
-
     `(tr
       (td (span (@ (class ,(status-class status))
                    (title ,(status-title status))
@@ -1151,13 +1149,13 @@ and BUILD-MAX are global minimal and maximal (stoptime, rowid) pairs."
           (a (@ (href "/build/" ,(assq-ref build #:id) "/details"))
              ,(assq-ref build #:id)))
       (td ,(assq-ref build #:jobset))
-      (td ,(if completed?
+      (td ,(if (completed? status)
                (time->string (assq-ref build #:stoptime))
                "—"))
       (td ,(assq-ref build #:job))
       (td ,(assq-ref build #:nixname))
       (td ,(assq-ref build #:system))
-      (td ,(if completed?
+      (td ,(if (completed-with-logs? status)
                `(a (@ (href "/build/" ,(assq-ref build #:id) "/log/raw"))
                    "raw")
                "—"))))
@@ -1393,10 +1391,6 @@ and BUILD-MAX are global minimal and maximal row identifiers."
     (define status
       (assq-ref build #:buildstatus))
 
-    (define completed?
-      (or (= (build-status succeeded) status)
-          (= (build-status failed) status)))
-
     `(tr
       (td (span (@ (class ,(status-class status))
                    (title ,(status-title status))
@@ -1406,13 +1400,13 @@ and BUILD-MAX are global minimal and maximal row identifiers."
           (a (@ (href "/build/" ,(assq-ref build #:id) "/details"))
              ,(assq-ref build #:id)))
       (td ,(assq-ref build #:jobset))
-      (td ,(if completed?
+      (td ,(if (completed? status)
                (time->string (assq-ref build #:stoptime))
                "—"))
       (td ,(assq-ref build #:job))
       (td ,(assq-ref build #:nixname))
       (td ,(assq-ref build #:system))
-      (td ,(if completed?
+      (td ,(if (completed-with-logs? status)
                `(a (@ (href "/build/" ,(assq-ref build #:id) "/log/raw"))
                    "raw")
                "—"))))
