@@ -861,9 +861,13 @@ WHERE Builds.status = " (build-status failed-dependency)
 (define (db-update-failed-builds!)
   "Update the build status of the scheduled builds with failed dependencies to
 failed-dependency."
+  (define now
+    (time-second (current-time time-utc)))
+
   (with-db-worker-thread db
     (exec-query/bind db "
 UPDATE Builds SET status = " (build-status failed-dependency)
+", starttime = " now ", stoptime = " now
 " FROM (SELECT Builds.id, count(dep.id) as deps FROM Builds
 LEFT JOIN BuildDependencies as bd ON bd.source = Builds.id
 INNER JOIN Builds AS dep ON bd.target = dep.id AND dep.status > 0
