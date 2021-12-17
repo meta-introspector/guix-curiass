@@ -298,9 +298,16 @@ PRIVATE-KEY to sign narinfos."
           (((_) () ())
            (match (accept sock)
              ((client . address)
-              (write '(log-server (version 0)) client)
-              (force-output client)
-              (proc client))))
+              (catch 'system-error
+                (lambda ()
+                  (write '(log-server (version 0)) client)
+                  (force-output client)
+                  (proc client))
+                (lambda args
+                  (let ((errno (system-error-errno args)))
+                    (when (memv errno (list EPIPE ECONNRESET ECONNABORTED))
+                      (log-error "~a when replying to ~a."
+                                 (strerror errno) (fileno client)))))))))
           ((() () ())
            #f)))))
 
