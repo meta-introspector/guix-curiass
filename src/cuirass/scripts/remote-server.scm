@@ -497,7 +497,15 @@ frontend to the workers connected through the TCP backend."
                      (atomic-box-fetch-and-inc! %fetch-queue-size)
                      (zmq-message-send fetch-socket fetch-msg))
                    (read-worker-exp rest
-                                    #:reply-worker reply-worker))))))
+                                    #:reply-worker reply-worker))))
+            (x
+             (log-error "Unexpected message: ~a." x)
+             (for-each (lambda (msg)
+                         (log-error "~/content: ~a (~a)"
+                                    (zmq-message-content msg)
+                                    (false-if-exception
+                                     (zmq-message-string msg))))
+                       x))))
         (db-remove-unresponsive-workers (%worker-timeout))
         (let ((delta (- (current-time) start-time)))
           (when (> delta %loop-timeout)
