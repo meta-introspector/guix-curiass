@@ -598,13 +598,13 @@ exiting."
         (and cache
              (%cache-directory cache))
 
-        (mkdir-p (%cache-directory))
-
         (when user
           (gather-user-privileges user))
 
         (and parameters
              (read-parameters parameters))
+
+        (mkdir-p (%cache-directory))
 
         ;; Reset the GC root directory now that we have gathered user
         ;; privileges.
