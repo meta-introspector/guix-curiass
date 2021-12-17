@@ -285,7 +285,7 @@ PRIVATE-KEY to sign narinfos."
            (lambda (output)
              (dump-port port output)))))
       (_
-       (log-error "invalid log received.~%")
+       (log-error "invalid log received.")
        #f)))
 
   (define (wait-for-client port proc)
@@ -345,11 +345,11 @@ PRIVATE-KEY to sign narinfos."
                  (dump-port log sock-compressed))))
             (close-port sock)))
          (x
-          (log-error "invalid handshake ~s.~%" x)
+          (log-error "invalid handshake ~s." x)
           (close-port sock)
           #f)))
       ((() () ())                                 ;timeout
-       (log "timeout while sending files to ~a.~%" port)
+       (log-error "timeout while sending log")
        (close-port sock)
        #f))))
 
