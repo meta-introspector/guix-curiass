@@ -37,6 +37,8 @@ pkgmoduledir = $(guilesitedir)/$(PACKAGE)
 pkgobjectdir = $(guileobjectdir)/$(PACKAGE)
 webmoduledir = $(guilesitedir)/web/server
 webobjectdir = $(guileobjectdir)/web/server
+scriptsmoduledir = $(guilesitedir)/$(PACKAGE)/scripts
+scriptsobjectdir = $(guileobjectdir)/$(PACKAGE)/scripts
 sqldir = $(pkgdatadir)/sql
 staticdir = $(pkgdatadir)/static
 cssdir = $(staticdir)/css
@@ -62,7 +64,9 @@ dist_pkgmodule_DATA =				\
   src/cuirass/utils.scm		                \
   src/cuirass/templates.scm                     \
   src/cuirass/watchdog.scm			\
-  src/cuirass/zabbix.scm			\
+  src/cuirass/zabbix.scm
+
+dist_scriptsmodule_DATA =			\
   src/cuirass/scripts/evaluate.scm              \
   src/cuirass/scripts/register.scm              \
   src/cuirass/scripts/remote-server.scm         \
@@ -78,6 +82,9 @@ nodist_pkgobject_DATA = \
 
 dist_webmodule_DATA =				\
   src/web/server/fiberized.scm
+
+nodist_scriptsmodule_DATA =				\
+  $(dist_scriptsmodule_DATA:.scm=.go)
 
 nodist_webobject_DATA =				\
   $(dist_webmodule_DATA:.scm=.go)
@@ -177,6 +184,7 @@ TESTS = \
 CLEANFILES =					\
   $(nodist_guilesite_DATA)			\
   $(dist_pkgmodule_DATA:.scm=.go)		\
+  $(nodist_scriptsmodule_DATA)			\
   $(nodist_webobject_DATA)			\
   $(nodist_guileobject_DATA)			\
   src/cuirass/config.go
