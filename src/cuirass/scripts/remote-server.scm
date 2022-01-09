@@ -595,6 +595,18 @@ exiting."
         ;; Enable core dump generation.
         (setrlimit 'core #f #f)
 
+        ;; Increase max open files limit to 2048.
+        (let ((limit 2048))
+          (call-with-values (lambda () (getrlimit 'nofile))
+            (lambda (soft hard)
+              (when (and soft (< soft limit))
+                (if hard
+                    (setrlimit 'nofile (min hard limit) hard)
+                    (setrlimit 'nofile limit #f))
+                (log-info
+                 "increased maximum number of open files from ~d to ~d"
+                 soft (if hard (min hard limit) limit))))))
+
         (and cache
              (%cache-directory cache))
 
