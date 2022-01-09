@@ -607,6 +607,9 @@ exiting."
                  "increased maximum number of open files from ~d to ~d"
                  soft (if hard (min hard limit) limit))))))
 
+        ;; Show wider backtraces.
+        (setenv "COLUMNS" "500")
+
         (and cache
              (%cache-directory cache))
 
