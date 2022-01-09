@@ -37,8 +37,6 @@ pkgmoduledir = $(guilesitedir)/$(PACKAGE)
 pkgobjectdir = $(guileobjectdir)/$(PACKAGE)
 webmoduledir = $(guilesitedir)/web/server
 webobjectdir = $(guileobjectdir)/web/server
-scriptsmoduledir = $(guilesitedir)/$(PACKAGE)/scripts
-scriptsobjectdir = $(guileobjectdir)/$(PACKAGE)/scripts
 sqldir = $(pkgdatadir)/sql
 staticdir = $(pkgdatadir)/static
 cssdir = $(staticdir)/css
@@ -64,9 +62,7 @@ dist_pkgmodule_DATA =				\
   src/cuirass/utils.scm		                \
   src/cuirass/templates.scm                     \
   src/cuirass/watchdog.scm			\
-  src/cuirass/zabbix.scm
-
-dist_scriptsmodule_DATA =			\
+  src/cuirass/zabbix.scm			\
   src/cuirass/scripts/evaluate.scm              \
   src/cuirass/scripts/register.scm              \
   src/cuirass/scripts/remote-server.scm         \
