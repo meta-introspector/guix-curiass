@@ -458,7 +458,8 @@ DELETE FROM Specifications WHERE name=" name ";")))
 
 (define (db-get-specification name)
   "Retrieve a specification in the database with the given NAME."
-  (expect-one-row (db-get-specifications name)))
+  (expect-one-row
+   (db-get-specifications name #:filter-inactive? #f)))
 
 (define* (db-get-specifications #:optional name
                                 #:key (filter-inactive? #t))
