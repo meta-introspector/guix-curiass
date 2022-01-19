@@ -131,7 +131,7 @@
         (name "tmp")
         (build 'core)))
       (db-deactivate-specification "tmp")
-      (not (db-get-specification "tmp"))))
+      (eq? (length (db-get-specifications)) 1)))
 
   (test-assert "exec-query"
     (begin
