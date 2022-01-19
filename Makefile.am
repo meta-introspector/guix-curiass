@@ -83,7 +83,7 @@ nodist_pkgobject_DATA = \
 dist_webmodule_DATA =				\
   src/web/server/fiberized.scm
 
-nodist_scriptsmodule_DATA =				\
+nodist_scriptsobject_DATA =				\
   $(dist_scriptsmodule_DATA:.scm=.go)
 
 nodist_webobject_DATA =				\
