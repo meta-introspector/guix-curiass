@@ -222,7 +222,7 @@ system whose names start with " (code "guile-") ":" (br)
            (p (@ (class "mt-3"))
               (a (@ (href "http://guix.gnu.org/cuirass/"))
                  ,(string-append "Cuirass " %package-version))
-              " — Copyright © 2016 - 2021 by the GNU Guix community.")))))
+              " — Copyright © 2016 - 2022 by the GNU Guix community.")))))
 
 (define (status-class status)
   (cond
