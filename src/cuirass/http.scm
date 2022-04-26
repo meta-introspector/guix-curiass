@@ -381,7 +381,7 @@ into a specification record and return it."
                   (lambda (param params)
                     (match (string-split param #\=)
                       ((key param)
-                       (cons (cons (string->symbol key) param)
+                       (cons (cons (string->symbol key) (uri-decode param))
                              params))))
                   '()
                   (string-split query #\&)))
@@ -399,8 +399,7 @@ into a specification record and return it."
                            (let ((param (assq-ref params 'param-input)))
                              (and param
                                   (not (string=? param ""))
-                                  (let ((param (string-split
-                                                (uri-decode param) #\,)))
+                                  (let ((param (string-split param #\,)))
                                     (cond
                                      ((eq? build 'custom)
                                       (map
@@ -411,7 +410,7 @@ into a specification record and return it."
          (channels (map (lambda (name url branch)
                           (channel
                            (name (string->symbol name))
-                           (url (uri-decode url))
+                           (url url)
                            (branch branch)))
                         (filter-field 'channel-name)
                         (filter-field 'channel-url)
