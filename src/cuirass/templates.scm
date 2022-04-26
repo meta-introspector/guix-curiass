@@ -568,6 +568,7 @@ the existing SPEC otherwise."
                                 (class "form-control")
                                 (id "name")
                                 (name "name")
+                                (pattern "[^/]+")
                                 (value ,(or name ""))
                                 ,@(if spec
                                       '((readonly))
