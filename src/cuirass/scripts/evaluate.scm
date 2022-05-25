@@ -20,20 +20,17 @@
 ;;; along with Cuirass.  If not, see <http://www.gnu.org/licenses/>.
 
 (define-module (cuirass scripts evaluate)
-  #:use-module (cuirass base)
+  #:use-module ((cuirass base) #:select (latest-checkouts))
   #:use-module (cuirass database)
   #:use-module (cuirass specification)
   #:use-module (guix channels)
   #:use-module (guix derivations)
   #:use-module (guix inferior)
-  #:use-module (guix licenses)
   #:use-module (guix monads)
   #:use-module (guix store)
-  #:use-module (guix ui)
-  #:use-module (guix utils)
+  #:autoload   (guix ui) (show-what-to-build*)
   #:use-module (srfi srfi-1)
   #:use-module (ice-9 match)
-  #:use-module (ice-9 pretty-print)
   #:use-module (ice-9 threads)
   #:export (cuirass-evaluate))
 
