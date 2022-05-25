@@ -110,7 +110,8 @@ registered in database."
              ;; speeds up the evaluation as the evaluations can be performed
              ;; concurrently.  It also decreases the amount of memory needed
              ;; per evaluation process.
-             (par-for-each
+             (n-par-for-each
+              (min (length systems) (current-processor-count))
               (lambda (system)
                 (with-store store
                   (inferior-evaluation store profile
