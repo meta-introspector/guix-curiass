@@ -116,15 +116,17 @@ $(document).ready(function() {
                     return 5;
             }
 
+	    /* FIXME-someday: these should be CSS classes, so users can
+	       feasibly customise them. */
             function color(status) {
                 switch (status) {
                 case -3:
                 case -2:
-                    return 'gray';
+                    return 'transparent';
                 case -1:
                     return 'orange';
                 case 0:
-                    return 'green';
+                    return '#9f9';	/* high contrast with others */
                 case 1:
                 case 2:
                 case 3:
