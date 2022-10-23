@@ -666,11 +666,13 @@ the existing SPEC otherwise."
                                        ,system)))
                         %cuirass-supported-systems))
             (div (@ (class "form-group row"))
-                 (div (@ (class "col-sm-4"))
+                 (div (@ (class "col-sm-2"))
                       (button
                        (@ (type "submit")
                           (class "btn btn-primary"))
-                       " Submit")))))))
+                       " Submit"))
+		 (div (@ (class "col-sm-10 text-warning"))
+		      "Declarative configuration updates may overwrite these settings!"))))))
 
 (define (build-details build dependencies products history)
   "Return HTML showing details for the BUILD."
