@@ -1,9 +1,10 @@
 # This is a "service unit file" for the systemd init system to launch
 # 'cuirass remote-worker'.  Drop it in /etc/systemd/system or similar
-# to have 'cuirass remote-worker' automatically started.
+# to have 'cuirass remote-worker' automatically started.  Adjust the
+# --workers= and --server= parameters to suit your set-up.
 
 [Unit]
-Description=Continuous integration remmote worker for GNU Guix
+Description=Continuous integration remote worker for GNU Guix
 
 [Service]
 ExecStart=@guix_localstatedir@/guix/profiles/per-user/root/guix-profile/bin/cuirass \
