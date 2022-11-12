@@ -69,6 +69,7 @@
             receive-logs
             send-log
 
+            zmq-get-msg-parts-bytevector/no-wait
             zmq-poll*
             zmq-message-receive*
             zmq-socket-ready?
@@ -381,6 +382,34 @@ retries a call to PROC."
             (apply throw key errno rest)))))
 
   safe)
+
+(define-syntax-rule (EAGAIN-safe proc ...)
+  "Return a variant of PROC that catches EAGAIN 'zmq-error' exceptions."
+  (catch 'zmq-error
+    (lambda ()
+      proc ...)
+    (lambda (key errno . rest)
+      (if (= errno EAGAIN)
+          'egain
+          (apply throw key errno rest)))))
+
+(define* (zmq-get-msg-parts-bytevector/no-wait socket parts
+                                               #:key
+                                               (retries 10)
+                                               (interval 1))
+  "Call ZMQ-GET-MSG-PARTS-BYTEVECTOR but pass it the ZMQ_DONTWAIT flag.  If
+there is nothing to be read on SOCKET and it returns EAGAIN, catch it and
+retry RETRIES times spaced by INTERVAL seconds.  Return #false if nothing was
+read after retrying."
+  (let loop ((retries retries))
+    (and (> retries 0)
+         (match (EAGAIN-safe
+                 (zmq-get-msg-parts-bytevector socket parts
+                                               #:flags ZMQ_DONTWAIT))
+           ('egain
+            (sleep interval)
+            (loop (- retries 1)))
+           (x x)))))
 
 (define zmq-poll*
   ;; Return a variant of ZMQ-POLL that catches EINTR errors.
