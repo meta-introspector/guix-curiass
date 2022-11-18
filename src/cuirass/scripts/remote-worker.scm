@@ -1,5 +1,6 @@
 ;;; remote-worker.scm -- Remote build worker.
 ;;; Copyright © 2020, 2021 Mathieu Othacehe <othacehe@gnu.org>
+;;; Copyright © 2022 Ludovic Courtès <ludo@gnu.org>
 ;;;
 ;;; This file is part of Cuirass.
 ;;;
@@ -31,7 +32,8 @@
   #:use-module (guix scripts)
   #:use-module (guix serialization)
   #:use-module ((guix store)
-                #:select (%default-substitute-urls
+                #:select (%store-prefix
+                          %default-substitute-urls
                           current-build-output-port
                           store-error?
                           store-protocol-error?
@@ -84,6 +86,9 @@ Start a remote build worker.\n" (%program-name))
   (display (G_ "
   -S, --systems=SYSTEMS     list of supported SYSTEMS"))
   (display (G_ "
+      --minimum-disk-space=THRESHOLD
+                            refuse builds if free space is below THRESHOLD MiB"))
+  (display (G_ "
       --substitute-urls=URLS
                             check for available substitutes at URLS"))
   (display (G_ "
@@ -115,6 +120,11 @@ Start a remote build worker.\n" (%program-name))
         (option '(#\t "ttl") #t #f
                 (lambda (opt name arg result)
                   (alist-cons 'ttl arg result)))
+        (option '("minimum-disk-space") #t #f
+                (lambda (opt name arg result)
+                  (alist-cons 'minimum-disk-space
+                              (* (string->number* arg) (expt 2 20))
+                              result)))
         (option '(#\s "server") #t #f
                 (lambda (opt name arg result)
                   (alist-cons 'server arg result)))
@@ -142,6 +152,7 @@ Start a remote build worker.\n" (%program-name))
 
 (define %default-options
   `((workers . 1)
+    (minimum-disk-space . (* 100 (expt 2 20)))
     (publish-port . 5558)
     (ttl . "1d")
     (systems . ,(list (%current-system)))
@@ -277,6 +288,17 @@ command.  REPLY is a procedure that can be used to reply to this server."
          (sleep 60)
          (loop))))))
 
+(define %minimum-disk-space
+  ;; Minimum disk space required on the build machine before accepting more
+  ;; builds.
+  (make-parameter (* 100 (expt 2 20))))
+
+(define (low-disk-space?)
+  "Return true if disk space is low."
+  (or (< (free-disk-space (%store-prefix)) %minimum-disk-space)
+      (< (free-disk-space (or (getenv "TMPDIR") "/tmp"))
+         %minimum-disk-space)))
+
 (define (start-worker wrk serv)
   "Start a worker thread named NAME, reading commands from the DEALER socket
 and executing them.  The worker can reply on the same socket."
@@ -351,16 +373,21 @@ and executing them.  The worker can reply on the same socket."
          (ready socket worker)
          (worker-ping worker server)
          (let loop ()
-           (log-info (G_ "~a: request work.") (worker-name wrk))
-           (request-work socket worker)
-           ;; Use a no-wait variant because the server could die unexpectedly
-           ;; and we would be blocked on the receive call forever.
-           (match (zmq-get-msg-parts-bytevector/no-wait socket '())
-             (#f #f) ;no response, keep going.
-             ((empty command)
-              (run-command (bv->string command) server
-                           #:reply (reply socket)
-                           #:worker worker)))
+           (if (low-disk-space?)
+               (log-info (G_ "warning: low disk space, doing nothing"))
+               (begin
+                 (log-info (G_ "~a: request work.") (worker-name wrk))
+                 (request-work socket worker)
+                 ;; Use a no-wait variant because the server could die
+                 ;; unexpectedly and we would be blocked on the receive call
+                 ;; forever.
+                 (match (zmq-get-msg-parts-bytevector/no-wait socket '())
+                   (#f #f)                        ;no response, keep going.
+                   ((empty command)
+                    (run-command (bv->string command) server
+                                 #:reply (reply socket)
+                                 #:worker worker)))))
+
            (sleep (%request-period))
            (loop)))))
     (pid pid)))
@@ -422,10 +449,10 @@ exiting."
 
       (false-if-exception (mkdir-p (%gc-root-directory)))
 
-      (parameterize
-          ((%gc-root-ttl
-            (time-second (string->duration ttl)))
-           (%substitute-urls urls))
+      (parameterize ((%gc-root-ttl (time-second (string->duration ttl)))
+                     (%substitute-urls urls)
+                     (%minimum-disk-space
+                      (assoc-ref opts 'minimum-disk-space)))
         (atomic-box-set! %local-publish-port publish-port)
 
         (atomic-box-set!
