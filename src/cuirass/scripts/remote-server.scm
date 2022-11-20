@@ -469,6 +469,10 @@ frontend to the workers connected through the TCP backend."
          (poll-items (list
                       (poll-item build-socket ZMQ_POLLIN))))
 
+    ;; Send bootstrap messages on worker connection to wake up the workers
+    ;; that were hanging waiting for request-work responses.
+    (zmq-set-socket-option build-socket ZMQ_PROBE_ROUTER 1)
+
     (zmq-bind-socket build-socket (zmq-backend-endpoint backend-port))
     (zmq-bind-socket fetch-socket (zmq-fetch-workers-endpoint))
 

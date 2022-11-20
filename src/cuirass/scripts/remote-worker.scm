@@ -329,6 +329,10 @@ and executing them.  The worker can reply on the same socket."
            (string->bv (zmq-worker-request-info-message)))))
 
   (define (read-server-info socket)
+    ;; Ignore the boostrap message sent due to ZMQ_PROBE_ROUTER option.
+    (match (zmq-get-msg-parts-bytevector socket '())
+      ((empty) #f))
+
     (request-info socket)
     (match (zmq-get-msg-parts-bytevector socket '())
       ((empty info)
@@ -379,6 +383,9 @@ and executing them.  The worker can reply on the same socket."
                  (log-info (G_ "~a: request work.") (worker-name wrk))
                  (request-work socket worker)
                  (match (zmq-get-msg-parts-bytevector socket '())
+                   ((empty)
+                    (log-info (G_ "~a: received a bootstrap message.")
+                              (worker-name wrk)))
                    ((empty command)
                     (run-command (bv->string command) server
                                  #:reply (reply socket)
