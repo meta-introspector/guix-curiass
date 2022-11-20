@@ -295,9 +295,9 @@ command.  REPLY is a procedure that can be used to reply to this server."
 
 (define (low-disk-space?)
   "Return true if disk space is low."
-  (or (< (free-disk-space (%store-prefix)) %minimum-disk-space)
+  (or (< (free-disk-space (%store-prefix)) (%minimum-disk-space))
       (< (free-disk-space (or (getenv "TMPDIR") "/tmp"))
-         %minimum-disk-space)))
+         (%minimum-disk-space))))
 
 (define (start-worker wrk serv)
   "Start a worker thread named NAME, reading commands from the DEALER socket
