@@ -378,11 +378,7 @@ and executing them.  The worker can reply on the same socket."
                (begin
                  (log-info (G_ "~a: request work.") (worker-name wrk))
                  (request-work socket worker)
-                 ;; Use a no-wait variant because the server could die
-                 ;; unexpectedly and we would be blocked on the receive call
-                 ;; forever.
-                 (match (zmq-get-msg-parts-bytevector/no-wait socket '())
-                   (#f #f)                        ;no response, keep going.
+                 (match (zmq-get-msg-parts-bytevector socket '())
                    ((empty command)
                     (run-command (bv->string command) server
                                  #:reply (reply socket)
