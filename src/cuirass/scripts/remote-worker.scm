@@ -67,7 +67,7 @@
   (make-parameter
    (or (and=> (getenv "REQUEST_PERIOD")
               string->number)
-       10)))
+       30)))
 
 (define %substitute-urls
   (make-parameter #f))
@@ -383,7 +383,7 @@ and executing them.  The worker can reply on the same socket."
                  (log-info (G_ "~a: request work.") (worker-name wrk))
                  (request-work socket worker)
                  (match (zmq-get-msg-parts-bytevector socket '())
-                   ((empty)
+                   ((empty) ;server reconnection
                     (log-info (G_ "~a: received a bootstrap message.")
                               (worker-name wrk)))
                    ((empty command)
