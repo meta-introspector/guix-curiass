@@ -87,7 +87,7 @@ Start a remote build worker.\n" (%program-name))
   -S, --systems=SYSTEMS     list of supported SYSTEMS"))
   (display (G_ "
       --minimum-disk-space=THRESHOLD
-                            refuse builds if free space is below THRESHOLD MiB"))
+                            refuse builds if free space is below THRESHOLD GiB"))
   (display (G_ "
       --substitute-urls=URLS
                             check for available substitutes at URLS"))
@@ -123,7 +123,7 @@ Start a remote build worker.\n" (%program-name))
         (option '("minimum-disk-space") #t #f
                 (lambda (opt name arg result)
                   (alist-cons 'minimum-disk-space
-                              (* (string->number* arg) (expt 2 20))
+                              (* (string->number* arg) (expt 2 30))
                               result)))
         (option '(#\s "server") #t #f
                 (lambda (opt name arg result)
@@ -150,9 +150,14 @@ Start a remote build worker.\n" (%program-name))
                 (lambda (opt name arg result)
                   (alist-cons 'private-key-file arg result)))))
 
+(define %minimum-disk-space
+  ;; Minimum disk space required on the build machine before accepting more
+  ;; builds.
+  (make-parameter (* 5 (expt 2 30)))) ;5GiB
+
 (define %default-options
   `((workers . 1)
-    (minimum-disk-space . (* 100 (expt 2 20)))
+    (minimum-disk-space . ,(%minimum-disk-space))
     (publish-port . 5558)
     (ttl . "1d")
     (systems . ,(list (%current-system)))
@@ -287,11 +292,6 @@ command.  REPLY is a procedure that can be used to reply to this server."
          (ping socket)
          (sleep 60)
          (loop))))))
-
-(define %minimum-disk-space
-  ;; Minimum disk space required on the build machine before accepting more
-  ;; builds.
-  (make-parameter (* 100 (expt 2 20))))
 
 (define (low-disk-space?)
   "Return true if disk space is low."
