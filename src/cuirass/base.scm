@@ -1,5 +1,5 @@
 ;;; base.scm -- Cuirass base module
-;;; Copyright © 2016, 2017, 2018, 2019 Ludovic Courtès <ludo@gnu.org>
+;;; Copyright © 2016, 2017, 2018, 2019, 2022 Ludovic Courtès <ludo@gnu.org>
 ;;; Copyright © 2016, 2017 Mathieu Lirzin <mthl@gnu.org>
 ;;; Copyright © 2017, 2020, 2021 Mathieu Othacehe <othacehe@gnu.org>
 ;;; Copyright © 2017 Ricardo Wurmus <rekado@elephly.net>
@@ -709,8 +709,7 @@ specification."
              (channels (specification-channels spec))
              (instances (non-blocking
                          (log-info "Fetching channels for spec '~a'." name)
-                         (latest-channel-instances* store channels
-                                                    #:authenticate? #f)))
+                         (latest-channel-instances* store channels)))
              (new-channels (map channel-instance-channel instances))
              (new-spec (specification
                         (inherit spec)
