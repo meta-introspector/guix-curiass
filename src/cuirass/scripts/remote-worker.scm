@@ -365,34 +365,39 @@ and executing them.  The worker can reply on the same socket."
 
   (match (primitive-fork)
     (0
-     (set-thread-name (worker-name wrk))
-     (let* ((socket (zmq-dealer-socket))
-            (address (server-address serv))
-            (port (server-port serv))
-            (endpoint (zmq-backend-endpoint address port)))
-       (zmq-connect socket endpoint)
-       (let* ((srv-info (read-server-info socket))
-              (server (server-info->server srv-info serv))
-              (worker (server-info->worker srv-info wrk)))
-         (ready socket worker)
-         (worker-ping worker server)
-         (let loop ()
-           (if (low-disk-space?)
-               (log-info (G_ "warning: low disk space, doing nothing"))
-               (begin
-                 (log-info (G_ "~a: request work.") (worker-name wrk))
-                 (request-work socket worker)
-                 (match (zmq-get-msg-parts-bytevector socket '())
-                   ((empty) ;server reconnection
-                    (log-info (G_ "~a: received a bootstrap message.")
-                              (worker-name wrk)))
-                   ((empty command)
-                    (run-command (bv->string command) server
-                                 #:reply (reply socket)
-                                 #:worker worker)))))
+     (dynamic-wind
+       (const #t)
+       (lambda ()
+         (set-thread-name (worker-name wrk))
+         (let* ((socket (zmq-dealer-socket))
+                (address (server-address serv))
+                (port (server-port serv))
+                (endpoint (zmq-backend-endpoint address port)))
+           (zmq-connect socket endpoint)
+           (let* ((srv-info (read-server-info socket))
+                  (server (server-info->server srv-info serv))
+                  (worker (server-info->worker srv-info wrk)))
+             (ready socket worker)
+             (worker-ping worker server)
+             (let loop ()
+               (if (low-disk-space?)
+                   (log-info (G_ "warning: low disk space, doing nothing"))
+                   (begin
+                     (log-info (G_ "~a: request work.") (worker-name wrk))
+                     (request-work socket worker)
+                     (match (zmq-get-msg-parts-bytevector socket '())
+                       ((empty)                   ;server reconnect
+                        (log-info (G_ "~a: received a bootstrap message.")
+                                  (worker-name wrk)))
+                       ((empty command)
+                        (run-command (bv->string command) server
+                                     #:reply (reply socket)
+                                     #:worker worker)))))
 
-           (sleep (%request-period))
-           (loop)))))
+               (sleep (%request-period))
+               (loop)))))
+       (lambda ()
+         (primitive-exit 1))))
     (pid pid)))
 
 
