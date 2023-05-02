@@ -41,16 +41,24 @@
 (define worker
   (make-parameter #f))
 
+(define spawn?
+  (if (defined? 'spawn)                           ;introduced in Guile 3.0.9
+      (@ (guile) spawn)
+      (lambda* (program arguments #:key (search-path? #f))
+        (match (primitive-fork)
+          (0
+           (apply (if search-path? execlp execl) program arguments))
+          (pid
+           pid)))))
+
 (define (start-worker)
-  (worker
-   (match (primitive-fork)
-     (0
-      (setenv "REQUEST_PERIOD" "1")
-      (execlp "cuirass" "cuirass" "remote-worker"
-              "--server=127.0.0.1:5555"
-              "--private-key=tests/signing-key.sec"
-              "--public-key=tests/signing-key.pub"))
-     (pid pid))))
+  (setenv "REQUEST_PERIOD" "1")
+  (worker (spawn "cuirass"
+                 '("cuirass" "remote-worker"
+                   "--server=127.0.0.1:5555"
+                   "--private-key=tests/signing-key.sec"
+                   "--public-key=tests/signing-key.pub")
+                 #:search-path? #t)))
 
 (define (stop-worker)
   (let ((worker (worker)))
@@ -58,16 +66,14 @@
     (waitpid worker)))
 
 (define (start-server)
-  (server
-   (match (primitive-fork)
-     (0
-      (mkdir-p "tests/cache")
-      (execlp "cuirass" "cuirass" "remote-server"
-              (string-append "--database=" (%package-database))
-              "--cache=tests/cache"
-              "--private-key=tests/signing-key.sec"
-              "--public-key=tests/signing-key.pub"))
-     (pid pid))))
+  (mkdir-p "tests/cache")
+  (server (spawn "cuirass"
+                 (list "cuirass" "remote-server"
+                       (string-append "--database=" (%package-database))
+                       "--cache=tests/cache"
+                       "--private-key=tests/signing-key.sec"
+                       "--public-key=tests/signing-key.pub")
+                 #:search-path? #t)))
 
 (define (stop-server)
   (let ((server (server)))
