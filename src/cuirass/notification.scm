@@ -20,7 +20,7 @@
   #:use-module (cuirass database)
   #:use-module (cuirass logging)
   #:use-module (cuirass mail)
-  #:use-module (cuirass mastodon)
+  #:autoload   (cuirass mastodon) (send-status)
   #:use-module (cuirass parameters)
   #:use-module (cuirass utils)
   #:use-module (guix build syscalls)

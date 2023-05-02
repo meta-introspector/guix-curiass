@@ -18,8 +18,8 @@
 
 (define-module (cuirass mastodon)
   #:use-module (cuirass parameters)
-  #:use-module (mastodon)
-  #:use-module (mastodon types)
+  #:autoload   (mastodon) (new-status)
+  #:autoload   (mastodon types) (make-mastodon)
   #:export (send-status))
 
 (define (send-status text)
