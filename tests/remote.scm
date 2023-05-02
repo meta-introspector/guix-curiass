@@ -27,7 +27,10 @@
              (guix packages)
              (guix store)
              (tests common)
+             (avahi)
+             (avahi client)
              (squee)
+             (srfi srfi-34)
              (srfi srfi-64)
              (ice-9 match)
              (ice-9 threads))
@@ -82,10 +85,10 @@
          (gexp->derivation "foo" exp))))))
 
 (define drv
-  (dummy-drv))
+  (delay (dummy-drv)))
 
 (define drv-with-timeout
-  (dummy-drv 2))
+  (delay (dummy-drv 2)))
 
 (define* (make-build #:key
                      drv
@@ -102,11 +105,37 @@
     (#:timestamp . 1501347493)
     (#:timeout . ,timeout)))
 
+(define guix-daemon-running?
+  (let ((result (delay (guard (c ((store-connection-error? c) #f))
+                         (with-store store
+                           #t)))))
+    (lambda ()
+      "Return true if guix-daemon is running."
+      (force result))))
+
+(define avahi-daemon-running?
+  (let ((result (delay
+                  (catch 'avahi-error
+                    (lambda ()
+                      (let* ((poll (make-simple-poll))
+                             (client (make-client (simple-poll poll)
+                                                  (list
+                                                   client-flag/ignore-user-config)
+                                                  (const #t))))
+                        (client? client)))
+                    (const #f)))))
+    (lambda ()
+      "Return true if avahi-daemon is running."
+      (force result))))
+
 (test-group-with-cleanup "remote"
   (test-assert "db-init"
     (begin
       (test-init-db!)
       #t))
+
+  ;; The remaining tests require guix-daemon to be running.
+  (test-skip (if (and (guix-daemon-running?) (avahi-daemon-running?)) 0 100))
 
   (test-assert "fill-db"
     (let ((build build)
@@ -123,7 +152,7 @@
       (db-add-or-update-specification spec)
       (db-add-evaluation "guix" checkouts
                          #:timestamp 1501347493)
-      (db-add-build (make-build #:drv drv
+      (db-add-build (make-build #:drv (force drv)
                                 #:output "fake-1"))))
 
   (test-assert "remote-server"
@@ -139,19 +168,19 @@
   (test-assert "build done"
     (retry
      (lambda ()
-       (eq? (assq-ref (db-get-build drv) #:status)
+       (eq? (assq-ref (db-get-build (force drv)) #:status)
             (build-status succeeded)))
      #:times 10
      #:delay 1))
 
   (test-assert "build timeout"
     (begin
-      (db-add-build (make-build #:drv drv-with-timeout
+      (db-add-build (make-build #:drv (force drv-with-timeout)
                                 #:output "fake-2"
                                 #:timeout 1))
       (retry
        (lambda ()
-         (eq? (assq-ref (db-get-build drv-with-timeout) #:status)
+         (eq? (assq-ref (db-get-build (force drv-with-timeout)) #:status)
               (build-status failed)))
        #:times 10
        #:delay 1)))
@@ -160,10 +189,10 @@
     (begin
       (stop-worker)
       (start-worker)
-      (db-update-build-status! drv (build-status scheduled))
+      (db-update-build-status! (force drv) (build-status scheduled))
       (retry
        (lambda ()
-         (eq? (assq-ref (db-get-build drv) #:status)
+         (eq? (assq-ref (db-get-build (force drv)) #:status)
               (build-status succeeded)))
        #:times 10
        #:delay 1)))
