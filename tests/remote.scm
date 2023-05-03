@@ -84,7 +84,10 @@
   (with-store store
     (derivation-file-name
      (run-with-store store
-       (let ((exp #~(begin
+       ;; Add a nonce to make sure a new derivation is built each time we run
+       ;; the tests.
+       (let ((exp #~(let ((nonce (list #$(car (gettimeofday))
+                                       #$(getpid))))
                       (when #$sleep
                         (sleep #$sleep))
                       (mkdir #$output))))
