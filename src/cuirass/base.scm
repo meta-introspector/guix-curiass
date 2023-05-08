@@ -1,5 +1,5 @@
 ;;; base.scm -- Cuirass base module
-;;; Copyright © 2016, 2017, 2018, 2019, 2022 Ludovic Courtès <ludo@gnu.org>
+;;; Copyright © 2016-2019, 2022-2023 Ludovic Courtès <ludo@gnu.org>
 ;;; Copyright © 2016, 2017 Mathieu Lirzin <mthl@gnu.org>
 ;;; Copyright © 2017, 2020, 2021 Mathieu Othacehe <othacehe@gnu.org>
 ;;; Copyright © 2017 Ricardo Wurmus <rekado@elephly.net>
@@ -302,16 +302,19 @@ Return a list of jobs that are associated to EVAL-ID."
                    ((? eof-object?)
                     (db-set-evaluation-status eval-id
                                               (evaluation-status failed))
-                    (close-port (cdr log-pipe))
-                    (raise (condition
-                            (&evaluation-error
-                             (name (specification-name spec))
-                             (id eval-id)))))
+                    #f)
                    (_ #t))))
     (close-port (cdr log-pipe))
-    (close-pipe port)
-    (let ((spec-name (specification-name spec)))
-      (log-info "evaluation ~a for '~a' completed" eval-id spec-name))))
+    (let ((spec-name (specification-name spec))
+          (status (close-pipe port)))
+      (if (and (zero? status) result)
+          (log-info "evaluation ~a for '~a' completed" eval-id spec-name)
+          (begin
+            (log-info "evaluation ~a for '~a' failed" eval-id spec-name)
+            (raise (condition
+                    (&evaluation-error
+                     (name (specification-name spec))
+                     (id eval-id)))))))))
 
 
 ;;;
