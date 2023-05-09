@@ -58,7 +58,6 @@
                        (ice-9 rdelim)
                        (ice-9 popen))
            #:configure-flags #~'("--localstatedir=/var") ;for /var/log/cuirass
-           #:parallel-tests? #f
            #:phases
            #~(modify-phases %standard-phases
                (add-before 'bootstrap 'fix-version-gen
