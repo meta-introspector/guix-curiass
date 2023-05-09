@@ -129,6 +129,10 @@ similar."
   ;; number of 'stat' calls per entry in %LOAD-PATH.  Shamelessly remove it.
   (set! %load-extensions '(".scm"))
 
+  ;; Since messages can be written from several threads, arrange to print
+  ;; lines at once.
+  (setvbuf (current-logging-port) 'line)
+
   (match args
     (()
      (format (current-error-port)
