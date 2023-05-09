@@ -1,0 +1,17 @@
+;; This file, which is best viewed as -*- Scheme -*-, lists the OpenPGP keys
+;; currently authorized to sign commits in this repository.
+
+(authorizations
+ (version 0)
+
+ (("3E89 EEE7 458E 720D 9754  E0B2 5E28 A33B 0B84 F577"
+   (name "cbaines"))
+  ("3CE4 6455 8A84 FDC6 9DB4  0CFB 090B 1199 3D9A EBB5"
+   (name "civodul"))
+  ("4008 6A7E 0252 9B60 31FB  8607 8354 7635 3176 9CA6"
+   (name "mothacehe"))
+  ( ;; primary: "F5BC 5534 C36F 0087 B39D  36EF 1C9D C4FE B9DB 7C4B"
+   "F5DA 2032 4B87 3D0B 7A38  7672 0DB0 FF88 4F55 6D79"
+   (name "nckx"))
+  ("BCA6 89B6 3655 3801 C3C6  2150 197A 5888 235F ACAC"
+   (name "rekado"))))
