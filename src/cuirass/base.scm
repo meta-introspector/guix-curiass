@@ -86,28 +86,6 @@
             %use-substitutes?
             %fallback?))
 
-(define-syntax-rule (with-store store exp ...)
-  ;; XXX: This is a 'with-store' variant that plays well with delimited
-  ;; continuations and fibers.  The 'with-store' macro in (guix store)
-  ;; currently closes in a 'dynamic-wind' handler, which means it would close
-  ;; the store at each context switch.  Remove this when the real 'with-store'
-  ;; has been fixed.
-  (let ((store (open-connection)))
-    (unwind-protect
-     ;; Always set #:keep-going? so we don't stop on the first build failure.
-     ;; Set #:print-build-trace explicitly to make sure 'process-build-log'
-     ;; sees build events; set #:build-verbosity 1 so that we don't receive
-     ;; output from the builders (that is, we only get build traces, nothing
-     ;; more), which in turn makes sure we can correctly process build traces.
-     (set-build-options store
-                        #:use-substitutes? (%use-substitutes?)
-                        #:fallback? (%fallback?)
-                        #:keep-going? #t
-                        #:print-build-trace #t
-                        #:build-verbosity 1)
-     exp ...
-     (close-connection store))))
-
 (define %build-remote?
   ;; Define whether to use the remote build mechanism.
   (make-parameter #f))
