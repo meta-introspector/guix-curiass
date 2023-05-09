@@ -57,20 +57,38 @@
                         ;; timestamp.
                         (format (current-logging-port) "~a~%" str)))))
 
+(define current-logging-level
+  ;; Messages at this level and "above" this level are all logged; messages
+  ;; below this level are discarded.
+  (make-parameter (or (and=> (getenv "CUIRASS_LOGGING_LEVEL")
+                             string->symbol)
+                      'info)
+                  (lambda (value)
+                    (unless (memq value '(debug info warning error))
+                      (log-error "~s: invalid logging level~%" value)
+                      (exit 1))
+                    value)))
+
 (define (log-message fmt level . args)
   "Log the given message as one line."
   ;; Note: Use '@' to make sure -Wformat detects this use of 'format'.
-  (let ((fmt (cond
-              ((eq? level 'info)
-               fmt)
-              ((eq? level 'debug)
-               (string-append "debug: " fmt))
-              ((eq? level 'warning)
-               (string-append "warning: " fmt))
-              ((eq? level 'error)
-               (string-append "error: " fmt)))))
-    ((current-logging-procedure)
-     (apply (@ (ice-9 format) format) #f fmt args))))
+  (when (or (and (eq? level 'debug)
+                 (eq? (current-logging-level) 'debug))
+            (and (eq? level 'info)
+                 (memq (current-logging-level) '(debug info)))
+            (and (eq? level 'warning)
+                 (memq (current-logging-level) '(debug info warning))))
+    (let ((fmt (cond
+                ((eq? level 'info)
+                 fmt)
+                ((eq? level 'debug)
+                 (string-append "debug: " fmt))
+                ((eq? level 'warning)
+                 (string-append "warning: " fmt))
+                ((eq? level 'error)
+                 (string-append "error: " fmt)))))
+      ((current-logging-procedure)
+       (apply (@ (ice-9 format) format) #f fmt args)))))
 
 (define-syntax-rule (log-info fmt args ...)
   (log-message fmt 'info args ...))
