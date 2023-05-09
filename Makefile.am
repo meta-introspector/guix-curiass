@@ -2,7 +2,7 @@
 
 # Copyright © 1995-2016 Free Software Foundation, Inc.
 # Copyright © 2016, 2017 Mathieu Lirzin <mthl@gnu.org>
-# Copyright © 2018 Ludovic Courtès <ludo@gnu.org>
+# Copyright © 2018, 2023 Ludovic Courtès <ludo@gnu.org>
 # Copyright © 2018 Clément Lassieur <clement@lassieur.org>
 # Copyright © 2018 Tatiana Sholokhova <tanja201396@gmail.com>
 # Copyright © 2020 Mathieu Othacehe <othacehe@gnu.org>
@@ -193,13 +193,14 @@ CLEANFILES =					\
 ## Distribution.  ##
 ## -------------- ##
 
-EXTRA_DIST = \
-  .dir-locals.el \
-  bin/cuirass.in \
-  bootstrap \
-  build-aux/guix.scm \
-  src/cuirass/config.scm.in \
-  etc/cuirass-remote-worker.service.in \
+EXTRA_DIST =					\
+  .dir-locals.el				\
+  bin/cuirass.in				\
+  bootstrap					\
+  guix.scm					\
+  build-aux/guix/cuirass-package.scm		\
+  src/cuirass/config.scm.in			\
+  etc/cuirass-remote-worker.service.in		\
   $(TESTS)
 
 dist-hook: gen-ChangeLog

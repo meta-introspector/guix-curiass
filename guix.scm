@@ -1,0 +1,1 @@
+build-aux/guix/cuirass-package.scm

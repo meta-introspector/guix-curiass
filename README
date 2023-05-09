@@ -24,7 +24,7 @@ A convenient way to install those dependencies is to install Guix and execute
 the following command:
 
 #+BEGIN_EXAMPLE
-  guix environment cuirass
+  guix shell -CPNW --expose=/var/run/dbus --expose=/var/log/guix/drvs
 #+END_EXAMPLE
 
 This will build and enter an environment which provides all the necessary
