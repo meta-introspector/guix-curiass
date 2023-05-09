@@ -48,6 +48,12 @@ AS_IF([test -z "$ac_cv_path_GUILD"],
 
 GUILE_MODULE_REQUIRED([avahi])
 GUILE_MODULE_REQUIRED([fibers])
+
+GUILE_MODULE_AVAILABLE([have_recent_fibers], [(fibers scheduler)])
+if test "x$have_recent_fibers" != "xyes"; then
+  AC_MSG_ERROR([Fibers appears to be too old; please install version 1.1.0 or later.])
+fi
+
 GUILE_MODULE_REQUIRED([guix])
 GUILE_MODULE_REQUIRED([guix git])
 GUILE_MODULE_REQUIRED([guix config])

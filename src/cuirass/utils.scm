@@ -98,31 +98,30 @@ value."
                                      #:key (parallelism 1))
   "Return a channel used to offload work to a dedicated thread.  ARGS are the
 arguments of the worker thread procedure."
-  (parameterize (((@@ (fibers internal) current-fiber) #f))
-    (let ((channel (make-channel)))
-      (for-each
-       (lambda _
-         (let ((args (initializer)))
-           (call-with-new-thread
-            (parameterize ((current-read-waiter (lambda (port)
-                                                  (port-poll port "r")))
-                           (current-write-waiter (lambda (port)
-                                                   (port-poll port "w"))))
-              (lambda ()
-                (parameterize ((%worker-thread-args args))
-                  (let loop ()
-                    (match (get-message channel)
-                      (((? channel? reply) . (? procedure? proc))
-                       (put-message
-                        reply
-                        (catch #t
-                          (lambda ()
-                            (apply proc args))
-                          (lambda (key . args)
-                            (cons* 'worker-thread-error key args))))))
-                    (loop))))))))
-       (iota parallelism))
-      channel)))
+  (let ((channel (make-channel)))
+    (for-each
+     (lambda _
+       (let ((args (initializer)))
+         (call-with-new-thread
+          (parameterize ((current-read-waiter (lambda (port)
+                                                (port-poll port "r")))
+                         (current-write-waiter (lambda (port)
+                                                 (port-poll port "w"))))
+            (lambda ()
+              (parameterize ((%worker-thread-args args))
+                (let loop ()
+                  (match (get-message channel)
+                    (((? channel? reply) . (? procedure? proc))
+                     (put-message
+                      reply
+                      (catch #t
+                        (lambda ()
+                          (apply proc args))
+                        (lambda (key . args)
+                          (cons* 'worker-thread-error key args))))))
+                  (loop))))))))
+     (iota parallelism))
+    channel))
 
 (define* (with-timeout op #:key (seconds 0.05) (wrap values))
   "Return an operation that succeeds if the given OP succeeds or if SECONDS
@@ -207,12 +206,12 @@ to."
         (apply proc args)
         (let* ((reply (make-channel))
                (message (cons reply proc)))
-          (if (and send-timeout (current-fiber))
+          (if send-timeout
               (put-message-with-timeout channel message
                                         #:seconds send-timeout
                                         #:timeout-proc send-timeout-proc)
               (put-message channel message))
-          (match (if (and receive-timeout (current-fiber))
+          (match (if receive-timeout
                      (get-message-with-timeout reply
                                                #:seconds
                                                receive-timeout
@@ -233,14 +232,13 @@ VARS... are bound to the arguments of the worker thread."
   (let ((channel (make-channel)))
     (call-with-new-thread
      (lambda ()
-       (parameterize (((@@ (fibers internal) current-fiber) #f))
-         (catch #t
-           (lambda ()
-             (call-with-values thunk
-               (lambda values
-                 (put-message channel `(values ,@values)))))
-           (lambda args
-             (put-message channel `(exception ,@args)))))))
+       (catch #t
+         (lambda ()
+           (call-with-values thunk
+             (lambda values
+               (put-message channel `(values ,@values)))))
+         (lambda args
+           (put-message channel `(exception ,@args))))))
 
     (match (get-message channel)
       (('values . results)

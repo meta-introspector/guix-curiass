@@ -197,16 +197,6 @@ any."
     (fcntl port F_SETFL (logior O_NONBLOCK flags))
     port))
 
-(match (resolve-module '(fibers internal) #t #f #:ensure #f)
-  (#f #t)                                         ;Fibers > 1.0.0
-  ((? module? internal)                           ;Fibers <= 1.0.0
-   ;; Work around <https://github.com/wingo/fibers/issues/19>.
-   ;; This monkey-patching aims to replace EPOLLERR occurrences in
-   ;; 'schedule-fibers-for-fd' with EPOLLERR | EPOLLHUP.
-   (module-define! internal 'EPOLLERR
-                   (logior (@ (fibers epoll) EPOLLERR)
-                           (@ (fibers epoll) EPOLLHUP)))))
-
 (define %cuirass-state-directory
   ;; Directory where state files are stored, usually "/var".
   (make-parameter (or (getenv "CUIRASS_STATE_DIRECTORY")

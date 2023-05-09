@@ -21,7 +21,7 @@
   #:use-module (cuirass utils)
   #:use-module (fibers)
   #:use-module (fibers channels)
-  #:use-module (fibers internal)
+  ;; #:use-module (fibers internal)
   #:use-module (fibers operations)
   #:use-module (ice-9 match)
   #:use-module (ice-9 threads)
@@ -66,7 +66,11 @@ printed."
             cur-time)
           last-check)))
 
-  (let ((watchdog-channel (make-channel)))
+  ;; FIXME: Fibers 1.1.0 removed 'fold-all-schedulers' and it's not clear how
+  ;; to implement this watchdog using the 1.1.0 API.
+  *unspecified*
+
+  #;(let ((watchdog-channel (make-channel)))
     (parameterize (((@@ (fibers internal) current-fiber) #f))
       (call-with-new-thread
        (lambda ()
