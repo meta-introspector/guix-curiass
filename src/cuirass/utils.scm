@@ -52,7 +52,6 @@
             %non-blocking
             non-blocking
             essential-task
-            bytevector-range
 
             date->rfc822-str
             random-string
@@ -282,24 +281,6 @@ die silently while the rest of the program keeps going."
 
         ;; Tell the other end to exit with a non-zero code.
         (put-message exit-channel 1)))))
-
-(define %weak-references
-  (make-weak-key-hash-table))
-
-(define (bytevector-range bv offset count)
-  "Return a bytevector that aliases the COUNT bytes of BV starting at OFFSET."
-  (cond ((and (zero? offset) (= count (bytevector-length bv)))
-         bv)
-        ((or (> (+ offset count) (bytevector-length bv))
-             (< offset 0))
-         (throw 'out-of-range "bytevector-range"
-                "Bytevector range is invalid: ~S ~S"
-                (list offset count) (list offset count)))
-        (else
-         (let* ((pointer (bytevector->pointer bv offset))
-                (range   (pointer->bytevector pointer count)))
-           (hashq-set! %weak-references range bv)
-           range))))
 
 (define (date->rfc822-str date)
   (date->string date "~a, ~d ~b ~Y ~T ~z"))
