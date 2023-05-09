@@ -219,18 +219,6 @@ any."
     (fcntl port F_SETFL (logior O_NONBLOCK flags))
     port))
 
-(define (read/non-blocking port)
-  "Like 'read', but uses primitives that don't block and thus play well with
-fibers."
-  ;; XXX: Since 'read' is not suspendable as of Guile 2.2.3, we use
-  ;; 'read-string' (which is suspendable) and then 'read'.
-  (setvbuf port 'block 4096)                   ;'read-string' uses 'read-char'
-  (match (read-string port)
-    ((? eof-object? eof)
-     eof)
-    ((? string? data)
-     (call-with-input-string data read))))
-
 (match (resolve-module '(fibers internal) #t #f #:ensure #f)
   (#f #t)                                         ;Fibers > 1.0.0
   ((? module? internal)                           ;Fibers <= 1.0.0
@@ -288,7 +276,7 @@ Return a list of jobs that are associated to EVAL-ID."
                                 "evaluate"
                                 (%package-database)
                                 (object->string eval-id))))))
-         (result (match (read/non-blocking port)
+         (result (match (read port)
                    ;; If an error occured during evaluation report it,
                    ;; otherwise, suppose that data read from port are
                    ;; correct and keep things going.

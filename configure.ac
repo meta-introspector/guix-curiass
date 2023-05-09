@@ -37,6 +37,10 @@ AC_PROG_SED
 
 GUILE_PKG([3.0])
 
+dnl Guile 3.0.6 introduced 'read' in Scheme, which cooperates with
+dnl Fibers (it can be suspended).
+PKG_CHECK_MODULES([GUILE], [guile-3.0 >= 3.0.6])
+
 AC_PATH_PROG([GUILE], [guile])
 AC_PATH_PROG([GUILD], [guild])
 AS_IF([test -z "$ac_cv_path_GUILD"],
