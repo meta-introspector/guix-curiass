@@ -35,8 +35,7 @@ AC_CANONICAL_HOST
 AC_PROG_MKDIR_P
 AC_PROG_SED
 
-# We need Fibers, which requires 2.2+.
-GUILE_PKG([3.0 2.2])
+GUILE_PKG([3.0])
 
 AC_PATH_PROG([GUILE], [guile])
 AC_PATH_PROG([GUILD], [guild])

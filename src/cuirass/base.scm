@@ -108,13 +108,6 @@
      exp ...
      (close-connection store))))
 
-(cond-expand
-  (guile-2.2
-   ;; Guile 2.2.2 has a bug whereby 'time-monotonic' objects have seconds and
-   ;; nanoseconds swapped (fixed in Guile commit 886ac3e).  Work around it.
-   (define time-monotonic time-tai))
-  (else #t))
-
 (define %build-remote?
   ;; Define whether to use the remote build mechanism.
   (make-parameter #f))
