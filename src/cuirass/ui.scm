@@ -19,6 +19,7 @@
 
 (define-module (cuirass ui)
   #:use-module (cuirass config)
+  #:use-module ((cuirass logging) #:select (current-logging-port))
   #:use-module (srfi srfi-26)
   #:use-module (ice-9 match)
   #:export (;; Procedures.
