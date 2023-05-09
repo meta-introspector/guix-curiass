@@ -203,21 +203,8 @@ EXTRA_DIST =					\
   etc/cuirass-remote-worker.service.in		\
   $(TESTS)
 
-dist-hook: gen-ChangeLog
+dist-hook:
 	$(AM_V_GEN)echo $(VERSION) > $(distdir)/.tarball-version
-
-.PHONY: gen-ChangeLog
-gen-ChangeLog:
-	$(AM_V_GEN)if test -d $(srcdir)/.git; then \
-	  log_fix="$(srcdir)/build-aux/git-log-fix"; \
-	  test -e "$$log_fix" \
-	    && amend_git_log="--amend=$$log_fix" \
-	    || amend_git_log=; \
-	  $(top_srcdir)/build-aux/gitlog-to-changelog \
-	    $$amend_git_log > $(distdir)/cl-t && \
-	    { rm -f $(distdir)/ChangeLog && \
-	      mv $(distdir)/cl-t $(distdir)/ChangeLog; } \
-	fi
 
 ## ----------------- ##
 ## Generated files.  ##
