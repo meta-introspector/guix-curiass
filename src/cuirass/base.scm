@@ -279,23 +279,6 @@ Return a list of jobs that are associated to EVAL-ID."
 ;;; Build status.
 ;;;
 
-;; TODO: Remove this code once it has been integrated in Guix proper as (guix
-;; status).
-
-(define (read-line/non-blocking port)
-  "Like 'read-line', but unlike 'read-line', use I/O primitives that can be
-suspended when PORT is O_NONBLOCK in a fiber context."
-  (let loop ((chars '()))
-    (match (read-char port)                       ;can suspend
-      ((? eof-object? eof)
-       (if (null? chars)
-           eof
-           (list->string (reverse chars))))
-      (#\newline
-       (list->string (reverse chars)))
-      (chr
-       (loop (cons chr chars))))))
-
 (define (process-build-log port proc seed)
   "Read from PORT the build log, calling PROC for each build event like 'fold'
 does.  Return the result of the last call to PROC."
@@ -306,7 +289,7 @@ does.  Return the result of the last call to PROC."
          (proc (cons event-name args) state)))))
 
   (let loop ((state seed))
-    (match (read-line/non-blocking port)
+    (match (read-line port)
       ((? eof-object?)
        state)
       ((? string? line)
