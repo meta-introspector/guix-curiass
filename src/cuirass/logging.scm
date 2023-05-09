@@ -1,5 +1,5 @@
 ;;; logging.scm -- Event logging.
-;;; Copyright © 2018 Ludovic Courtès <ludo@gnu.org>
+;;; Copyright © 2018, 2023 Ludovic Courtès <ludo@gnu.org>
 ;;;
 ;;; This file is part of Cuirass.
 ;;;
@@ -48,8 +48,14 @@
 
 (define current-logging-procedure
   ;; The logging procedure.  This could be 'syslog', for instance.
-  (make-parameter (lambda (str)
-                    (log-to-port (current-logging-port) str))))
+  (make-parameter (if (isatty? (current-logging-port))
+                      (lambda (str)
+                        (log-to-port (current-logging-port) str))
+                      (lambda (str)
+                        ;; Most likely we're writing to some log file handled
+                        ;; by shepherd or similar, so no need to add a
+                        ;; timestamp.
+                        (format (current-logging-port) "~a~%" str)))))
 
 (define (log-message fmt level . args)
   "Log the given message as one line."
