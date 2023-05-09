@@ -68,16 +68,6 @@
                    (call-with-output-file ".tarball-version"
                      (lambda (port)
                        (display #$(package-version this-package) port)))))
-               (add-before 'check 'set-PATH-for-tests
-                 (lambda* (#:key inputs #:allow-other-keys)
-                   (let ((pg (assoc-ref inputs "ephemeralpg"))
-                         (path (getenv "PATH")))
-                     (setenv "PATH" (string-append pg "/bin:" path)))))
-               ;; Disable the remote tests that require a Guix daemon connection.
-               (add-before 'check 'disable-remote-tests
-                 (lambda _
-                   (substitute* "Makefile.am"
-                     (("tests/remote.scm") ""))))
                (add-after 'install 'wrap-program
                  (lambda* (#:key inputs outputs #:allow-other-keys)
                    ;; Wrap the 'cuirass' command to refer to the right modules.
