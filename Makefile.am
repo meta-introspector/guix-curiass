@@ -25,7 +25,7 @@
 bin_SCRIPTS =                    \
   bin/cuirass
 
-noinst_SCRIPTS = pre-inst-env
+noinst_SCRIPTS = pre-inst-env etc/new-client-cert.scm
 
 guilesitedir = $(datarootdir)/guile/site/@GUILE_EFFECTIVE_VERSION@
 guileobjectdir = $(libdir)/guile/@GUILE_EFFECTIVE_VERSION@/site-ccache

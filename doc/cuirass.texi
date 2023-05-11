@@ -13,6 +13,7 @@ Copyright @copyright{} 2016, 2017 Mathieu Lirzin@*
 Copyright @copyright{} 2017, 2020, 2021 Mathieu Othacehe@*
 Copyright @copyright{} 2018, 2021, 2023 Ludovic Courtès@*
 Copyright @copyright{} 2018 Clément Lassieur
+Copyright @copyright{} 2023 Maxim Cournoyer@*
 
 @quotation
 Permission is granted to copy, distribute and/or modify this document
@@ -57,6 +58,7 @@ Documentation License''.
 * Parameters::                  Cuirass parameters.
 * Build modes::                 Build modes.
 * Invocation::                  How to run Cuirass.
+* Authentication::              Configuring TLS authentication.
 * Web API::                     Description of the Web API.
 * Database::                    About the database schema.
 
@@ -706,6 +708,90 @@ Display the actual version of @code{cuirass}.
 @itemx -h
 Display an help message that summarize all the options provided.
 @end table
+
+@c *********************************************************************
+@node Authentication
+@chapter Authentication
+@cindex authentication
+
+Cuirass does not provide its own authentication mechanism; by default,
+any user can do anything via its web interface.  To restrict this to
+only authorized users, one approach is to proxy the Cuirass web site via
+a web server such as Nginx and configure the web server to require
+client certificate verification for pages under the @samp{/admin}
+prefix.  The following minimal Nginx configuration can be used to
+accomplish this on a Guix System:
+
+@lisp
+(service nginx-service-type
+         (nginx-configuration
+          (server-blocks
+           (list
+            ;; TLS is required for authentication; serve the site via
+            ;; HTTPS only.
+            (nginx-server-configuration
+             (listen '("80"))
+             (raw-content
+              (list "return 308 https://$host$request_uri;")))
+
+            (nginx-server-configuration
+             (listen '("443 ssl"))
+             (server-name '("ci.your-host.org"))
+             (ssl-certificate "/etc/certs/ci.your-host.org.crt")
+             (ssl-certificate-key "/etc/certs/ci.your-host.org.key")
+             (locations
+              (list
+               ;; Proxy the whole Cuirass web site...
+               (nginx-location-configuration
+                (uri "/")
+                (body (list "proxy_pass http://localhost:8081;")))
+               ;; ... but require authentication for the admin pages.
+               (nginx-location-configuration
+                (uri "~ ^/admin")
+                (body
+                 (list "if ($ssl_client_verify != SUCCESS) \
+@{ return 403; @} proxy_pass http://localhost:8081;")))))
+             (raw-content
+              ;; Register your self-generated certificate authority.
+              (list "ssl_client_certificate /etc/ssl-ca/certs/ca.crt;"
+                    "ssl_verify_client optional;")))))))
+@end lisp
+
+Your host TLS certificate could have been obtained via Let's Encrypt or
+directly via the @command{openssl} command, among other means.  To
+create a private certificate authority (CA) that can sign user
+certificates, a convenience script is provided.  It's main requirement
+is to have the @command{guix} command available.  It can be invoked
+like:
+
+@example
+sudo -E ./etc/new-client-cert.scm --generate-ca
+@end example
+
+It should generate the @file{/etc/ssl-ca/private/ca.key} private key as
+well as the @file{/etc/ssl-ca/certs/ca.crt} certificate authority as
+used in the Nginx configuration above.
+
+To issue a new user certificate, run the same script from your home
+directory with:
+
+@example
+sudo -E ./etc/new-client-cert.scm
+@end example
+
+You will be asked to input the password for the CA private key, if any,
+and again for your new certificate; save it carefully.  The script
+requires to run as root to have access to the private certificate
+authority key; it outputs the new user certificate files to the current
+working directory.
+
+After your new CA-signed user certificate is generated, it needs to be
+registered with your web browser.  To do so using GNU IceCat, for
+example, you can navigate to @samp{Parameters -> Security -> Show
+certificates} and then click the @samp{Import...} button and select your
+@file{.pk12} personal certificate file.  The web interface of Cuirass
+should now only allow authenticated users to perform administrative
+tasks.
 
 @c *********************************************************************
 @node Web API
