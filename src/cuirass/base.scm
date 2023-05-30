@@ -83,15 +83,10 @@
             %gc-root-directory
             %gc-root-ttl
             %build-remote?
-            %use-substitutes?
             %fallback?))
 
 (define %build-remote?
   ;; Define whether to use the remote build mechanism.
-  (make-parameter #f))
-
-(define %use-substitutes?
-  ;; Define whether to use substitutes
   (make-parameter #f))
 
 (define %fallback?

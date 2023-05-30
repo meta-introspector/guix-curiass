@@ -1,7 +1,7 @@
 ;;;; cuirass -- continuous integration tool
 ;;; Copyright © 2016 Mathieu Lirzin <mthl@gnu.org>
 ;;; Copyright © 2017 Mathieu Othacehe <othacehe@gnu.org>
-;;; Copyright © 2018 Ludovic Courtès <ludo@gnu.org>
+;;; Copyright © 2018, 2023 Ludovic Courtès <ludo@gnu.org>
 ;;; Copyright © 2018 Clément Lassieur <clement@lassieur.org>
 ;;;
 ;;; This file is part of Cuirass.
@@ -55,7 +55,6 @@
       --ttl=DURATION        Keep build results live for at least DURATION.
   -I, --interval=N          Wait N seconds between each poll
       --build-remote        Use the remote build mechanism
-      --use-substitutes     Allow usage of pre-built substitutes
       --threads=N           Use up to N kernel threads
   -V, --version             Display version
   -h, --help                Display this help message")
@@ -70,7 +69,7 @@
     (database       (single-char #\D) (value #t))
     (interval       (single-char #\I) (value #t))
     (build-remote                     (value #f))
-    (use-substitutes                  (value #f))
+    (use-substitutes                  (value #f)) ;unused, for back compat
     (threads                          (value #t))
     (fallback                         (value #f))
     (ttl                              (value #t))
@@ -90,7 +89,6 @@
          (%package-cachedir
           (option-ref opts 'cache-directory (%package-cachedir)))
          (%build-remote? (option-ref opts 'build-remote #f))
-         (%use-substitutes? (option-ref opts 'use-substitutes #f))
          (%fallback? (option-ref opts 'fallback #f))
          (%gc-root-ttl
           (time-second (string->duration (option-ref opts 'ttl "30d")))))

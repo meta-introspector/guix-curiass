@@ -11,7 +11,7 @@ server.
 @copying
 Copyright @copyright{} 2016, 2017 Mathieu Lirzin@*
 Copyright @copyright{} 2017, 2020, 2021 Mathieu Othacehe@*
-Copyright @copyright{} 2018, 2021 Ludovic Courtès@*
+Copyright @copyright{} 2018, 2021, 2023 Ludovic Courtès@*
 Copyright @copyright{} 2018 Clément Lassieur
 
 @quotation
@@ -535,10 +535,6 @@ user under which Cuirass is running.
 @item --interval=@var{n}
 @itemx -I @var{n}
 Wait @var{n} seconds between each poll.
-
-@item --use-substitutes
-This can be useful when you are not interested in building the
-dependencies of a particular job.
 
 @item --threads=@var{n}
 Use up to @var{n} kernel threads.
