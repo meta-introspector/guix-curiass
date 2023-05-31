@@ -53,7 +53,4 @@
   "Initialize the test database."
   (%create-database? #t)
   (%package-database (pg-tmp))
-  (%db (db-open))
-  (%db-channel (make-worker-thread-channel
-                (lambda ()
-                  (list (%db))))))
+  (%db (db-open)))

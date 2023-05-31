@@ -1,7 +1,7 @@
 ## Process this file with autoconf to produce a configure script.
 
 # Copyright © 2016, 2017 Mathieu Lirzin <mthl@gnu.org>
-# Copyright © 2017, 2018, 2020 Ludovic Courtès <ludo@gnu.org>
+# Copyright © 2017, 2018, 2020, 2023 Ludovic Courtès <ludo@gnu.org>
 # Copyright © 2017 Mathieu Othacehe <othacehe@gnu.org>
 #
 # This file is part of Cuirass.
@@ -67,6 +67,17 @@ GUILE_MODULE_REQUIRED([zlib])
 
 # We depend on new Guile-Git errors.
 GUILE_MODULE_REQUIRED_EXPORT([(git)], git-error-message)
+
+# We need a recent-enough Squee where 'exec-query' is non-blocking:
+# https://notabug.org/cwebber/guile-squee/commit/67bd6c3679dcd9cf8f2837848ec9cb2b53186614
+AC_MSG_CHECKING([whether (squee) is recent enough])
+squee_file="$($GUILE -c '(display (search-path %load-path "squee.scm"))')"
+if grep -q current-read-waiter "$squee_file"; then
+  AC_MSG_RESULT([yes])
+else
+  AC_MSG_RESULT([no])
+  AC_MSG_ERROR([Guile-Squee is too old; please get a newer one from https://notabug.org/cwebber/guile-squee/])
+fi
 
 guix_localstatedir="$($GUILE -c '(import (guix config)) (display %localstatedir)')"
 AC_SUBST(guix_localstatedir)

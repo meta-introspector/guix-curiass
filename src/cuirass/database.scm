@@ -1,7 +1,7 @@
 ;;; database.scm -- store evaluation and build results
 ;;; Copyright © 2016, 2017 Mathieu Lirzin <mthl@gnu.org>
 ;;; Copyright © 2017, 2020 Mathieu Othacehe <othacehe@gnu.org>
-;;; Copyright © 2018, 2020 Ludovic Courtès <ludo@gnu.org>
+;;; Copyright © 2018, 2020, 2023 Ludovic Courtès <ludo@gnu.org>
 ;;; Copyright © 2018 Clément Lassieur <clement@lassieur.org>
 ;;; Copyright © 2018 Tatiana Sholokhova <tanja201396@gmail.com>
 ;;; Copyright © 2019, 2020 Ricardo Wurmus <rekado@elephly.net>
@@ -32,6 +32,7 @@
   #:use-module (cuirass utils)
   #:use-module (guix channels)
   #:use-module (squee)
+  #:use-module ((fibers scheduler) #:select (current-scheduler))
   #:use-module (ice-9 match)
   #:use-module (ice-9 format)
   #:use-module (ice-9 ftw)
@@ -128,7 +129,7 @@
             %create-database?
             %package-database
             %package-schema-file
-            %db-channel
+            %db-connection-pool                   ;internal
             ;; Macros.
             exec-query/bind
             with-database
@@ -257,44 +258,77 @@ parameters matches the number of arguments to bind."
                                      (string-append %datadir "/" %package))
                                  "/sql")))
 
-(define %db-channel
+(define %db-connection-pool
+  ;; Channel of the database connection pool.
   (make-parameter #f))
 
-(define-syntax-rule (with-database body ...)
-  "Run BODY with %DB-CHANNEL being dynamically bound to a channel providing a
-worker thread that allows database operations to run without interfering with
-fibers."
-  (parameterize ((%db-channel
-                  (make-worker-thread-channel
-                   (lambda ()
-                     (list (db-open)))
-                   #:parallelism
-                   (min (current-processor-count) 8))))
-    body ...))
+(define %db-connection-pool-size
+  ;; Size of the database connection pool.
+  8)
 
-(define-syntax-rule (with-db-worker-thread db exp ...)
-  "Evaluate EXP... in the critical section corresponding to %DB-CHANNEL.
-DB is bound to the argument of that critical section: the database connection."
-  (let ((send-timeout 2)
-        (receive-timeout 5)
-        (caller-name (frame-procedure-name
-                      (stack-ref (make-stack #t) 1))))
-    (call-with-worker-thread
-     (%db-channel)
-     (lambda (db) exp ...)
-     #:send-timeout send-timeout
-     #:send-timeout-proc
-     (lambda ()
-       (log-warning
-        (format #f "No available database workers for ~a seconds."
-                (number->string send-timeout))))
-     #:receive-timeout receive-timeout
-     #:receive-timeout-proc
-     (lambda ()
-       (log-warning
-        (format #f "Database worker unresponsive for ~a seconds (~a)."
-                (number->string receive-timeout)
-                caller-name))))))
+(define-syntax-rule (with-database body ...)
+  "Create a pool of database connection (if in a Fiber context) and evaluate
+BODY... in that context.  Close all database connections when leaving BODY's
+dynamic extent."
+  ;; Create a pool of database connections.  Every time we make a query, pick
+  ;; a connection from the pool and return it once we're done.  This allows
+  ;; us to run several queries concurrently (we can only execute one query at
+  ;; a time on each connection) and to reduce the risk of having quick
+  ;; queries blocked by slower ones.
+  (let ((connections (if (current-scheduler)      ;fiber context?
+                         (unfold (cut > <> %db-connection-pool-size)
+                                 (lambda (i)
+                                   (db-open))
+                                 1+
+                                 1)
+                         '())))
+    (define (close)
+      (for-each db-close connections))
+
+    (with-exception-handler (lambda (exception)
+                              (close)
+                              (raise-exception exception))
+      (lambda ()
+        (define thunk
+          (lambda () body ...))
+        (define result
+          (if (current-scheduler)                 ;fiber context?
+              (parameterize ((%db-connection-pool (make-resource-pool connections)))
+                (thunk))
+              (thunk)))
+        (close)
+        result))))
+
+(define current-db
+  ;; Database connection currently being used or #f.
+  (make-parameter #f))
+
+(define-syntax-rule (with-db-worker-thread db exp ...) ;TODO: Rename.
+  "Evaluate EXP... with DB bound to a database connection.  In a Fiber context,
+the database connection is taken from the current connection pool, waiting if
+none is available.  In a non-Fiber context, a new connection is opened; it is
+closed once EXP... has been evaluated."
+  (let ((proc (lambda (db) exp ...)))
+    (cond ((current-db)
+           ;; Ruse CURRENT-DB.  Reusing the same connection is necessary when
+           ;; making a transaction through a series of 'exec-query' calls.
+           (proc (current-db)))
+          ((and (current-scheduler)               ;running from a fiber
+                (%db-connection-pool))
+           (with-resource-from-pool (%db-connection-pool) db
+             (parameterize ((current-db db))
+               (proc db))))
+          (else                                   ;non-fiber context
+           (parameterize ((current-db (db-open)))
+             (with-exception-handler
+                 (lambda (exception)
+                   (db-close (current-db))
+                   (raise-exception exception))
+               (lambda ()
+                 (define result
+                   (proc (current-db)))
+                 (db-close (current-db))
+                 result)))))))
 
 (define-syntax-rule (with-transaction exp ...)
   "Evalute EXP within an SQL transaction."
