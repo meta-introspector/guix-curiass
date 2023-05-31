@@ -48,10 +48,6 @@
             make-resource-pool
             with-resource-from-pool
 
-            make-worker-thread-channel
-            call-with-worker-thread
-            with-worker-thread
-
             %non-blocking
             non-blocking
             essential-task
@@ -145,38 +141,6 @@ POOL is empty, wait until a resource is returned to it.  Return RESOURCE when
 evaluating EXP... is done."
   (call-with-resource-from-pool pool (lambda (resource) exp ...)))
 
-(define %worker-thread-args
-  (make-parameter #f))
-
-(define* (make-worker-thread-channel initializer
-                                     #:key (parallelism 1))
-  "Return a channel used to offload work to a dedicated thread.  ARGS are the
-arguments of the worker thread procedure."
-  (let ((channel (make-channel)))
-    (for-each
-     (lambda _
-       (let ((args (initializer)))
-         (call-with-new-thread
-          (parameterize ((current-read-waiter (lambda (port)
-                                                (port-poll port "r")))
-                         (current-write-waiter (lambda (port)
-                                                 (port-poll port "w"))))
-            (lambda ()
-              (parameterize ((%worker-thread-args args))
-                (let loop ()
-                  (match (get-message channel)
-                    (((? channel? reply) . (? procedure? proc))
-                     (put-message
-                      reply
-                      (catch #t
-                        (lambda ()
-                          (apply proc args))
-                        (lambda (key . args)
-                          (cons* 'worker-thread-error key args))))))
-                  (loop))))))))
-     (iota parallelism))
-    channel))
-
 (define* (with-timeout op #:key (seconds 0.05) (wrap values))
   "Return an operation that succeeds if the given OP succeeds or if SECONDS
 have elapsed.  In the first case, the result of OP is returned and in the
@@ -238,49 +202,6 @@ put-operation until it succeeds."
                   (loop (put-message*)))
                 res)))
         res)))
-
-(define* (call-with-worker-thread channel proc
-                                  #:key
-                                  send-timeout
-                                  send-timeout-proc
-                                  receive-timeout
-                                  receive-timeout-proc)
-  "Send PROC to the worker thread through CHANNEL.  Return the result of PROC.
-If already in the worker thread, call PROC immediately.
-
-If SEND-TIMEOUT is set to a duration in seconds, SEND-TIMEOUT-PROC is called
-every time a delay of SEND-TIMEOUT seconds expires, when trying to send PROC
-to a worker thread.
-
-The same goes for RECEIVE-TIMEOUT and RECEIVE-TIMEOUT-PROC, except that the
-timer expires if there is no response from the database worker PROC was sent
-to."
-  (let ((args (%worker-thread-args)))
-    (if args
-        (apply proc args)
-        (let* ((reply (make-channel))
-               (message (cons reply proc)))
-          (if send-timeout
-              (put-message-with-timeout channel message
-                                        #:seconds send-timeout
-                                        #:timeout-proc send-timeout-proc)
-              (put-message channel message))
-          (match (if receive-timeout
-                     (get-message-with-timeout reply
-                                               #:seconds
-                                               receive-timeout
-                                               #:timeout-proc
-                                               receive-timeout-proc)
-                     (get-message reply))
-            (('worker-thread-error key args ...)
-             (apply throw key args))
-            (result result))))))
-
-(define-syntax-rule (with-worker-thread channel (vars ...) exp ...)
-  "Evaluate EXP... in the worker thread corresponding to CHANNEL.
-VARS... are bound to the arguments of the worker thread."
-  (call-with-worker-thread channel
-                           (lambda (vars ...) exp ...)))
 
 (define (%non-blocking thunk)
   (let ((channel (make-channel)))
