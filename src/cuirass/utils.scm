@@ -23,10 +23,6 @@
   #:use-module (cuirass logging)
   #:use-module (ice-9 match)
   #:use-module (ice-9 threads)
-  #:use-module ((ice-9 suspendable-ports)
-                #:select (current-read-waiter
-                          current-write-waiter))
-  #:use-module (ice-9 ports internal)
   #:use-module (rnrs bytevectors)
   #:use-module (system foreign)
   #:use-module (srfi srfi-1)
@@ -34,16 +30,10 @@
   #:use-module (json)
   #:use-module (fibers)
   #:use-module (fibers channels)
-  #:use-module (fibers operations)
-  #:use-module (fibers timers)
   #:export (alist?
             object->json-scm
             object->json-string
             define-enumeration
-
-            with-timeout
-            get-message-with-timeout
-            put-message-with-timeout
 
             make-resource-pool
             with-resource-from-pool
@@ -140,68 +130,6 @@ available.  Return the resource once PROC has returned."
 POOL is empty, wait until a resource is returned to it.  Return RESOURCE when
 evaluating EXP... is done."
   (call-with-resource-from-pool pool (lambda (resource) exp ...)))
-
-(define* (with-timeout op #:key (seconds 0.05) (wrap values))
-  "Return an operation that succeeds if the given OP succeeds or if SECONDS
-have elapsed.  In the first case, the result of OP is returned and in the
-second case, the wrapping procedure WRAP is called and its result returned."
-  (choice-operation op
-                    (wrap-operation (sleep-operation seconds) wrap)))
-
-(define* (get-message-with-timeout channel
-                                   #:key
-                                   seconds
-                                   (retry? #t)
-                                   timeout-proc)
-  "Perform a get-operation on CHANNEL with a timeout set to SECONDS.  If the
-timout expires and RETRY? is set to false, return 'timeout.  If RETRY is true,
-call the TIMEOUT-PROC procedure on timeout and retry the get-operation until
-it succeeds."
-  (define (get-message*)
-    (perform-operation
-     (with-timeout
-      (get-operation channel)
-      #:seconds seconds
-      #:wrap (const 'timeout))))
-
-  (let ((res (get-message*)))
-    (if retry?
-        (begin
-          (let loop ((res res))
-            (if (eq? res 'timeout)
-                (begin
-                  (and timeout-proc (timeout-proc))
-                  (loop (get-message*)))
-                res)))
-        res)))
-
-
-(define* (put-message-with-timeout channel message
-                                   #:key
-                                   seconds
-                                   (retry? #t)
-                                   timeout-proc)
-  "Perform a put-operation sending MESSAGE on CHANNEL with a timeout set to
-SECONDS.  If the timout expires and RETRY? is set to false, return 'timeout.
-If RETRY is true, call the TIMEOUT-PROC procedure on timeout and retry the
-put-operation until it succeeds."
-  (define (put-message*)
-    (perform-operation
-     (with-timeout
-      (wrap-operation (put-operation channel message) (const #t))
-      #:seconds seconds
-      #:wrap (const 'timeout))))
-
-  (let ((res (put-message*)))
-    (if retry?
-        (begin
-          (let loop ((res res))
-            (if (eq? res 'timeout)
-                (begin
-                  (and timeout-proc (timeout-proc))
-                  (loop (put-message*)))
-                res)))
-        res)))
 
 (define (%non-blocking thunk)
   (let ((channel (make-channel)))
