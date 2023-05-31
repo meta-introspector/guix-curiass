@@ -14,6 +14,7 @@
   (eval put 'make-parameter 'scheme-indent-function 1)
   (eval put 'with-database 'scheme-indent-function 0)
   (eval put 'with-transaction 'scheme-indent-function 0)
+  (eval put 'with-resource-from-pool 'scheme-indent-function 2))
  (texinfo-mode
   (indent-tabs-mode)
   (fill-column . 72)

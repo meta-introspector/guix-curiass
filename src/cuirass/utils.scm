@@ -45,6 +45,9 @@
             get-message-with-timeout
             put-message-with-timeout
 
+            make-resource-pool
+            with-resource-from-pool
+
             make-worker-thread-channel
             call-with-worker-thread
             with-worker-thread
@@ -89,6 +92,58 @@ value."
     (syntax-rules (symbol ...)
       ((_ symbol) value)
       ...)))
+
+(define (make-resource-pool resources)
+  "Return a channel implementing a pool over RESOURCES, a list of objects such
+as database connections.  The channel can then be passed to
+'with-resource-from-pool'."
+  (define channel
+    (make-channel))
+
+  (spawn-fiber
+   (lambda ()
+     (let loop ((pool resources)
+                (waiters '()))
+       (match (get-message channel)
+         (('get reply)
+          (match pool
+            (()
+             (log-debug "queuing request on resource pool ~x"
+                        (object-address channel))
+             (loop pool (cons reply waiters)))
+            ((head . tail)
+             (put-message reply head)
+             (loop tail waiters))))
+         (('put resource)
+          (match waiters
+            (()
+             (loop (cons resource pool) waiters))
+            ((rest ... reply)                     ;XXX: linear
+             (put-message reply resource)
+             (loop pool rest))))))))
+
+  channel)
+
+(define (call-with-resource-from-pool pool proc)
+  "Call PROC with a resource from POOL, blocking until a resource becomes
+available.  Return the resource once PROC has returned."
+  (let ((reply (make-channel)))
+    (put-message pool `(get ,reply))
+    (let ((resource (get-message reply)))
+      (with-exception-handler
+          (lambda (exception)
+            (put-message pool `(put ,resource))
+            (raise-exception exception))
+        (lambda ()
+          (let ((result (proc resource)))
+            (put-message pool `(put ,resource))
+            result))))))
+
+(define-syntax-rule (with-resource-from-pool pool resource exp ...)
+  "Evaluate EXP... with RESOURCE bound to a resource taken from POOL.  When
+POOL is empty, wait until a resource is returned to it.  Return RESOURCE when
+evaluating EXP... is done."
+  (call-with-resource-from-pool pool (lambda (resource) exp ...)))
 
 (define %worker-thread-args
   (make-parameter #f))
