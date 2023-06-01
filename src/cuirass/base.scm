@@ -401,6 +401,9 @@ items."
 
   (define total (length drv))
 
+  (set-build-options store
+                     #:keep-going? #t
+                     #:print-build-trace #t)
   (log-info "building ~a derivations in batches of ~a"
             total max-batch-size)
 
