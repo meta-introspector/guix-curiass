@@ -77,7 +77,8 @@
             (and (eq? level 'info)
                  (memq (current-logging-level) '(debug info)))
             (and (eq? level 'warning)
-                 (memq (current-logging-level) '(debug info warning))))
+                 (memq (current-logging-level) '(debug info warning)))
+            (eq? level 'error))
     (let ((fmt (cond
                 ((eq? level 'info)
                  fmt)
