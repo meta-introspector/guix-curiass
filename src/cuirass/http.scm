@@ -512,6 +512,12 @@ passed, only display JOBS targeting this SYSTEM."
      (object->json-string
       `((error . ,message)))))
 
+  (define (redirect ref)
+    (let ((uri (string->uri-reference ref)))
+      (respond (build-response #:headers `((location . ,uri))
+                               #:code 302)
+               #:body "Redirected...")))
+
   (define* (respond-html body #:key code)
     (respond
      (let ((content-type '((content-type . (text/html)))))
@@ -967,6 +973,20 @@ passed, only display JOBS targeting this SYSTEM."
        (if (and log (file-exists? log))
            (respond-compressed-file log)
            (respond-not-found (uri->string (request-uri request))))))
+
+    (('GET "eval" "latest" "dashboard")
+     (let* ((params (request-parameters request))
+            (spec (assq-ref params 'spec))
+            (system (assq-ref params 'system))
+            (evaluation-id (and spec (db-get-latest-evaluation spec))))
+       (if evaluation-id
+           (redirect (string-append "/eval/"
+                                    (number->string evaluation-id)
+                                    "/dashboard"
+                                    (if system
+                                        (string-append "?system=" system)
+                                        "")))
+           (respond-not-found "/eval/latest/dashboard"))))
 
     (('GET "eval" (= string->number id) "dashboard")
      (let* ((params (request-parameters request))

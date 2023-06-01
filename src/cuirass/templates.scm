@@ -427,15 +427,13 @@ system whose names start with " (code "guile-") ":" (br)
                                 (string-append "Dashboard " name))
                                (eval (and=> (spec->latest-eval-ok name)
                                             (cut assq-ref <> #:evaluation))))
-                          (if eval
-                              `((a (@ (href "/eval/" ,(assq-ref eval #:id)
-                                            "/dashboard"))
-                                   (div
-                                    (@ (class "oi oi-monitor d-inline-block ml-2")
-                                       (title ,dashboard-name)
-                                       (aria-label ,dashboard-name))
-                                    "")))
-                              '()))
+                          `((a (@ (href "/eval/latest/dashboard?spec="
+                                        ,(uri-encode name)))
+                               (div
+                                (@ (class "oi oi-monitor d-inline-block ml-2")
+                                   (title ,dashboard-name)
+                                   (aria-label ,dashboard-name))
+                                ""))))
                       ,(let ((id
                               (string-append
                                "specDropdown-"
