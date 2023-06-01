@@ -41,9 +41,7 @@
   #:use-module ((guix config) #:select (%state-directory))
   #:use-module (git)
   #:use-module (ice-9 binary-ports)
-  #:use-module ((ice-9 suspendable-ports)
-                #:select (current-read-waiter
-                          current-write-waiter))
+  #:use-module (ice-9 control)
   #:use-module (ice-9 format)
   #:use-module (ice-9 match)
   #:use-module (ice-9 popen)
@@ -619,6 +617,9 @@ specification."
              (db-get-latest-checkout name channel eval-id)))
          channels)))
 
+(define exception-with-kind-and-args?
+  (exception-predicate &exception-with-kind-and-args))
+
 (define (process-specs jobspecs)
   "Evaluate and build JOBSPECS and store results in the database."
   (define (new-eval? spec)
@@ -674,12 +675,29 @@ specification."
 
   (for-each (lambda (spec)
               ;; Catch Git errors, which might be transient, and keep going.
-              (catch 'git-error
-                (lambda ()
-                  (and (new-eval? spec)
-                       (process spec)))
-                (lambda (key error)
-                  (log-error "Git error while fetching inputs of '~a': ~s~%"
-                             (specification-name spec)
-                             (git-error-message error)))))
+              (let/ec return
+                (with-exception-handler
+                    (lambda (exception)
+                      (if (exception-with-kind-and-args? exception)
+                          (match (exception-kind exception)
+                            ('git-error
+                             (log-error "Git error while fetching inputs of '~a': ~a"
+                                        (specification-name spec)
+                                        (git-error-message
+                                         (first (exception-args exception)))))
+                            ('system-error
+                             (log-error "while processing '~a': ~s"
+                                        (strerror
+                                         (system-error-errno
+                                          (cons 'system-error
+                                                (exception-args exception))))))
+                            (kind
+                             (log-error
+                              (log-error "uncaught '~a' exception: ~s"
+                                         kind (exception-args exception)))))
+                          (log-error "uncaught exception: ~s" exception))
+                      (return #f))
+                  (lambda ()
+                    (and (new-eval? spec)
+                         (process spec))))))
             jobspecs))
