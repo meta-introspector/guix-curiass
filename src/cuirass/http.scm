@@ -998,8 +998,7 @@ passed, only display JOBS targeting this SYSTEM."
            (respond-html-eval-not-found id))))
 
     (('GET "eval" (= string->number evaluation-id) "dashboard" dashboard-id)
-     (let* ((params (request-parameters request))
-            (eval (db-get-evaluation evaluation-id))
+     (let* ((eval (db-get-evaluation evaluation-id))
             (dashboard (db-get-dashboard dashboard-id)))
        (cond
         ((not eval)
