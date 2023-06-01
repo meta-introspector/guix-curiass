@@ -19,6 +19,7 @@
 (define-module (cuirass logging)
   #:use-module (srfi srfi-19)
   #:use-module (ice-9 format)
+  #:use-module (ice-9 match)
   #:use-module (ice-9 threads)
   #:use-module (ice-9 ftw)
   #:export (current-logging-port
@@ -72,22 +73,23 @@
 (define (log-message fmt level . args)
   "Log the given message as one line."
   ;; Note: Use '@' to make sure -Wformat detects this use of 'format'.
-  (when (or (and (eq? level 'debug)
-                 (eq? (current-logging-level) 'debug))
-            (and (eq? level 'info)
-                 (memq (current-logging-level) '(debug info)))
-            (and (eq? level 'warning)
-                 (memq (current-logging-level) '(debug info warning)))
-            (eq? level 'error))
-    (let ((fmt (cond
-                ((eq? level 'info)
-                 fmt)
-                ((eq? level 'debug)
-                 (string-append "debug: " fmt))
-                ((eq? level 'warning)
-                 (string-append "warning: " fmt))
-                ((eq? level 'error)
-                 (string-append "error: " fmt)))))
+  (when (or (match level
+              ('error #t)
+              ('debug
+               (eq? (current-logging-level) 'debug))
+              ('info
+               (memq (current-logging-level) '(debug info)))
+              ('warning
+               (memq (current-logging-level) '(debug info warning)))))
+    (let ((fmt (match level
+                 ('info
+                  fmt)
+                 ('debug
+                  (string-append "debug: " fmt))
+                 ('warning
+                  (string-append "warning: " fmt))
+                 ('error
+                  (string-append "error: " fmt)))))
       ((current-logging-procedure)
        (apply (@ (ice-9 format) format) #f fmt args)))))
 
