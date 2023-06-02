@@ -695,9 +695,8 @@ specification."
                                           (cons 'system-error
                                                 (exception-args exception))))))
                             (kind
-                             (log-error
-                              (log-error "uncaught '~a' exception: ~s"
-                                         kind (exception-args exception)))))
+                             (log-error "uncaught '~a' exception: ~s"
+                                        kind (exception-args exception))))
                           (log-error "uncaught exception: ~s" exception))
                       (return #f))
                   (lambda ()
