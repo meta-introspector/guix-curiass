@@ -24,11 +24,19 @@ A convenient way to install those dependencies is to install Guix and execute
 the following command:
 
 #+BEGIN_EXAMPLE
-  guix shell -CPNW --expose=/var/run/dbus --expose=/var/log/guix/drvs
+  guix shell -CPNW --expose=/var/log/guix/drvs \
+    --expose=/var/run/dbus --export=/run/avahi-daemon
 #+END_EXAMPLE
 
-This will build and enter an environment which provides all the necessary
-dependencies.
+This will build and enter a containarized environment which provides all the
+necessary dependencies and resources.
+
+The =-W= flag gives access to the outer =guix-daemon= and to the store, which
+is necessary when running =cuirass= to perform actual builds.  Exposing
+=/var/log/guix/drvs= allows =cuirass web= to display build logs.  Finally, the
+last two =--expose= flags give access to the outer =avahi-daemon=, which is
+used by =cuirass remote-server= and =cuirass remote-worker=; this is a
+requirement for =tests/remote.scm=.
 
 * Build Instructions
 
@@ -64,6 +72,15 @@ To use a TCP connection, one can use:
 #+BEGIN_EXAMPLE
   ./pre-inst-env cuirass register --database="host=127.0.0.1"
 #+END_EXAMPLE
+
+For a test run, instead of running a full-blown PostgreSQL, you can use the
+=pg_tmp= program from [[https://eradman.com/ephemeralpg/][ephemeralpg]] like so:
+
+#+begin_example
+  DB=$(pg_tmp)
+  ./pre-inst-env cuirass register -S examples/cuirass.scm --database=$DB &
+  ./pre-inst-env cuirass web --database=$DB
+#+end_example
 
 * Run tests
 
