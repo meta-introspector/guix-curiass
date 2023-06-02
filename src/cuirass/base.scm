@@ -642,9 +642,13 @@ specification."
              (timestamp (time-second (current-time time-utc)))
              (channels (specification-channels spec))
              (instances (non-blocking
-                         (log-info "Fetching channels for spec '~a'." name)
+                         (log-info "fetching channels for spec '~a'" name)
                          (latest-channel-instances* store channels)))
-             (new-channels (map channel-instance-channel instances))
+             (new-channels (let ((channels (map channel-instance-channel
+                                                instances)))
+                             (log-info "fetched channels for '~a':~{ ~a~}"
+                                       name (map channel-name channels))
+                             channels))
              (new-spec (specification
                         (inherit spec)
                         (channels new-channels))) ;include possible channel
