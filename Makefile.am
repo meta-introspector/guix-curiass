@@ -201,6 +201,8 @@ EXTRA_DIST =					\
   build-aux/guix/cuirass-package.scm		\
   src/cuirass/config.scm.in			\
   etc/cuirass-remote-worker.service.in		\
+  examples/hello.scm				\
+  examples/cuirass.scm				\
   $(TESTS)
 
 dist-hook:
