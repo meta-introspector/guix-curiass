@@ -25,7 +25,8 @@ the following command:
 
 #+BEGIN_EXAMPLE
   guix shell -CPNW --expose=/var/log/guix/drvs \
-    --expose=/var/run/dbus --export=/run/avahi-daemon
+    --expose=/var/run/dbus --expose=/run/avahi-daemon \
+    --expose=/etc/ssl/certs
 #+END_EXAMPLE
 
 This will build and enter a containarized environment which provides all the
@@ -33,10 +34,12 @@ necessary dependencies and resources.
 
 The =-W= flag gives access to the outer =guix-daemon= and to the store, which
 is necessary when running =cuirass= to perform actual builds.  Exposing
-=/var/log/guix/drvs= allows =cuirass web= to display build logs.  Finally, the
-last two =--expose= flags give access to the outer =avahi-daemon=, which is
+=/var/log/guix/drvs= allows =cuirass web= to display build logs.  The
+next two =--expose= flags give access to the outer =avahi-daemon=, which is
 used by =cuirass remote-server= and =cuirass remote-worker=; this is a
-requirement for =tests/remote.scm=.
+requirement for =tests/remote.scm=.  Last, exposing the host’s
+=/etc/ssl/certs= allows access to X.509 root certificates, necessary when
+accessing for instance Git repositories over HTTPS.
 
 * Build Instructions
 
