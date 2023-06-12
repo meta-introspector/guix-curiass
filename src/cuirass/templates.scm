@@ -1883,7 +1883,10 @@ text-dark d-flex position-absolute w-100"))
        (ul (@ (class "pagination pagination-sm"))
            (li
             (p (@ (class "lead mb-0 mr-3"))
-               ,(format #f "Dashboard for evaluation #~a" evaluation)))
+               "Dashboard for "
+               (a (@ (href ,(string-append "/eval/"
+                                           (number->string evaluation))))
+                  "evaluation #" ,(number->string evaluation))))
            (li (@ (class
                     ,(string-append "page-item "
                                     (if prev-eval
