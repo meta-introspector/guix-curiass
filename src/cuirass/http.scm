@@ -946,6 +946,15 @@ passed, only display JOBS targeting this SYSTEM."
                    `(((#:name . ,name)
                       (#:link . ,(string-append "/jobset/" name))))))))
 
+    (('GET "eval" "latest")
+     (let* ((params (request-parameters request))
+            (spec (assq-ref params 'spec))
+            (evaluation-id (and spec (db-get-latest-evaluation spec))))
+       (if evaluation-id
+           (redirect (string-append "/eval/"
+                                    (number->string evaluation-id)))
+           (respond-not-found "/eval/latest"))))
+
     (('GET "eval" id)
      (let* ((params (request-parameters request))
             (status (assq-ref params 'status))
