@@ -1,7 +1,7 @@
 ;;;; http.scm -- HTTP API
 ;;; Copyright © 2016 Mathieu Lirzin <mthl@gnu.org>
 ;;; Copyright © 2017, 2020, 2021 Mathieu Othacehe <othacehe@gnu.org>
-;;; Copyright © 2018, 2019, 2020 Ludovic Courtès <ludo@gnu.org>
+;;; Copyright © 2018, 2019, 2020, 2023 Ludovic Courtès <ludo@gnu.org>
 ;;; Copyright © 2018 Clément Lassieur <clement@lassieur.org>
 ;;; Copyright © 2018 Tatiana Sholokhova <tanja201396@gmail.com>
 ;;; Copyright © 2019, 2020 Ricardo Wurmus <rekado@elephly.net>
@@ -443,6 +443,7 @@ is passed, only display jobs registered for this DASHBOARD-ID.  If SYSTEM is
 passed, only display JOBS targeting this SYSTEM."
   (let* ((spec-name (db-get-evaluation-specification evaluation-id))
          (spec (db-get-specification spec-name))
+         (channels (specification-channels spec))
          (systems (specification-systems spec))
          (default-system
            (if (member "x86_64-linux" systems)
@@ -455,7 +456,9 @@ passed, only display JOBS targeting this SYSTEM."
          (next (db-get-next-eval evaluation-id)))
     (html-page
      "Dashboard"
-     (evaluation-dashboard evaluation-id systems
+     (evaluation-dashboard (db-get-evaluation evaluation-id)
+                           systems
+                           #:channels channels
                            #:current-system
                            (or system default-system)
                            #:dashboard-id dashboard-id

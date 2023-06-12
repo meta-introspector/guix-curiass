@@ -1870,17 +1870,25 @@ text-dark d-flex position-absolute w-100"))
 
 (define* (evaluation-dashboard evaluation systems
                                #:key
+                               channels
                                current-system
                                dashboard-id
                                names
                                prev-eval
                                next-eval)
+  (define evaluation-id
+    (assq-ref evaluation #:id))
+  (define time
+    (assq-ref evaluation #:evaltime))
+  (define checkouts
+    (assq-ref evaluation #:checkouts))
+
   (let ((jobs
          (if names
              (format #f "/api/jobs?evaluation=~a&names=~a"
-                     evaluation names)
+                     evaluation-id names)
              (format #f "/api/jobs?evaluation=~a&system=~a"
-                     evaluation current-system))))
+                     evaluation-id current-system))))
     `((nav
        (@ (aria-label "Evaluation navigation")
           (class "eval-nav"))
@@ -1889,8 +1897,8 @@ text-dark d-flex position-absolute w-100"))
             (p (@ (class "lead mb-0 mr-3"))
                "Dashboard for "
                (a (@ (href ,(string-append "/eval/"
-                                           (number->string evaluation))))
-                  "evaluation #" ,(number->string evaluation))))
+                                           (number->string evaluation-id))))
+                  "evaluation #" ,(number->string evaluation-id))))
            (li (@ (class
                     ,(string-append "page-item "
                                     (if prev-eval
@@ -1931,13 +1939,18 @@ text-dark d-flex position-absolute w-100"))
                                          ""))
                              "#")))
                     "»")))))
+      (details
+       (summary ,(format #f "Evaluation completed ~a."
+                         (time->string time)))
+       ,(checkout-table checkouts channels))
+
       (form (@ (id "get-dashboard")
                (class
                  ,(string-append "row g-3 mb-3 "
                                  (if names
                                      "d-none"
                                      "")))
-               (action "/eval/" ,evaluation "/dashboard")
+               (action "/eval/" ,evaluation-id "/dashboard")
                (method "GET"))
             (div (@ (class "col-auto"))
                  (select (@ (id "system")
