@@ -1251,6 +1251,29 @@ the nearest exact even integer."
       (format #f "~a minute~:p" (nearest-exact-integer
                                  (/ duration 60)))))
 
+(define (checkout-table checkouts channels)
+  "Return SHTML for a table representing CHECKOUTS."
+  `(table (@ (class "table table-sm table-hover"))
+          (thead
+           (tr (th (@ (class "border-0") (scope "col")) "Channel")
+               (th (@ (class "border-0") (scope "col")) "Commit")))
+          (tbody
+           ,@(map (lambda (checkout)
+                    (let* ((name  (assq-ref checkout #:channel))
+                           (channel (find (lambda (channel)
+                                            (eq? (channel-name channel)
+                                                 name))
+                                          channels))
+                           (url   (channel-url channel))
+                           (commit (assq-ref checkout #:commit)))
+                      ;; Some checkout entries may refer to removed
+                      ;; inputs.
+                      (if channel
+                          `(tr (td ,url)
+                               (td (code ,(commit-hyperlink url commit))))
+                          '())))
+                  checkouts))))
+
 (define* (evaluation-build-table evaluation
                                  #:key
                                  channels
@@ -1280,26 +1303,7 @@ evaluation."
                      (format #f "Evaluation completed ~a in ~a."
                              (time->string evaltime)
                              (seconds->string duration))))))
-    (table (@ (class "table table-sm table-hover"))
-           (thead
-            (tr (th (@ (class "border-0") (scope "col")) "Channel")
-                (th (@ (class "border-0") (scope "col")) "Commit")))
-           (tbody
-            ,@(map (lambda (checkout)
-                     (let* ((name  (assq-ref checkout #:channel))
-                            (channel (find (lambda (channel)
-                                           (eq? (channel-name channel)
-                                                name))
-                                         channels))
-                            (url   (channel-url channel))
-                            (commit (assq-ref checkout #:commit)))
-                       ;; Some checkout entries may refer to removed
-                       ;; inputs.
-                       (if channel
-                           `(tr (td ,url)
-                                (td (code ,(commit-hyperlink url commit))))
-                           '())))
-                   checkouts)))
+    ,(checkout-table checkouts channels)
 
     (p (@ (class "lead"))
        ,(format #f "~@[~a~] ~:[B~;b~]uilds of evaluation #~a"
