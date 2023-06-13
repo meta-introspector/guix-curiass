@@ -755,7 +755,7 @@ passed, only display JOBS targeting this SYSTEM."
                 (oldevaluation . ,(assq-ref build #:eval-id))
                 (status . done)
                 (order . evaluation)
-                (nr . 5)))))
+                (nr . 10)))))
        (if build
            (respond-html
             (html-page
