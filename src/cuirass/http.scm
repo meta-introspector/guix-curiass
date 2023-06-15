@@ -490,6 +490,10 @@ passed, only display JOBS targeting this SYSTEM."
 (define (request-path-components request)
   (split-and-decode-uri-path (uri-path (request-uri request))))
 
+(define %static-file-ttl
+  ;; Time-to-live (in seconds) advertised for files under /static.
+  (* 12 3600))
+
 (define (url-handler request body)
 
   (define* (respond response #:key body)
@@ -542,13 +546,16 @@ passed, only display JOBS targeting this SYSTEM."
      (lambda (port)
        (sxml->xml body port))))
 
-  (define* (respond-file file)
+  (define* (respond-file file #:key ttl)
     (let ((content-type (or (assoc-ref %file-mime-types
                                        (file-extension file))
                             '(application/octet-stream))))
       (respond `((content-type . ,content-type)
                  (content-disposition
                   . (form-data (filename . ,(basename file))))
+                 ,@(if ttl
+                       `((cache-control . ((max-age . ,ttl))))
+                       '())
                  (x-raw-file . ,file)))))
 
   (define (respond-static-file path)
@@ -558,7 +565,8 @@ passed, only display JOBS targeting this SYSTEM."
       (if (and (member file-name %file-white-list)
                (file-exists? file-path)
                (not (file-is-directory? file-path)))
-          (respond-file file-path)
+          (respond-file file-path
+                        #:ttl %static-file-ttl)
           (respond-not-found file-name))))
 
   (define (respond-compressed-file file)
