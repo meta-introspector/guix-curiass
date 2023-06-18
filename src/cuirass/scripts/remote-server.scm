@@ -479,20 +479,18 @@ frontend to the workers connected through the TCP backend."
         (when (memq build-socket items)
           (match (zmq-message-receive* build-socket)
             ((worker empty rest)
-             (let* ((fetch-msg (zmq-msg-init
-                                (zmq-message-content rest)))
-                    (command (bv->string
-                              (zmq-message-content rest)))
+             (let* ((command (bv->string (zmq-message-content rest)))
                     (reply-worker
-                    (lambda (message)
-                      (zmq-message-send-parts
-                       build-socket
-                       (map zmq-msg-init
-                            (list (zmq-message-content worker)
-                                  (zmq-empty-delimiter)
-                                  (string->bv message)))))))
+                     (lambda (message)
+                       (zmq-message-send-parts
+                        build-socket
+                        (map zmq-msg-init
+                             (list (zmq-message-content worker)
+                                   (zmq-empty-delimiter)
+                                   (string->bv message)))))))
                (if (need-fetching? command)
-                   (begin
+                   (let ((fetch-msg (zmq-msg-init
+                                     (zmq-message-content rest))))
                      (atomic-box-fetch-and-inc! %fetch-queue-size)
                      (zmq-message-send fetch-socket fetch-msg))
                    (read-worker-exp rest
