@@ -1870,6 +1870,7 @@ text-dark d-flex position-absolute w-100"))
 
 (define* (evaluation-dashboard evaluation systems
                                #:key
+                               (checkouts (assq-ref evaluation #:checkouts))
                                channels
                                current-system
                                dashboard-id
@@ -1880,8 +1881,6 @@ text-dark d-flex position-absolute w-100"))
     (assq-ref evaluation #:id))
   (define time
     (assq-ref evaluation #:evaltime))
-  (define checkouts
-    (assq-ref evaluation #:checkouts))
 
   (let ((jobs
          (if names

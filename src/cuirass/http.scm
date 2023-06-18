@@ -444,6 +444,7 @@ passed, only display JOBS targeting this SYSTEM."
   (let* ((spec-name (db-get-evaluation-specification evaluation-id))
          (spec (db-get-specification spec-name))
          (channels (specification-channels spec))
+         (checkouts (latest-checkouts spec evaluation-id))
          (systems (specification-systems spec))
          (default-system
            (if (member "x86_64-linux" systems)
@@ -459,6 +460,7 @@ passed, only display JOBS targeting this SYSTEM."
      (evaluation-dashboard (db-get-evaluation evaluation-id)
                            systems
                            #:channels channels
+                           #:checkouts checkouts
                            #:current-system
                            (or system default-system)
                            #:dashboard-id dashboard-id
