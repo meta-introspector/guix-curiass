@@ -71,7 +71,6 @@
 
             zmq-poll*
             zmq-message-receive*
-            zmq-socket-ready?
             zmq-empty-delimiter
 
             zmq-build-request-message
@@ -388,13 +387,6 @@ retries a call to PROC."
 
 (define zmq-message-receive*
   (EINTR-safe zmq-message-receive))
-
-(define (zmq-socket-ready? items socket)
-  "Return #t if the given SOCKET is part of ITEMS, a list returned by a
-'zmq-poll' call, return #f otherwise."
-  (find (lambda (item)
-          (eq? (poll-item-socket item) socket))
-        items))
 
 (define (zmq-remote-address message)
   (zmq-message-gets message "Peer-Address"))

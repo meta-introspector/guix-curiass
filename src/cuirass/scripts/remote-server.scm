@@ -453,11 +453,6 @@ all network interfaces."
 (define (zmq-start-proxy backend-port)
   "This procedure starts a proxy between client connections from the IPC
 frontend to the workers connected through the TCP backend."
-  (define (socket-ready? items socket)
-    (find (lambda (item)
-            (eq? (poll-item-socket item) socket))
-          items))
-
   ;; The poll loop below must not be blocked.  Print a warning message if a
   ;; loop iteration takes more than %LOOP-TIMEOUT seconds to complete.
   (define %loop-timeout 5)
@@ -481,7 +476,7 @@ frontend to the workers connected through the TCP backend."
     (let loop ()
       (let* ((items (zmq-poll* poll-items 1000))
              (start-time (current-time)))
-        (when (zmq-socket-ready? items build-socket)
+        (when (memq build-socket items)
           (match (zmq-message-receive* build-socket)
             ((worker empty rest)
              (let* ((fetch-msg (zmq-msg-init
