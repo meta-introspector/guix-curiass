@@ -518,6 +518,17 @@ build results. Since Cuirass uses PostgreSQL as a database engine,
 host=localhost"}.  By default, Cuirass uses the following connection
 string: @code{dbname=cuirass host=/var/run/postgresql"}.
 
+@cindex remote builds
+@cindex build offloading
+@item --build-remote
+Use the @dfn{remote build mechanism}, whereby build distribution is
+handled by a separate @command{cuirass remote-server} process (see
+below).  This option can increase throughput and resilience when
+distributing builds to a large number of build machines.
+
+When this option is omitted, builds are started using the ``normal''
+Guix way, by asking @command{guix-daemon} to build them.
+
 @item --parameters=@var{parameters-file}
 @itemx -P @var{parameters-file}
 Read parameters from the given @var{parameters-file}.  The supported
@@ -603,10 +614,13 @@ Display an help message that summarize all the options provided.
 @section Invoking cuirass remote-server
 @cindex remote-server
 
+@cindex build offloading
+@cindex remote builds
 The @code{remote-server} command starts a daemon that is able to
-communicate with @code{remote-worker} processes.  Its role is to
-answer build requests from the workers, by sending back derivations
-that must be built.
+communicate with @code{remote-worker} processes; it is used in
+conjunction with @command{cuirass register --build-remote} (see above).
+Its role is to answer build requests from the workers, by sending back
+derivations that must be built.
 
 On build completion it updates the database accordingly and possibly
 fetches build substitutes.  The @code{remote-server} and
