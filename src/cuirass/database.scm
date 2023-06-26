@@ -1459,13 +1459,12 @@ WHERE evaluation =" eval-id " ORDER BY channel ASC;"))
   "Return the first checkout for the CHANNEL channel, part of SPEC
 specification with an evaluation id inferior or equal to EVAL-ID."
   (with-db-worker-thread db
-    (match (expect-one-row
-            (exec-query/bind
-             db " SELECT channel, revision, directory FROM Checkouts
+    (match (exec-query/bind
+            db " SELECT channel, revision, directory FROM Checkouts
  WHERE specification = " spec " AND channel = " (symbol->string channel)
- " AND evaluation <= " eval-id "ORDER BY evaluation DESC LIMIT 1;"))
+            " AND evaluation <= " eval-id "ORDER BY evaluation DESC LIMIT 1;")
       (() #f)
-      ((channel revision directory)
+      (((channel revision directory))
        `((#:commit . ,revision)
          (#:channel . ,(string->symbol channel))
          (#:directory . ,directory))))))
