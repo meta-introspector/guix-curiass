@@ -142,7 +142,7 @@ Start a remote build server.\n") (%program-name))
                   (exit 0)))
         (option '(#\V "version") #f #f
                 (lambda _
-                  (show-version-and-exit "guix publish")))
+                  (show-version-and-exit "cuirass remote-server")))
         (option '(#\b "backend-port") #t #f
                 (lambda (opt name arg result)
                   (alist-cons 'backend-port (string->number* arg) result)))

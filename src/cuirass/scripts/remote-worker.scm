@@ -110,7 +110,7 @@ Start a remote build worker.\n" (%program-name))
                   (exit 0)))
         (option '(#\V "version") #f #f
                 (lambda _
-                  (show-version-and-exit "guix publish")))
+                  (show-version-and-exit "cuirass remote-worker")))
         (option '(#\w "workers") #t #f
                 (lambda (opt name arg result)
                   (alist-cons 'workers (string->number* arg) result)))
