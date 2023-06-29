@@ -364,9 +364,6 @@ PRIVATE-KEY to sign narinfos."
 ;;; ZMQ.
 ;;;
 
-(define %zmq-context
-  (zmq-create-context))
-
 (define (EINTR-safe proc)
   "Return a variant of PROC that catches EINTR 'zmq-error' exceptions and
 retries a call to PROC."
