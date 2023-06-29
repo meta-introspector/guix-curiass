@@ -234,6 +234,8 @@ be used to reply to the worker."
     (let* ((worker* (worker
                      (inherit (sexp->worker base-worker))
                      (last-seen (current-time)))))
+      (log-debug (G_ "worker ~a is up and running")
+                 (worker-name worker*))
       (db-add-or-update-worker worker*)))
 
   (match (zmq-read-message

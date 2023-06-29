@@ -1,6 +1,6 @@
 ;;; remote-worker.scm -- Remote build worker.
 ;;; Copyright © 2020, 2021 Mathieu Othacehe <othacehe@gnu.org>
-;;; Copyright © 2022 Ludovic Courtès <ludo@gnu.org>
+;;; Copyright © 2022, 2023 Ludovic Courtès <ludo@gnu.org>
 ;;;
 ;;; This file is part of Cuirass.
 ;;;
@@ -374,9 +374,14 @@ and executing them.  The worker can reply on the same socket."
                 (port (server-port serv))
                 (endpoint (zmq-backend-endpoint address port)))
            (zmq-connect socket endpoint)
+           (log-info (G_ "worker ~a (PID ~a) connected to ~a")
+                     (worker-name wrk) (getpid) endpoint)
            (let* ((srv-info (read-server-info socket))
                   (server (server-info->server srv-info serv))
                   (worker (server-info->worker srv-info wrk)))
+             (log-info (G_ "server publish URL: ~a; server log port: ~a")
+                       (server-publish-url server)
+                       (server-log-port server))
              (ready socket worker)
              (worker-ping worker server)
              (let loop ()
@@ -427,6 +432,8 @@ exiting."
 
         (for-each (lambda (pid)
                     (when pid
+                      (log-info (G_ "terminating worker sub-process ~a")
+                                pid)
                       (kill pid SIGKILL)
                       (waitpid pid)))
                   (cons publish-pid worker-pids))
@@ -470,23 +477,32 @@ exiting."
                          #:private-key private-key))
 
         (if server-address
-            (for-each
-             (lambda (n)
-               (let* ((worker (worker
-                               (name (generate-worker-name))
-                               (machine (gethostname))
-                               (systems systems)))
-                      (addr (string-split server-address #\:))
-                      (server (match addr
-                                ((address port)
-                                 (server
-                                  (address address)
-                                  (port (string->number port)))))))
-                 (add-to-worker-pids!
-                  (start-worker worker server))))
-             (iota workers))
+            (begin
+              (log-info (N_ "creating ~a worker for build server at ~a"
+                            "creating ~a workers for build server at ~a"
+                            workers)
+                        workers server-address)
+              (for-each
+               (lambda (n)
+                 (let* ((worker (worker
+                                 (name (generate-worker-name))
+                                 (machine (gethostname))
+                                 (systems systems)))
+                        (addr (string-split server-address #\:))
+                        (server (match addr
+                                  ((address port)
+                                   (server
+                                    (address address)
+                                    (port (string->number port)))))))
+                   (add-to-worker-pids!
+                    (start-worker worker server))))
+               (iota workers)))
             (avahi-browse-service-thread
              (lambda (action service)
+               (log-info (N_ "discovered build server at ~a, creating ~a worker"
+                             "discovered build server at ~a, creating ~a workers"
+                             workers)
+                         (avahi-service-local-address service))
                (case action
                  ((new-service)
                   (for-each

@@ -53,6 +53,7 @@
 
 (define (start-worker)
   (setenv "REQUEST_PERIOD" "1")
+  (setenv "CUIRASS_LOGGING_LEVEL" "debug")
   (worker (spawn "cuirass"
                  '("cuirass" "remote-worker"
                    "--server=127.0.0.1:5555"
@@ -67,6 +68,7 @@
 
 (define (start-server)
   (mkdir-p "tests/cache")
+  (setenv "CUIRASS_LOGGING_LEVEL" "debug")
   (server (spawn "cuirass"
                  (list "cuirass" "remote-server"
                        (string-append "--database=" (%package-database))
