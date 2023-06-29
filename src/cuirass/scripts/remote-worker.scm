@@ -219,11 +219,11 @@ still be substituted."
                                     (%substitute-urls))
                           #:timeout timeout
                           #:max-silent max-silent)
-      (reply (zmq-build-started-message drv name))
+      (reply (build-started-message drv name))
       (guard (c ((store-protocol-error? c)
                  (log-info (G_ "~a: derivation `~a' build failed: ~a")
                            name drv (store-protocol-error-message c))
-                 (reply (zmq-build-failed-message drv local-publish-url))))
+                 (reply (build-failed-message drv local-publish-url))))
         (let ((result
                (let-values (((port finish)
                              (build-derivations& store (list drv))))
@@ -241,12 +241,12 @@ still be substituted."
                 (log-info (G_ "~a: derivation ~a build succeeded.")
                           name drv)
                 (register-gc-roots drv)
-                (reply (zmq-build-succeeded-message drv local-publish-url)))
+                (reply (build-succeeded-message drv local-publish-url)))
               (begin
                 (log-info (G_ "~a: derivation ~a build failed.")
                           name drv)
                 (reply
-                 (zmq-build-failed-message drv local-publish-url)))))))))
+                 (build-failed-message drv local-publish-url)))))))))
 
 (define* (run-command command server
                       #:key
@@ -272,13 +272,13 @@ command.  REPLY is a procedure that can be used to reply to this server."
                (worker-name worker))
      #t)))
 
-(define (worker-ping worker server)
+(define (spawn-worker-ping worker server)
+  "Spawn a thread that periodically pings SERVER."
   (define (ping socket)
     (zmq-send-msg-parts-bytevector
      socket
      (list (make-bytevector 0)
-           (string->bv
-            (zmq-worker-ping (worker->sexp worker))))))
+           (string->bv (worker-ping (worker->sexp worker))))))
 
   (call-with-new-thread
    (lambda ()
@@ -313,20 +313,20 @@ and executing them.  The worker can reply on the same socket."
      socket
      (list (make-bytevector 0)
            (string->bv
-            (zmq-worker-ready-message (worker->sexp worker))))))
+            (worker-ready-message (worker->sexp worker))))))
 
   (define (request-work socket worker)
     (let ((name (worker-name worker)))
       (zmq-send-msg-parts-bytevector
        socket
        (list (make-bytevector 0)
-             (string->bv (zmq-worker-request-work-message name))))))
+             (string->bv (worker-request-work-message name))))))
 
   (define (request-info socket)
     (zmq-send-msg-parts-bytevector
      socket
      (list (make-bytevector 0)
-           (string->bv (zmq-worker-request-info-message)))))
+           (string->bv (worker-request-info-message)))))
 
   (define (read-server-info socket)
     ;; Ignore the boostrap message sent due to ZMQ_PROBE_ROUTER option.
@@ -383,7 +383,7 @@ and executing them.  The worker can reply on the same socket."
                        (server-publish-url server)
                        (server-log-port server))
              (ready socket worker)
-             (worker-ping worker server)
+             (spawn-worker-ping worker server)
              (let loop ()
                (if (low-disk-space?)
                    (log-info (G_ "warning: low disk space, doing nothing"))

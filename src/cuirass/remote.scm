@@ -73,16 +73,16 @@
             zmq-message-receive*
             zmq-empty-delimiter
 
-            zmq-build-request-message
-            zmq-no-build-message
-            zmq-build-started-message
-            zmq-build-failed-message
-            zmq-build-succeeded-message
-            zmq-worker-ping
-            zmq-worker-ready-message
-            zmq-worker-request-work-message
-            zmq-worker-request-info-message
-            zmq-server-info
+            build-request-message
+            no-build-message
+            build-started-message
+            build-failed-message
+            build-succeeded-message
+            worker-ping
+            worker-ready-message
+            worker-request-work-message
+            worker-request-info-message
+            server-info-message
             zmq-remote-address
             zmq-message-string
             zmq-read-message
@@ -400,13 +400,13 @@ retries a call to PROC."
   (make-bytevector 0))
 
 ;; ZMQ Messages.
-(define* (zmq-build-request-message drv
-                                    #:key
-                                    priority
-                                    timeout
-                                    max-silent
-                                    timestamp
-                                    system)
+(define* (build-request-message drv
+                                #:key
+                                priority
+                                timeout
+                                max-silent
+                                timestamp
+                                system)
   "Return a message requesting the build of DRV for SYSTEM."
   (format #f "~s" `(build (drv ,drv)
                           (priority ,priority)
@@ -415,39 +415,39 @@ retries a call to PROC."
                           (timestamp ,timestamp)
                           (system ,system))))
 
-(define (zmq-no-build-message)
+(define (no-build-message)
   "Return a message that indicates that no builds are available."
   (format #f "~s" `(no-build)))
 
-(define (zmq-build-started-message drv worker)
+(define (build-started-message drv worker)
   "Return a message that indicates that the build of DRV has started."
   (format #f "~s" `(build-started (drv ,drv) (worker ,worker))))
 
-(define* (zmq-build-failed-message drv url #:optional log)
+(define* (build-failed-message drv url #:optional log)
   "Return a message that indicates that the build of DRV has failed."
   (format #f "~s" `(build-failed (drv ,drv) (url ,url) (log ,log))))
 
-(define* (zmq-build-succeeded-message drv url #:optional log)
+(define* (build-succeeded-message drv url #:optional log)
   "Return a message that indicates that the build of DRV is done."
   (format #f "~s" `(build-succeeded (drv ,drv) (url ,url) (log ,log))))
 
-(define (zmq-worker-ping worker)
+(define (worker-ping worker)
   "Return a message that indicates that WORKER is alive."
   (format #f "~s" `(worker-ping ,worker)))
 
-(define (zmq-worker-ready-message worker)
+(define (worker-ready-message worker)
   "Return a message that indicates that WORKER is ready."
   (format #f "~s" `(worker-ready ,worker)))
 
-(define (zmq-worker-request-work-message name)
+(define (worker-request-work-message name)
   "Return a message that indicates that WORKER is requesting work."
   (format #f "~s" `(worker-request-work ,name)))
 
-(define (zmq-worker-request-info-message)
+(define (worker-request-info-message)
   "Return a message requesting server information."
   (format #f "~s" '(worker-request-info)))
 
-(define (zmq-server-info worker-address log-port publish-port)
+(define (server-info-message worker-address log-port publish-port)
   "Return a message containing server information."
   (format #f "~s" `(server-info (worker-address ,worker-address)
                                 (log-port ,log-port)

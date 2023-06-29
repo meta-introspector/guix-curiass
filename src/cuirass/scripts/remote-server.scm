@@ -244,7 +244,7 @@ be used to reply to the worker."
      (update-worker! worker))
     (('worker-request-info)
      (reply-worker
-      (zmq-server-info (zmq-remote-address msg) (%log-port) (%publish-port))))
+      (server-info-message (zmq-remote-address msg) (%log-port) (%publish-port))))
     (('worker-request-work name)
      (let ((worker (db-get-worker name)))
        (when (and (%debug) worker)
@@ -265,7 +265,7 @@ be used to reply to the worker."
                (db-update-build-worker! derivation name)
                (db-update-build-status! derivation (build-status submitted))
                (reply-worker
-                (zmq-build-request-message derivation
+                (build-request-message derivation
                                            #:priority priority
                                            #:timeout timeout
                                            #:max-silent max-silent)))
@@ -275,7 +275,7 @@ be used to reply to the worker."
                             (worker-address worker)
                             (worker-name worker)))
                (reply-worker
-                (zmq-no-build-message)))))))
+                (no-build-message)))))))
     (('worker-ping worker)
      (update-worker! worker))
     (('build-started ('drv drv) ('worker name))
