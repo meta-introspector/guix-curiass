@@ -57,6 +57,7 @@
   #:use-module (srfi srfi-26)
   #:use-module (srfi srfi-34)
   #:use-module (srfi srfi-37)
+  #:use-module (srfi srfi-71)
   #:use-module (ice-9 atomic)
   #:use-module (ice-9 match)
   #:use-module (ice-9 q)
@@ -227,8 +228,8 @@ and store the result inside the BOX."
                         (worker-systems worker))))
            (db-get-pending-build system)))))
 
-(define* (read-worker-exp msg #:key reply-worker)
-  "Read the given MSG sent by a worker.  REPLY-WORKER is a procedure that can
+(define* (read-worker-exp sexp #:key peer-address reply-worker)
+  "Read the given SEXP sent by a worker.  REPLY-WORKER is a procedure that can
 be used to reply to the worker."
   (define (update-worker! base-worker)
     (let* ((worker* (worker
@@ -238,13 +239,12 @@ be used to reply to the worker."
                  (worker-name worker*))
       (db-add-or-update-worker worker*)))
 
-  (match (zmq-read-message
-          (zmq-message-string msg))
+  (match sexp
     (('worker-ready worker)
      (update-worker! worker))
     (('worker-request-info)
      (reply-worker
-      (server-info-message (zmq-remote-address msg) (%log-port) (%publish-port))))
+      (server-info-message peer-address (%log-port) (%publish-port))))
     (('worker-request-work name)
      (let ((worker (db-get-worker name)))
        (when (and (%debug) worker)
@@ -358,7 +358,7 @@ at URL."
 (define (need-fetching? message)
   "Return #t if the received MESSAGE implies that some output fetching is
 required and #f otherwise."
-  (match (zmq-read-message message)
+  (match message
     (('build-succeeded ('drv drv) _ ...)
      (when (%debug)
        (log-debug "fetching required for ~a (success)" drv))
@@ -367,7 +367,7 @@ required and #f otherwise."
      (when (%debug)
        (log-debug "fetching required for ~a (fail)" drv))
      #t)
-    (else #f)))
+    (_ #f)))
 
 (define* (run-fetch message)
   "Read MESSAGE and download the corresponding build outputs.  If
@@ -383,7 +383,7 @@ directory."
               (read-derivation-from-file drv))))
       (const '())))
 
-  (match (zmq-read-message message)
+  (match message
     (('build-succeeded ('drv drv) ('url url) _ ...)
      (let ((outputs (build-outputs drv)))
        (log-info "fetching '~a' from ~a" drv url)
@@ -412,11 +412,8 @@ socket."
      (set-thread-name name)
      (let ((socket (zmq-fetch-worker-socket)))
        (let loop ()
-         (match (zmq-message-receive* socket)
-           ((message)
-            (run-fetch (bv->string
-                        (zmq-message-content message)))
-            (atomic-box-fetch-and-dec! %fetch-queue-size)))
+         (run-fetch (receive-message socket))
+         (atomic-box-fetch-and-dec! %fetch-queue-size)
          (loop))))))
 
 
@@ -484,32 +481,18 @@ frontend to the workers connected through the TCP backend."
       (let* ((items (zmq-poll* poll-items 1000))
              (start-time (current-time)))
         (when (socket-ready? items build-socket)
-          (match (zmq-message-receive* build-socket)
-            ((worker empty rest)
-             (let* ((command (bv->string (zmq-message-content rest)))
-                    (reply-worker
-                     (lambda (message)
-                       (zmq-message-send-parts
-                        build-socket
-                        (map zmq-msg-init
-                             (list (zmq-message-content worker)
-                                   (zmq-empty-delimiter)
-                                   (string->bv message)))))))
-               (if (need-fetching? command)
-                   (let ((fetch-msg (zmq-msg-init
-                                     (zmq-message-content rest))))
-                     (atomic-box-fetch-and-inc! %fetch-queue-size)
-                     (zmq-message-send fetch-socket fetch-msg))
-                   (read-worker-exp rest
-                                    #:reply-worker reply-worker))))
-            (x
-             (log-error "Unexpected message: ~a." x)
-             (for-each (lambda (msg)
-                         (log-error "~/content: ~a (~a)"
-                                    (zmq-message-content msg)
-                                    (false-if-exception
-                                     (zmq-message-string msg))))
-                       x))))
+          (let* ((command sender sender-address
+                          (receive-message build-socket #:router? #t))
+                 (reply-worker (lambda (message)
+                                 (send-message build-socket message
+                                               #:recipient sender))))
+            (if (need-fetching? command)
+                (begin
+                  (atomic-box-fetch-and-inc! %fetch-queue-size)
+                  (send-message fetch-socket command))
+                (read-worker-exp command
+                                 #:peer-address sender-address
+                                 #:reply-worker reply-worker))))
         (db-remove-unresponsive-workers (%worker-timeout))
         (let ((delta (- (current-time) start-time)))
           (when (> delta %loop-timeout)

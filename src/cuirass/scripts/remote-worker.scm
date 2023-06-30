@@ -253,7 +253,7 @@ still be substituted."
                       reply worker)
   "Run COMMAND.  SERVICE-NAME is the name of the build server that sent the
 command.  REPLY is a procedure that can be used to reply to this server."
-  (match (zmq-read-message command)
+  (match command
     (('build ('drv drv)
              ('priority priority)
              ('timeout timeout)
@@ -275,10 +275,8 @@ command.  REPLY is a procedure that can be used to reply to this server."
 (define (spawn-worker-ping worker server)
   "Spawn a thread that periodically pings SERVER."
   (define (ping socket)
-    (zmq-send-msg-parts-bytevector
-     socket
-     (list (make-bytevector 0)
-           (string->bv (worker-ping (worker->sexp worker))))))
+    (send-message socket
+                  (worker-ping (worker->sexp worker))))
 
   (call-with-new-thread
    (lambda ()
@@ -304,29 +302,19 @@ command.  REPLY is a procedure that can be used to reply to this server."
 and executing them.  The worker can reply on the same socket."
   (define (reply socket)
     (lambda (message)
-      (zmq-send-msg-parts-bytevector
-       socket
-       (list (zmq-empty-delimiter) (string->bv message)))))
+      (send-message socket message)))
 
   (define (ready socket worker)
-    (zmq-send-msg-parts-bytevector
-     socket
-     (list (make-bytevector 0)
-           (string->bv
-            (worker-ready-message (worker->sexp worker))))))
+    (send-message socket
+                  (worker-ready-message (worker->sexp worker))))
 
   (define (request-work socket worker)
     (let ((name (worker-name worker)))
-      (zmq-send-msg-parts-bytevector
-       socket
-       (list (make-bytevector 0)
-             (string->bv (worker-request-work-message name))))))
+      (send-message socket
+                    (worker-request-work-message name))))
 
   (define (request-info socket)
-    (zmq-send-msg-parts-bytevector
-     socket
-     (list (make-bytevector 0)
-           (string->bv (worker-request-info-message)))))
+    (send-message socket (worker-request-info-message)))
 
   (define (read-server-info socket)
     ;; Ignore the boostrap message sent due to ZMQ_PROBE_ROUTER option.
@@ -334,14 +322,12 @@ and executing them.  The worker can reply on the same socket."
       ((empty) #f))
 
     (request-info socket)
-    (match (zmq-get-msg-parts-bytevector socket '())
-      ((empty info)
-       (match (zmq-read-message (bv->string info))
-         (('server-info
-           ('worker-address worker-address)
-           ('log-port log-port)
-           ('publish-port publish-port))
-          (list worker-address log-port publish-port))))))
+    (match (receive-message socket)
+      (`(server-info
+         (worker-address ,worker-address)
+         (log-port ,log-port)
+         (publish-port ,publish-port))
+       (list worker-address log-port publish-port))))
 
   (define (server-info->server info serv)
     (match info
@@ -390,12 +376,14 @@ and executing them.  The worker can reply on the same socket."
                    (begin
                      (log-info (G_ "~a: request work.") (worker-name wrk))
                      (request-work socket worker)
-                     (match (zmq-get-msg-parts-bytevector socket '())
-                       ((empty)                   ;server reconnect
+                     (match (receive-message socket)
+                       ((? unspecified?)          ;server reconnect
                         (log-info (G_ "~a: received a bootstrap message.")
                                   (worker-name wrk)))
-                       ((empty command)
-                        (run-command (bv->string command) server
+                       (command
+                        (log-debug (G_ "~a: received command: ~s")
+                                   (worker-name wrk) command)
+                        (run-command command server
                                      #:reply (reply socket)
                                      #:worker worker)))))
 

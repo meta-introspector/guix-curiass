@@ -70,8 +70,6 @@
             send-log
 
             zmq-poll*
-            zmq-message-receive*
-            zmq-empty-delimiter
 
             build-request-message
             no-build-message
@@ -83,9 +81,9 @@
             worker-request-work-message
             worker-request-info-message
             server-info-message
-            zmq-remote-address
-            zmq-message-string
-            zmq-read-message
+
+            send-message
+            receive-message
 
             remote-server-service-type))
 
@@ -385,19 +383,45 @@ retries a call to PROC."
 (define zmq-message-receive*
   (EINTR-safe zmq-message-receive))
 
-(define (zmq-remote-address message)
-  (zmq-message-gets message "Peer-Address"))
-
-(define (zmq-message-string message)
-  (bv->string
-   (zmq-message-content message)))
-
-(define (zmq-read-message msg)
-  (call-with-input-string msg read))
-
 (define (zmq-empty-delimiter)
   "Return an empty ZMQ delimiter used to format message envelopes."
   (make-bytevector 0))
+
+(define* (send-message socket sexp
+                       #:key recipient)
+  "Send SEXP over SOCKET, a ZMQ socket.  When RECIPIENT is true, assume SOCKET
+is a ROUTER socket and use RECIPIENT, a bytevector, as the routing prefix of
+the message."
+  (let ((payload (list (zmq-empty-delimiter)
+                       (string->bv (object->string sexp)))))
+    (zmq-send-msg-parts-bytevector socket
+                                   (if recipient
+                                       (cons recipient payload)
+                                       payload))))
+
+(define* (receive-message socket #:key router?)
+  "Read an sexp from SOCKET, a ZMQ socket, and return it.  Return the
+unspecified value when reading a message without payload.
+
+When ROUTER? is true, assume messages received start with a routing
+prefix (the identity of the peer, as a bytevector), and return three values:
+the payload, the peer's identity (a bytevector), and the peer address."
+  (if router?
+      (match (zmq-message-receive* socket)
+        ((sender (= zmq-message-size 0) data)
+         (values (call-with-input-string (bv->string
+                                          (zmq-message-content data))
+                   read)
+                 (zmq-message-content sender)
+                 (zmq-message-gets data "Peer-Address")))
+        ((sender #vu8())
+         (values *unspecified* sender)))
+      (match (zmq-get-msg-parts-bytevector socket '())
+        ((#vu8() data)
+         (call-with-input-string (bv->string data)
+           read))
+        ((#vu8())
+         *unspecified*))))
 
 ;; ZMQ Messages.
 (define* (build-request-message drv
@@ -408,50 +432,50 @@ retries a call to PROC."
                                 timestamp
                                 system)
   "Return a message requesting the build of DRV for SYSTEM."
-  (format #f "~s" `(build (drv ,drv)
-                          (priority ,priority)
-                          (timeout ,timeout)
-                          (max-silent ,max-silent)
-                          (timestamp ,timestamp)
-                          (system ,system))))
+  `(build (drv ,drv)
+          (priority ,priority)
+          (timeout ,timeout)
+          (max-silent ,max-silent)
+          (timestamp ,timestamp)
+          (system ,system)))
 
 (define (no-build-message)
   "Return a message that indicates that no builds are available."
-  (format #f "~s" `(no-build)))
+  `(no-build))
 
 (define (build-started-message drv worker)
   "Return a message that indicates that the build of DRV has started."
-  (format #f "~s" `(build-started (drv ,drv) (worker ,worker))))
+  `(build-started (drv ,drv) (worker ,worker)))
 
 (define* (build-failed-message drv url #:optional log)
   "Return a message that indicates that the build of DRV has failed."
-  (format #f "~s" `(build-failed (drv ,drv) (url ,url) (log ,log))))
+  `(build-failed (drv ,drv) (url ,url) (log ,log)))
 
 (define* (build-succeeded-message drv url #:optional log)
   "Return a message that indicates that the build of DRV is done."
-  (format #f "~s" `(build-succeeded (drv ,drv) (url ,url) (log ,log))))
+  `(build-succeeded (drv ,drv) (url ,url) (log ,log)))
 
 (define (worker-ping worker)
   "Return a message that indicates that WORKER is alive."
-  (format #f "~s" `(worker-ping ,worker)))
+  `(worker-ping ,worker))
 
 (define (worker-ready-message worker)
   "Return a message that indicates that WORKER is ready."
-  (format #f "~s" `(worker-ready ,worker)))
+  `(worker-ready ,worker))
 
 (define (worker-request-work-message name)
   "Return a message that indicates that WORKER is requesting work."
-  (format #f "~s" `(worker-request-work ,name)))
+  `(worker-request-work ,name))
 
 (define (worker-request-info-message)
   "Return a message requesting server information."
-  (format #f "~s" '(worker-request-info)))
+  '(worker-request-info))
 
 (define (server-info-message worker-address log-port publish-port)
   "Return a message containing server information."
-  (format #f "~s" `(server-info (worker-address ,worker-address)
-                                (log-port ,log-port)
-                                (publish-port ,publish-port))))
+  `(server-info (worker-address ,worker-address)
+                (log-port ,log-port)
+                (publish-port ,publish-port)))
 
 (define remote-server-service-type
   "_remote-server._tcp")
