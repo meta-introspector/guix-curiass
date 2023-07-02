@@ -1,5 +1,6 @@
 ;;; remote.scm -- Build on remote machines.
 ;;; Copyright © 2020 Mathieu Othacehe <othacehe@gnu.org>
+;;; Copyright © 2023 Ludovic Courtès <ludo@gnu.org>
 ;;;
 ;;; This file is part of Cuirass.
 ;;;

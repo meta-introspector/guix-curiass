@@ -1,5 +1,6 @@
 ;;; remote-server.scm -- Remote build server.
 ;;; Copyright © 2020, 2021 Mathieu Othacehe <othacehe@gnu.org>
+;;; Copyright © 2023 Ludovic Courtès <ludo@gnu.org>
 ;;;
 ;;; This file is part of Cuirass.
 ;;;
