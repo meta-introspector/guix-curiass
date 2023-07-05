@@ -319,7 +319,7 @@ and executing them.  The worker can reply on the same socket."
   (define (read-server-info socket)
     ;; Ignore the boostrap message sent due to ZMQ_PROBE_ROUTER option.
     (match (zmq-get-msg-parts-bytevector socket '())
-      ((empty) #f))
+      ((#vu8()) #f))
 
     (request-info socket)
     (match (receive-message socket)
