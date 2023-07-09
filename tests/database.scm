@@ -1,7 +1,7 @@
 ;;;; database.scm - tests for (cuirass database) module
 ;;;
 ;;; Copyright © 2016 Mathieu Lirzin <mthl@gnu.org>
-;;; Copyright © 2018 Ludovic Courtès <ludo@gnu.org>
+;;; Copyright © 2018, 2023 Ludovic Courtès <ludo@gnu.org>
 ;;; Copyright © 2018 Clément Lassieur <clement@lassieur.org>
 ;;; Copyright © 2020 Mathieu Othacehe <othacehe@gnu.org>
 ;;;
@@ -27,6 +27,7 @@
              (cuirass remote)
              (cuirass specification)
              (cuirass utils)
+             ((cuirass logging) #:select (current-logging-level))
              (tests common)
              (guix channels)
              ((guix utils) #:select (call-with-temporary-output-file))
@@ -117,6 +118,8 @@
        #:hz 5))
     (db-close db)
     result))
+
+(current-logging-level 'debug)
 
 (test-group-with-cleanup "database"
   (test-assert "db-init"
