@@ -90,8 +90,11 @@
        ;; the tests.
        (let ((exp #~(let ((nonce (list #$(car (gettimeofday))
                                        #$(getpid))))
+                      (setvbuf (current-output-port) 'line)
+                      (display "Build process taking a nap...\n")
                       (when #$sleep
                         (sleep #$sleep))
+                      (display "Waking up!\n")
                       (mkdir #$output))))
          (gexp->derivation "foo" exp))))))
 
@@ -99,7 +102,7 @@
   (delay (dummy-drv)))
 
 (define drv-with-timeout
-  (delay (dummy-drv 2)))
+  (delay (dummy-drv 10)))
 
 (define* (make-build #:key
                      drv
