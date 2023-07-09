@@ -682,7 +682,7 @@ timestamp, checkouttime, evaltime) VALUES ('guix', 0, 0, 0, 0);")
       (db-update-build-status! "/new-build.drv" 1)
       (assq-ref (db-get-build "/new-build.drv") #:weather)))
 
-  (test-assert "mail notification"
+  (test-assert "mail notification, broken job"
     (with-fibers
       (retry
        (lambda ()
