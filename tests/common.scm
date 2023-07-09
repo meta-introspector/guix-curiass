@@ -20,6 +20,7 @@
   #:use-module (cuirass database)
   #:use-module (cuirass parameters)
   #:use-module (cuirass utils)
+  #:use-module ((fibers scheduler) #:select (current-scheduler))
   #:use-module (ice-9 popen)
   #:use-module (ice-9 rdelim)
   #:export (%db
@@ -46,7 +47,9 @@
         (if (>= attempt times)
             #f
             (begin
-              (sleep delay)
+              (if (current-scheduler)
+                  ((@ (fibers) sleep) delay)
+                  (sleep delay))
               (loop (+ 1 attempt)))))))))
 
 (define (test-init-db!)
