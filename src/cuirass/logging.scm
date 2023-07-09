@@ -23,6 +23,7 @@
   #:use-module (ice-9 threads)
   #:use-module (ice-9 ftw)
   #:export (current-logging-port
+            current-logging-level
             current-logging-procedure
             log-message
             log-info
