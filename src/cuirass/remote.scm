@@ -415,8 +415,10 @@ the payload, the peer's identity (a bytevector), and the peer address."
                    read)
                  (zmq-message-content sender)
                  (zmq-message-gets data "Peer-Address")))
-        ((sender #vu8())
-         (values *unspecified* sender)))
+        ((sender (and message (= zmq-message-size 0)))
+         (values *unspecified*
+                 (zmq-message-content sender)
+                 (zmq-message-gets message "Peer-Address"))))
       (match (zmq-get-msg-parts-bytevector socket '())
         ((#vu8() data)
          (call-with-input-string (bv->string data)
