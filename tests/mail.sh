@@ -1,3 +1,3 @@
-#!/bin/bash
+#!/bin/sh
 
-cp /dev/stdin .tmp-mail
+exec cp /dev/stdin .tmp-mail
