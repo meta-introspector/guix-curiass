@@ -40,6 +40,9 @@
   #:use-module (ice-9 match)
   #:use-module (ice-9 rdelim)
   #:use-module (ice-9 threads)
+  #:use-module (ice-9 suspendable-ports)
+  #:use-module (fibers)
+  #:use-module (fibers scheduler)
   #:export (worker
             worker?
             worker-name
@@ -278,6 +281,7 @@ PRIVATE-KEY to sign narinfos."
     (match (false-if-exception (read port))
       (('log ('version 0)
              ('derivation derivation))
+       (log-debug (G_ "reading build log for ~a") derivation)
        (let ((file (log-path cache derivation)))
          (call-with-output-file file
            (lambda (output)
@@ -286,43 +290,44 @@ PRIVATE-KEY to sign narinfos."
        (log-error "invalid log received.")
        #f)))
 
-  (define (wait-for-client port proc)
-    (let ((sock (socket AF_INET SOCK_STREAM 0)))
+  (define (wait-for-client port)
+    (let ((sock (socket AF_INET
+                        (logior SOCK_STREAM SOCK_NONBLOCK SOCK_CLOEXEC)
+                        0)))
       (setsockopt sock SOL_SOCKET SO_REUSEADDR 1)
       (bind sock AF_INET INADDR_ANY port)
       (listen sock 1024)
-      (while #t
-        (match (select (list sock) '() '() 60)
-          (((_) () ())
-           (match (accept sock)
-             ((client . address)
-              (catch 'system-error
-                (lambda ()
-                  (write '(log-server (version 0)) client)
-                  (force-output client)
-                  (proc client))
-                (lambda args
-                  (let ((errno (system-error-errno args)))
-                    (when (memv errno (list EPIPE ECONNRESET ECONNABORTED))
-                      (log-error "~a when replying to ~a."
-                                 (strerror errno) (fileno client)))))))))
-          ((() () ())
-           #f)))))
+      (log-info (G_ "listening for build logs on port ~a") port)
+      (let loop ()
+        (match (accept sock (logior SOCK_NONBLOCK SOCK_CLOEXEC))
+          ((client . address)
+           (spawn-fiber
+            (lambda ()
+              (handle-client client address)))))
+        (loop))))
 
-  (define (client-handler client)
-    (call-with-new-thread
-     (lambda ()
-       (set-thread-name
-        (string-append "log-server-"
-                       (number->string (port->fdes client))))
-       (and=> client read-log)
-       (when client
-         (close-port client)))))
+  (define (handle-client client address)
+    (catch 'system-error
+      (lambda ()
+        (log-debug "preparing to receive build log from ~a"
+                   (inet-ntop (sockaddr:fam address)
+                              (sockaddr:addr address)))
+        (write '(log-server (version 0)) client)
+        (force-output client)
+        (read-log client)
+        (close-port client))
+      (lambda args
+        (close-port client)
+        (let ((errno (system-error-errno args)))
+          (when (memv errno (list EPIPE ECONNRESET ECONNABORTED))
+            (log-error "~a when replying to ~a."
+                       (strerror errno)
+                       (inet-ntop (sockaddr:fam address)
+                                  (sockaddr:addr address))))))))
 
-  (call-with-new-thread
+  (spawn-fiber
    (lambda ()
-     (set-thread-name "log-server")
-     (wait-for-client port client-handler))))
+     (wait-for-client port))))
 
 (define-syntax-rule (swallow-zlib-error exp ...)
   "Swallow 'zlib-error' exceptions raised by EXP..."
@@ -336,6 +341,7 @@ PRIVATE-KEY to sign narinfos."
          (in-addr (inet-pton AF_INET address))
          (addr (make-socket-address AF_INET in-addr port)))
     (connect sock addr)
+    ;; TODO: Fiberize together with 'remote-worker'.
     (match (select (list sock) '() '() 10)
       (((_) () ())
        (match (read sock)
@@ -400,6 +406,24 @@ the message."
                                        (cons recipient payload)
                                        payload))))
 
+(define zmq-socket->port
+  (let ((table (make-weak-key-hash-table)))
+    (lambda (socket)
+      "Return a port wrapping SOCKET, a file descriptor."
+      (let ((fd (zmq-get-socket-option socket ZMQ_FD)))
+        (match (hashq-ref table socket)
+          (#f
+           (let ((port (fdopen fd "r+0")))
+             (set-port-revealed! port 1)          ;let zmq close it
+             (hashq-set! table socket port)
+             port))
+          (port
+           (if (= fd (fileno port))               ;better be safe
+               port
+               (begin
+                 (hashq-remove! table socket)
+                 (zmq-socket->port socket)))))))))
+
 (define* (receive-message socket #:key router?)
   "Read an sexp from SOCKET, a ZMQ socket, and return it.  Return the
 unspecified value when reading a message without payload.
@@ -407,6 +431,20 @@ unspecified value when reading a message without payload.
 When ROUTER? is true, assume messages received start with a routing
 prefix (the identity of the peer, as a bytevector), and return three values:
 the payload, the peer's identity (a bytevector), and the peer address."
+  (define (wait)
+    ;; Events are edge-triggered so before waiting, check whether there are
+    ;; messages available.  See the discussion at
+    ;; <https://lists.zeromq.org/pipermail/zeromq-dev/2016-May/030349.html>.
+    (when (zero? (logand ZMQ_POLLIN
+                         (zmq-get-socket-option socket ZMQ_EVENTS)))
+      ((current-read-waiter) (zmq-socket->port socket))
+      (when (zero? (zmq-get-socket-option socket ZMQ_EVENTS))
+        ;; Per <http://api.zeromq.org/master:zmq-getsockopt>, "applications
+        ;; should simply ignore this case and restart their polling
+        ;; operation/event loop."
+        (wait))))
+
+  (wait)
   (if router?
       (match (zmq-message-receive* socket)
         ((sender (= zmq-message-size 0) data)

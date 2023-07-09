@@ -125,7 +125,6 @@
   (test-assert "db-init"
     (begin
       (test-init-db!)
-      (start-notification-thread)
       #t))
 
   (test-equal "db-add-or-update-specification"
@@ -666,6 +665,7 @@ timestamp, checkouttime, evaltime) VALUES ('guix', 0, 0, 0, 0);")
 
   (test-assert "mail notification"
     (with-fibers
+      (spawn-notification-fiber)
       (retry
        (lambda ()
          (and (file-exists? tmp-mail)
@@ -684,6 +684,7 @@ timestamp, checkouttime, evaltime) VALUES ('guix', 0, 0, 0, 0);")
 
   (test-assert "mail notification, broken job"
     (with-fibers
+      (spawn-notification-fiber)
       (retry
        (lambda ()
          (and (file-exists? tmp-mail)

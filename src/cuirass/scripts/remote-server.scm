@@ -42,6 +42,7 @@
                 #:select (current-build-output-port
                           ensure-path
                           store-protocol-error?
+                          store-connection-socket
                           with-store))
   #:use-module (guix ui)
   #:use-module (guix utils)
@@ -65,6 +66,7 @@
   #:use-module (ice-9 rdelim)
   #:use-module (ice-9 regex)
   #:use-module (ice-9 threads)
+  #:use-module (fibers)
   #:export (cuirass-remote-server))
 
 ;; Indicate if the process has to be stopped.
@@ -337,12 +339,24 @@ be used to reply to the worker."
      (lambda (tmp-file port)
        (url-fetch* narinfo-url tmp-file)))))
 
+(define (ensure-non-blocking-store-connection store)
+  "Mark the file descriptor that backs STORE, a <store-connection>, as
+O_NONBLOCK."
+  (match (store-connection-socket store)
+    ((? file-port? port)
+     (let* ((fd (fileno port))
+            (flags (fcntl fd F_GETFL)))
+       (when (zero? (logand flags O_NONBLOCK))
+         (fcntl fd F_SETFL (logior O_NONBLOCK flags)))))
+    (_ #f)))
+
 (define (add-to-store drv outputs url)
   "Add the OUTPUTS that are available from the substitute server at URL to the
 store.  Register GC roots for the matching DRV and trigger a substitute baking
 at URL."
   (parameterize ((current-build-output-port (%make-void-port "w")))
     (with-store store
+      (ensure-non-blocking-store-connection store)
       (set-build-options* store (list url))
       (for-each
        (lambda (output)
@@ -404,14 +418,13 @@ directory."
      (db-update-build-status! drv (build-status failed)))))
 
 (define (start-fetch-worker name)
-  "Start a fetch worker thread with the given NAME.  This worker takes care of
-downloading build outputs.  It communicates with the remote server using a ZMQ
-socket."
-  (call-with-new-thread
+  "Start a fetch worker fiber, which takes care of downloading build outputs.
+It communicates with the remote worker using a ZMQ socket."
+  (spawn-fiber
    (lambda ()
      (use-modules (cuirass parameters)) ;XXX: Needed for mu-debug variable.
-     (set-thread-name name)
      (let ((socket (zmq-fetch-worker-socket)))
+       (log-debug "starting fetch worker ~s" name)
        (let loop ()
          (run-fetch (receive-message socket))
          (atomic-box-fetch-and-dec! %fetch-queue-size)
@@ -422,18 +435,17 @@ socket."
 ;;; Periodic updates.
 ;;;
 
-(define (start-periodic-updates-thread)
-  "Start a thread running periodic update queries."
-  (call-with-new-thread
+(define (spawn-periodic-updates-fiber)
+  "Start a fiber running periodic update queries."
+  (spawn-fiber
    (lambda ()
-     (set-thread-name "periodic-updates")
      (let loop ()
        (let ((resumable (db-update-resumable-builds!))
              (failed (db-update-failed-builds!)))
          (log-info "period update: ~a resumable, ~a failed builds."
-                      resumable failed)
+                   resumable failed)
          (log-info "period update: ~a items in the fetch queue."
-                      (atomic-box-ref %fetch-queue-size)))
+                   (atomic-box-ref %fetch-queue-size)))
        (sleep 30)
        (loop)))))
 
@@ -453,21 +465,10 @@ all network interfaces."
 (define (zmq-start-proxy backend-port)
   "This procedure starts a proxy between client connections from the IPC
 frontend to the workers connected through the TCP backend."
-  (define (socket-ready? items socket)
-    (find (lambda (item)
-            (eq? (poll-item-socket item) socket))
-          items))
-
-  ;; The poll loop below must not be blocked.  Print a warning message if a
-  ;; loop iteration takes more than %LOOP-TIMEOUT seconds to complete.
-  (define %loop-timeout 5)
-
   (let* ((build-socket
           (zmq-create-socket %zmq-context ZMQ_ROUTER))
          (fetch-socket
-          (zmq-create-socket %zmq-context ZMQ_PUSH))
-         (poll-items (list
-                      (poll-item build-socket ZMQ_POLLIN))))
+          (zmq-create-socket %zmq-context ZMQ_PUSH)))
 
     ;; Send bootstrap messages on worker connection to wake up the workers
     ;; that were hanging waiting for request-work responses.
@@ -476,28 +477,29 @@ frontend to the workers connected through the TCP backend."
     (zmq-bind-socket build-socket (zmq-backend-endpoint backend-port))
     (zmq-bind-socket fetch-socket (zmq-fetch-workers-endpoint))
 
+    (spawn-fiber
+     (lambda ()
+       (let loop ()
+         (sleep (quotient (%worker-timeout) 2))
+         (log-debug (G_ "updating list of live workers"))
+         (db-remove-unresponsive-workers (%worker-timeout))
+         (loop))))
+
     ;; Do not use the built-in zmq-proxy as we want to edit the envelope of
     ;; frontend messages before forwarding them to the backend.
     (let loop ()
-      (let* ((items (zmq-poll* poll-items 1000))
-             (start-time (current-time)))
-        (when (socket-ready? items build-socket)
-          (let* ((command sender sender-address
-                          (receive-message build-socket #:router? #t))
-                 (reply-worker (lambda (message)
-                                 (send-message build-socket message
-                                               #:recipient sender))))
-            (if (need-fetching? command)
-                (begin
-                  (atomic-box-fetch-and-inc! %fetch-queue-size)
-                  (send-message fetch-socket command))
-                (read-worker-exp command
-                                 #:peer-address sender-address
-                                 #:reply-worker reply-worker))))
-        (db-remove-unresponsive-workers (%worker-timeout))
-        (let ((delta (- (current-time) start-time)))
-          (when (> delta %loop-timeout)
-            (log-warning "Poll loop busy during ~a seconds." delta)))
+      (let* ((command sender sender-address
+                      (receive-message build-socket #:router? #t))
+             (reply-worker (lambda (message)
+                             (send-message build-socket message
+                                           #:recipient sender))))
+        (if (need-fetching? command)
+            (begin
+              (atomic-box-fetch-and-inc! %fetch-queue-size)
+              (send-message fetch-socket command))
+            (read-worker-exp command
+                             #:peer-address sender-address
+                             #:reply-worker reply-worker))
         (loop)))))
 
 
@@ -513,24 +515,25 @@ frontend to the workers connected through the TCP backend."
 (define %avahi-thread
   (make-atomic-box #f))
 
+(define (terminate-helper-processes)
+  (let ((publish-pid (atomic-box-ref %publish-pid))
+        (avahi-thread (atomic-box-ref %avahi-thread)))
+    (atomic-box-set! %stop-process? #t)
+
+    (when publish-pid
+      (kill publish-pid SIGHUP)
+      (waitpid publish-pid))
+
+    (when avahi-thread
+      (join-thread avahi-thread))))
+
 (define (signal-handler)
   "Catch SIGINT to stop the Avahi event loop and the publish process before
 exiting."
   (sigaction SIGINT
     (lambda (signum)
-      (let ((publish-pid (atomic-box-ref %publish-pid))
-            (avahi-thread (atomic-box-ref %avahi-thread)))
-        (atomic-box-set! %stop-process? #t)
-
-        (and publish-pid
-             (begin
-               (kill publish-pid SIGHUP)
-               (waitpid publish-pid)))
-
-        (and avahi-thread
-             (join-thread avahi-thread))
-
-        (exit 1)))))
+      (terminate-helper-processes)
+      (primitive-exit 1))))
 
 (define (gather-user-privileges user)
   "switch to the identity of user, a user name."
@@ -632,19 +635,29 @@ exiting."
           #:txt `(,(string-append "log-port="
                                   (number->string log-port))
                   ,@(if publish-port
-                      (list (string-append "publish-port="
-                                           (number->string publish-port)))
-                      '()))))
+                        (list (string-append "publish-port="
+                                             (number->string publish-port)))
+                        '()))))
 
-        (receive-logs log-port (%cache-directory))
+        (run-fibers
+         (lambda ()
+           (with-database
+             (receive-logs log-port (%cache-directory))
+             (spawn-notification-fiber)
+             (spawn-periodic-updates-fiber)
+             (for-each (lambda (number)
+                         (start-fetch-worker
+                          (string-append "fetch-worker-"
+                                         (number->string number))))
+                       (iota (%fetch-workers)))
 
-        (with-database
-            (start-notification-thread)
-            (start-periodic-updates-thread)
-            (for-each (lambda (number)
-                        (start-fetch-worker
-                         (string-append "fetch-worker-"
-                                        (number->string number))))
-                      (iota (%fetch-workers)))
-
-            (zmq-start-proxy backend-port))))))
+             (catch 'zmq-error
+               (lambda ()
+                 (zmq-start-proxy backend-port))
+               (lambda (key errno message . _)
+                 (log-error (G_ "failed to start worker/database proxy: ~a")
+                            message)
+                 (terminate-helper-processes)
+                 (primitive-exit 1)))))
+         #:hz 0
+         #:parallelism 1)))))

@@ -1,5 +1,6 @@
 ;;; notification.scm -- Send build notifications.
 ;;; Copyright © 2021 Mathieu Othacehe <othacehe@gnu.org>
+;;; Copyright © 2023 Ludovic Courtès <ludo@gnu.org>
 ;;;
 ;;; This file is part of Cuirass.
 ;;;
@@ -27,6 +28,7 @@
   #:use-module (guix records)
   #:use-module (ice-9 match)
   #:use-module (ice-9 threads)
+  #:autoload   (fibers) (spawn-fiber)
   #:export (email
             email?
             email-from
@@ -39,7 +41,7 @@
             notification->sexp
             sexp->notification
 
-            start-notification-thread))
+            spawn-notification-fiber))
 
 
 ;;;
@@ -152,19 +154,20 @@ the detailed information about this build here: ~a."
         (log-error "Failed to send the mastodon notification: ~a."
                    args)))))
 
-(define (start-notification-thread)
+(define (spawn-notification-fiber)
   "Start a thread sending build notifications."
-  (call-with-new-thread
+  (spawn-fiber
    (lambda ()
-     (set-thread-name "notification")
      (let loop ()
        (match (db-pop-notification)
          ((notif . build)
+          (log-debug "notification ~s for build ~s"
+                     notif build)
           (cond
            ((email? notif)
             (send-email* notif build))
            ((mastodon? notif)
             (send-mastodon build))))
          (#f #f))
-       (sleep 1)
+       ((@ (fibers) sleep) 1)
        (loop)))))
