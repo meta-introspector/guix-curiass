@@ -39,7 +39,6 @@
   #:use-module (srfi srfi-26)
   #:use-module (ice-9 match)
   #:use-module (ice-9 rdelim)
-  #:use-module (ice-9 threads)
   #:use-module (ice-9 suspendable-ports)
   #:use-module (fibers)
   #:use-module (fibers scheduler)
@@ -337,30 +336,25 @@ PRIVATE-KEY to sign narinfos."
     (const #f)))
 
 (define* (send-log address port derivation log)
-  (let* ((sock (socket AF_INET SOCK_STREAM 0))
+  (let* ((sock (socket AF_INET
+                       (logior SOCK_STREAM SOCK_CLOEXEC SOCK_NONBLOCK) 0))
          (in-addr (inet-pton AF_INET address))
          (addr (make-socket-address AF_INET in-addr port)))
+    ;; TODO: Time out after a while.
     (connect sock addr)
-    ;; TODO: Fiberize together with 'remote-worker'.
-    (match (select (list sock) '() '() 10)
-      (((_) () ())
-       (match (read sock)
-         (('log-server ('version version ...))
-          (let ((header `(log
-                          (version 0)
-                          (derivation ,derivation))))
-            (write header sock)
-            (swallow-zlib-error
-             (call-with-gzip-output-port sock
-               (lambda (sock-compressed)
-                 (dump-port log sock-compressed))))
-            (close-port sock)))
-         (x
-          (log-error "invalid handshake ~s." x)
-          (close-port sock)
-          #f)))
-      ((() () ())                                 ;timeout
-       (log-error "timeout while sending log")
+    (match (read sock)
+      (('log-server ('version version ...))
+       (let ((header `(log
+                       (version 0)
+                       (derivation ,derivation))))
+         (write header sock)
+         (swallow-zlib-error
+          (call-with-gzip-output-port sock
+            (lambda (sock-compressed)
+              (dump-port log sock-compressed))))
+         (close-port sock)))
+      (x
+       (log-error "invalid handshake ~s." x)
        (close-port sock)
        #f))))
 
