@@ -85,6 +85,19 @@ For a test run, instead of running a full-blown PostgreSQL, you can use the
   ./pre-inst-env cuirass web --database=$DB
 #+end_example
 
+Or, if you want to test the ZeroMQ-based remote build mechanism, you can run:
+
+#+begin_example
+  DB=$(pg_tmp)
+  ./pre-inst-env cuirass register -S examples/cuirass.scm --database=$DB \
+     --build-remote &
+  ./pre-inst-env cuirass web --database=$DB &
+  ./pre-inst-env cuirass remote-server --database=$DB \
+     --public-key=tests/signing-key.pub --private-key=tests/signing-key.sec &
+  ./pre-inst-env cuirass remote-worker \
+     --public-key=tests/signing-key.pub --private-key=tests/signing-key.sec &
+#+end_example
+
 * Run tests
 
 Cuirass tests also require an access to a PostgreSQL database, provided by the
