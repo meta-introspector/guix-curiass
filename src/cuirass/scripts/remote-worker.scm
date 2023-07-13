@@ -490,7 +490,8 @@ exiting."
                (log-info (N_ "discovered build server at ~a, creating ~a worker"
                              "discovered build server at ~a, creating ~a workers"
                              workers)
-                         (avahi-service-local-address service))
+                         (avahi-service-local-address service)
+                         workers)
                (case action
                  ((new-service)
                   (for-each
