@@ -438,7 +438,8 @@ the payload, the peer's identity (a bytevector), and the peer address."
     (when (zero? (logand ZMQ_POLLIN
                          (zmq-get-socket-option socket ZMQ_EVENTS)))
       ((current-read-waiter) (zmq-socket->port socket))
-      (when (zero? (zmq-get-socket-option socket ZMQ_EVENTS))
+      (when (zero? (logand ZMQ_POLLIN
+                           (zmq-get-socket-option socket ZMQ_EVENTS)))
         ;; Per <http://api.zeromq.org/master:zmq-getsockopt>, "applications
         ;; should simply ignore this case and restart their polling
         ;; operation/event loop."
