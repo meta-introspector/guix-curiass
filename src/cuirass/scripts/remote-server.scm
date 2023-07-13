@@ -65,7 +65,8 @@
   #:use-module (ice-9 q)
   #:use-module (ice-9 rdelim)
   #:use-module (ice-9 regex)
-  #:use-module (ice-9 threads)
+  #:use-module ((ice-9 threads)
+                #:select (current-processor-count join-thread))
   #:use-module (fibers)
   #:export (cuirass-remote-server))
 
@@ -660,4 +661,4 @@ exiting."
                  (terminate-helper-processes)
                  (primitive-exit 1)))))
          #:hz 0
-         #:parallelism 1)))))
+         #:parallelism (min 8 (current-processor-count)))))))
