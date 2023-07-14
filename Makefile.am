@@ -203,6 +203,8 @@ EXTRA_DIST =					\
   etc/cuirass-remote-worker.service.in		\
   examples/hello.scm				\
   examples/cuirass.scm				\
+  examples/random.scm				\
+  examples/random-manifest.scm			\
   $(TESTS)
 
 dist-hook:
