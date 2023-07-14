@@ -1234,11 +1234,13 @@ and BUILD-MAX are global minimal and maximal (stoptime, rowid) pairs."
 
 (define (commit-hyperlink url commit)
   "Return, if possibly, a hyperlink for COMMIT of the repository at URL."
-  (let* ((uri  (string->uri url))
-         (host (uri-host uri)))
-    (match (assoc-ref %vcs-web-views host)
-      (#f     commit)
-      ((link) `(a (@ (href ,(link url commit))) ,commit)))))
+  (match (string->uri url)
+    (#f commit)
+    (uri
+     (let ((host (uri-host uri)))
+       (match (assoc-ref %vcs-web-views host)
+         (#f     commit)
+         ((link) `(a (@ (href ,(link url commit))) ,commit)))))))
 
 (define (nearest-exact-integer x)
   "Given a real number X, return the nearest exact integer, with ties going to
