@@ -316,7 +316,7 @@ Essentially this procedure inverts the inversion-of-control that
           (lambda _
             (close-port output)))))
 
-     (values input
+     (values (non-blocking-port input)
              (lambda ()
                (match (atomic-box-ref result)
                  ((? condition? c)
