@@ -9,6 +9,7 @@
    . "<https?://\\(debbugs\\|bugs\\)\\.gnu\\.org/\\([0-9]+\\)>"))
  (scheme-mode
   (indent-tabs-mode)
+  (eval put 'with-store/non-blocking 'scheme-indent-function 1)
   (eval put 'call-with-time 'scheme-indent-function 1)
   (eval put 'test-error 'scheme-indent-function 1)
   (eval put 'make-parameter 'scheme-indent-function 1)

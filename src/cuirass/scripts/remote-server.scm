@@ -41,9 +41,7 @@
   #:use-module ((guix store)
                 #:select (current-build-output-port
                           ensure-path
-                          store-protocol-error?
-                          store-connection-socket
-                          with-store))
+                          store-protocol-error?))
   #:use-module (guix ui)
   #:use-module (guix utils)
   #:use-module (guix workers)
@@ -340,24 +338,12 @@ be used to reply to the worker."
      (lambda (tmp-file port)
        (url-fetch* narinfo-url tmp-file)))))
 
-(define (ensure-non-blocking-store-connection store)
-  "Mark the file descriptor that backs STORE, a <store-connection>, as
-O_NONBLOCK."
-  (match (store-connection-socket store)
-    ((? file-port? port)
-     (let* ((fd (fileno port))
-            (flags (fcntl fd F_GETFL)))
-       (when (zero? (logand flags O_NONBLOCK))
-         (fcntl fd F_SETFL (logior O_NONBLOCK flags)))))
-    (_ #f)))
-
 (define (add-to-store drv outputs url)
   "Add the OUTPUTS that are available from the substitute server at URL to the
 store.  Register GC roots for the matching DRV and trigger a substitute baking
 at URL."
   (parameterize ((current-build-output-port (%make-void-port "w")))
-    (with-store store
-      (ensure-non-blocking-store-connection store)
+    (with-store/non-blocking store
       (set-build-options* store (list url))
       (for-each
        (lambda (output)

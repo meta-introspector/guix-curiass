@@ -65,6 +65,7 @@
             register-gc-roots
             read-parameters
             evaluate
+            with-store/non-blocking
             build-derivations&
             set-build-successful!
             clear-build-queue
@@ -190,6 +191,23 @@ any."
     (when (zero? (logand O_NONBLOCK flags))
       (fcntl port F_SETFL (logior O_NONBLOCK flags)))
     port))
+
+(define (ensure-non-blocking-store-connection store)
+  "Mark the file descriptor that backs STORE, a <store-connection>, as
+O_NONBLOCK."
+  (match (store-connection-socket store)
+    ((? file-port? port)
+     (non-blocking-port port))
+    (_ #f)))
+
+(define-syntax-rule (with-store/non-blocking store exp ...)
+  "Like 'with-store', bind STORE to a connection to the store, but ensure that
+said connection is non-blocking (O_NONBLOCK).  Evaluate EXP... in that
+context."
+  (with-store store
+    (ensure-non-blocking-store-connection store)
+    (let ()
+      exp ...)))
 
 (define %cuirass-state-directory
   ;; Directory where state files are stored, usually "/var".
