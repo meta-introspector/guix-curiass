@@ -405,18 +405,12 @@ system whose names start with " (code "guile-") ":" (br)
                               " "
                               (div
                                (@ (class "job-rel d-none"))
-                               (div
-                                (@ (class "badge badge-success badge-counter")
-                                   (title "Succeeded"))
-                                ,(assq-ref summary #:succeeded))
-                               (div
-                                (@ (class "badge badge-danger badge-counter")
-                                   (title "Failed"))
-                                ,(assq-ref summary #:failed))
-                               (div
-                                (@ (class "badge badge-secondary badge-counter")
-                                   (title "Scheduled"))
-                                ,(assq-ref summary #:scheduled)))))
+                               ,(successful-build-badge
+                                 (assq-ref summary #:succeeded))
+                               ,(failed-build-badge
+                                 (assq-ref summary #:failed))
+                               ,(scheduled-build-badge
+                                 (assq-ref summary #:scheduled)))))
                            ((and last-eval (not last-eval-status-ok?))
                             `((center
                                ,@(evaluation-badges last-eval #f))))
@@ -913,32 +907,29 @@ the existing SPEC otherwise."
          ((= status (evaluation-status succeeded))
           `((div
              (@ (class "job-abs d-none"))
-             (div (@ (class "badge badge-success badge-counter")
-                     (title "Succeeded"))
-                  ,(assq-ref absolute #:succeeded))
-             (div (@ (class "badge badge-danger badge-counter")
-                     (title "Failed"))
-                  ,(assq-ref absolute #:failed))
-             (div (@ (class "badge badge-secondary badge-counter")
-                     (title "Scheduled"))
-                  ,(assq-ref absolute #:scheduled)))
+             ,(successful-build-badge (assq-ref absolute #:succeeded))
+             ,(failed-build-badge (assq-ref absolute #:failed))
+             ,(scheduled-build-badge (assq-ref absolute #:scheduled)))
             (div
              (@ (class "job-rel"))
-             (a (@ (href "/eval/" ,(assq-ref evaluation #:id)
-                         "?status=succeeded")
-                   (class "badge badge-success badge-counter")
-                   (title "Succeeded"))
-                ,(assq-ref evaluation #:succeeded))
-             (a (@ (href "/eval/" ,(assq-ref evaluation #:id)
-                         "?status=failed")
-                   (class "badge badge-danger badge-counter")
-                   (title "Failed"))
-                ,(assq-ref evaluation #:failed))
-             (a (@ (href "/eval/" ,(assq-ref evaluation #:id)
-                         "?status=pending")
-                   (class "badge badge-secondary badge-counter")
-                   (title "Scheduled"))
-                ,(assq-ref evaluation #:scheduled)))))))))
+             ,(successful-build-badge (assq-ref evaluation #:succeeded)
+                                      (string-append
+                                       "/eval/"
+                                       (number->string
+                                        (assq-ref evaluation #:id))
+                                       "?status=succeeded"))
+             ,(failed-build-badge (assq-ref evaluation #:failed)
+                                  (string-append
+                                   "/eval/"
+                                   (number->string
+                                    (assq-ref evaluation #:id))
+                                   "?status=failed"))
+             ,(scheduled-build-badge (assq-ref evaluation #:scheduled)
+                                     (string-append
+                                      "/eval/"
+                                      (number->string
+                                       (assq-ref evaluation #:id))
+                                      "?status=pending")))))))))
 
 (define* (evaluation-info-table name evaluations id-min id-max
                                 #:key absolute-summary)
@@ -1275,6 +1266,24 @@ the nearest exact even integer."
                                (td (code ,(commit-hyperlink url commit))))
                           '())))
                   checkouts))))
+
+(define* (build-counter-badge value class title
+                              #:optional link)
+  (if link
+      `(a (@ (href ,link)
+             (class "badge " ,class " badge-counter")
+             (title ,title))
+          ,value)
+      `(div (@ (class "badge " ,class " badge-counter")
+               (title ,title))
+            ,value)))
+
+(define successful-build-badge
+  (cut build-counter-badge <> "badge-success" "Succeeded" <...>))
+(define failed-build-badge
+  (cut build-counter-badge <> "badge-danger" "Failed" <...>))
+(define scheduled-build-badge
+  (cut build-counter-badge <> "badge-secondary" "Scheduled" <...>))
 
 (define* (evaluation-build-table evaluation
                                  #:key
