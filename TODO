@@ -3,4 +3,39 @@
 #+TITLE: What's left to do?
 #+STARTUP: content hidestars
 
+* Agentize everything
+
+  - fetch/evaluate
+  - build
+  - metrics
+
+* Implement web hooks
+
+  - add a POST endpoint so we don't have to pull
+  - see https://docs.gitlab.com/15.11/ee/user/project/integrations/webhooks.html
+
+* Notify instead of polling
+
+  - 'register' notifies 'remote-server' of available builds
+  - 'remote-server' notifies 'remote-worker' processes of available builds
+  - 'web' notifies 'register' of build requests
+
+* Improve the user interface
+
+** Clarify the new success/failure/queued figures on eval page
+** Colorize build logs
+
+With client-side JS; folding of build phases, etc.
+
+* Replace alists with records
+
+Similar to what =define-json-mapping= does.
+
+* Use Spritely Goblins
+
+  - make it possible to hand over capabilities to invidivual agents
+
+* COMMENT Copyright
+
 Copyright © 2021 Mathieu Othacehe <othacehe@gnu.org>
+Copyright © 2023 Ludovic Courtès <ludo@gnu.org>
