@@ -969,8 +969,11 @@ the existing SPEC otherwise."
               (tr
                (th (@ (scope "col")) "#")
                (th (@ (scope "col")) "Channel changes")
-               (th (@ (scope "col")) Success)
-               (th (@ (scope "col")) Action)))
+               (th (@ (scope "col"))
+                   (div (@ (class "job-rel")) "Build changes")
+                   (div (@ (class "job-abs d-none"))
+                        "Total number of builds"))
+               (th (@ (scope "col")) "Action")))
              (tbody
               ,@(map
                  (lambda (row)
