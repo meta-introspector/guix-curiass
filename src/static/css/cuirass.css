@@ -55,6 +55,12 @@ body {
     margin: auto;
 }
 
+.badge-counter {		/* succeeded/failed/scheduled counters */
+    margin: 2px;
+    text-align: right;
+    min-width: 25px;
+}
+
 div.tooltip {
     position: absolute;
     opacity:0.8;
