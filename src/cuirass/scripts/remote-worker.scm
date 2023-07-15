@@ -268,11 +268,7 @@ command.  REPLY is a procedure that can be used to reply to this server."
                 #:reply reply
                 #:worker worker
                 #:timeout timeout
-                #:max-silent max-silent))
-    (('no-build)
-     (log-info (G_ "~a: no available build.")
-               (worker-name worker))
-     #t)))
+                #:max-silent max-silent))))
 
 (define (spawn-worker-ping worker server)
   "Spawn a thread that periodically pings SERVER."
@@ -378,6 +374,10 @@ and executing them.  The worker can reply on the same socket."
                    ((? unspecified?)              ;server reconnect
                     (log-info (G_ "~a: received a bootstrap message.")
                               (worker-name wrk)))
+                   (('no-build)
+                    (log-info (G_ "~a: no available build.")
+                              (worker-name worker))
+                    (sleep (%request-period)))
                    (command
                     (log-debug (G_ "~a: received command: ~s")
                                (worker-name wrk) command)
@@ -385,7 +385,6 @@ and executing them.  The worker can reply on the same socket."
                                  #:reply (reply socket)
                                  #:worker worker)))))
 
-           (sleep (%request-period))
            (loop)))))))
 
 (define (worker-management-thunk channel systems)
