@@ -187,7 +187,8 @@ any."
 (define (non-blocking-port port)
   "Make PORT non-blocking and return it."
   (let ((flags (fcntl port F_GETFL)))
-    (fcntl port F_SETFL (logior O_NONBLOCK flags))
+    (when (zero? (logand O_NONBLOCK flags))
+      (fcntl port F_SETFL (logior O_NONBLOCK flags)))
     port))
 
 (define %cuirass-state-directory
