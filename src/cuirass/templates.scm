@@ -1271,10 +1271,12 @@ the nearest exact even integer."
                               #:optional link)
   (if link
       `(a (@ (href ,link)
-             (class "badge " ,class " badge-counter")
+             (class "badge " ,class " badge-counter"
+               ,(if (eqv? 0 value) " hidden" ""))
              (title ,title))
           ,value)
-      `(div (@ (class "badge " ,class " badge-counter")
+      `(div (@ (class "badge " ,class " badge-counter"
+                 ,(if (eqv? 0 value) " hidden" ""))
                (title ,title))
             ,value)))
 
