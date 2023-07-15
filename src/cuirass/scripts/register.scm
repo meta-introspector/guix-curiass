@@ -29,7 +29,6 @@
   #:use-module (cuirass notification)
   #:use-module (cuirass specification)
   #:use-module (cuirass utils)
-  #:use-module (cuirass watchdog)
   #:use-module (cuirass zabbix)
   #:use-module (guix ui)
   #:use-module ((guix build utils) #:select (mkdir-p))
@@ -129,7 +128,6 @@
                (if one-shot?
                    (process-specs (db-get-specifications))
                    (let ((exit-channel (make-channel)))
-                     (start-watchdog)
                      (clear-build-queue)
 
                      ;; If Cuirass was stopped during an evaluation,

@@ -29,7 +29,6 @@
   #:use-module (cuirass notification)
   #:use-module (cuirass specification)
   #:use-module (cuirass utils)
-  #:use-module (cuirass watchdog)
   #:use-module (cuirass zabbix)
   #:use-module (guix ui)
   #:use-module ((guix build utils) #:select (mkdir-p))
@@ -99,7 +98,6 @@
                  (and paramfile (read-parameters paramfile))
 
                  (let ((exit-channel (make-channel)))
-                   (start-watchdog)
                    (spawn-fiber
                     (essential-task
                      'web exit-channel
