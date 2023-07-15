@@ -220,7 +220,7 @@ context."
                  "/log/cuirass/evaluations/"
                  (number->string eval-id) ".gz"))
 
-(define (evaluate store spec eval-id)
+(define (evaluate spec eval-id)
   "Evaluate and build package derivations defined in SPEC, using CHECKOUTS.
 Return a list of jobs that are associated to EVAL-ID."
   (define log-file
@@ -686,15 +686,15 @@ specification."
                                     (evaluation-error-id c)))
                         #f))
                (log-info "evaluating spec '~a'" name)
-               (with-store store
-                 ;; The LATEST-CHANNEL-INSTANCES procedure may return channel
-                 ;; dependencies that are not declared in the initial
-                 ;; specification channels.  Update the given SPEC to take
-                 ;; them into account.
-                 (db-add-or-update-specification new-spec)
-                 (evaluate store spec eval-id)
-                 (db-set-evaluation-time eval-id)
-                 (build-packages store eval-id)))))
+
+               ;; The LATEST-CHANNEL-INSTANCES procedure may return channel
+               ;; dependencies that are not declared in the initial
+               ;; specification channels.  Update the given SPEC to take
+               ;; them into account.
+               (db-add-or-update-specification new-spec)
+               (evaluate spec eval-id)
+               (db-set-evaluation-time eval-id)
+               (build-packages store eval-id))))
 
           ;; 'spawn-fiber' returns zero values but we need one.
           *unspecified*))))
