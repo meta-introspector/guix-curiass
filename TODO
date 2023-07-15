@@ -20,6 +20,10 @@
   - 'remote-server' notifies 'remote-worker' processes of available builds
   - 'web' notifies 'register' of build requests
 
+* Make =remote-worker= more dynamic
+
+  - replace fixed =--workers= option with something based on current load (?)
+
 * Improve the user interface
 
 ** Clarify the new success/failure/queued figures on eval page
@@ -30,6 +34,8 @@ With client-side JS; folding of build phases, etc.
 * Replace alists with records
 
 Similar to what =define-json-mapping= does.
+
+* Add Guix Build Coordinator backend
 
 * Use Spritely Goblins
 
