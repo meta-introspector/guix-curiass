@@ -328,13 +328,6 @@ PRIVATE-KEY to sign narinfos."
    (lambda ()
      (wait-for-client port))))
 
-(define-syntax-rule (swallow-zlib-error exp ...)
-  "Swallow 'zlib-error' exceptions raised by EXP..."
-  (catch 'zlib-error
-    (lambda ()
-      exp ...)
-    (const #f)))
-
 (define* (send-log address port derivation log)
   (let* ((sock (socket AF_INET
                        (logior SOCK_STREAM SOCK_CLOEXEC SOCK_NONBLOCK) 0))
@@ -348,10 +341,19 @@ PRIVATE-KEY to sign narinfos."
                        (version 0)
                        (derivation ,derivation))))
          (write header sock)
-         (swallow-zlib-error
-          (call-with-gzip-output-port sock
-            (lambda (sock-compressed)
-              (dump-port log sock-compressed))))
+
+         ;; Note: Don't use 'call-with-gzip-output-port' since it's
+         ;; implemented in terms of 'dynamic-wind' as of Guile-Zlib 0.1.0,
+         ;; making it unsuitable in a fiberized program.
+         (let ((compressed (make-gzip-output-port sock)))
+           (catch #t
+             (lambda ()
+               (dump-port log compressed)
+               (close-port compressed))
+             (lambda (key . args)
+               (close-port compressed)
+               (unless (eq? key 'zlib-error)
+                 (apply throw args)))))
          (close-port sock)))
       (x
        (log-error "invalid handshake ~s." x)
