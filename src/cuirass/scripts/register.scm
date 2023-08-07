@@ -174,11 +174,9 @@
                            (sleep 600)))))
                      (primitive-exit (get-message exit-channel))))))
 
-           ;; Most of our code is I/O so preemption doesn't matter much (it
-           ;; could help while we're doing SQL requests, for instance, but it
-           ;; doesn't actually help since these are non-resumable
-           ;; continuations.)  Thus, reduce the tick rate.
-           #:hz 10
+           ;; Most of our code is I/O so preemption doesn't matter much.
+           ;; Thus, reduce the tick rate.
+           #:hz 2
 
            #:parallelism threads
            #:drain? #t)))))))
