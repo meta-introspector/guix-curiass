@@ -1259,14 +1259,14 @@ the nearest exact even integer."
                            (channel (find (lambda (channel)
                                             (eq? (channel-name channel)
                                                  name))
-                                          channels))
-                           (url   (channel-url channel))
-                           (commit (assq-ref checkout #:commit)))
+                                          channels)))
                       ;; Some checkout entries may refer to removed
                       ;; inputs.
                       (if channel
-                          `(tr (td ,url)
-                               (td (code ,(commit-hyperlink url commit))))
+                          (let ((url (channel-url channel))
+                                (commit (assq-ref checkout #:commit)))
+                            `(tr (td ,url)
+                                 (td (code ,(commit-hyperlink url commit)))))
                           '())))
                   checkouts))))
 
