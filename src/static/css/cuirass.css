@@ -58,7 +58,7 @@ body {
 .badge-counter {		/* succeeded/failed/scheduled counters */
     margin: 2px;
     text-align: right;
-    min-width: 25px;
+    min-width: 35px;
 }
 
 .hidden {
