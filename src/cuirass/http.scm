@@ -607,12 +607,6 @@ passed, only display JOBS targeting this SYSTEM."
                 '())
      #:code 404))
 
-  (define (respond-build-log-not-found build)
-    (let ((drv (assq-ref build #:derivation)))
-      (respond-json-with-error
-       404
-       (format #f "The build log of derivation ~a is not available." drv))))
-
   (define (respond-not-found resource_name)
     (respond (build-response #:code 404)
              #:body (string-append "Resource not found: "
@@ -933,7 +927,7 @@ passed, only display JOBS targeting this SYSTEM."
              (respond (build-response #:code 302
                                       #:headers `((location . ,uri)))
                       #:body ""))
-           (respond-html-eval-not-found id))))
+           (respond-dashboard-not-found id))))
     (('GET "jobset" name)
      (respond-html
       (let* ((evaluation-id-max (db-get-evaluations-id-max name))
