@@ -16,7 +16,12 @@
 ;;; You should have received a copy of the GNU General Public License
 ;;; along with Cuirass.  If not, see <http://www.gnu.org/licenses/>.
 
-(use-modules (cuirass database)
+(use-modules ((cuirass database)
+              #:renamer (lambda (symbol)
+                          ;; Avoid collision with #$output.
+                          (if (eq? symbol 'output)
+                              'make-output
+                              symbol)))
              (cuirass specification)
              (gnu packages base)
              (guix build utils)
@@ -25,7 +30,7 @@
              (guix gexp)
              (guix monads)
              (guix packages)
-             (guix store)
+             ((guix store) #:hide (build))
              (tests common)
              (avahi)
              (avahi client)
@@ -108,16 +113,18 @@
                      drv
                      output
                      (timeout 0))
-  `((#:derivation . ,drv)
-    (#:eval-id . 1)
-    (#:job-name . "fake-job")
-    (#:system . "x86_64-linux")
-    (#:nix-name . "fake-1.0")
-    (#:log . "unused so far")
-    (#:status . ,(build-status scheduled))
-    (#:outputs . (("out" . ,output)))
-    (#:timestamp . 1501347493)
-    (#:timeout . ,timeout)))
+  (build (derivation drv)
+         (evaluation-id 1)
+         (specification-name "guix")
+         (job-name "fake-job")
+         (system "x86_64-linux")
+         (nix-name "fake-1.0")
+         (log "unused so far")
+         (status (build-status scheduled))
+         (outputs (list (make-output (item output)
+                                     (derivation drv))))
+         (creation-time 501347493)
+         (timeout timeout)))
 
 (define guix-daemon-running?
   (let ((result (delay (guard (c ((store-connection-error? c) #f))
@@ -152,8 +159,7 @@
   (test-skip (if (and (guix-daemon-running?) (avahi-daemon-running?)) 0 100))
 
   (test-assert "fill-db"
-    (let ((build build)
-          (spec
+    (let ((spec
            (specification
             (name "guix")
             (build 'hello)))
@@ -182,7 +188,7 @@
   (test-assert "build done"
     (retry
      (lambda ()
-       (eq? (assq-ref (db-get-build (force drv)) #:status)
+       (eq? (build-current-status (db-get-build (force drv)))
             (build-status succeeded)))
      #:times 10
      #:delay 1))
@@ -194,7 +200,8 @@
                                 #:timeout 1))
       (retry
        (lambda ()
-         (eq? (assq-ref (db-get-build (force drv-with-timeout)) #:status)
+         (eq? (build-current-status
+               (db-get-build (force drv-with-timeout)))
               (build-status failed)))
        #:times 10
        #:delay 1)))
@@ -206,7 +213,7 @@
       (db-update-build-status! (force drv) (build-status scheduled))
       (retry
        (lambda ()
-         (eq? (assq-ref (db-get-build (force drv)) #:status)
+         (eq? (build-current-status (db-get-build (force drv)))
               (build-status succeeded)))
        #:times 10
        #:delay 1)))

@@ -130,23 +130,23 @@ list ATTRS and the child nodes in BODY."
 
 (define (build-details-url build)
   "Return the build details URL for BUILD."
-  (let ((id (assq-ref build #:id))
+  (let ((id (build-id build))
         (url (or (%cuirass-url) "")))
     (string-append url "/build/" (number->string id) "/details")))
 
 (define* (build->rss-item build)
   "Convert BUILD into an RSS <item> node."
   (let* ((url (build-details-url build))
-         (id (assq-ref build #:id))
-         (job-name (assq-ref build #:job-name))
-         (specification (assq-ref build #:specification))
-         (weather  (assq-ref build #:weather))
+         (id (build-id build))
+         (job-name (build-job-name build))
+         (specification (build-specification-name build))
+         (weather (build-current-weather build))
          (weather-text (cond
                         ((= weather (build-weather new-success))
                          "fixed")
                         ((= weather (build-weather new-failure))
                          "broken")))
-         (stoptime (assq-ref build #:stoptime)))
+         (stoptime (build-completion-time build)))
     `(item
       (guid ,url)
       (title

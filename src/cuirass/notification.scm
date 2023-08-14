@@ -95,7 +95,7 @@
 
 (define (build-weather-text build)
   "Return the build weather string."
-  (let ((weather (assq-ref build #:weather)))
+  (let ((weather (build-current-weather build)))
     (cond
      ((= weather weather-success)
       "fixed")
@@ -104,14 +104,14 @@
 
 (define (build-details-url build)
   "Return the build details URL for BUILD."
-  (let ((id (assq-ref build #:id))
+  (let ((id (build-id build))
         (url (or (%cuirass-url) "")))
     (string-append url "/build/" (number->string id) "/details")))
 
 (define (notification-subject build)
   "Return the subject for the given NOTIFICATION."
-  (let* ((job-name (assq-ref build #:job-name))
-         (specification (assq-ref build #:specification))
+  (let* ((job-name (build-job-name build))
+         (specification (build-specification-name build))
          (weather-text (build-weather-text build)))
     (format #f "Build ~a on ~a is ~a."
             job-name specification weather-text)))
@@ -119,8 +119,8 @@
 (define (notification-text build)
   "Return the text for the given NOTIFICATION."
   (let* ((url (build-details-url build))
-         (job-name (assq-ref build #:job-name))
-         (specification (assq-ref build #:specification))
+         (job-name (build-job-name build))
+         (specification (build-specification-name build))
          (weather-text (build-weather-text build)))
     (format #f "The build ~a for specification ~a is ~a. You can find \
 the detailed information about this build here: ~a."

@@ -30,6 +30,7 @@
   #:use-module (cuirass remote)
   #:use-module (cuirass specification)
   #:use-module (cuirass utils)
+  #:use-module (guix records)
   #:use-module (guix channels)
   #:use-module (squee)
   #:use-module ((fibers scheduler) #:select (current-scheduler))
@@ -45,7 +46,94 @@
   #:use-module (srfi srfi-26)
   #:use-module (system foreign)
   #:use-module (rnrs bytevectors)
-  #:export (;; Procedures.
+  #:export (;; Data types.
+            output?
+            output-item
+            output-derivation
+            output-name
+
+            job?
+            job-build-id
+            job-status
+            job-name
+
+            output?
+            output
+            output-name
+            output-derivation
+            output-item
+
+            evaluation?
+            evaluation-id
+            evaluation-specification-name
+            evaluation-current-status
+            evaluation-start-time
+            evaluation-checkout-time
+            evaluation-completion-time
+            evaluation-checkouts
+
+            build?
+            build
+            build-id
+            build-derivation
+            build-dependencies
+            build-job-name
+            build-system
+            build-nix-name
+            build-log
+            build-priority
+            build-max-silent-time
+            build-timeout
+            build-outputs
+            build-evaluation-id
+            build-specification-name
+            build-current-status
+            build-last-status
+            build-current-weather
+            build-creation-time
+            build-start-time
+            build-completion-time
+            build-worker
+            build-products
+            build-dependencies/id
+
+            build-product
+            build-product-id
+            build-product-type
+            build-product-file
+            build-product-file-size
+            build-product-checksum
+
+            checkout?
+            checkout-commit
+            checkout-channel
+            checkout-directory
+
+            build-summary?
+            build-summary-evaluation-id
+            build-summary-status
+            build-summary-checkouts
+            build-summary-succeeded
+            build-summary-failed
+            build-summary-scheduled
+
+            evaluation-summary?
+            evaluation-summary-id
+            evaluation-summary-status
+            evaluation-summary-total
+            evaluation-summary-succeeded
+            evaluation-summary-failed
+            evaluation-summary-scheduled
+            evaluation-summary-start-time
+            evaluation-summary-checkout-time
+            evaluation-summary-completion-time
+
+            dashboard?
+            dashboard-id
+            dashboard-specification-name
+            dashboard-job-ids
+
+            ;; Procedures.
             db-init
             db-open
             db-close
@@ -628,44 +716,114 @@ RETURNING id;"))
    ((and (> status 0) (> last-status 0))
     (build-weather still-failing))))
 
-(define (db-add-output derivation output)
-  "Insert OUTPUT associated with DERIVATION."
+(define-record-type* <build> build make-build
+  build?
+  this-build
+  (id              build-id (default 0))
+  (derivation      build-derivation)
+  (dependencies    build-dependencies             ;list of ".drv" file names
+                   (thunked)
+                   (default
+                     (if (= 0 (build-id this-build))
+                         '()                      ;not yet in database
+                         (db-get-build-dependencies/derivation
+                          (build-id this-build)))))
+  (job-name        build-job-name)
+  (system          build-system)
+  (nix-name        build-nix-name)
+  (log             build-log (default ""))
+  (priority        build-priority (default max-priority))
+  (max-silent-time build-max-silent-time (default 3600))
+  (timeout         build-timeout (default (* 12 3600)))
+  (outputs         build-outputs
+                   (thunked)
+                   (default
+                     (if (= 0 (build-id this-build))
+                         '()
+                         (db-get-outputs (build-derivation this-build)))))
+  (evaluation-id   build-evaluation-id)
+  (specification-name build-specification-name)
+
+  (status          build-current-status
+                   (default (build-status scheduled)))
+  (last-status     build-last-status
+                   (default (build-status scheduled)))
+  (weather         build-current-weather
+                   (default (build-weather unknown)))
+  (creation-time   build-creation-time
+                   (default (time-second (current-time time-utc))))
+  (start-time      build-start-time (default 0))
+  (completion-time build-completion-time (default 0))
+  (worker          build-worker (default #f))
+  (products        build-products
+                   (thunked)
+                   (default
+                     (if (= 0 (build-id this-build))
+                         '()
+                         (db-get-build-products (build-id this-build))))))
+
+(define (set-build-id b id)
+  (build (inherit b) (id id)))
+
+(define-record-type* <build-product> build-product make-build-product
+  build-product?
+  (id         build-product-id (default 0))
+  (build-id   build-product-build-id)
+  (type       build-product-type)
+  (file       build-product-file)
+  (file-size  build-product-file-size)
+  (checksum   build-product-checksum))
+
+(define-record-type* <job> job make-job
+  job?
+  (build-id       job-build-id)                   ;integer
+  (evaluation-id  job-evaluation-id)              ;integer
+  (status         job-status)                     ;integer
+  (system         job-system)                     ;string
+  (name           job-name))                      ;string
+
+(define-record-type* <output> output make-output
+  output?
+  (item        output-item)                       ;string
+  (derivation  output-derivation)                 ;string
+  (name        output-name (default "out")))      ;string
+
+(define (db-add-output output)
+  "Insert OUTPUT, an <output> record, into the database."
   (with-db-worker-thread db
-    (match output
-      ((name . path)
-       (exec-query/bind db "\
+    (exec-query/bind db "\
 INSERT INTO Outputs (derivation, name, path) VALUES ("
-                        derivation ", " name ", " path ")
-ON CONFLICT ON CONSTRAINT outputs_pkey DO NOTHING;")))))
+                     (output-derivation output) ", " (output-name output)
+                     ", " (output-item output) ")
+ON CONFLICT ON CONSTRAINT outputs_pkey DO NOTHING;")))
 
 (define (db-add-build build)
   "Store BUILD in database the database only if one of its outputs is new.
 Return #f otherwise.  BUILD outputs are stored in the OUTPUTS table."
-  (with-db-worker-thread db
-    (exec-query/bind db "
+  (match (with-db-worker-thread db
+           (exec-query/bind db "
 INSERT INTO Builds (derivation, evaluation, job_name, system, nix_name, log,
 status, priority, max_silent, timeout, timestamp, starttime, stoptime)
 VALUES ("
-                     (assq-ref build #:derivation) ", "
-                     (assq-ref build #:eval-id) ", "
-                     (assq-ref build #:job-name) ", "
-                     (assq-ref build #:system) ", "
-                     (assq-ref build #:nix-name) ", "
-                     (assq-ref build #:log) ", "
-                     (or (assq-ref build #:status)
-                         (build-status scheduled)) ", "
-                         (or (assq-ref build #:priority) max-priority) ", "
-                         (or (assq-ref build #:max-silent) 0) ", "
-                         (or (assq-ref build #:timeout) 0) ", "
-                         (or (assq-ref build #:timestamp) 0) ", "
-                         (or (assq-ref build #:starttime) 0) ", "
-                         (or (assq-ref build #:stoptime) 0) ")
+                            (build-derivation build) ", "
+                            (build-evaluation-id build) ", "
+                            (build-job-name build) ", "
+                            (build-system build) ", "
+                            (build-nix-name build) ", "
+                            (build-log build) ", "
+                            (build-current-status build) ", "
+                            (build-priority build) ", "
+                            (build-max-silent-time build) ", "
+                            (build-timeout build) ", "
+                            (build-creation-time build) ", "
+                            (build-start-time build) ", "
+                            (build-completion-time build) ")
 ON CONFLICT ON CONSTRAINT builds_derivation_key DO NOTHING;"))
-  (let* ((derivation (assq-ref build #:derivation))
-         (outputs (assq-ref build #:outputs))
-         (new-outputs (filter-map (cut db-add-output derivation <>)
-                                  outputs)))
-    derivation))
+    (0                             ;a build for this derivation already exists
+     #f)
+    ((? integer? id)
+     (for-each db-add-output (build-outputs build))
+     id)))
 
 (define (db-add-build-product product)
   "Insert PRODUCT into BuildProducts table."
@@ -673,11 +831,11 @@ ON CONFLICT ON CONSTRAINT builds_derivation_key DO NOTHING;"))
     (exec-query/bind db "\
 INSERT INTO BuildProducts (build, type, file_size, checksum,
 path) VALUES ("
-                     (assq-ref product #:build) ", "
-                     (assq-ref product #:type) ", "
-                     (assq-ref product #:file-size) ", "
-                     (assq-ref product #:checksum) ", "
-                     (assq-ref product #:path) ")
+                     (build-product-build-id product) ", "
+                     (build-product-type product) ", "
+                     (build-product-file-size product) ", "
+                     (build-product-checksum product) ", "
+                     (build-product-file product) ")
 ON CONFLICT ON CONSTRAINT buildproducts_pkey DO NOTHING;")))
 
 (define (db-get-output path)
@@ -688,8 +846,7 @@ WHERE path =" path "
 LIMIT 1;")
       (() #f)
       (((derivation name))
-       `((#:derivation . ,derivation)
-         (#:name . ,name))))))
+       (output (item path) (derivation derivation) (name name))))))
 
 (define (db-get-outputs derivation)
   "Retrieve the OUTPUTS of the build identified by DERIVATION in the
@@ -704,7 +861,7 @@ WHERE derivation =" derivation ";"))
         (((name path)
           . rest)
          (loop rest
-               (cons `(,name . ((#:path . ,path)))
+               (cons (output (name name) (item path) (derivation derivation))
                      outputs)))))))
 
 (define (db-get-time-since-previous-eval specification)
@@ -717,19 +874,23 @@ WHERE specification = " specification
 "ORDER BY Evaluations.timestamp DESC LIMIT 1"))
       ((time)
        (string->number time))
-      (else #f))))
+      (_ #f))))
 
 (define (db-get-build-percentages builds)
+  "Return the list of build/\"build percentage\" pairs for BUILDS."
   (define build-ids
     (format #f "{~a}"
             (string-join
-             (map number->string
-                  (map (cut assq-ref <> #:id) builds))
+             (map (compose number->string build-id) builds)
              ",")))
 
   (with-db-worker-thread db
     (let loop ((rows
-                (exec-query/bind db "
+                (map (match-lambda
+                       ((id percentage)
+                        (list (string->number id)
+                              (string->number percentage))))
+                     (exec-query/bind db "
 SELECT id, CASE WHEN last_duration = 0 THEN
 0 ELSE LEAST(duration::float/last_duration * 100, 100)::int END AS percentage
 FROM (SELECT  DISTINCT ON (b1.id) b1.id AS id,
@@ -738,34 +899,30 @@ COALESCE((b2.stoptime - b2.starttime), 0) AS last_duration,
 LEFT JOIN builds AS b2 ON b1.job_name = b2.job_name
 AND b2.status >= 0 AND b2.status < 2 WHERE b1.id IN
 (SELECT id FROM builds WHERE id = ANY(" build-ids "))
-ORDER BY b1.id,  b2.id DESC) d;"))
+ORDER BY b1.id,  b2.id DESC) d;")))
                (percentages '()))
-      (match rows
-        (() (reverse percentages))
-        (((id percentage) . rest)
-         (let ((build
-                (find (lambda (build)
-                        (eq? (assq-ref build #:id)
-                             (string->number id)))
-                      builds)))
-           (loop rest
-                 (cons `(,@build
-                         (#:percentage . ,(string->number percentage)))
-                       percentages))))))))
+      (map (lambda (build)
+             (match (assoc (build-id build) rows)
+               ((_ percentage)
+                (cons build percentage))))
+           builds))))
 
-(define (db-add-job job eval-id)
+(define (db-add-job-for-build build)
   "Insert JOB into Jobs table for the EVAL-ID evaluation.  It is possible that
 another already built derivation has the same build outputs that the JOB
 derivation.  In that case, the JOB DERIVATION field is set to the existing
 derivation sharing the same build outputs, otherwise it is set to the given
 JOB derivation."
-  (let* ((name       (assq-ref job #:job-name))
-         (derivation (assq-ref job #:derivation))
-         (outputs    (assq-ref job #:outputs))
-         (output     (match outputs
-                       (((name . path) _ ...)
-                        path)))
-         (system     (assq-ref job #:system)))
+  (let* ((job        (job (build-id (build-id build))
+                          (evaluation-id (build-evaluation-id build))
+                          (status (build-current-status build))
+                          (system (build-system build))
+                          (name (build-job-name build))))
+         (name       (job-name job))
+         (derivation (build-derivation build))
+         (outputs    (build-outputs build))
+         (output     (output-item (first outputs)))
+         (system     (job-system job)))
     (with-db-worker-thread db
       (exec-query/bind db "\
 WITH b AS
@@ -773,7 +930,7 @@ WITH b AS
 (SELECT COALESCE((SELECT derivation FROM Outputs WHERE
 PATH = " output "), " derivation ")))
 INSERT INTO Jobs (name, evaluation, build, status, system)
-(SELECT " name ", " eval-id ", b.id, b.status," system " FROM b)
+(SELECT " name ", " (build-evaluation-id build) ", b.id, b.status," system " FROM b)
 ON CONFLICT ON CONSTRAINT jobs_pkey DO NOTHING;"))))
 
 (define (db-get-jobs eval-id filters)
@@ -785,7 +942,7 @@ the symbols system and names."
 
   (with-db-worker-thread db
     (let ((query "
-SELECT build, status, name FROM Jobs
+SELECT build, status, name, evaluation, system FROM Jobs
 WHERE Jobs.evaluation = :evaluation
 AND ((Jobs.system = :system) OR :system IS NULL)
 AND ((Jobs.name = ANY(:names)) OR :names IS NULL)
@@ -799,13 +956,29 @@ ORDER BY Jobs.name")
                  (jobs '()))
         (match rows
           (() (reverse jobs))
-          (((id status name)
-            . rest)
+          (((id status name evaluation system) . rest)
            (loop rest
-                 (cons `((#:build . ,(string->number id))
-                         (#:status . ,(string->number status))
-                         (#:name . ,name))
+                 (cons (job (build-id (string->number id))
+                            (status (string->number status))
+                            (name name)
+                            (evaluation-id evaluation)
+                            (system system))
                        jobs))))))))
+
+(define-record-type* <evaluation> evaluation make-evaluation
+  evaluation?
+  this-evaluation
+  (id                  evaluation-id)
+  (specification-name  evaluation-specification-name)
+  (status              evaluation-current-status
+                       (default (evaluation-status started)))
+  (start-time          evaluation-start-time)
+  (checkout-time       evaluation-checkout-time (default 0))
+  (completion-time     evaluation-completion-time (default 0))
+  (checkouts           evaluation-checkouts
+                       (thunked)
+                       (default (db-get-checkouts
+                                 (evaluation-id this-evaluation)))))
 
 (define* (db-get-jobs-history names
                               #:key spec (limit 10))
@@ -848,6 +1021,7 @@ AND Jobs.name = ANY(:names);")
                        (begin
                          (assq-set! eval #:jobs (cons job jobs))
                          evaluations)
+                       ;; TODO: Define a record type.
                        (cons `((#:evaluation . ,(string->number evaluation))
                                (#:checkouts . ,(db-get-checkouts evaluation))
                                (#:jobs . ,(list job)))
@@ -880,6 +1054,22 @@ SELECT target FROM BuildDependencies WHERE source = " build))
          (loop rest
                (cons (string->number target) dependencies)))))))
 
+(define (db-get-build-dependencies/derivation build)
+  "Return the list of derivations (\".drv\" file names) BUILD depends on."
+  (with-db-worker-thread db
+    (let loop ((rows (exec-query/bind db "
+SELECT Builds.derivation FROM Builds
+INNER JOIN BuildDependencies AS dep ON dep.target = Builds.id
+WHERE dep.source = " build))
+               (dependencies '()))
+      (match rows
+        (() (reverse dependencies))
+        (((target) . rest)
+         (loop rest
+               (cons target dependencies)))))))
+
+(define build-dependencies/id (compose db-get-build-dependencies build-id))
+
 (define (db-update-resumable-builds!)
   "Update the build status of the failed-dependency builds which all
 dependencies are successful to scheduled."
@@ -909,13 +1099,14 @@ INNER JOIN Builds AS dep ON bd.target = dep.id AND dep.status > 0
 WHERE Builds.status = " (build-status scheduled)
 " GROUP BY Builds.id) AS deps WHERE deps.id = Builds.id")))
 
-(define (db-register-builds jobs eval-id specification)
+(define (db-register-builds builds specification)
   (define (new-outputs? outputs)
     (let ((new-outputs
-           (filter-map (match-lambda
-                         ((name . path)
-                          (let ((drv (db-get-output path)))
-                            (and (not drv) path))))
+           (filter-map (lambda (output)
+                         (let ((drv (db-get-output
+                                     (output-item output))))
+                           (and (not drv)
+                                (output-item output))))
                        outputs)))
       (not (null? new-outputs))))
 
@@ -923,59 +1114,31 @@ WHERE Builds.status = " (build-status scheduled)
     (let ((spec-priority (specification-priority specification)))
       (+ (* spec-priority 10) priority)))
 
-  (define (register job)
-    (let* ((drv        (assq-ref job #:derivation))
-           (job-name   (assq-ref job #:job-name))
-           (system     (assq-ref job #:system))
-           (nix-name   (assq-ref job #:nix-name))
-           (log        (assq-ref job #:log))
-           (priority   (or (assq-ref job #:priority) max-priority))
-           (max-silent (assq-ref job #:max-silent-time))
-           (timeout    (assq-ref job #:timeout))
-           (outputs    (assq-ref job #:outputs))
-           (cur-time   (time-second (current-time time-utc)))
-           (result
-            (and (new-outputs? outputs)
-                 (let ((build `((#:derivation . ,drv)
-                                (#:eval-id . ,eval-id)
-                                (#:job-name . ,job-name)
-                                (#:system . ,system)
-                                (#:nix-name . ,nix-name)
-
-                                ;; XXX: We'd leave LOG to #f (i.e., NULL) but
-                                ;; that currently violates the non-NULL
-                                ;; constraint.
-                                (#:log . ,(or log ""))
-
-                                (#:status . ,(build-status scheduled))
-                                (#:priority . ,(build-priority priority))
-                                (#:max-silent . ,max-silent)
-                                (#:timeout . ,timeout)
-                                (#:outputs . ,outputs)
-                                (#:timestamp . ,cur-time)
-                                (#:starttime . 0)
-                                (#:stoptime . 0))))
-                   (db-add-build build)
-                   job))))
+  (define (register build)
+    (let ((result (and (new-outputs? (build-outputs build))
+                       (and=> (db-add-build build)
+                              (cut set-build-id build <>)))))
 
       ;; Always register JOB inside the Jobs table.  If there are new outputs,
       ;; JOB will refer to the newly created build.  Otherwise, it will refer
       ;; to the last build with the same build outputs.
-      (db-add-job job eval-id)
+      (db-add-job-for-build (or result build))
       result))
 
-  (define (register-dependencies job)
-    (let ((drv    (assq-ref job #:derivation))
-          (inputs (or (assq-ref job #:inputs) '())))
+  (define (register-dependencies build)
+    (let ((drv    (build-derivation build))
+          (inputs (build-dependencies build)))
       (db-add-build-dependencies drv inputs)))
 
   (with-db-worker-thread db
-    (log-info "Registering builds for evaluation ~a." eval-id)
+    (log-info "Registering builds for evaluation~{ ~a~}."
+              (delete-duplicates
+               (map build-evaluation-id builds)))
     (exec-query db "BEGIN TRANSACTION;")
-    (let ((new-jobs (filter-map register jobs)))
+    (let ((builds (filter-map register builds)))
       ;; Register build dependencies after registering all the evaluation
       ;; derivations.
-      (for-each register-dependencies new-jobs)
+      (for-each register-dependencies builds)
       (exec-query db "COMMIT;")
       #t)))
 
@@ -1042,7 +1205,7 @@ UPDATE Builds SET stoptime =" now
 " AND status != " status ";")))
           (when (positive? rows)
             (let* ((build (db-get-build drv))
-                   (spec (assq-ref build #:specification))
+                   (spec (build-specification-name build))
                    (specification (db-get-specification spec))
                    (notifications
                     (specification-notifications specification)))
@@ -1052,7 +1215,7 @@ UPDATE Builds SET stoptime =" now
                                     (eq? weather
                                          (build-weather new-failure)))
                             (db-push-notification notif
-                                                  (assq-ref build #:id))))
+                                                  (build-id build))))
                         notifications)))))))
 
 (define* (db-update-build-worker! drv worker)
@@ -1138,14 +1301,14 @@ WHERE build = " build-id))
                (products '()))
       (match rows
         (() (reverse products))
-        (((id type file-size checksum path)
-          . rest)
+        (((id type file-size checksum path) . rest)
          (loop rest
-               (cons `((#:id . ,(string->number id))
-                       (#:type . ,type)
-                       (#:file-size . ,(string->number file-size))
-                       (#:checksum . ,checksum)
-                       (#:path . ,path))
+               (cons (build-product (id (string->number id))
+                                    (build-id build-id)
+                                    (type type)
+                                    (file-size (string->number file-size))
+                                    (checksum checksum)
+                                    (file path))
                      products)))))))
 
 (define (db-get-builds-by-search filters)
@@ -1157,7 +1320,9 @@ border-low-id, border-high-id, and nr."
 SELECT * FROM
 (SELECT Builds.id, Builds.timestamp,
 Builds.starttime,Builds.stoptime, Builds.log, Builds.status,
-Builds.job_name, Builds.system, Builds.nix_name, Specifications.name
+Builds.job_name, Builds.system, Builds.nix_name, Builds.evaluation,
+Builds.derivation, Specifications.name, Builds.worker,
+Builds.max_silent, Builds.timeout
 FROM Builds
 INNER JOIN Evaluations ON Builds.evaluation = Evaluations.id
 INNER JOIN Specifications ON Evaluations.specification = Specifications.name
@@ -1187,20 +1352,27 @@ ORDER BY Builds.id DESC;"))
         (match builds
           (() (reverse result))
           (((id timestamp starttime stoptime log status job-name
-                system nix-name specification)
+                system nix-name evaluation-id derivation specification
+                worker max-silent-time timeout)
             . rest)
            (loop rest
-                 (cons `((#:id . ,(string->number id))
-                         (#:timestamp . ,(string->number timestamp))
-                         (#:starttime . ,(string->number starttime))
-                         (#:stoptime . ,(string->number stoptime))
-                         (#:log . ,log)
-                         (#:status . ,(string->number status))
-                         (#:job-name . ,job-name)
-                         (#:system . ,system)
-                         (#:nix-name . ,nix-name)
-                         (#:specification . ,specification)
-                         (#:buildproducts . ,(db-get-build-products id)))
+                 (cons (build (id (string->number id))
+                              (derivation derivation)
+                              ;; Accesses to 'outputs' will entail an
+                              ;; additional query.
+                              (creation-time (string->number timestamp))
+                              (start-time (string->number starttime))
+                              (completion-time (string->number stoptime))
+                              (log log)
+                              (status (string->number status))
+                              (job-name job-name)
+                              (system system)
+                              (nix-name nix-name)
+                              (evaluation-id evaluation-id)
+                              (specification-name specification)
+                              (worker worker)
+                              (max-silent-time max-silent-time)
+                              (timeout timeout))
                        result))))))))
 
 (define (db-get-builds filters)
@@ -1273,9 +1445,11 @@ OR :borderhightime IS NULL OR :borderhighid IS NULL)")))
       '()
       (map car filters))))
 
-  (define (format-outputs names paths)
+  (define (format-outputs names paths derivation)
     (map (lambda (name path)
-           `(,name . ((#:path . ,path))))
+           (output (name name)
+                   (item path)
+                   (derivation derivation)))
          (string-split names #\,)
          (string-split paths #\,)))
 
@@ -1286,11 +1460,12 @@ OR :borderhightime IS NULL OR :borderhighid IS NULL)")))
           '()))
 
     (map (lambda (id type file-size checksum path)
-           `((#:id . ,(string->number id))
-             (#:type . ,type)
-             (#:file-size . ,(string->number file-size))
-             (#:checksum . ,checksum)
-             (#:path . ,path)))
+           (build-product (id (string->number id))
+                          (build-id *unspecified*) ;FIXME
+                          (type type)
+                          (file-size (string->number file-size))
+                          (checksum checksum)
+                          (file path)))
          (split ids)
          (split types)
          (split file-sizes)
@@ -1298,6 +1473,7 @@ OR :borderhightime IS NULL OR :borderhighid IS NULL)")))
          (split paths)))
 
   (define (format-build-dependencies dependencies)
+    ;; FIXME: Should return a list of derivations.
     (if dependencies
         (map string->number (string-split dependencies #\,))
         '()))
@@ -1359,8 +1535,8 @@ ORDER BY ~a;"
                                       (map number->string value)
                                       ",")))
                             ('nr value)
-                            ('order #f) ; Doesn't need binding.
-                            ('status #f) ; Doesn't need binding.
+                            ('order #f)           ; Doesn't need binding.
+                            ('status #f)          ; Doesn't need binding.
                             (else value)))))
                  filters))
            (builds (exec-query/bind-params db query params)))
@@ -1376,37 +1552,38 @@ ORDER BY ~a;"
                         products-checksum products-path dependencies)
             . rest)
            (loop rest
-                 (cons `((#:derivation . ,derivation)
-                         (#:id . ,(string->number id))
-                         (#:timestamp . ,(string->number timestamp))
-                         (#:starttime . ,(string->number starttime))
-                         (#:stoptime . ,(string->number stoptime))
-                         (#:log . ,log)
-                         (#:status . ,(string->number status))
-                         (#:last-status . ,(and last-status
+                 (cons (build (derivation derivation)
+                              (id (string->number id))
+                              (creation-time (string->number timestamp))
+                              (start-time (string->number starttime))
+                              (completion-time (string->number stoptime))
+                              (log log)
+                              (status (string->number status))
+                              (last-status (and last-status
                                                 (string->number last-status)))
-                         (#:weather . ,(if weather
+                              (weather (if weather
                                            (string->number weather)
                                            (build-weather unknown)))
-                         (#:priority . ,(string->number priority))
-                         (#:max-silent . ,(string->number max-silent))
-                         (#:timeout . ,(string->number timeout))
-                         (#:job-name . ,job-name)
-                         (#:system . ,system)
-                         (#:worker . ,worker)
-                         (#:nix-name . ,nix-name)
-                         (#:eval-id . ,(string->number eval-id))
-                         (#:specification . ,specification)
-                         (#:builddependencies .
-                          ,(format-build-dependencies dependencies))
-                         (#:outputs . ,(format-outputs outputs-name
-                                                       outputs-path))
-                         (#:buildproducts .
-                          ,(format-build-products products-id
-                                                  products-type
-                                                  products-file-size
-                                                  products-checksum
-                                                  products-path)))
+                              (priority (string->number priority))
+                              (max-silent-time (string->number max-silent))
+                              (timeout (string->number timeout))
+                              (job-name job-name)
+                              (system system)
+                              (worker worker)
+                              (nix-name nix-name)
+                              (evaluation-id (string->number eval-id))
+                              (specification-name specification)
+                              ;; (dependencies
+                              ;;  (format-build-dependencies dependencies))
+                              (outputs (format-outputs outputs-name
+                                                       outputs-path
+                                                       derivation))
+                              (products
+                               (format-build-products products-id
+                                                      products-type
+                                                      products-file-size
+                                                      products-checksum
+                                                      products-path)))
                        result))))))))
 
 (define (db-get-build derivation-or-id)
@@ -1439,6 +1616,12 @@ SELECT id FROM pending_dependencies WHERE deps = 0 LIMIT 1;"))
       ((id) (db-get-build (string->number id)))
       (else #f))))
 
+(define-record-type* <checkout> checkout make-checkout
+  checkout?
+  (commit    checkout-commit)
+  (channel   checkout-channel)
+  (directory checkout-directory))
+
 (define (db-get-checkouts eval-id)
   (with-db-worker-thread db
     (let loop ((rows (exec-query/bind
@@ -1447,12 +1630,11 @@ WHERE evaluation =" eval-id " ORDER BY channel ASC;"))
                (checkouts '()))
       (match rows
         (() (reverse checkouts))
-        (((revision channel directory)
-          . rest)
+        (((revision channel directory) . rest)
          (loop rest
-               (cons `((#:commit . ,revision)
-                       (#:channel . ,(string->symbol channel))
-                       (#:directory . ,directory))
+               (cons (checkout (commit revision)
+                               (channel (string->symbol channel))
+                               (directory directory))
                      checkouts)))))))
 
 (define (db-get-latest-checkout spec channel eval-id)
@@ -1465,20 +1647,9 @@ specification with an evaluation id inferior or equal to EVAL-ID."
             " AND evaluation <= " eval-id "ORDER BY evaluation DESC LIMIT 1;")
       (() #f)
       (((channel revision directory))
-       `((#:commit . ,revision)
-         (#:channel . ,(string->symbol channel))
-         (#:directory . ,directory))))))
-
-(define (parse-evaluation evaluation)
-  (match evaluation
-    ((id specification status timestamp checkouttime evaltime)
-     `((#:id . ,(string->number id))
-       (#:specification . ,specification)
-       (#:status . ,(string->number status))
-       (#:timestamp . ,(string->number timestamp))
-       (#:checkouttime . ,(string->number checkouttime))
-       (#:evaltime . ,(string->number evaltime))
-       (#:checkouts . ,(db-get-checkouts id))))))
+       (checkout (commit revision)
+                 (channel (string->symbol channel))
+                 (directory directory))))))
 
 (define (db-get-evaluation id)
   (with-db-worker-thread db
@@ -1488,6 +1659,16 @@ FROM Evaluations WHERE id = " id)
       (() #f)
       ((evaluation)
        (parse-evaluation evaluation)))))
+
+(define (parse-evaluation lst)
+  (match lst
+    ((id specification status timestamp checkouttime evaltime)
+     (evaluation (id (string->number id))
+                 (specification-name specification)
+                 (status (string->number status))
+                 (completion-time (string->number timestamp))
+                 (checkout-time (string->number checkouttime))
+                 (start-time (string->number evaltime))))))
 
 (define* (db-get-evaluations limit
                              #:optional spec)
@@ -1508,6 +1689,19 @@ ORDER BY id DESC LIMIT :limit;")
           ((evaluation . rest)
            (loop rest
                  (cons (parse-evaluation evaluation) evaluations))))))))
+
+(define-record-type* <build-summary> build-summary make-build-summary
+  build-summary?
+  this-build-summary
+  (evaluation-id build-summary-evaluation-id)
+  (status        build-summary-status)
+  (checkouts     build-summary-checkouts
+                 (thunked)
+                 (default (db-get-checkouts
+                           (build-summary-evaluation-id this-build-summary))))
+  (succeeded     build-summary-succeeded (default 0))
+  (failed        build-summary-failed (default 0))
+  (scheduled     build-summary-scheduled (default 0)))
 
 (define (db-get-evaluations-build-summary spec limit border-low border-high)
   (with-db-worker-thread db
@@ -1531,18 +1725,20 @@ ORDER BY E.id DESC;")
                     (#:borderlow . ,border-low)
                     (#:borderhigh . ,border-high))))
       (let loop ((rows (exec-query/bind-params db query params))
-                 (evaluations '()))
+                 (summaries '()))
         (match rows
-          (() (reverse evaluations))
+          (()
+           (reverse summaries))
           (((id status succeeded failed scheduled) . rest)
            (loop rest
-                 (cons `((#:id . ,(string->number id))
-                         (#:status . ,(string->number status))
-                         (#:checkouts . ,(db-get-checkouts id))
-                         (#:succeeded . ,(or (string->number succeeded) 0))
-                         (#:failed . ,(or (string->number failed) 0))
-                         (#:scheduled . ,(or (string->number scheduled) 0)))
-                       evaluations))))))))
+                 (cons (build-summary
+                        (evaluation-id (string->number id))
+                        (status (string->number status))
+                        (checkouts (db-get-checkouts id))
+                        (succeeded (or (string->number succeeded) 0))
+                        (failed (or (string->number failed) 0))
+                        (scheduled (or (string->number scheduled) 0)))
+                       summaries))))))))
 
 (define (db-get-previous-eval eval-id)
   "Return the successful evaluation preceeding EVAL-ID, for the same
@@ -1615,14 +1811,24 @@ GROUP BY Evaluations.specification;") ))
                (evaluations '()))
       (match rows
         (() (reverse evaluations))
-        (((specification evaluation)
-          . rest)
+        (((specification evaluation) . rest)
          (loop rest
-               (cons `((#:specification . ,specification)
-                       (#:evaluation
-                        . ,(and=> (string->number evaluation)
-                                  db-get-evaluation)))
-                     evaluations)))))))
+               (match (string->number evaluation)
+                 (#f evaluations)
+                 (id (cons (db-get-evaluation id) evaluations)))))))))
+
+(define-record-type* <evaluation-summary>
+  evaluation-summary make-evaluation-summary
+  evaluation-summary?
+  (id              evaluation-summary-id)
+  (status          evaluation-summary-status)
+  (total           evaluation-summary-total)
+  (succeeded       evaluation-summary-succeeded)
+  (failed          evaluation-summary-failed)
+  (scheduled       evaluation-summary-scheduled)
+  (start-time      evaluation-summary-start-time)
+  (checkout-time   evaluation-summary-checkout-time)
+  (completion-time evaluation-summary-completion-time))
 
 (define (db-get-evaluation-summary id)
   (with-db-worker-thread db
@@ -1642,16 +1848,17 @@ WHERE Evaluations.id = " id
 ORDER BY Evaluations.id ASC;"))
       ((id status timestamp checkouttime evaltime
            total succeeded failed scheduled)
-       `((#:id . ,(string->number id))
-         (#:status . ,(string->number status))
-         (#:total . ,(or (string->number total) 0))
-         (#:timestamp . ,(string->number timestamp))
-         (#:checkouttime . ,(string->number checkouttime))
-         (#:evaltime . ,(string->number evaltime))
-         (#:succeeded . ,(or (string->number succeeded) 0))
-         (#:failed . ,(or (string->number failed) 0))
-         (#:scheduled . ,(or (string->number scheduled) 0))))
-      (else #f))))
+       (evaluation-summary
+        (id (string->number id))
+        (status (string->number status))
+        (total (or (string->number total) 0))
+        (start-time (string->number timestamp))
+        (checkout-time (string->number checkouttime))
+        (completion-time (string->number evaltime))
+        (succeeded (or (string->number succeeded) 0))
+        (failed (or (string->number failed) 0))
+        (scheduled (or (string->number scheduled) 0))))
+      (_ #f))))
 
 (define (db-get-evaluation-absolute-summary evaluation)
   (expect-one-row
@@ -1665,7 +1872,7 @@ ORDER BY Evaluations.id ASC;"))
                     (number->string
                      (if (number? eval)
                          eval
-                         (assq-ref eval #:id))))
+                         (build-summary-evaluation-id eval))))
                   evaluations)
              ",")))
 
@@ -1686,11 +1893,17 @@ GROUP BY Jobs.evaluation;"))
         (() (reverse summary))
         (((total succeeded failed scheduled evaluation) . rest)
          (loop rest
-               (cons `((#:evaluation . ,(number evaluation))
-                       (#:total . ,(number total))
-                       (#:succeeded . ,(number succeeded))
-                       (#:failed . ,(number failed))
-                       (#:scheduled . ,(number scheduled)))
+               (cons (evaluation-summary
+                      (id (number evaluation))
+                      (total (number total))
+                      (succeeded (number succeeded))
+                      (failed (number failed))
+                      (scheduled (number scheduled))
+                      ;; FIXME: Info missing; use a different record type?
+                      (status *unspecified*)
+                      (start-time *unspecified*)
+                      (checkout-time *unspecified*)
+                      (completion-time *unspecified*))
                      summary)))))))
 
 (define (db-get-builds-query-min filters)
@@ -1819,6 +2032,12 @@ RETURNING id;"))
         ((id) id)
         (else #f)))))
 
+(define-record-type* <dashboard> dashboard make-dashboard
+  dashboard?
+  (id                 dashboard-id)
+  (specification-name dashboard-specification-name)
+  (job-ids            dashboard-job-ids))
+
 (define (db-get-dashboard id)
   "Return the dashboard specification and jobs with the given ID."
   (with-db-worker-thread db
@@ -1826,9 +2045,10 @@ RETURNING id;"))
             (exec-query/bind db "
 SELECT specification, jobs from Dashboards WHERE id = " id ";"))
       ((specification jobs)
-       `((#:specification . ,specification)
-         (#:jobs . ,jobs)))
-      (else #f))))
+       (dashboard (id id)
+                  (specification-name specification)
+                  (job-ids jobs)))
+      (_ #f))))
 
 (define (db-add-or-update-worker worker)
   "Insert WORKER into Worker table."

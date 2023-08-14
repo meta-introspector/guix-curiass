@@ -86,15 +86,18 @@
                            #:key
                            (job-name "job")
                            (outputs
-                            `(("foo" . ,(format #f "~a.output" drv)))))
-  `((#:derivation . ,drv)
-    (#:eval-id . ,eval-id)
-    (#:job-name . ,job-name)
-    (#:timestamp . ,(time-second (current-time time-utc)))
-    (#:system . "x86_64-linux")
-    (#:nix-name . "foo")
-    (#:log . "log")
-    (#:outputs . ,outputs)))
+                            (list
+                             (output (name "foo")
+                                     (derivation drv)
+                                     (item (format #f "~a.output" drv))))))
+  (build (derivation drv)
+         (evaluation-id eval-id)
+         (specification-name "whatever")
+         (job-name job-name)
+         (system "x86_64-linux")
+         (nix-name "foo")
+         (log "log")
+         (outputs outputs)))
 
 (define %dummy-worker
   (worker
@@ -179,7 +182,7 @@ timestamp, checkouttime, evaltime) VALUES ('guix', 0, 0, 0, 0);")
   (test-equal "db-get-latest-checkout"
     '("fakesha3" "fakesha4")
     (with-fibers
-      (map (cut assq-ref <> #:commit)
+      (map checkout-commit
            (list (db-get-latest-checkout "guix" 'guix 3)
                  (db-get-latest-checkout "guix" 'my-channel 3)))))
 
@@ -198,30 +201,28 @@ timestamp, checkouttime, evaltime) VALUES ('guix', 0, 0, 0, 0);")
   (test-equal "db-add-build"
     "/foo.drv"
     (with-fibers
-      (let ((build (make-dummy-build "/foo.drv")))
-        (db-add-build build))))
-
-  (test-equal "db-add-build duplicate"
-    "/foo.drv"
-    (with-fibers
-      (let ((build (make-dummy-build "/foo.drv")))
-        (db-add-build build))))
+      (let* ((build (make-dummy-build "/foo.drv"))
+             (id    (db-add-build build)))
+        (and (not (db-add-build build))           ;duplicate
+             (build-derivation (db-get-build id))))))
 
   (test-assert "db-add-build-product"
     (with-fibers
-      (db-add-build-product `((#:build . 1)
-                              (#:type . "1")
-                              (#:file-size . 1)
-                              (#:checksum . "sum")
-                              (#:path . "path")))))
+      (db-add-build-product (build-product (build-id 1)
+                                           (type "1")
+                                           (file-size 1)
+                                           (checksum "sum")
+                                           (file "path")))))
 
   (test-equal "db-get-output"
-    '((#:derivation . "/foo.drv") (#:name . "foo"))
+    (output (name "foo") (derivation "/foo.drv")
+            (item "/foo.drv.output"))
     (with-fibers
-      (db-get-output "/foo.drv.output")))
+     (db-get-output "/foo.drv.output")))
 
   (test-equal "db-get-outputs"
-    '(("foo" (#:path . "/foo.drv.output")))
+    (list (output (name "foo") (derivation "/foo.drv")
+                  (item "/foo.drv.output")))
     (with-fibers
       (db-get-outputs "/foo.drv")))
 
@@ -232,44 +233,62 @@ timestamp, checkouttime, evaltime) VALUES ('guix', 0, 0, 0, 0);")
   (test-assert "db-register-builds"
     (with-fibers
       (let ((drv "/test.drv"))
-        (db-register-builds `(((#:job-name . "test")
-                               (#:derivation . ,drv)
-                               (#:system . "x86_64-linux")
-                               (#:nix-name . "test")
-                               (#:log . "log")
-                               (#:outputs .
-                                (("foo" . ,(format #f "~a.output" drv))
-                                 ("foo2" . ,(format #f "~a.output.2" drv))))))
-                            2 (db-get-specification "guix")))))
+        (db-register-builds
+         (list (build (job-name "test")
+                      (evaluation-id 2)
+                      (specification-name "whatever")
+                      (derivation drv)
+                      (system "x86_64-linux")
+                      (nix-name "test")
+                      (log "log")
+                      (outputs
+                       (list (output
+                              (name "foo")
+                              (derivation drv)
+                              (item (string-append drv ".output")))
+                             (output
+                              (name "foo2")
+                              (derivation drv)
+                              (item (string-append drv ".output.2")))))))
+         (db-get-specification "guix")))))
 
   (test-assert "db-get-jobs"
     (with-fibers
       (match (db-get-jobs 2
                           '((#:system . "x86_64-linux")))
         ((job)
-         (string=? (assq-ref job #:name) "test")))))
+         (string=? (job-name job) "test")))))
 
   (test-assert "db-get-jobs names"
     (with-fibers
       (match (db-get-jobs 2
                           '((names "test")))
         ((job)
-         (string=? (assq-ref job #:name) "test")))))
+         (string=? (job-name job) "test")))))
 
   (test-assert "db-register-builds same-outputs"
     (with-fibers
       (let ((drv "/test2.drv"))
         (db-add-evaluation "guix"
                            (make-dummy-instances "fakesha5" "fakesha6"))
-        (db-register-builds `(((#:job-name . "test")
-                               (#:derivation . ,drv)
-                               (#:system . "x86_64-linux")
-                               (#:nix-name . "test")
-                               (#:log . "log")
-                               (#:outputs .
-                                (("foo" . "/test.drv.output")
-                                 ("foo2" . "/test.drv.output.2")))))
-                            4 (db-get-specification "guix")))))
+        (db-register-builds
+         (list (build (job-name "test")
+                      (evaluation-id 4)
+                      (specification-name "whatever")
+                      (derivation drv)
+                      (system "x86_64-linux")
+                      (nix-name "test")
+                      (log "log")
+                      (outputs
+                       (list (output
+                              (name "foo")
+                              (derivation drv)
+                              (item "/test.drv.output"))
+                             (output
+                              (name "foo2")
+                              (derivation drv)
+                              (item "/test.drv.output.2"))))))
+         (db-get-specification "guix")))))
 
   (test-equal "db-get-previous-eval"
     1
@@ -280,14 +299,12 @@ timestamp, checkouttime, evaltime) VALUES ('guix', 0, 0, 0, 0);")
     (with-fibers
       (not (db-get-next-eval 3))))
 
-  (test-assert "db-get-jobs same-outputs"
+  (test-equal "db-get-jobs same-outputs"
+    "/test.drv"
     (with-fibers
       (match (db-get-jobs 4 '())
         ((job)
-         (string=? (assq-ref (db-get-build
-                              (assq-ref job #:build))
-                             #:derivation)
-                   "/test.drv")))))
+         (build-derivation (db-get-build (job-build-id job)))))))
 
   (test-assert "db-get-jobs-history"
     (with-fibers
@@ -316,40 +333,38 @@ timestamp, checkouttime, evaltime) VALUES ('guix', 0, 0, 0, 0);")
                      '((nr . 1)
                        (query . "status:failed test")))
                ((build) build))))
-        (list
-         (assoc-ref build #:id)
-         (assoc-ref build #:status)
-         (assoc-ref build #:job-name)))))
+        (list (build-id build)
+              (build-current-status build)
+              (build-job-name build)))))
 
-  (test-assert "db-get-builds"
+  (test-equal "db-get-builds + build-outputs"
+    (list (output (name "foo") (derivation "/test.drv")
+                  (item "/test.drv.output"))
+          (output (name "foo2") (derivation "/test.drv")
+                  (item "/test.drv.output.2")))
     (with-fibers
-      (let* ((build (match (db-get-builds `((order . build-id)
-                                            (status . failed)))
-                      ((build) build)))
-             (outputs (assq-ref build #:outputs)))
-        (equal? outputs
-                '(("foo" (#:path . "/test.drv.output"))
-                  ("foo2" (#:path . "/test.drv.output.2")))))))
+     (match (db-get-builds `((order . build-id)
+                             (status . failed)))
+       ((build)
+        (build-outputs build)))))
 
   (test-equal "db-get-builds job-name"
     "/foo.drv"
     (with-fibers
-      (let ((build (match (db-get-builds `((order . build-id)
-                                           (job . "job")))
-                     ((build) build))))
-        (assoc-ref build #:derivation))))
+     (match (db-get-builds `((order . build-id)
+                             (job . "job")))
+       ((build)
+        (build-derivation build)))))
 
   (test-equal "db-get-build"
     "/foo.drv"
     (with-fibers
-      (let ((build (db-get-build 1)))
-        (assoc-ref build #:derivation))))
+     (build-derivation (db-get-build 1))))
 
   (test-equal "db-get-build derivation"
     1
     (with-fibers
-      (let ((build (db-get-build "/foo.drv")))
-        (assoc-ref build #:id))))
+     (build-id (db-get-build "/foo.drv"))))
 
   (test-equal "db-get-pending-derivations"
     '("/foo.drv")
@@ -360,19 +375,19 @@ timestamp, checkouttime, evaltime) VALUES ('guix', 0, 0, 0, 0);")
     '("fakesha1" "fakesha2")
     (with-fibers
       (make-dummy-instances "fakesha1" "fakesha2")
-      (map (cut assq-ref <> #:commit) (db-get-checkouts 2))))
+      (map checkout-commit (db-get-checkouts 2))))
 
   (test-equal "db-get-evaluation"
     "guix"
     (with-fibers
       (let ((evaluation (db-get-evaluation 2)))
-        (assq-ref evaluation #:specification))))
+        (evaluation-specification-name evaluation))))
 
   (test-equal "db-get-evaluations"
     '("guix" "guix")
     (with-fibers
       (map (lambda (eval)
-             (assq-ref eval #:specification))
+             (evaluation-specification-name eval))
            (db-get-evaluations 2))))
 
   (test-equal "db-get-evaluations-build-summary"
@@ -381,10 +396,9 @@ timestamp, checkouttime, evaltime) VALUES ('guix', 0, 0, 0, 0);")
       (let ((summaries
              (db-get-evaluations-build-summary "guix" 3 #f #f)))
         (map (lambda (summary)
-               (list
-                (assq-ref summary #:succeeded)
-                (assq-ref summary #:failed)
-                (assq-ref summary #:scheduled)))
+               (list (build-summary-succeeded summary)
+                     (build-summary-failed summary)
+                     (build-summary-scheduled summary)))
              summaries))))
 
   (test-equal "db-get-evaluation-absolute-summary"
@@ -393,10 +407,9 @@ timestamp, checkouttime, evaltime) VALUES ('guix', 0, 0, 0, 0);")
       (let ((summary
              (db-get-evaluation-absolute-summary
               (db-get-latest-evaluation "guix"))))
-        (list
-         (assq-ref summary #:succeeded)
-         (assq-ref summary #:failed)
-         (assq-ref summary #:scheduled)))))
+        (list (evaluation-summary-succeeded summary)
+              (evaluation-summary-failed summary)
+              (evaluation-summary-scheduled summary)))))
 
   (test-equal "db-get-evaluations-absolute-summary"
     '((0 1 0) (0 1 0))
@@ -406,10 +419,9 @@ timestamp, checkouttime, evaltime) VALUES ('guix', 0, 0, 0, 0);")
              (summaries
               (db-get-evaluations-absolute-summary evaluations)))
         (map (lambda (summary)
-               (list
-                (assq-ref summary #:succeeded)
-                (assq-ref summary #:failed)
-                (assq-ref summary #:scheduled)))
+               (list (evaluation-summary-succeeded summary)
+                     (evaluation-summary-failed summary)
+                     (evaluation-summary-scheduled summary)))
              summaries))))
 
   (test-equal "db-get-evaluations-id-min"
@@ -442,33 +454,33 @@ timestamp, checkouttime, evaltime) VALUES ('guix', 0, 0, 0, 0);")
     (with-fibers
       (match (db-get-latest-evaluations)
         ((eval)
-         (assq-ref (assq-ref eval #:evaluation) #:id)))))
+         (evaluation-id eval)))))
 
   (test-equal "db-get-latest-evaluations 2"
     4
     (with-fibers
       (match (db-get-latest-evaluations #:status #f)
         ((eval)
-         (assq-ref (assq-ref eval #:evaluation) #:id)))))
+         (evaluation-id eval)))))
 
   (test-equal "db-get-evaluation-summary"
     '(2 0 1 1)
     (with-fibers
       (let* ((summary (db-get-evaluation-summary 2))
-             (total (assq-ref summary #:total))
-             (succeeded (assq-ref summary #:succeeded))
-             (failed (assq-ref summary #:failed))
-             (scheduled (assq-ref summary #:scheduled)))
+             (total (evaluation-summary-total summary))
+             (succeeded (evaluation-summary-succeeded summary))
+             (failed (evaluation-summary-failed summary))
+             (scheduled (evaluation-summary-scheduled summary)))
         (list total succeeded failed scheduled))))
 
   (test-equal "db-get-evaluation-summary empty"
     '(0 0 0 0)
     (with-fibers
       (let* ((summary (db-get-evaluation-summary 3))
-             (total (assq-ref summary #:total))
-             (succeeded (assq-ref summary #:succeeded))
-             (failed (assq-ref summary #:failed))
-             (scheduled (assq-ref summary #:scheduled)))
+             (total (evaluation-summary-total summary))
+             (succeeded (evaluation-summary-succeeded summary))
+             (failed (evaluation-summary-failed summary))
+             (scheduled (evaluation-summary-scheduled summary)))
         (list total succeeded failed scheduled))))
 
   (test-equal "db-get-builds-query-min"
@@ -501,13 +513,14 @@ timestamp, checkouttime, evaltime) VALUES ('guix', 0, 0, 0, 0);")
       (db-get-evaluation-specification 2)))
 
   (test-equal "db-get-build-products"
-    `(((#:id . 1)
-       (#:type . "1")
-       (#:file-size . 1)
-       (#:checksum . "sum")
-       (#:path . "path")))
+    (list (build-product (id 1)
+                         (build-id 1)
+                         (type "1")
+                         (file-size 1)
+                         (checksum "sum")
+                         (file "path")))
     (with-fibers
-      (db-get-build-products 1)))
+     (db-get-build-products 1)))
 
   (test-equal "db-get-build-product-path"
     "path"
@@ -538,8 +551,8 @@ timestamp, checkouttime, evaltime) VALUES ('guix', 0, 0, 0, 0);")
         (db-remove-unresponsive-workers 50)
         (and (eq? (db-get-workers) '())
              (let* ((build (db-get-build drv))
-                    (worker (assq-ref build #:worker))
-                    (status (assq-ref build #:status)))
+                    (worker (build-worker build))
+                    (status (build-current-status build)))
                (and (not worker)
                     (eq? status (build-status scheduled))))))))
 
@@ -555,11 +568,15 @@ timestamp, checkouttime, evaltime) VALUES ('guix', 0, 0, 0, 0);")
           (build-status succeeded)
           "/foo2.log")
     (with-fibers
-      (let* ((derivation (db-add-build
-                          (make-dummy-build "/foo2.drv" 2
-                                            #:outputs '(("out" . "/foo")))))
-             (get-status (lambda* (#:optional (key #:status))
-                           (assq-ref (db-get-build derivation) key))))
+      (let* ((derivation "/foo2.drv")
+             (get-status (lambda* (#:optional (field build-current-status))
+                           (field (db-get-build derivation)))))
+        (db-add-build
+         (make-dummy-build derivation 2
+                           #:outputs
+                           (list (output
+                                  (derivation derivation)
+                                  (item "/foo")))))
         (let ((status0 (get-status)))
           (db-update-build-status! "/foo2.drv" (build-status started)
                                    #:log-file "/foo2.log")
@@ -570,9 +587,9 @@ timestamp, checkouttime, evaltime) VALUES ('guix', 0, 0, 0, 0);")
             (db-update-build-status! "/foo2.drv" (build-status succeeded))
 
             (let ((status2 (get-status))
-                  (start   (get-status #:starttime))
-                  (end     (get-status #:stoptime))
-                  (log     (get-status #:log)))
+                  (start   (get-status build-start-time))
+                  (end     (get-status build-completion-time))
+                  (log     (get-status build-log)))
               (and (> start 0) (>= end start)
                    (list status0 status1 status2 log))))))))
 
@@ -585,61 +602,83 @@ timestamp, checkouttime, evaltime) VALUES ('guix', 0, 0, 0, 0);")
     (with-fibers
       (exec-query (%db) "DELETE FROM Builds;")
       (db-add-build (make-dummy-build "/baa.drv" 2
-                                      #:outputs `(("out" . "/baa"))))
+                                      #:outputs
+                                      (list (output
+                                             (item "/baa")
+                                             (derivation "/baa.drv")))))
       (db-add-build (make-dummy-build "/bar.drv" 2
-                                      #:outputs `(("out" . "/bar"))))
+                                      #:outputs
+                                      (list (output
+                                             (item "/bar")
+                                             (derivation "/bar.drv")))))
       (db-add-build (make-dummy-build "/baz.drv" 2
-                                      #:outputs `(("out" . "/baz"))))
+                                      #:outputs
+                                      (list (output
+                                             (item "/baz")
+                                             (derivation "/baz.drv")))))
       (db-update-build-status! "/bar.drv" (build-status started)
                                #:log-file "/bar.drv.log")
-      (let ((summarize (lambda (alist)
-                         (assq-ref alist #:derivation))))
-        (list (map summarize (db-get-builds '((nr . 3) (order . build-id))))
-              (map summarize (db-get-builds '()))
-              (map summarize (db-get-builds '((jobset . "guix"))))
-              (map summarize (db-get-builds '((nr . 1))))
-              (map summarize
-                   (db-get-builds '((order . status+submission-time))))))))
+      (list (map build-derivation (db-get-builds '((nr . 3) (order . build-id))))
+            (map build-derivation (db-get-builds '()))
+            (map build-derivation (db-get-builds '((jobset . "guix"))))
+            (map build-derivation (db-get-builds '((nr . 1))))
+            (map build-derivation
+                 (db-get-builds '((order . status+submission-time)))))))
 
   (test-equal "db-get-pending-derivations"
     '("/bar.drv" "/foo.drv")
     (with-fibers
       (exec-query (%db) "DELETE FROM Builds;")
       (db-add-build (make-dummy-build "/foo.drv" 1
-                                      #:outputs `(("out" . "/foo"))))
+                                      #:outputs
+                                      (list (output
+                                             (item "/foo")
+                                             (derivation "/foo.drv")))))
       (db-add-build (make-dummy-build "/bar.drv" 2
-                                      #:outputs `(("out" . "/bar"))))
+                                      #:outputs
+                                      (list (output
+                                             (item "/bar")
+                                             (derivation "/bar.drv")))))
       (sort (db-get-pending-derivations) string<?)))
 
-  (test-assert "db-get-build-percentages"
+  (test-equal "db-get-build-percentages"
+    '("/cur.drv" 60)
     (with-fibers
       (let* ((ts (time-second (current-time time-utc)))
-             (old `((#:derivation . "/last.drv")
-                    (#:eval-id . 2)
-                    (#:job-name . "job")
-                    (#:timestamp . ,(- ts 10))
-                    (#:status . 0)
-                    (#:starttime . 10)
-                    (#:stoptime . 20)
-                    (#:system . "x86_64-linux")
-                    (#:nix-name . "foo")
-                    (#:log . "log")
-                    (#:outputs . (("out" . "/old-percentage")))))
-             (new `((#:derivation . "/cur.drv")
-                    (#:eval-id . 2)
-                    (#:job-name . "job")
-                    (#:timestamp . ,(- ts 5))
-                    (#:starttime . ,(- ts 5))
-                    (#:system . "x86_64-linux")
-                    (#:nix-name . "foo")
-                    (#:log . "log")
-                    (#:outputs . (("out" . "/new-percentage"))))))
+             (old (build (derivation "/last.drv")
+                         (evaluation-id 2)
+                         (job-name "job")
+                         (specification-name "whatever")
+                         (creation-time (- ts 10))
+                         (status 0)
+                         (start-time 10)
+                         (completion-time 20)
+                         (system "x86_64-linux")
+                         (nix-name "foo")
+                         (log "log")
+                         (outputs
+                          (list (output
+                                 (item "/old-percentage")
+                                 (derivation "/last.drv"))))))
+             (new (build (derivation "/cur.drv")
+                         (evaluation-id 2)
+                         (job-name "job")
+                         (specification-name "whatever")
+                         (creation-time (- ts 5))
+                         (start-time (- ts 5))
+                         (system "x86_64-linux")
+                         (nix-name "foo")
+                         (log "log")
+                         (outputs
+                          (list (output
+                                 (item "/new-percentage")
+                                 (derivation "/cur.drv")))))))
         (db-add-build old)
         (db-add-build new)
         (match (db-get-build-percentages
-                (list (db-get-build (assq-ref new #:derivation))))
-          ((build)
-           (>= (assq-ref build #:percentage) 50))))))
+                (list (db-get-build (build-derivation new))))
+          (((b . percentage))
+           (list (build-derivation b) percentage))))))
 
   (test-equal "db-update-build-status!"
     (list #f 1)
@@ -648,20 +687,27 @@ timestamp, checkouttime, evaltime) VALUES ('guix', 0, 0, 0, 0);")
                          (make-dummy-instances "fakesha5" "fakesha6"))
       (db-add-build (make-dummy-build "/old-build.drv" 3
                                       #:job-name "job-1"
-                                      #:outputs `(("out" . "/old"))))
+                                      #:outputs
+                                      (list (output
+                                             (item "/old")
+                                             (derivation "/old-build.drv")))))
       (db-add-build (make-dummy-build "/new-build.drv" 4
                                       #:job-name "job-1"
-                                      #:outputs `(("out" . "/new"))))
+                                      #:outputs
+                                      (list (output
+                                             (item "/new")
+                                             (derivation "/new-build.drv")))))
+
       (db-update-build-status! "/old-build.drv" 1)
       (db-update-build-status! "/new-build.drv" 0)
-      (map (cut assq-ref <> #:last-status)
+      (map build-last-status
            (list (db-get-build "/old-build.drv")
                  (db-get-build "/new-build.drv")))))
 
   (test-equal "db-get-builds weather"
     (build-weather new-success)
     (with-fibers
-      (assq-ref (db-get-build "/new-build.drv") #:weather)))
+      (build-current-weather (db-get-build "/new-build.drv"))))
 
   (test-assert "mail notification"
     (with-fibers
@@ -680,7 +726,7 @@ timestamp, checkouttime, evaltime) VALUES ('guix', 0, 0, 0, 0);")
     (with-fibers
       (db-update-build-status! "/old-build.drv" 0)
       (db-update-build-status! "/new-build.drv" 1)
-      (assq-ref (db-get-build "/new-build.drv") #:weather)))
+      (build-current-weather (db-get-build "/new-build.drv"))))
 
   (test-assert "mail notification, broken job"
     (with-fibers
@@ -699,28 +745,28 @@ timestamp, checkouttime, evaltime) VALUES ('guix', 0, 0, 0, 0);")
     (with-fibers
       (db-update-build-status! "/old-build.drv" 0)
       (db-update-build-status! "/new-build.drv" 0)
-      (assq-ref (db-get-build "/new-build.drv") #:weather)))
+      (build-current-weather (db-get-build "/new-build.drv"))))
 
   (test-equal "db-get-builds weather"
     (build-weather still-failing)
     (with-fibers
       (db-update-build-status! "/old-build.drv" 1)
       (db-update-build-status! "/new-build.drv" 1)
-      (assq-ref (db-get-build "/new-build.drv") #:weather)))
+      (build-current-weather (db-get-build "/new-build.drv"))))
 
   (test-assert "db-restart-build!"
     (with-fibers
       (let ((build (db-get-build "/new-build.drv")))
-        (db-restart-build! (assq-ref build #:id))
-        (eq? (assq-ref (db-get-build "/new-build.drv") #:status)
-             (build-status scheduled)))))
+        (db-restart-build! (build-id build))
+        (= (build-current-status (db-get-build "/new-build.drv"))
+           (build-status scheduled)))))
 
   (test-assert "db-restart-evaluation!"
     (with-fibers
       (let ((build (db-get-build "/old-build.drv")))
-        (db-restart-evaluation! (assq-ref build #:eval-id))
-        (eq? (assq-ref (db-get-build "/old-build.drv") #:status)
-             (build-status scheduled)))))
+        (db-restart-evaluation! (build-evaluation-id build))
+        (= (build-current-status (db-get-build "/old-build.drv"))
+           (build-status scheduled)))))
 
   (test-assert "db-retry-evaluation!"
     (with-fibers
@@ -731,11 +777,11 @@ timestamp, checkouttime, evaltime) VALUES ('guix', 0, 0, 0, 0);")
     (with-fibers
       (let* ((drv "/old-build.drv")
              (build (db-get-build drv))
-             (eval-id (assq-ref build #:eval-id)))
+             (eval-id (build-evaluation-id build)))
         (db-update-build-status! drv (build-status started))
         (db-cancel-pending-builds! eval-id)
-        (eq? (assq-ref (db-get-build drv) #:status)
-             (build-status canceled)))))
+        (= (build-current-status (db-get-build drv))
+           (build-status canceled)))))
 
   (test-assert "db-push-notification"
     (with-fibers
@@ -745,7 +791,7 @@ timestamp, checkouttime, evaltime) VALUES ('guix', 0, 0, 0, 0);")
           (from "from")
           (to "to")
           (server (mailer)))
-         (assq-ref build #:id)))))
+         (build-id build)))))
 
   (test-assert "db-pop-notification"
     (with-fibers
@@ -753,26 +799,35 @@ timestamp, checkouttime, evaltime) VALUES ('guix', 0, 0, 0, 0);")
         (match (db-pop-notification)
           ((notif . notif-build)
            (and (email? notif)
-                (equal? build notif-build)))))))
+                ;; <build> records cannot be compared with 'equal?' because
+                ;; they contain procedures, hence this comparison.
+                (string=? (build-derivation build)
+                          (build-derivation notif-build))
+                (eqv? (build-id build)
+                      (build-id notif-build))))))))
 
   (test-assert "set-build-successful!"
     (with-fibers
       (let* ((name "/foo5.drv")
              (build
-              (make-dummy-build name #:outputs `(("out" . ,(getcwd)))))
-             (drv (assq-ref build #:derivation)))
+              (make-dummy-build name
+                                #:outputs
+                                (list (output
+                                       (item (getcwd))
+                                       (derivation "/foo5.drv")))))
+             (drv (build-derivation build)))
         (db-add-build build)
         (set-build-successful! drv)
-        (match (assq-ref (db-get-build name) #:buildproducts)
+        (match (build-products (db-get-build name))
           ((product)
-           (equal? (assq-ref product #:path) (getcwd)))))))
+           (equal? (build-product-file product) (getcwd)))))))
 
   (test-assert "db-worker-current-builds"
     (with-fibers
-      (let ((drv-1
-             (db-add-build (make-dummy-build "/build-1.drv")))
-            (drv-2
-             (db-add-build (make-dummy-build "/build-2.drv"))))
+      (let ((drv-1 "/build-1.drv")
+            (drv-2 "/build-2.drv"))
+        (db-add-build (make-dummy-build drv-1))
+        (db-add-build (make-dummy-build drv-2))
         (db-add-or-update-worker %dummy-worker)
         (db-update-build-worker! drv-1 "worker")
         (db-update-build-worker! drv-2 "worker")
@@ -780,14 +835,14 @@ timestamp, checkouttime, evaltime) VALUES ('guix', 0, 0, 0, 0);")
         (db-update-build-status! drv-2 (build-status started))
         (match (db-worker-current-builds)
           ((build)
-           (eq? (assq-ref (db-get-build drv-2) #:id)
-                (assq-ref build #:id)))))))
+           (= (build-id (db-get-build drv-2))
+              (build-id build)))))))
 
   (test-equal "db-register-dashboard"
     "guix"
     (with-fibers
       (let ((id (db-register-dashboard "guix" "emacs")))
-        (assq-ref (db-get-dashboard id) #:specification))))
+        (dashboard-specification-name (db-get-dashboard id)))))
 
   (test-assert "db-add-build-dependencies"
     (with-fibers
@@ -798,10 +853,15 @@ timestamp, checkouttime, evaltime) VALUES ('guix', 0, 0, 0, 0);")
     (with-fibers
       (let* ((drv1 "/build-1.drv")
              (drv2 "/build-2.drv")
-             (id1 (assq-ref (db-get-build drv1) #:id))
-             (id2 (assq-ref (db-get-build drv2) #:id)))
+             (id1 (build-id (db-get-build drv1)))
+             (id2 (build-id (db-get-build drv2))))
         (match (db-get-build-dependencies id1)
-          ((id) (eq? id id2))))))
+          ((id) (= id id2))))))
+
+  (test-equal "build-dependencies"
+    '("/build-2.drv")
+    (with-fibers
+     (build-dependencies (db-get-build "/build-1.drv"))))
 
   (test-assert "db-get-builds no-dependencies"
     (with-fibers
@@ -809,28 +869,24 @@ timestamp, checkouttime, evaltime) VALUES ('guix', 0, 0, 0, 0);")
                                (build-status scheduled))
       (db-update-build-status! "/build-2.drv"
                                (build-status scheduled))
-      (string=? (assq-ref (db-get-pending-build "x86_64-linux")
-                          #:derivation)
+      (string=? (build-derivation
+                 (db-get-pending-build "x86_64-linux"))
                 "/build-2.drv")))
 
   (test-assert "dependencies trigger"
     (with-fibers
-      (let ((drv-1
-             (db-add-build (make-dummy-build "/build-dep-1.drv")))
-            (drv-2
-             (db-add-build (make-dummy-build "/build-dep-2.drv")))
-            (drv-3
-             (db-add-build (make-dummy-build "/build-dep-3.drv")))
-            (drv-4
-             (db-add-build (make-dummy-build "/build-dep-4.drv")))
-            (drv-5
-             (db-add-build (make-dummy-build "/build-dep-5.drv")))
-            (drv-6
-             (db-add-build (make-dummy-build "/build-dep-6.drv")))
-            (drv-7
-             (db-add-build (make-dummy-build "/build-dep-7.drv")))
+      (let ((drv-1 "/build-dep-1.drv")
+            (drv-2 "/build-dep-2.drv")
+            (drv-3 "/build-dep-3.drv")
+            (drv-4 "/build-dep-4.drv")
+            (drv-5 "/build-dep-5.drv")
+            (drv-6 "/build-dep-6.drv")
+            (drv-7 "/build-dep-7.drv")
             (status (lambda (drv)
-                      (assq-ref (db-get-build drv) #:status))))
+                      (build-current-status (db-get-build drv)))))
+        (for-each (compose db-add-build make-dummy-build)
+                  (list drv-1 drv-2 drv-3 drv-4
+                        drv-5 drv-6 drv-7))
         (db-add-build-dependencies "/build-dep-2.drv"
                                    (list "/build-dep-1.drv"))
         (db-add-build-dependencies "/build-dep-4.drv"

@@ -32,13 +32,11 @@
   #:use-module (guix derivations)
   #:use-module (guix packages)
   #:use-module (guix progress)
-  #:use-module (guix store)
+  #:use-module ((guix store) #:hide (build))
   #:use-module ((guix utils) #:select (string-replace-substring
                                        version>?))
   #:use-module (cuirass config)
-  #:use-module ((cuirass database) #:select (build-status
-                                             build-weather
-                                             evaluation-status))
+  #:use-module (cuirass database)
   #:use-module (cuirass remote)
   #:use-module (cuirass specification)
   #:export (html-page
@@ -269,14 +267,13 @@ system whose names start with " (code "guile-") ":" (br)
 (define (specifications-table specs evaluations summaries latest-evaluations)
   "Return HTML for the SPECS table."
   (define (spec->latest-eval-ok name)
-    (find (lambda (s)
-            (string=? (assq-ref s #:specification) name))
+    (find (lambda (e)
+            (string=? (evaluation-specification-name e) name))
           evaluations))
 
   (define (spec->latest-eval name)
-    (any (lambda (s)
-           (and (string=? (assq-ref s #:specification) name)
-                (assq-ref s #:evaluation)))
+    (find (lambda (e)
+            (string=? (evaluation-specification-name e) name))
           latest-evaluations))
 
   (define (eval-summary eval)
@@ -288,8 +285,8 @@ system whose names start with " (code "guile-") ":" (br)
           summaries))
 
   (define (summary->percentage summary)
-    (let ((total (assq-ref summary #:total))
-          (succeeded (assq-ref summary #:succeeded)))
+    (let ((total (evaluation-summary-total summary))
+          (succeeded (evaluation-summary-succeeded summary)))
       (nearest-exact-integer (* 100 (/ succeeded total)))))
 
   `((div (@ (class "d-flex flex-row mb-3"))
@@ -381,7 +378,7 @@ system whose names start with " (code "guile-") ":" (br)
                                  (specification-name spec)))
                                (last-eval-status-ok?
                                 (and last-eval
-                                     (<= (assq-ref last-eval #:status)
+                                     (<= (evaluation-current-status last-eval)
                                          (evaluation-status succeeded))))
                                (percentage
                                 (and summary (summary->percentage summary)))
@@ -406,11 +403,11 @@ system whose names start with " (code "guile-") ":" (br)
                               (div
                                (@ (class "job-rel d-none"))
                                ,(successful-build-badge
-                                 (assq-ref summary #:succeeded))
+                                 (evaluation-summary-succeeded summary))
                                ,(failed-build-badge
-                                 (assq-ref summary #:failed))
+                                 (evaluation-summary-failed summary))
                                ,(scheduled-build-badge
-                                 (assq-ref summary #:scheduled)))))
+                                 (evaluation-summary-scheduled summary)))))
                            ((and last-eval (not last-eval-status-ok?))
                             `((center
                                ,@(evaluation-badges last-eval #f))))
@@ -668,20 +665,20 @@ the existing SPEC otherwise."
 
 (define (build-details build dependencies products history)
   "Return HTML showing details for the BUILD."
-  (define status (assq-ref build #:status))
-  (define weather (assq-ref build #:weather))
+  (define status (build-current-status build))
+  (define weather (build-current-weather build))
 
   (define evaluation
-    (assq-ref build #:eval-id))
+    (build-evaluation-id build))
 
   (define (find-dependency id)
     (find (lambda (build)
-            (eq? (assoc-ref build #:id) id))
+            (= (build-id build) id))
           dependencies))
 
   (define (history-table-row build)
     (define status
-      (assq-ref build #:status))
+      (build-current-status build))
 
     `(tr
       (td (span (@ (class ,(status-class status))
@@ -689,11 +686,11 @@ the existing SPEC otherwise."
                    (aria-hidden "true"))
                 ""))
       (th (@ (scope "row"))
-          (a (@ (href "/build/" ,(assq-ref build #:id) "/details"))
-             ,(assq-ref build #:id)))
-      (td ,(assq-ref build #:nix-name))
+          (a (@ (href "/build/" ,(build-id build) "/details"))
+             ,(build-id build)))
+      (td ,(build-nix-name build))
       (td ,(if (completed? status)
-               (time->string (assq-ref build #:stoptime))
+               (time->string (build-completion-time build))
                "—"))))
 
   `((div (@ (class "d-flex flex-row mb-3"))
@@ -712,13 +709,13 @@ the existing SPEC otherwise."
                   (li (@ (role "menuitem"))
                       (a (@ (class "dropdown-item")
                             (href "/admin/build/"
-                                  ,(assq-ref build #:id) "/restart"))
+                                  ,(build-id build) "/restart"))
                          " Restart")))))
     (table
      (@ (class "table table-sm table-hover"))
      (tbody
       (tr (th "Build ID")
-          (td ,(assq-ref build #:id)))
+          (td ,(build-id build)))
       (tr (th "Evaluation")
           (td (a (@ (href ,(string-append "/eval/"
                                           (number->string evaluation))))
@@ -728,13 +725,13 @@ the existing SPEC otherwise."
                        (title ,(status-title status)))
                     ,(string-append " " (status-title status)))))
       (tr (th "System")
-          (td ,(assq-ref build #:system)))
+          (td ,(build-system build)))
       (tr (th "Name")
-          (td ,(assq-ref build #:nix-name)))
+          (td ,(build-nix-name build)))
       (tr (th "Duration")
           (td ,(let ((timestamp (time-second (current-time time-utc)))
-                     (start (assq-ref build #:starttime))
-                     (stop  (assq-ref build #:stoptime)))
+                     (start (build-start-time build))
+                     (stop  (build-completion-time build)))
                  (cond
                   ((and (> start 0) (> stop 0))
                    (string-append (number->string (- stop start))
@@ -745,7 +742,7 @@ the existing SPEC otherwise."
                   (else "—")))))
       (tr (th "Finished")
           (td ,(if (completed? status)
-                   (time->string (assq-ref build #:stoptime))
+                   (time->string (build-completion-time build))
                    "—")))
       (tr (th "Weather")
           (td (span (@ (class ,(weather-class weather))
@@ -758,16 +755,16 @@ the existing SPEC otherwise."
                        (= (build-status succeeded) status)
                        (= (build-status failed) status)
                        (= (build-status canceled) status))
-                   `(a (@ (href "/build/" ,(assq-ref build #:id) "/log/raw"))
+                   `(a (@ (href "/build/" ,(build-id build) "/log/raw"))
                        "raw")
                    "—")))
       (tr (th "Derivation")
-          (td (pre ,(assq-ref build #:derivation))))
+          (td (pre ,(build-derivation build))))
       (tr (th "Dependencies")
           (td
            (@ (class "dependencies"))
            ,@(let ((dependencies
-                    (assq-ref build #:builddependencies))
+                    (build-dependencies/id build))
                    (max-items 10))
                (if (> (length dependencies) 0)
                    `(,(map (lambda (id index)
@@ -800,18 +797,18 @@ the existing SPEC otherwise."
                            '()))
                    '("—")))))
       (tr (th "Outputs")
-          (td ,(map (match-lambda ((out (#:path . path))
-                                   `(pre ,path)))
-                    (assq-ref build #:outputs))))
+          (td ,(map (lambda (output)
+                      `(pre ,(output-item output)))
+                    (build-outputs build))))
       ,@(if (null? products)
             '()
             (let ((product-items
                    (map
                     (lambda (product)
-                      (let* ((id (assq-ref product #:id))
-                             (size (assq-ref product #:file-size))
-                             (type (assq-ref product #:type))
-                             (path (assq-ref product #:path))
+                      (let* ((id (build-product-id product))
+                             (size (build-product-file-size product))
+                             (type (build-product-type product))
+                             (path (build-product-file product))
                              (href (format #f "/download/~a" id)))
                         `(a (@ (href ,href))
                             (li (@ (class "list-group-item"))
@@ -880,26 +877,28 @@ the existing SPEC otherwise."
   (let ((changes
          (string-join
           (map (lambda (checkout)
-                 (let ((input (assq-ref checkout #:channel))
-                       (commit (assq-ref checkout #:commit)))
+                 (let ((input (checkout-channel checkout))
+                       (commit (checkout-commit checkout)))
                    (format #f "~a → ~a" input (substring commit 0 7))))
                checkouts)
           ", ")))
     (if (string=? changes "") '(em "None") changes)))
 
 (define (evaluation-badges evaluation absolute)
-  (let ((status (assq-ref evaluation #:status)))
+  (let ((status (build-summary-status evaluation)))
     (if (= status (evaluation-status started))
         '((em "In progress…"))
         (cond
          ((= status (evaluation-status failed))
-          `((a (@ (href "/eval/" ,(assq-ref evaluation #:id) "/log/raw")
+          `((a (@ (href "/eval/" ,(build-summary-evaluation-id evaluation)
+                        "/log/raw")
                   (class "oi oi-x text-danger")
                   (title "Failed")
                   (aria-hidden "true"))
                "")))
          ((= status (evaluation-status aborted))
-          `((a (@ (href "/eval/" ,(assq-ref evaluation #:id) "/log/raw")
+          `((a (@ (href "/eval/" ,(build-summary-evaluation-id evaluation)
+                        "/log/raw")
                   (class "oi oi-x text-warning")
                   (title "Aborted")
                   (aria-hidden "true"))
@@ -907,28 +906,37 @@ the existing SPEC otherwise."
          ((= status (evaluation-status succeeded))
           `((div
              (@ (class "job-abs d-none"))
-             ,(successful-build-badge (assq-ref absolute #:succeeded))
-             ,(failed-build-badge (assq-ref absolute #:failed))
-             ,(scheduled-build-badge (assq-ref absolute #:scheduled)))
+             ,(successful-build-badge
+               (if absolute
+                   (evaluation-summary-succeeded absolute)
+                   0))
+             ,(failed-build-badge
+               (if absolute
+                   (evaluation-summary-failed absolute)
+                   0))
+             ,(scheduled-build-badge
+               (if absolute
+                   (evaluation-summary-scheduled absolute)
+                   0)))
             (div
              (@ (class "job-rel"))
-             ,(successful-build-badge (assq-ref evaluation #:succeeded)
+             ,(successful-build-badge (build-summary-succeeded evaluation)
                                       (string-append
                                        "/eval/"
                                        (number->string
-                                        (assq-ref evaluation #:id))
+                                        (build-summary-evaluation-id evaluation))
                                        "?status=succeeded"))
-             ,(failed-build-badge (assq-ref evaluation #:failed)
+             ,(failed-build-badge (build-summary-failed evaluation)
                                   (string-append
                                    "/eval/"
                                    (number->string
-                                    (assq-ref evaluation #:id))
+                                    (build-summary-evaluation-id evaluation))
                                    "?status=failed"))
-             ,(scheduled-build-badge (assq-ref evaluation #:scheduled)
+             ,(scheduled-build-badge (build-summary-scheduled evaluation)
                                      (string-append
                                       "/eval/"
                                       (number->string
-                                       (assq-ref evaluation #:id))
+                                       (build-summary-evaluation-id evaluation))
                                       "?status=pending")))))))))
 
 (define* (evaluation-info-table name evaluations id-min id-max
@@ -937,7 +945,8 @@ the existing SPEC otherwise."
   global minimal and maximal id."
   (define (eval-absolute-summary eval)
     (find (lambda (e)
-            (= (assq-ref e #:evaluation) (assq-ref eval #:id)))
+            (= (evaluation-summary-id e)
+               (build-summary-evaluation-id eval)))
           absolute-summary))
 
   `((div (@ (class "d-flex flex-row mb-3"))
@@ -976,15 +985,17 @@ the existing SPEC otherwise."
                (th (@ (scope "col")) "Action")))
              (tbody
               ,@(map
-                 (lambda (row)
+                 (lambda (summary)
                    `(tr (th (@ (scope "row"))
-                            (a (@ (href "/eval/" ,(assq-ref row #:id)))
-                               ,(assq-ref row #:id)))
-                        (td ,(input-changes (assq-ref row #:checkouts)))
+                            (a (@ (href
+                                   "/eval/"
+                                   ,(build-summary-evaluation-id summary)))
+                               ,(build-summary-evaluation-id summary)))
+                        (td ,(input-changes (build-summary-checkouts summary)))
                         (td
-                         ,@(evaluation-badges row
-                                              (eval-absolute-summary row)))
-                        ,(let* ((id (assq-ref row #:id))
+                         ,@(evaluation-badges summary
+                                              (eval-absolute-summary summary)))
+                        ,(let* ((id (build-summary-evaluation-id summary))
                                 (title
                                  (string-append "Dashboard evaluation "
                                                 (number->string id))))
@@ -994,7 +1005,7 @@ the existing SPEC otherwise."
                                  (@ (class
                                       ,(string-append
                                         "oi oi-monitor d-inline-block "
-                                        (if (eq? (assq-ref row #:status)
+                                        (if (eq? (build-summary-status summary)
                                                  (evaluation-status succeeded))
                                             "visible"
                                             "invisible")))
@@ -1026,25 +1037,25 @@ the existing SPEC otherwise."
                                       (li (@ (role "menuitem"))
                                           (a (@ (class "dropdown-item")
                                                 (href "/admin/evaluation/"
-                                                      ,(assq-ref row #:id)
+                                                      ,(build-summary-evaluation-id summary)
                                                       "/cancel"))
                                              " Cancel pending builds"))
                                       (li (@ (role "menuitem"))
                                           (a (@ (class "dropdown-item")
                                                 (href "/admin/evaluation/"
-                                                      ,(assq-ref row #:id)
+                                                      ,(build-summary-evaluation-id summary)
                                                       "/restart"))
                                              " Restart all builds"))
                                       (li (@ (role "menuitem"))
                                           (a (@ (class "dropdown-item")
                                                 (href "/admin/evaluation/"
-                                                      ,(assq-ref row #:id)
+                                                      ,(build-summary-evaluation-id summary)
                                                       "/retry"))
                                              " Retry the evaluation")))))))))
                  evaluations)))))
     ,(if (null? evaluations)
          (pagination "" "" "" "")
-         (let* ((eval-ids (map (cut assq-ref <> #:id) evaluations))
+         (let* ((eval-ids (map build-summary-evaluation-id evaluations))
                 (page-id-min (last eval-ids))
                 (page-id-max (first eval-ids)))
            (pagination
@@ -1127,10 +1138,10 @@ and BUILD-MAX are global minimal and maximal (stoptime, rowid) pairs."
 
   (define (table-row build)
     (define status
-      (assq-ref build #:buildstatus))
+      (build-current-status build))
 
     (define weather
-      (assq-ref build #:weather))
+      (build-current-weather build))
 
     `(tr
       (td (span (@ (class ,(status-class status))
@@ -1142,25 +1153,25 @@ and BUILD-MAX are global minimal and maximal (stoptime, rowid) pairs."
                    (aria-hidden "true"))
                 ""))
       (th (@ (scope "row"))
-          (a (@ (href "/build/" ,(assq-ref build #:id) "/details"))
-             ,(assq-ref build #:id)))
-      (td ,(assq-ref build #:jobset))
+          (a (@ (href "/build/" ,(build-id build) "/details"))
+             ,(build-id build)))
+      (td ,(build-specification-name build))
       (td ,(if (completed? status)
-               (time->string (assq-ref build #:stoptime))
+               (time->string (build-completion-time build))
                "—"))
-      (td ,(assq-ref build #:job))
-      (td ,(assq-ref build #:nixname))
-      (td ,(assq-ref build #:system))
+      (td ,(build-job-name build))
+      (td ,(build-nix-name build))
+      (td ,(build-system build))
       (td ,(if (completed-with-logs? status)
-               `(a (@ (href "/build/" ,(assq-ref build #:id) "/log/raw"))
+               `(a (@ (href "/build/" ,(build-id build) "/log/raw"))
                    "raw")
                "—"))))
 
-  (define (build-id build)
+  (define (page-boundary-build-id build)
     (match build
       ((stoptime id) id)))
 
-  (define (build-stoptime build)
+  (define (page-boundary-build-stoptime build)
     (match build
       ((stoptime id) stoptime)))
 
@@ -1173,36 +1184,36 @@ and BUILD-MAX are global minimal and maximal (stoptime, rowid) pairs."
              (tbody ,@(map table-row builds)))))
     ,(if (null? builds)
          (pagination "" "" "" "")
-         (let* ((build-time-ids (map (lambda (row)
-                                       (list (assq-ref row #:stoptime)
-                                             (assq-ref row #:id)))
+         (let* ((build-time-ids (map (lambda (build)
+                                       (list (build-completion-time build)
+                                             (build-id build)))
                                      builds))
                 (page-build-min (last build-time-ids))
                 (page-build-max (first build-time-ids)))
            (pagination
             (format
              #f "?border-high-time=~d&border-high-id=~d~@[&status=~a~]"
-             (build-stoptime build-max)
-             (1+ (build-id build-max))
+             (page-boundary-build-stoptime build-max)
+             (1+ (page-boundary-build-id build-max))
              status)
             (if (equal? page-build-max build-max)
                 ""
                 (format
                  #f "?border-low-time=~d&border-low-id=~d~@[&status=~a~]"
-                 (build-stoptime page-build-max)
-                 (build-id page-build-max)
+                 (page-boundary-build-stoptime page-build-max)
+                 (page-boundary-build-id page-build-max)
                  status))
             (if (equal? page-build-min build-min)
                 ""
                 (format
                  #f "?border-high-time=~d&border-high-id=~d~@[&status=~a~]"
-                 (build-stoptime page-build-min)
-                 (build-id page-build-min)
+                 (page-boundary-build-stoptime page-build-min)
+                 (page-boundary-build-id page-build-min)
                  status))
             (format
              #f "?border-low-time=~d&border-low-id=~d~@[&status=~a~]"
-             (build-stoptime build-min)
-             (1- (build-id build-min))
+             (page-boundary-build-stoptime build-min)
+             (1- (page-boundary-build-id build-min))
              status))))))
 
 ;; FIXME: Copied from (guix scripts describe).
@@ -1255,7 +1266,7 @@ the nearest exact even integer."
                (th (@ (class "border-0") (scope "col")) "Commit")))
           (tbody
            ,@(map (lambda (checkout)
-                    (let* ((name  (assq-ref checkout #:channel))
+                    (let* ((name  (checkout-channel checkout))
                            (channel (find (lambda (channel)
                                             (eq? (channel-name channel)
                                                  name))
@@ -1264,7 +1275,7 @@ the nearest exact even integer."
                       ;; inputs.
                       (if channel
                           (let ((url (channel-url channel))
-                                (commit (assq-ref checkout #:commit)))
+                                (commit (checkout-commit checkout)))
                             `(tr (td ,url)
                                  (td (code ,(commit-hyperlink url commit)))))
                           '())))
@@ -1298,14 +1309,13 @@ the nearest exact even integer."
                                  builds-id-min builds-id-max)
   "Return HTML for an evaluation page, containing a table of builds for that
 evaluation."
-  (define id        (assq-ref evaluation #:id))
-  (define total     (assq-ref evaluation #:total))
-  (define succeeded (assq-ref evaluation #:succeeded))
-  (define timestamp (assq-ref evaluation #:timestamp))
-  (define evaltime  (assq-ref evaluation #:evaltime))
-  (define failed    (assq-ref evaluation #:failed))
-  (define scheduled (assq-ref evaluation #:scheduled))
-  (define spec      (assq-ref evaluation #:spec))
+  (define id        (evaluation-summary-id evaluation))
+  (define total     (evaluation-summary-total evaluation))
+  (define succeeded (evaluation-summary-succeeded evaluation))
+  (define timestamp (evaluation-summary-start-time evaluation))
+  (define evaltime  (evaluation-summary-completion-time evaluation))
+  (define failed    (evaluation-summary-failed evaluation))
+  (define scheduled (evaluation-summary-scheduled evaluation))
 
   (define duration  (- evaltime timestamp))
 
@@ -1411,7 +1421,7 @@ and BUILD-MAX are global minimal and maximal row identifiers."
 
   (define (table-row build)
     (define status
-      (assq-ref build #:buildstatus))
+      (build-current-status build))
 
     `(tr
       (td (span (@ (class ,(status-class status))
@@ -1419,17 +1429,17 @@ and BUILD-MAX are global minimal and maximal row identifiers."
                    (aria-hidden "true"))
                 ""))
       (th (@ (scope "row"))
-          (a (@ (href "/build/" ,(assq-ref build #:id) "/details"))
-             ,(assq-ref build #:id)))
-      (td ,(assq-ref build #:jobset))
+          (a (@ (href "/build/" ,(build-id build) "/details"))
+             ,(build-id build)))
+      (td ,(build-job-name build))
       (td ,(if (completed? status)
-               (time->string (assq-ref build #:stoptime))
+               (time->string (build-completion-time build))
                "—"))
-      (td ,(assq-ref build #:job))
-      (td ,(assq-ref build #:nixname))
-      (td ,(assq-ref build #:system))
+      (td ,(build-job-name build))
+      (td ,(build-nix-name build))
+      (td ,(build-system build))
       (td ,(if (completed-with-logs? status)
-               `(a (@ (href "/build/" ,(assq-ref build #:id) "/log/raw"))
+               `(a (@ (href "/build/" ,(build-id build) "/log/raw"))
                    "raw")
                "—"))))
 
@@ -1444,7 +1454,7 @@ and BUILD-MAX are global minimal and maximal row identifiers."
 
     ,(if (null? builds)
          (pagination "" "" "" "")
-         (let* ((build-ids (map (lambda (row) (assq-ref row #:id)) builds))
+         (let* ((build-ids (map build-id builds))
                 (page-build-min (last build-ids))
                 (page-build-max (first build-ids)))
            (pagination
@@ -1474,13 +1484,13 @@ and BUILD-MAX are global minimal and maximal row identifiers."
   (define (build-row build)
     `(tr
       (th (@ (scope "row"))
-          (a (@ (href "/build/" ,(assq-ref build #:id) "/details"))
-             ,(assq-ref build #:id)))
-      (td ,(assq-ref build #:job-name))
+          (a (@ (href "/build/" ,(build-id build) "/details"))
+             ,(build-id build)))
+      (td ,(build-job-name build))
       (td ,(time->string
-            (assq-ref build #:starttime)))
-      (td ,(assq-ref build #:system))
-      (td (a (@ (href "/build/" ,(assq-ref build #:id) "/log/raw"))
+            (build-start-time build)))
+      (td ,(build-system build))
+      (td (a (@ (href "/build/" ,(build-id build) "/log/raw"))
              "raw"))))
 
   `((p (@ (class "lead")) "Running builds")
@@ -1705,7 +1715,7 @@ completed builds divided by the time required to build them.")
                          #:labels '("Pending builds")
                          #:colors (list "#3e95cd")))))
 
-(define (workers-status workers builds)
+(define (workers-status workers builds percentages)
   (define (machine-row machine)
     (let* ((workers (sort (filter-map
                            (lambda (worker)
@@ -1713,27 +1723,23 @@ completed builds divided by the time required to build them.")
                                             machine)
                                   (worker-name worker)))
                            workers)
-                          string<?))
-           (builds
-            (map (lambda (worker)
-                   (match (filter
-                           (lambda (build)
-                             (let ((build-worker
-                                    (assq-ref build #:worker)))
-                               (and build-worker
-                                    (string=? build-worker worker))))
-                           builds)
-                     (() #f)
-                     ((build _ ...) build)))
-                 workers)))
+                          string<?)))
       `(div (@ (class "col-sm-4 mt-3"))
             (a (@(href "/machine/" ,machine))
                (h6 ,machine))
-            ,(map (lambda (build)
+            ,(map (lambda (worker)
+                    (define build
+                      (find (lambda (build)
+                              (and (build-worker build)
+                                   (string=? (build-worker build) worker)))
+                            builds))
+                    (define percentage
+                      (and build (assq-ref percentages build)))
+
                     (let ((style (format #f
                                          "width: ~a%"
                                          (if build
-                                             (assq-ref build #:percentage)
+                                             percentage
                                              0))))
                       `(div (@ (class "progress mt-1")
                                (style "height: 20px"))
@@ -1749,14 +1755,14 @@ d-flex position-absolute w-100"))
                                         (a (@ (class "text-dark text-truncate")
                                               (style "max-width: 150px")
                                               (href "/build/"
-                                                    ,(assq-ref build #:id)
+                                                    ,(build-id build)
                                                     "/details"))
-                                           ,(assq-ref build #:job-name)))
+                                           ,(build-job-name build)))
                                       '(em
                                         (@ (class "justify-content-center
 text-dark d-flex position-absolute w-100"))
                                         "idle"))))))
-                  builds))))
+                  workers))))
 
   (let ((machines (reverse
                    (sort (delete-duplicates
@@ -1825,9 +1831,9 @@ text-dark d-flex position-absolute w-100"))
                                 `(a (@ (class "text-truncate")
                                        (style "max-width: 150px")
                                        (href "/build/"
-                                             ,(assq-ref build #:id)
+                                             ,(build-id build)
                                              "/details"))
-                                    ,(assq-ref build #:job-name)))))
+                                    ,(build-job-name build)))))
                         (td ,(time->string
                               (worker-last-seen worker)))))
                  workers builds)))))
@@ -1886,24 +1892,24 @@ text-dark d-flex position-absolute w-100"))
 
 (define* (evaluation-dashboard evaluation systems
                                #:key
-                               (checkouts (assq-ref evaluation #:checkouts))
+                               (checkouts (evaluation-checkouts evaluation))
                                channels
                                current-system
                                dashboard-id
                                names
                                prev-eval
                                next-eval)
-  (define evaluation-id
-    (assq-ref evaluation #:id))
+  (define id
+    (evaluation-id evaluation))
   (define time
-    (assq-ref evaluation #:evaltime))
+    (evaluation-completion-time evaluation))
 
   (let ((jobs
          (if names
              (format #f "/api/jobs?evaluation=~a&names=~a"
-                     evaluation-id names)
+                     id names)
              (format #f "/api/jobs?evaluation=~a&system=~a"
-                     evaluation-id current-system))))
+                     id current-system))))
     `((nav
        (@ (aria-label "Evaluation navigation")
           (class "eval-nav"))
@@ -1912,8 +1918,8 @@ text-dark d-flex position-absolute w-100"))
             (p (@ (class "lead mb-0 mr-3"))
                "Dashboard for "
                (a (@ (href ,(string-append "/eval/"
-                                           (number->string evaluation-id))))
-                  "evaluation #" ,(number->string evaluation-id))))
+                                           (number->string id))))
+                  "evaluation #" ,(number->string id))))
            (li (@ (class
                     ,(string-append "page-item "
                                     (if prev-eval
@@ -1965,7 +1971,7 @@ text-dark d-flex position-absolute w-100"))
                                  (if names
                                      "d-none"
                                      "")))
-               (action "/eval/" ,evaluation-id "/dashboard")
+               (action "/eval/" ,id "/dashboard")
                (method "GET"))
             (div (@ (class "col-auto"))
                  (select (@ (id "system")
@@ -2022,9 +2028,9 @@ content as a string."
 
   (if summary
       (let* ((succeeded
-              (assq-ref summary #:succeeded))
+              (evaluation-summary-succeeded summary))
              (total
-              (assq-ref summary #:total))
+              (evaluation-summary-total summary))
              (percentage
               (nearest-exact-integer
                (* 100 (/ succeeded total))))

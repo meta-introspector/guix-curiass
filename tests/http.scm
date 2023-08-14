@@ -122,29 +122,35 @@
 
   (test-assert "fill-db"
     (let* ((build1
-            `((#:derivation . "/gnu/store/fake.drv")
-              (#:eval-id . 1)
-              (#:job-name . "fake-job")
-              (#:system . "x86_64-linux")
-              (#:nix-name . "fake-1.0")
-              (#:log . "unused so far")
-              (#:status . ,(build-status succeeded))
-              (#:outputs . (("out" . "/gnu/store/fake-1.0")))
-              (#:timestamp . 1501347493)
-              (#:starttime . 1501347493)
-              (#:stoptime . 1501347493)))
+            (build (derivation "/gnu/store/fake.drv")
+                   (evaluation-id 1)
+                   (specification-name "guix")
+                   (job-name "fake-job")
+                   (system "x86_64-linux")
+                   (nix-name "fake-1.0")
+                   (log "unused so far")
+                   (status (build-status succeeded))
+                   (outputs
+                    (list (output
+                           (item "/gnu/store/fake-1.0")
+                           (derivation derivation))))
+                   (creation-time 1501347493)
+                   (start-time 1501347493)
+                   (completion-time 1501347493)))
            (build2
-            `((#:derivation . "/gnu/store/fake2.drv")
-              (#:eval-id . 1)
-              (#:job-name . "fake-job")
-              (#:system . "x86_64-linux")
-              (#:nix-name . "fake-2.0")
-              (#:log . "unused so far")
-              (#:status . ,(build-status scheduled))
-              (#:outputs . (("out" . "/gnu/store/fake-2.0")))
-              (#:timestamp . 1501347493)
-              (#:starttime . 0)
-              (#:stoptime . 0)))
+            (build (derivation "/gnu/store/fake2.drv")
+                   (evaluation-id 1)
+                   (specification-name "guix")
+                   (job-name "fake-job")
+                   (system "x86_64-linux")
+                   (nix-name "fake-2.0")
+                   (log "unused so far")
+                   (status (build-status scheduled))
+                   (outputs
+                    (list (output
+                           (item "/gnu/store/fake-2.0")
+                           (derivation derivation))))
+                   (creation-time 1501347493)))
            (spec
             (specification
              (name "guix")

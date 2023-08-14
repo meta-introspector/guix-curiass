@@ -1,5 +1,5 @@
 ;;;; evaluate -- convert a specification to a job list
-;;; Copyright © 2016, 2018, 2022 Ludovic Courtès <ludo@gnu.org>
+;;; Copyright © 2016, 2018, 2022, 2023 Ludovic Courtès <ludo@gnu.org>
 ;;; Copyright © 2016, 2017 Mathieu Lirzin <mthl@gnu.org>
 ;;; Copyright © 2017, 2018, 2021 Mathieu Othacehe <othacehe@gnu.org>
 ;;; Copyright © 2018 Clément Lassieur <clement@lassieur.org>
@@ -27,7 +27,7 @@
   #:use-module (guix derivations)
   #:use-module (guix inferior)
   #:use-module (guix monads)
-  #:use-module (guix store)
+  #:use-module ((guix store) #:hide (build))
   #:autoload   (guix ui) (show-what-to-build*)
   #:use-module (srfi srfi-1)
   #:use-module (ice-9 match)
@@ -38,13 +38,35 @@
   "Return the list of CHANNEL-INSTANCE records describing the given
 CHECKOUTS."
   (map (lambda (checkout)
-         (let ((channel (assq-ref checkout #:channel))
-               (directory (assq-ref checkout #:directory))
-               (commit (assq-ref checkout #:commit)))
+         (let ((channel (checkout-channel checkout))
+               (directory (checkout-directory checkout))
+               (commit (checkout-commit checkout)))
            (checkout->channel-instance directory
                                        #:name channel
                                        #:commit commit)))
        checkouts))
+
+(define (user-alists->builds jobs specification-name evaluation-id)
+  "Convert JOBS, the user-supplied list of job alists for SPECIFICATION-NAME and
+EVALUATION-ID, into a list of <build> records."
+  (map (lambda (alist)
+         (build (evaluation-id evaluation-id)
+                (specification-name specification-name)
+                (job-name (assq-ref alist #:job-name))
+                (nix-name (assq-ref alist #:nix-name))
+                (system (assq-ref alist #:system))
+                (timeout (assq-ref alist #:timeout))
+                (max-silent-time (assq-ref alist #:max-silent-time))
+                (derivation (assq-ref alist #:derivation))
+                (dependencies (assq-ref alist #:inputs))
+                (outputs
+                 (map (match-lambda
+                        ((name . item)
+                         (output (name name)
+                                 (item item)
+                                 (derivation derivation))))
+                      (or (assq-ref alist #:outputs) '())))))
+       jobs))
 
 (define* (inferior-evaluation store profile
                               #:key
@@ -75,7 +97,14 @@ Pass the BUILD, CHANNELS and SYSTEMS arguments to the EVAL-PROC procedure."
             `(lambda (store)
                (,eval-proc store ',args)))))
       (close-inferior inferior)
-      (db-register-builds jobs eval-id spec))))
+
+      ;; EVAL-PROC returns a list of job alists: this has the advantage of
+      ;; being serializable and immune to ABI and API changes.  Here, convert
+      ;; it to <build> records for internal consumption.
+      (db-register-builds (user-alists->builds jobs
+                                               (specification-name spec)
+                                               eval-id)
+                          spec))))
 
 (define (channel-instances->profile instances)
   "Return a directory containing a guix filetree defined by INSTANCES, a list

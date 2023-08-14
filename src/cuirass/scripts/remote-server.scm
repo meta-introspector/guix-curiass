@@ -255,10 +255,10 @@ be used to reply to the worker."
                     (worker-name worker)))
        (let ((build (pop-build name)))
          (if build
-             (let ((derivation (assq-ref build #:derivation))
-                   (priority (assq-ref build #:priority))
-                   (timeout (assq-ref build #:timeout))
-                   (max-silent (assq-ref build #:max-silent)))
+             (let ((derivation (build-derivation build))
+                   (priority (build-priority build))
+                   (timeout (build-timeout build))
+                   (max-silent (build-max-silent-time build)))
                (when (and (%debug) worker)
                  (log-debug "~a (~a): build ~a submitted."
                             (worker-address worker)

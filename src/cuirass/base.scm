@@ -358,7 +358,7 @@ build products."
   (let* ((build (db-get-build drv))
          (spec  (and build
                      (db-get-specification
-                      (assq-ref build #:specification)))))
+                      (build-specification-name build)))))
     (when (and spec build)
       (create-build-outputs build
                             (specification-build-outputs spec))))
@@ -510,8 +510,8 @@ updating the database accordingly."
 
 (define (build-derivation=? build1 build2)
   "Return true if BUILD1 and BUILD2 correspond to the same derivation."
-  (string=? (assq-ref build1 #:derivation)
-            (assq-ref build2 #:derivation)))
+  (string=? (build-derivation build1)
+            (build-derivation build2)))
 
 (define (clear-build-queue)
   "Reset the status of builds in the database that are marked as \"started\".
@@ -540,19 +540,21 @@ started)."
         (spawn-builds store valid))
       (log-info "done with restarted builds"))))
 
-(define (create-build-outputs build build-outputs)
-  "Given BUILDS a list of built derivations, save the build products described
-by BUILD-OUTPUTS."
+(define (create-build-outputs build outputs)
+  "Given BUILDS, a list of <build> records, save the build products described by
+OUTPUTS, a list of <build-output> records."
   (define (build-has-products? job-regex)
-    (let ((job-name (assq-ref build #:job-name)))
+    (let ((job-name (build-job-name build)))
       (string-match job-regex job-name)))
 
   (define* (find-product build build-output)
-    (let* ((outputs (assq-ref build #:outputs))
+    (let* ((outputs (build-outputs build))
            (output (build-output-output build-output))
            (path (build-output-path build-output))
-           (root (and=> (assoc-ref outputs output)
-                        (cut assq-ref <> #:path))))
+           (root (and=> (find (lambda (o)
+                                (string=? (output-name o) output))
+                              outputs)
+                        output-item)))
       (and root
            (if (string=? path "")
                root
@@ -562,19 +564,19 @@ by BUILD-OUTPUTS."
     (stat:size (stat file)))
 
   (for-each (lambda (build-output)
-              (let ((product (and (build-has-products?
-                                   (build-output-job build-output))
-                                  (find-product build build-output))))
-                (when (and product (file-exists? product))
-                  (log-info "Adding build product ~a" product)
+              (let ((file (and (build-has-products?
+                                (build-output-job build-output))
+                               (find-product build build-output))))
+                (when (and file (file-exists? file))
+                  (log-info "Adding build product ~a" file)
                   (db-add-build-product
-                   `((#:build . ,(assq-ref build #:id))
-                     (#:type . ,(build-output-type build-output))
-                     (#:file-size . ,(file-size product))
-                     ;; TODO: Implement it.
-                     (#:checksum . "")
-                     (#:path . ,product))))))
-            build-outputs))
+                   (build-product
+                    (build-id (build-id build))
+                    (type (build-output-type build-output))
+                    (file file)
+                    (file-size (file-size file))
+                    (checksum ""))))))            ;TODO: Implement it.
+            outputs))
 
 (define (build-packages store eval-id)
   "Build JOBS and return a list of Build results."
@@ -582,7 +584,7 @@ by BUILD-OUTPUTS."
     (db-get-builds `((evaluation . ,eval-id))))
 
   (define derivations
-    (map (cut assq-ref <> #:derivation) builds))
+    (map build-derivation builds))
 
   ;; Register a GC root for each derivation so that they are not garbage
   ;; collected before getting built.
@@ -597,15 +599,12 @@ by BUILD-OUTPUTS."
     (spawn-builds store derivations)
 
     (let* ((results (filter-map (cut db-get-build <>) derivations))
-           (status (map (cut assq-ref <> #:status) results))
+           (status (map build-current-status results))
            (success (count (lambda (status)
                              (= status (build-status succeeded)))
                            status))
-           (outputs (map (cut assq-ref <> #:outputs) results))
-           (outs (append-map (match-lambda
-                               (((_ (#:path . (? string? outputs))) ...)
-                                outputs))
-                             outputs))
+           (outputs (map build-outputs results))
+           (outs (append-map build-output-path outputs))
            (fail (- (length derivations) success)))
 
       (log-info "outputs:\n~a" (string-join outs "\n"))

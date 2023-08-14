@@ -102,41 +102,52 @@
     (if bool 1 0))
 
   (define finished?
-    (>= (assq-ref build #:status) 0))
+    (>= (build-current-status build) 0))
 
-  `((#:id . ,(assq-ref build #:id))
-    (#:evaluation . ,(assq-ref build #:eval-id))
-    (#:jobset . ,(assq-ref build #:specification))
-    (#:job . ,(assq-ref build #:job-name))
+  `((#:id . ,(build-id build))
+    (#:evaluation . ,(build-evaluation-id build))
+    (#:jobset . ,(build-specification-name build))
+    (#:job . ,(build-job-name build))
 
     ;; Hydra's API uses "timestamp" as the time of the last useful event for
     ;; that build: evaluation or completion.
     (#:timestamp . ,(if finished?
-                        (assq-ref build #:stoptime)
-                        (assq-ref build #:timestamp)))
+                        (build-completion-time build)
+                        (build-creation-time build)))
 
-    (#:starttime . ,(assq-ref build #:starttime))
-    (#:stoptime . ,(assq-ref build #:stoptime))
-    (#:derivation . ,(assq-ref build #:derivation))
-    (#:buildoutputs . ,(assq-ref build #:outputs))
-    (#:system . ,(assq-ref build #:system))
-    (#:nixname . ,(assq-ref build #:nix-name))
-    (#:buildstatus . ,(assq-ref build #:status))
-    (#:weather . ,(assq-ref build #:weather))
+    (#:starttime . ,(build-start-time build))
+    (#:stoptime . ,(build-completion-time build))
+    (#:derivation . ,(build-derivation build))
+    (#:buildoutputs . ,(map (lambda (output)
+                              (list (output-name output)
+                                    (cons "path"
+                                          (output-item output))))
+                            (build-outputs build)))
+    (#:system . ,(build-system build))
+    (#:nixname . ,(build-nix-name build))
+    (#:buildstatus . ,(build-current-status build))
+    (#:weather . ,(build-current-weather build))
     (#:busy . ,(bool->int (eqv? (build-status started)
-                                (assq-ref build #:status))))
-    (#:priority . ,(assq-ref build #:priority))
+                                (build-current-status build))))
+    (#:priority . ,(build-priority build))
     (#:finished . ,(bool->int finished?))
-    (#:buildproducts . ,(list->vector
-                         (assq-ref build #:buildproducts)))))
+    (#:buildproducts . ,(list->vector (build-products build)))))
 
 (define (evaluation->json-object evaluation)
   "Turn EVALUATION into a representation suitable for 'json->scm'."
-  ;; XXX: Since #:checkouts is a list of alists, we must turn it into a vector
-  ;; so that 'json->scm' converts it to a JSON array.
-  `(,@(alist-delete #:checkouts evaluation eq?)
-    (#:checkouts . ,(list->vector
-                     (assq-ref evaluation #:checkouts)))))
+  `((#:id . ,(evaluation-id evaluation))
+    (#:specification . ,(evaluation-specification-name evaluation))
+    (#:status . ,(evaluation-current-status evaluation))
+    (#:timestamp . ,(evaluation-completion-time evaluation))
+    (#:checkouttime . ,(evaluation-checkout-time evaluation))
+    (#:evaltime . ,(evaluation-start-time evaluation))
+    (#:checkouts
+     . ,(list->vector
+         (map (lambda (checkout)
+                `((#:commit . ,(checkout-commit checkout))
+                  (#:channel . ,(checkout-channel checkout))
+                  (#:directory . ,(checkout-directory checkout))))
+              (evaluation-checkouts evaluation))))))
 
 (define (specification->json-object spec)
   "Turn SPEC into a representation suitable for 'json->scm'."
@@ -243,7 +254,7 @@ Hydra format."
                                border-high-time border-low-time
                                border-high-id border-low-id)
   "Return the HTML page representing EVALUATION."
-  (define id             (assq-ref evaluation #:id))
+  (define id             (evaluation-summary-id evaluation))
   (define builds-id-max  (db-get-builds-max id status))
   (define builds-id-min  (db-get-builds-min id status))
   (define specification  (db-get-evaluation-specification id))
@@ -252,8 +263,9 @@ Hydra format."
   (define checkouts      (latest-checkouts specification* id))
 
   (define builds
-    (vector->list
-     (handle-builds-request
+    (with-time-logging
+     "builds request for evaluation page"
+     (db-get-builds
       `((evaluation . ,id)
         (status . ,(and=> status string->symbol))
         ,@(if paginate?
@@ -366,7 +378,7 @@ Hydra format."
      (machine-status name workers
                      (map (lambda (worker)
                             (filter (lambda (build)
-                                      (string=? (assq-ref build #:worker)
+                                      (string=? (build-worker build)
                                                 (worker-name worker)))
                                     builds))
                           workers)
@@ -452,7 +464,7 @@ passed, only display JOBS targeting this SYSTEM."
                (car systems)))
          (dashboard (db-get-dashboard dashboard-id))
          (names (and dashboard
-                     (assq-ref dashboard #:jobs)))
+                     (dashboard-job-ids dashboard)))
          (prev (db-get-previous-eval evaluation-id))
          (next (db-get-next-eval evaluation-id)))
     (html-page
@@ -612,6 +624,12 @@ passed, only display JOBS targeting this SYSTEM."
              #:body (string-append "Resource not found: "
                                    resource_name)))
 
+  (define (job->alist job)
+    ;; Convert JOB to an alist representation suitable for JSON conversion.
+    `((build . ,(job-build-id job))
+      (status . ,(job-status job))
+      (name . ,(job-name job))))
+
   (log-info "~a ~a" (request-method request)
             (uri-path (request-uri request)))
 
@@ -681,7 +699,7 @@ passed, only display JOBS targeting this SYSTEM."
 
     (('GET "admin" "evaluation" id "cancel")
      (let* ((eval (db-get-evaluation id))
-            (specification (assq-ref eval #:specification)))
+            (specification (evaluation-specification-name eval)))
        (db-cancel-pending-builds! (string->number id))
        (respond
         (build-response
@@ -693,7 +711,7 @@ passed, only display JOBS targeting this SYSTEM."
 
     (('GET "admin" "evaluation" id "restart")
      (let* ((eval (db-get-evaluation id))
-            (specification (assq-ref eval #:specification)))
+            (specification (evaluation-specification-name eval)))
        (db-restart-evaluation! (string->number id))
        (respond
         (build-response
@@ -705,7 +723,7 @@ passed, only display JOBS targeting this SYSTEM."
 
     (('GET "admin" "evaluation" id "retry")
      (let* ((eval (db-get-evaluation id))
-            (specification (assq-ref eval #:specification)))
+            (specification (evaluation-specification-name eval)))
        (db-retry-evaluation! (string->number id))
        (respond
         (build-response
@@ -747,32 +765,33 @@ passed, only display JOBS targeting this SYSTEM."
            (respond-build-not-found id))))
     (('GET "build" (= string->number id) "details")
      (let* ((build (and id (db-get-build id)))
-            (products (and build (assoc-ref build #:buildproducts)))
+            (products (and build (build-products build)))
             (dependencies
              (and build
                   (db-get-builds
-                   `((ids . ,(assoc-ref build #:builddependencies))))))
+                   `((ids . ,(build-dependencies/id build))))))
             (history
-             (db-get-builds
-              `((jobset . ,(assq-ref build #:specification))
-                (job . ,(assq-ref build #:job-name))
-                (oldevaluation . ,(assq-ref build #:eval-id))
-                (status . done)
-                (order . evaluation)
-                (nr . 10)))))
+             (and build
+                  (db-get-builds
+                   `((jobset . ,(build-specification-name build))
+                     (job . ,(build-job-name build))
+                     (oldevaluation . ,(build-evaluation-id build))
+                     (status . done)
+                     (order . evaluation)
+                     (nr . 10))))))
        (if build
            (respond-html
             (html-page
              (string-append "Build " (number->string id))
              (build-details build dependencies products history)
-             `(((#:name . ,(assq-ref build #:specification))
+             `(((#:name . ,(build-specification-name build))
                 (#:link
                  . ,(string-append "/jobset/"
-                                   (assq-ref build #:specification)))))))
+                                   (build-specification-name build)))))))
            (respond-build-not-found id))))
     (('GET "build" (= string->number id) "log" "raw")
      (let* ((build (and id (db-get-build id)))
-            (log   (and build (assq-ref build #:log))))
+            (log   (and build (build-log build))))
        (if (and log (file-exists? log))
            (respond-compressed-file log)
            (respond-not-found (uri->string (request-uri request))))))
@@ -780,11 +799,13 @@ passed, only display JOBS targeting this SYSTEM."
      (let ((output (db-get-output
                     (string-append (%store-prefix) "/" id))))
        (if output
-           (let ((build (db-get-build (assq-ref output #:derivation))))
+           (let ((build (db-get-build (output-derivation output))))
              (respond-json
               (object->json-string
-               (append output
-                       `((#:build . ,(or build #nil)))))))
+               `((#:name . ,(output-name output))
+                 (#:derivation . ,(output-derivation output))
+                 (#:build . ,(or (and=> build build->hydra-build)
+                                 #nil))))))
            (respond-output-not-found id))))
     (('GET "api" "jobs")
      (let* ((params (request-parameters request))
@@ -793,11 +814,12 @@ passed, only display JOBS targeting this SYSTEM."
            (respond-json
             (object->json-string
              (list->vector
-              (db-get-jobs eval-id
-                           `((names
-                              . ,(and=> (assq-ref params 'names)
-                                        (cut string-split <> #\,)))
-                             ,@params)))))
+              (map job->alist
+                   (db-get-jobs eval-id
+                                `((names
+                                   . ,(and=> (assq-ref params 'names)
+                                             (cut string-split <> #\,)))
+                                  ,@params))))))
            (respond-json-with-error 500 "Parameter not defined!"))))
     (('GET "api" "jobs" "history")
      (let* ((params (request-parameters request))
@@ -846,7 +868,7 @@ passed, only display JOBS targeting this SYSTEM."
            (respond-json-with-error 500 "Parameter not defined!"))))
     (('GET "api" "evaluations")
      (let* ((params (request-parameters request))
-            (spec (assq-ref params 'spec)) ;optional
+            (spec (assq-ref params 'spec))        ;optional
             ;; 'nr parameter is mandatory to limit query size.
             (nr (assq-ref params 'nr)))
        (if nr
@@ -900,11 +922,7 @@ passed, only display JOBS targeting this SYSTEM."
                        (db-get-specifications)
                        evals
                        (db-get-evaluations-absolute-summary
-                        (map (lambda (e)
-                               `((#:id . ,(assq-ref
-                                           (assq-ref e #:evaluation)
-                                           #:id))))
-                             evals))
+                        (map evaluation-id evals))
                        ;; Get all the latest evaluations, regardless of their
                        ;; status.
                        (db-get-latest-evaluations #:status #f)))
@@ -912,13 +930,12 @@ passed, only display JOBS targeting this SYSTEM."
     (('GET "dashboard" id)
      (let ((dashboard (db-get-dashboard id)))
        (if dashboard
-           (let* ((spec (assq-ref dashboard #:specification))
+           (let* ((spec (dashboard-specification-name dashboard))
                   (evaluations (db-get-latest-evaluations))
                   (evaluation
                    (any (lambda (eval)
-                          (and (string=? (assq-ref eval #:specification)
-                                         spec)
-                               (assq-ref eval #:evaluation)))
+                          (string=? (evaluation-specification-name eval)
+                                    spec))
                         evaluations))
                   (uri
                    (string->uri-reference
@@ -1047,8 +1064,9 @@ passed, only display JOBS targeting this SYSTEM."
              "Search results"
              (build-search-results-table
               query
-              (vector->list
-               (handle-builds-search-request
+              (with-time-logging
+               "job search request"
+               (db-get-builds-by-search
                 `((query . ,query)
                   (nr . ,%page-size)
                   (order . finish-time+build-id)
@@ -1144,9 +1162,8 @@ passed, only display JOBS targeting this SYSTEM."
        "Workers status"
        (let* ((workers (db-get-workers))
               (builds (db-worker-current-builds))
-              (builds*
-               (db-get-build-percentages builds)))
-         (workers-status workers builds*))
+              (percentages (db-get-build-percentages builds)))
+         (workers-status workers builds percentages))
        '())))
 
     (('GET "metrics")
