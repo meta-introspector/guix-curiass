@@ -161,6 +161,12 @@ TESTS = \
   tests/remote.scm \
   tests/utils.scm
 
+# Compiler warning flags.
+GUILE_WARNINGS =					\
+   -Wformat -Wunbound-variable -Warity-mismatch		\
+   -Wshadowed-toplevel -Wmacro-use-before-definition	\
+   -Wbad-case-datum -Wduplicate-case-datum # -Wunused-variable
+
 # Unset 'GUILE_LOAD_COMPILED_PATH' altogether while compiling.  Otherwise, if
 # $GUILE_LOAD_COMPILED_PATH contains $(pkgmoduledir), we may find .go files in
 # there that are newer than the local .scm files (for instance because the
@@ -174,10 +180,9 @@ TESTS = \
 	$(guilec_verbose)$(MKDIR_P) `dirname "$@"`; \
 	export GUILE_AUTO_COMPILE=0 ; unset GUILE_LOAD_COMPILED_PATH; \
 	LC_ALL=C \
-	$(top_builddir)/pre-inst-env $(GUILD) compile \
-	  --load-path="$(top_builddir)/src" \
-	  --load-path="$(top_srcdir)/src" \
-	  --warn=format --warn=unbound-variable --warn=arity-mismatch \
+	$(top_builddir)/pre-inst-env $(GUILD) compile			\
+	  -L "$(top_builddir)/src" -L "$(top_srcdir)/src"		\
+	  $(GUILE_WARNINGS)						\
 	  --target="$(host)" --output="$@" "$<" $(devnull_verbose)
 
 CLEANFILES =					\
