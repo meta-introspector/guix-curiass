@@ -57,7 +57,7 @@
   #:use-module (srfi srfi-37)
   #:use-module (ice-9 atomic)
   #:use-module (ice-9 match)
-  #:use-module ((ice-9 threads) #:select (current-processor-count))
+  #:use-module (ice-9 threads)
   #:export (cuirass-remote-worker))
 
 ;; Indicate if the process has to be stopped.
@@ -469,25 +469,31 @@ exiting."
 
         (let ((management-channel (make-channel)))
           (unless server-address
-            (avahi-browse-service-thread
-             (lambda (action service)
-               (log-info (N_ "discovered build server at ~a, creating ~a worker"
-                             "discovered build server at ~a, creating ~a workers"
-                             workers)
-                         (avahi-service-local-address service)
-                         workers)
-               (case action
-                 ((new-service)
-                  (put-message management-channel
-                               `(start-workers ,workers
-                                               ,(avahi-service->server service)
-                                               ,(avahi-service-local-address
-                                                 service)))
-                  (atomic-box-set! %stop-process? #t))))
-             #:ignore-local? #f
-             #:types (list remote-server-service-type)
-             #:stop-loop? (lambda ()
-                            (atomic-box-ref %stop-process?))))
+            (log-info (G_ "enabling server discovery with Avahi, type '~a'~%")
+                      remote-server-service-type)
+            (call-with-new-thread
+             (lambda ()
+               ;; XXX: Contrary to what one might think, this procedure does
+               ;; *not* spawn a new thread.
+               (avahi-browse-service-thread
+                (lambda (action service)
+                  (log-info (N_ "discovered build server at ~a, creating ~a worker"
+                                "discovered build server at ~a, creating ~a workers"
+                                workers)
+                            (avahi-service-local-address service)
+                            workers)
+                  (case action
+                    ((new-service)
+                     (put-message management-channel
+                                  `(start-workers ,workers
+                                                  ,(avahi-service->server service)
+                                                  ,(avahi-service-local-address
+                                                    service)))
+                     (atomic-box-set! %stop-process? #t))))
+                #:ignore-local? #f
+                #:types (list remote-server-service-type)
+                #:stop-loop? (lambda ()
+                               (atomic-box-ref %stop-process?))))))
 
           (run-fibers
            (lambda ()
