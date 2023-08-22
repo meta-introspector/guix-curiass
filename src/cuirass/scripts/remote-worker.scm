@@ -366,7 +366,9 @@ and executing them.  The worker can reply on the same socket."
          (spawn-worker-ping worker server)
          (let loop ()
            (if (low-disk-space?)
-               (log-info (G_ "warning: low disk space, doing nothing"))
+               (begin
+                 (log-info (G_ "warning: low disk space, doing nothing"))
+                 (sleep (%request-period)))
                (begin
                  (log-info (G_ "~a: request work.") (worker-name wrk))
                  (request-work socket worker)
