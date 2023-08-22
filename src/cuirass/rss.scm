@@ -137,7 +137,6 @@ list ATTRS and the child nodes in BODY."
 (define* (build->rss-item build)
   "Convert BUILD into an RSS <item> node."
   (let* ((url (build-details-url build))
-         (id (build-id build))
          (job-name (build-job-name build))
          (specification (build-specification-name build))
          (weather (build-current-weather build))

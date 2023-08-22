@@ -239,9 +239,6 @@
   (lambda (s)
     ;; Expand to an 'exec-query' call where the query string has
     ;; interspersed question marks and the argument list is separate.
-    (define (string-literal? s)
-      (string? (syntax->datum s)))
-
     (define (interleave a b)
       (if (null? b)
           (list (car a))

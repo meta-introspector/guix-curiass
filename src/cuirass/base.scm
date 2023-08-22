@@ -508,11 +508,6 @@ updating the database accordingly."
     (_
      (log-debug "build event: ~s" event))))
 
-(define (build-derivation=? build1 build2)
-  "Return true if BUILD1 and BUILD2 correspond to the same derivation."
-  (string=? (build-derivation build1)
-            (build-derivation build2)))
-
 (define (clear-build-queue)
   "Reset the status of builds in the database that are marked as \"started\".
 This procedure is meant to be called at startup."

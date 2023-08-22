@@ -415,9 +415,7 @@ system whose names start with " (code "guile-") ":" (br)
                      (td
                       ,@(let* ((name (specification-name spec))
                                (dashboard-name
-                                (string-append "Dashboard " name))
-                               (eval (and=> (spec->latest-eval-ok name)
-                                            (cut assq-ref <> #:evaluation))))
+                                (string-append "Dashboard " name)))
                           `((a (@ (href "/eval/latest/dashboard?spec="
                                         ,(uri-encode name)))
                                (div
@@ -1020,7 +1018,7 @@ the existing SPEC otherwise."
                                      (string-append "Options evaluation "
                                                     (number->string id))))
                                 `(div
-                                  (@ (id ,id)
+                                  (@ (id ,dropdown-id)
                                      (title ,name)
                                      (aria-label ,name)
                                      (class "dropdown d-inline-block ml-2"))
