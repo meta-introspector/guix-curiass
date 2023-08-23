@@ -883,6 +883,11 @@ the existing SPEC otherwise."
     (if (string=? changes "") '(em "None") changes)))
 
 (define (evaluation-badges evaluation absolute)
+  (define (dashboard-link body)
+    `(a (@ (href "/eval/" ,(build-summary-evaluation-id evaluation)
+                 "/dashboard"))
+        ,body))
+
   (let ((status (build-summary-status evaluation)))
     (if (= status (evaluation-status started))
         '((em "In progress…"))
@@ -904,18 +909,21 @@ the existing SPEC otherwise."
          ((= status (evaluation-status succeeded))
           `((div
              (@ (class "job-abs d-none"))
-             ,(successful-build-badge
-               (if absolute
-                   (evaluation-summary-succeeded absolute)
-                   0))
-             ,(failed-build-badge
-               (if absolute
-                   (evaluation-summary-failed absolute)
-                   0))
-             ,(scheduled-build-badge
-               (if absolute
-                   (evaluation-summary-scheduled absolute)
-                   0)))
+             ,(dashboard-link
+               (successful-build-badge
+                (if absolute
+                    (evaluation-summary-succeeded absolute)
+                    0)))
+             ,(dashboard-link
+               (failed-build-badge
+                (if absolute
+                    (evaluation-summary-failed absolute)
+                    0)))
+             ,(dashboard-link
+               (scheduled-build-badge
+                (if absolute
+                    (evaluation-summary-scheduled absolute)
+                    0))))
             (div
              (@ (class "job-rel"))
              ,(successful-build-badge (build-summary-succeeded evaluation)
