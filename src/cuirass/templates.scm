@@ -1127,7 +1127,6 @@ and BUILD-MAX are global minimal and maximal (stoptime, rowid) pairs."
        (th (@ (scope "col") (class "border-0")) '())
        (th (@ (scope "col") (class "border-0")) '())
        (th (@ (scope "col") (class "border-0")) "ID")
-       (th (@ (scope "col") (class "border-0")) "Specification")
        (th (@ (scope "col") (class "border-0")) "Completion time")
        (th (@ (scope "col") (class "border-0")) "Job")
        (th (@ (scope "col") (class "border-0")) "Name")
@@ -1153,7 +1152,6 @@ and BUILD-MAX are global minimal and maximal (stoptime, rowid) pairs."
       (th (@ (scope "row"))
           (a (@ (href "/build/" ,(build-id build) "/details"))
              ,(build-id build)))
-      (td ,(build-specification-name build))
       (td ,(if (completed? status)
                (time->string (build-completion-time build))
                "—"))
@@ -1316,9 +1314,11 @@ evaluation."
   (define scheduled (evaluation-summary-scheduled evaluation))
 
   (define duration  (- evaltime timestamp))
+  (define spec      (evaluation-specification-name (db-get-evaluation id)))
 
   `((p (@ (class "lead"))
-       ,(format #f "Evaluation #~a" id))
+       "Evaluation #" ,(number->string id)
+       ", " (a (@ (href "/jobset/" ,spec)) ,spec) " jobset")
     ,@(if (= timestamp 0)
           '()
           `((p ,(if (= evaltime 0)
