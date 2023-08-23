@@ -104,101 +104,101 @@
   (define finished?
     (>= (build-current-status build) 0))
 
-  `((#:id . ,(build-id build))
-    (#:evaluation . ,(build-evaluation-id build))
-    (#:jobset . ,(build-specification-name build))
-    (#:job . ,(build-job-name build))
+  `((id . ,(build-id build))
+    (evaluation . ,(build-evaluation-id build))
+    (jobset . ,(build-specification-name build))
+    (job . ,(build-job-name build))
 
     ;; Hydra's API uses "timestamp" as the time of the last useful event for
     ;; that build: evaluation or completion.
-    (#:timestamp . ,(if finished?
-                        (build-completion-time build)
-                        (build-creation-time build)))
+    (timestamp . ,(if finished?
+                      (build-completion-time build)
+                      (build-creation-time build)))
 
-    (#:starttime . ,(build-start-time build))
-    (#:stoptime . ,(build-completion-time build))
-    (#:derivation . ,(build-derivation build))
-    (#:buildoutputs . ,(map (lambda (output)
-                              (list (output-name output)
-                                    (cons "path"
-                                          (output-item output))))
-                            (build-outputs build)))
-    (#:system . ,(build-system build))
-    (#:nixname . ,(build-nix-name build))
-    (#:buildstatus . ,(build-current-status build))
-    (#:weather . ,(build-current-weather build))
-    (#:busy . ,(bool->int (eqv? (build-status started)
-                                (build-current-status build))))
-    (#:priority . ,(build-priority build))
-    (#:finished . ,(bool->int finished?))
-    (#:buildproducts . ,(list->vector (build-products build)))))
+    (starttime . ,(build-start-time build))
+    (stoptime . ,(build-completion-time build))
+    (derivation . ,(build-derivation build))
+    (buildoutputs . ,(map (lambda (output)
+                            (list (output-name output)
+                                  (cons "path"
+                                        (output-item output))))
+                          (build-outputs build)))
+    (system . ,(build-system build))
+    (nixname . ,(build-nix-name build))
+    (buildstatus . ,(build-current-status build))
+    (weather . ,(build-current-weather build))
+    (busy . ,(bool->int (eqv? (build-status started)
+                              (build-current-status build))))
+    (priority . ,(build-priority build))
+    (finished . ,(bool->int finished?))
+    (buildproducts . ,(list->vector (build-products build)))))
 
 (define (evaluation->json-object evaluation)
   "Turn EVALUATION into a representation suitable for 'json->scm'."
-  `((#:id . ,(evaluation-id evaluation))
-    (#:specification . ,(evaluation-specification-name evaluation))
-    (#:status . ,(evaluation-current-status evaluation))
-    (#:timestamp . ,(evaluation-completion-time evaluation))
-    (#:checkouttime . ,(evaluation-checkout-time evaluation))
-    (#:evaltime . ,(evaluation-start-time evaluation))
-    (#:checkouts
+  `((id . ,(evaluation-id evaluation))
+    (specification . ,(evaluation-specification-name evaluation))
+    (status . ,(evaluation-current-status evaluation))
+    (timestamp . ,(evaluation-completion-time evaluation))
+    (checkouttime . ,(evaluation-checkout-time evaluation))
+    (evaltime . ,(evaluation-start-time evaluation))
+    (checkouts
      . ,(list->vector
          (map (lambda (checkout)
-                `((#:commit . ,(checkout-commit checkout))
-                  (#:channel . ,(checkout-channel checkout))
-                  (#:directory . ,(checkout-directory checkout))))
+                `((commit . ,(checkout-commit checkout))
+                  (channel . ,(checkout-channel checkout))
+                  (directory . ,(checkout-directory checkout))))
               (evaluation-checkouts evaluation))))))
 
 (define (specification->json-object spec)
   "Turn SPEC into a representation suitable for 'json->scm'."
   (define (channel->json-object channel)
-    `((#:name . ,(channel-name channel))
-      (#:url . ,(channel-url channel))
-      (#:branch . ,(channel-branch channel))
-      (#:commit . ,(channel-commit channel))))
+    `((name . ,(channel-name channel))
+      (url . ,(channel-url channel))
+      (branch . ,(channel-branch channel))
+      (commit . ,(channel-commit channel))))
 
   (define (build-output->json-object build-output)
-    `((#:job . ,(build-output-job build-output))
-      (#:type . ,(build-output-type build-output))
-      (#:output . ,(build-output-output build-output))
-      (#:path . ,(build-output-path build-output))))
+    `((job . ,(build-output-job build-output))
+      (type . ,(build-output-type build-output))
+      (output . ,(build-output-output build-output))
+      (path . ,(build-output-path build-output))))
 
   (define (notification->json-object notif)
     (cond
      ((email? notif)
-      `((#:type . email)
-        (#:from . ,(email-from notif))
-        (#:to . ,(email-to notif))
-        (#:server . ,(email-server notif))))
+      `((type . email)
+        (from . ,(email-from notif))
+        (to . ,(email-to notif))
+        (server . ,(email-server notif))))
      ((mastodon? notif)
-      `((#:type . mastodon)))))
+      `((type . mastodon)))))
 
-  `((#:name . ,(specification-name spec))
-    (#:build . ,(specification-build spec))
-    (#:channels . ,(list->vector
-                    (map channel->json-object
-                         (specification-channels spec))))
-    (#:build-outputs . ,(list->vector
-                         (map build-output->json-object
-                              (specification-build-outputs spec))))
-    (#:notifications . ,(list->vector
-                         (map notification->json-object
-                              (specification-notifications spec))))
-    (#:period . ,(specification-period spec))
-    (#:priority . ,(specification-priority spec))
-    (#:systems . ,(list->vector
-                   (specification-systems spec)))))
+  `((name . ,(specification-name spec))
+    (build . ,(specification-build spec))
+    (channels . ,(list->vector
+                  (map channel->json-object
+                       (specification-channels spec))))
+    (build-outputs . ,(list->vector
+                       (map build-output->json-object
+                            (specification-build-outputs spec))))
+    (notifications . ,(list->vector
+                       (map notification->json-object
+                            (specification-notifications spec))))
+    (period . ,(specification-period spec))
+    (priority . ,(specification-priority spec))
+    (systems . ,(list->vector
+                 (specification-systems spec)))))
 
 (define (jobs-history->json-object history)
   "Turn HISTORY into a representation suitable for 'json->scm'."
-  (object->json-string
+  (scm->json-string
    (list->vector
     (map (lambda (eval)
-           `((#:evaluation . ,(assq-ref eval #:evaluation))
-             (#:checkouts . ,(list->vector
-                              (assq-ref eval #:checkouts)))
-             (#:jobs . ,(list->vector
-                         (assq-ref eval #:jobs)))))
+           `((evaluation . ,(assq-ref eval #:evaluation))
+             (checkouts . ,(list->vector
+                            (assq-ref eval #:checkouts)))
+             (jobs . ,(list->vector
+                       (assq-ref eval #:jobs)))))
          history))))
 
 (define (handle-build-request build-id)
@@ -530,7 +530,7 @@ passed, only display JOBS targeting this SYSTEM."
      (build-response #:headers '((content-type . (application/json)))
                      #:code error-code)
      #:body
-     (object->json-string
+     (scm->json-string
       `((error . ,message)))))
 
   (define (redirect ref)
@@ -734,7 +734,7 @@ passed, only display JOBS targeting this SYSTEM."
         #:body "")))
 
     (('GET (or "jobsets" "specifications") . rest)
-     (respond-json (object->json-string
+     (respond-json (scm->json-string
                     (list->vector
                      (map specification->json-object
                           (db-get-specifications))))))
@@ -761,7 +761,7 @@ passed, only display JOBS targeting this SYSTEM."
             (hydra-build (and build
                               (handle-build-request build))))
        (if hydra-build
-           (respond-json (object->json-string hydra-build))
+           (respond-json (scm->json-string hydra-build))
            (respond-build-not-found id))))
     (('GET "build" (= string->number id) "details")
      (let* ((build (and id (db-get-build id)))
@@ -801,18 +801,18 @@ passed, only display JOBS targeting this SYSTEM."
        (if output
            (let ((build (db-get-build (output-derivation output))))
              (respond-json
-              (object->json-string
-               `((#:name . ,(output-name output))
-                 (#:derivation . ,(output-derivation output))
-                 (#:build . ,(or (and=> build build->hydra-build)
-                                 #nil))))))
+              (scm->json-string
+               `((name . ,(output-name output))
+                 (derivation . ,(output-derivation output))
+                 (build . ,(or (and=> build build->hydra-build)
+                               #nil))))))
            (respond-output-not-found id))))
     (('GET "api" "jobs")
      (let* ((params (request-parameters request))
             (eval-id (assq-ref params 'evaluation)))
        (if eval-id
            (respond-json
-            (object->json-string
+            (scm->json-string
              (list->vector
               (map job->alist
                    (db-get-jobs eval-id
@@ -853,8 +853,8 @@ passed, only display JOBS targeting this SYSTEM."
          (let ((id (db-register-dashboard spec names)))
            (if id
                (respond-json
-                (object->json-string
-                 `((#:id . ,id))))
+                (scm->json-string
+                 `((id . ,id))))
                (respond-json-with-error
                 500
                 "Failed to register the dashboard")))))))
@@ -862,7 +862,7 @@ passed, only display JOBS targeting this SYSTEM."
      (let* ((params (request-parameters request))
             (id (assq-ref params 'id)))
        (if id
-           (respond-json (object->json-string
+           (respond-json (scm->json-string
                           (evaluation->json-object
                            (db-get-evaluation id))))
            (respond-json-with-error 500 "Parameter not defined!"))))
@@ -872,7 +872,7 @@ passed, only display JOBS targeting this SYSTEM."
             ;; 'nr parameter is mandatory to limit query size.
             (nr (assq-ref params 'nr)))
        (if nr
-           (respond-json (object->json-string
+           (respond-json (scm->json-string
                           (list->vector
                            (map evaluation->json-object
                                 (db-get-evaluations nr spec)))))
@@ -893,7 +893,7 @@ passed, only display JOBS targeting this SYSTEM."
          ;; time to complete.  Ordering by timestamp wouldn't work as
          ;; evaluations are not always performed sequentially.
          (respond-json
-          (object->json-string
+          (scm->json-string
            (handle-builds-request `((status . done)
                                     ,@params
                                     (order . evaluation)))))))))
@@ -908,7 +908,7 @@ passed, only display JOBS targeting this SYSTEM."
          (respond-json-with-error 500 "Maximum limit exceeded"))
         (else
          (respond-json
-          (object->json-string
+          (scm->json-string
            ;; Use the 'status+submission-time' order so that builds in
            ;; 'running' state appear before builds in 'scheduled' state.
            (handle-builds-request `((status . pending)

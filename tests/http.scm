@@ -1,6 +1,6 @@
 ;;; http.scm -- tests for (cuirass http) module
 ;;; Copyright © 2016 Mathieu Lirzin <mthl@gnu.org>
-;;; Copyright © 2017, 2018, 2019, 2020 Ludovic Courtès <ludo@gnu.org>
+;;; Copyright © 2017, 2018, 2019, 2020, 2023 Ludovic Courtès <ludo@gnu.org>
 ;;; Copyright © 2017, 2020, 2021 Mathieu Othacehe <othacehe@gnu.org>
 ;;; Copyright © 2018 Clément Lassieur <clement@lassieur.org>
 ;;;
@@ -53,34 +53,34 @@
   (string-append "http://localhost:6688" route))
 
 (define build-query-result
-  '((#:id . 1)
-    (#:evaluation . 1)
-    (#:jobset . "guix")
-    (#:job . "fake-job")
-    (#:timestamp . 1501347493)
-    (#:starttime . 1501347493)
-    (#:stoptime . 1501347493)
-    (#:derivation . "/gnu/store/fake.drv")
-    (#:buildoutputs . ((out ("path" . "/gnu/store/fake-1.0"))))
-    (#:system . "x86_64-linux")
-    (#:nixname . "fake-1.0")
-    (#:buildstatus . 0)
-    (#:weather . -1)
-    (#:busy . 0)
-    (#:priority . 9)
-    (#:finished . 1)
-    (#:buildproducts . #())))
+  '((id . 1)
+    (evaluation . 1)
+    (jobset . "guix")
+    (job . "fake-job")
+    (timestamp . 1501347493)
+    (starttime . 1501347493)
+    (stoptime . 1501347493)
+    (derivation . "/gnu/store/fake.drv")
+    (buildoutputs . ((out ("path" . "/gnu/store/fake-1.0"))))
+    (system . "x86_64-linux")
+    (nixname . "fake-1.0")
+    (buildstatus . 0)
+    (weather . -1)
+    (busy . 0)
+    (priority . 9)
+    (finished . 1)
+    (buildproducts . #())))
 
 (define evaluations-query-result
-  #(((#:id . 2)
-     (#:specification . "guix")
-     (#:status . -1)
-     (#:timestamp . 1501347493)
-     (#:checkouttime . 0)
-     (#:evaltime . 0)
-     (#:checkouts . #(((#:commit . "fakesha2")
-                       (#:channel . "guix")
-                       (#:directory . "dir3")))))))
+  #(((id . 2)
+     (specification . "guix")
+     (status . -1)
+     (timestamp . 1501347493)
+     (checkouttime . 0)
+     (evaltime . 0)
+     (checkouts . #(((commit . "fakesha2")
+                     (channel . "guix")
+                     (directory . "dir3")))))))
 
 (test-group-with-cleanup "http"
   (test-assert "object->json-string"
@@ -207,7 +207,7 @@
           (http-get-body (test-cuirass-uri "/build/1")))
        json->scm)
      (call-with-input-string
-         (object->json-string build-query-result)
+         (scm->json-string build-query-result)
        json->scm)))
 
   (test-equal "/build/42"
@@ -247,7 +247,7 @@
       (#(build)
        (lset= equal? build
               (json-string->scm
-               (object->json-string build-query-result))))))
+               (scm->json-string build-query-result))))))
 
   (test-equal "/api/latestbuilds?nr=1&jobset=gnu"
     #()                              ;the result should be an empty JSON array
@@ -276,7 +276,7 @@
 
   (test-equal "/api/evaluations?nr=1"
     (json-string->scm
-     (object->json-string evaluations-query-result))
+     (scm->json-string evaluations-query-result))
     (json-string->scm
      (utf8->string
       (http-get-body (test-cuirass-uri "/api/evaluations?nr=1")))))
