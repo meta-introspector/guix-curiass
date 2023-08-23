@@ -1712,15 +1712,26 @@ completed builds divided by the time required to build them.")
                          #:labels '("Pending builds")
                          #:colors (list "#3e95cd")))))
 
+(define system->color-class
+  (let ((alist (map cons
+                    %supported-systems
+                    (circular-list "" "bg-success"
+                                   "bg-info" "bg-warning"
+                                   "bg-danger"))))
+    (lambda (system)
+      "Return a Bootstrap color class for SYSTEM, a system type such as
+\"x86_64-linux\"."
+      (or (assoc-ref alist system) ""))))
+
 (define (workers-status workers builds percentages)
   (define (machine-row machine)
-    (let* ((workers (sort (filter-map
-                           (lambda (worker)
-                             (and (string=? (worker-machine worker)
-                                            machine)
-                                  (worker-name worker)))
-                           workers)
-                          string<?)))
+    (let* ((workers (sort (filter (lambda (worker)
+                                    (string=? (worker-machine worker)
+                                              machine))
+                                  workers)
+                          (lambda (w1 w2)
+                            (string<? (worker-name w1)
+                                      (worker-name w2))))))
       `(div (@ (class "col-sm-4 mt-3"))
             (a (@(href "/machine/" ,machine))
                (h6 ,machine))
@@ -1728,8 +1739,10 @@ completed builds divided by the time required to build them.")
                     (define build
                       (find (lambda (build)
                               (and (build-worker build)
-                                   (string=? (build-worker build) worker)))
+                                   (string=? (build-worker build)
+                                             (worker-name worker))))
                             builds))
+
                     (define percentage
                       (and build (assq-ref percentages build)))
 
@@ -1740,7 +1753,12 @@ completed builds divided by the time required to build them.")
                                              0))))
                       `(div (@ (class "progress mt-1")
                                (style "height: 20px"))
-                            (div (@ (class "progress-bar")
+                            (div (@ (class
+                                      "progress-bar "
+                                      ,(system->color-class
+                                        (if build
+                                            (build-system build)
+                                            (first (worker-systems worker)))))
                                     (role "progressbar")
                                     (style ,style)
                                     (aria-valuemin "0")
