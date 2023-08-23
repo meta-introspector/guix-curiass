@@ -83,27 +83,6 @@
                      (directory . "dir3")))))))
 
 (test-group-with-cleanup "http"
-  (test-assert "object->json-string"
-    (lset= equal?
-           (call-with-input-string
-               (string-append "{"
-                              "\"boolean\" : false,"
-                              "\"string\" : \"guix\","
-                              "\"alist\" : {\"subset\" : \"hello\"},"
-                              "\"list\" : [1, \"2\", \"three\"],"
-                              "\"symbol\" : \"hydra-jobs\","
-                              "\"number\" : 1"
-                              "}")
-             json->scm)
-           (call-with-input-string
-               (object->json-string '((#:number . 1)
-                                      (string . "guix")
-                                      ("symbol" . hydra-jobs)
-                                      (#:alist . ((subset . "hello")))
-                                      (list . #(1 "2" #:three))
-                                      ("boolean" . #f)))
-             json->scm)))
-
   (test-assert "db-init"
     (begin
       (test-init-db!)
