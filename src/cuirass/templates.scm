@@ -1324,16 +1324,15 @@ evaluation."
           `((p ,(if (= evaltime 0)
                      (format #f "Evaluation started ~a."
                              (time->string timestamp))
-                     (format #f "Evaluation completed ~a in ~a."
+                     (format #f "Completed ~a in ~a."
                              (time->string evaltime)
                              (seconds->string duration))))))
     ,(checkout-table checkouts channels)
 
     (p (@ (class "lead"))
-       ,(format #f "~@[~a~] ~:[B~;b~]uilds of evaluation #~a"
+       ,(format #f "~@[~a~] ~:[B~;b~]uilds"
                 (and=> status string-capitalize)
-                status
-                id)
+                status)
        "  "
        (a (@ (class "oi oi-monitor mr-2")
              (style "font-size:0.8em")
