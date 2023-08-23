@@ -36,7 +36,8 @@
 (define %state
   (seed->random-state %seed))
 
-(define* (random-computed-file #:optional (suffix ""))
+(define* (random-computed-file #:optional (suffix "")
+                               multiple-outputs?)
   (let ((nonce (random 1e6 %state)))
     (computed-file (string-append "random" suffix)
                    #~(let ((delay #$(random 60 %state))
@@ -49,17 +50,27 @@
                        (when fail?
                          (error "we're faillliiiiing!"))
                        #$nonce
-                       (mkdir #$output)))))
+                       #$(if multiple-outputs?
+                             #~(begin
+                                 (mkdir #$output:first)
+                                 (mkdir #$output:second))
+                             #~(mkdir #$output))))))
 
 
 (when (zero? (random 7 %state))
   (error "Evaluation is failing!"))
 
 (manifest
- (unfold (cut > <> 10)
+ (unfold (cut > <> 15)
          (lambda (i)
-           (let ((suffix (number->string i)))
+           (let* ((multiple-outputs? (zero? (modulo i 5)))
+                  (suffix (string-append
+                           (if multiple-outputs?
+                               "multiple-outputs"
+                               "")
+                           (number->string i))))
              (make-job (string-append "entropy-" suffix)
-                       (random-computed-file suffix))))
+                       (random-computed-file suffix
+                                             multiple-outputs?))))
          1+
          0))
