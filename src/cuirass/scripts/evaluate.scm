@@ -134,23 +134,30 @@ registered in database."
                   (profile (channel-instances->profile instances))
                   (build (specification-build spec))
                   (systems (specification-systems spec)))
+             (define statuses
+               ;; Evaluate jobs on a per-system basis for two reasons.  It
+               ;; speeds up the evaluation as the evaluations can be performed
+               ;; concurrently.  It also decreases the amount of memory needed
+               ;; per evaluation process.
+               (n-par-map
+                (min (length systems) (current-processor-count))
+                (lambda (system)
+                  (with-store store
+                    (inferior-evaluation store profile
+                                         #:eval-id eval-id
+                                         #:instances instances
+                                         #:spec spec
+                                         #:build build
+                                         #:systems (list system))
+                    'success))
+                systems))
 
-             ;; Evaluate jobs on a per-system basis for two reasons.  It
-             ;; speeds up the evaluation as the evaluations can be performed
-             ;; concurrently.  It also decreases the amount of memory needed
-             ;; per evaluation process.
-             (n-par-for-each
-              (min (length systems) (current-processor-count))
-              (lambda (system)
-                (with-store store
-                  (inferior-evaluation store profile
-                                       #:eval-id eval-id
-                                       #:instances instances
-                                       #:spec spec
-                                       #:build build
-                                       #:systems (list system))))
-              systems)
-             (display 'done)))))
+             ;; Display something if and only if all the evaluations succeeded
+             ;; ('n-par-map' swallows exceptions, hence this trick.)  'cuirass
+             ;; register' equates "no message on stdout" with evaluation
+             ;; failure.
+             (when (equal? statuses (map (const 'success) systems))
+               (display 'done))))))
     (x
      (format (current-error-port) "Wrong command: ~a~%." x)
      (exit 1))))
