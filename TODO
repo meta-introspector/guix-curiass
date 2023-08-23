@@ -31,10 +31,6 @@
 
 With client-side JS; folding of build phases, etc.
 
-* Replace alists with records
-
-Similar to what =define-json-mapping= does.
-
 * Add Guix Build Coordinator backend
 
 * Use Spritely Goblins
