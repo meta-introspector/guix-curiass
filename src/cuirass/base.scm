@@ -564,6 +564,7 @@ OUTPUTS, a list of <build-output> records."
                                (find-product build build-output))))
                 (when (and file (file-exists? file))
                   (log-info "Adding build product ~a" file)
+                  (register-gc-root file)
                   (db-add-build-product
                    (build-product
                     (build-id (build-id build))
