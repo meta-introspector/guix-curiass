@@ -1166,13 +1166,6 @@ log file for DRV."
   (define now
     (time-second (current-time time-utc)))
 
-  (define status-names
-    `((,(build-status succeeded)         . "succeeded")
-      (,(build-status failed)            . "failed")
-      (,(build-status failed-dependency) . "failed (dependency)")
-      (,(build-status failed-other)      . "failed (other)")
-      (,(build-status canceled)          . "canceled")))
-
   (with-db-worker-thread db
     (if (or (= status (build-status started))
             (= status (build-status submitted)))
