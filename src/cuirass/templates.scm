@@ -1436,7 +1436,7 @@ and BUILD-MAX are global minimal and maximal row identifiers."
       (th (@ (scope "row"))
           (a (@ (href "/build/" ,(build-id build) "/details"))
              ,(build-id build)))
-      (td ,(build-job-name build))
+      (td ,(build-specification-name build))
       (td ,(if (completed? status)
                (time->string (build-completion-time build))
                "—"))
