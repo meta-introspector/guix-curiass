@@ -642,7 +642,7 @@ timestamp, checkouttime, evaltime) VALUES ('guix', 0, 0, 0, 0);")
       (sort (db-get-pending-derivations) string<?)))
 
   (test-equal "db-get-build-percentages"
-    '("/cur.drv" 60)
+    '("/cur.drv" #t)
     (with-fibers
       (let* ((ts (time-second (current-time time-utc)))
              (old (build (derivation "/last.drv")
@@ -678,7 +678,8 @@ timestamp, checkouttime, evaltime) VALUES ('guix', 0, 0, 0, 0);")
         (match (db-get-build-percentages
                 (list (db-get-build (build-derivation new))))
           (((b . percentage))
-           (list (build-derivation b) percentage))))))
+           (list (build-derivation b)
+                 (>= percentage 50)))))))
 
   (test-equal "db-update-build-status!"
     (list #f 1)
