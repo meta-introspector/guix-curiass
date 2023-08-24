@@ -262,8 +262,8 @@ command.  REPLY is a procedure that can be used to reply to this server."
              ('max-silent max-silent)
              ('timestamp timestamp)
              ('system system))
-     (log-info (G_ "~a: building `~a' derivation.")
-               (worker-name worker) drv)
+     (log-info (G_ "~a: building derivation `~a' (system: ~a)")
+               (worker-name worker) drv system)
      (run-build drv server
                 #:reply reply
                 #:worker worker

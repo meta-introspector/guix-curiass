@@ -268,9 +268,10 @@ be used to reply to the worker."
                (db-update-build-status! derivation (build-status submitted))
                (reply-worker
                 (build-request-message derivation
-                                           #:priority priority
-                                           #:timeout timeout
-                                           #:max-silent max-silent)))
+                                       #:priority priority
+                                       #:timeout timeout
+                                       #:max-silent max-silent
+                                       #:system (build-system build))))
              (begin
                (when (and (%debug) worker)
                  (log-debug "~a (~a): no available build."
