@@ -1184,7 +1184,7 @@ passed, only display JOBS targeting this SYSTEM."
        (if path
            (respond-file path)
            (respond-json-with-error
-            500
+            404
             "Could not find the request build product."))))
 
     (('GET "machine" name)
