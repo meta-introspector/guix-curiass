@@ -1138,8 +1138,7 @@ and BUILD-MAX are global minimal and maximal (stoptime, rowid) pairs."
        (th (@ (scope "col") (class "border-0")) "Completion time")
        (th (@ (scope "col") (class "border-0")) "Job")
        (th (@ (scope "col") (class "border-0")) "Name")
-       (th (@ (scope "col") (class "border-0")) "System")
-       (th (@ (scope "col") (class "border-0")) "Log"))))
+       (th (@ (scope "col") (class "border-0")) "System"))))
 
   (define (table-row build)
     (define status
@@ -1149,10 +1148,13 @@ and BUILD-MAX are global minimal and maximal (stoptime, rowid) pairs."
       (build-current-weather build))
 
     `(tr
-      (td (span (@ (class ,(status-class status))
-                   (title ,(status-title status))
-                   (aria-hidden "true"))
-                ""))
+      (td (a (@ (class ,(status-class status))
+                (title ,(status-title status))
+                (aria-hidden "true")
+                ,@(if (completed-with-logs? status)
+                      `((href "/build/" ,(build-id build) "/log/raw"))
+                      '()))
+             ""))
       (td (span (@ (class ,(weather-class weather))
                    (title ,(weather-title weather))
                    (aria-hidden "true"))
@@ -1165,11 +1167,7 @@ and BUILD-MAX are global minimal and maximal (stoptime, rowid) pairs."
                "—"))
       (td ,(build-job-name build))
       (td ,(build-nix-name build))
-      (td ,(build-system build))
-      (td ,(if (completed-with-logs? status)
-               `(a (@ (href "/build/" ,(build-id build) "/log/raw"))
-                   "raw")
-               "—"))))
+      (td ,(build-system build))))
 
   (define (page-boundary-build-id build)
     (match build
@@ -1421,18 +1419,20 @@ and BUILD-MAX are global minimal and maximal row identifiers."
        (th (@ (scope "col")) "Completion time")
        (th (@ (scope "col")) "Job")
        (th (@ (scope "col")) "Name")
-       (th (@ (scope "col")) "System")
-       (th (@ (scope "col")) "Log"))))
+       (th (@ (scope "col")) "System"))))
 
   (define (table-row build)
     (define status
       (build-current-status build))
 
     `(tr
-      (td (span (@ (class ,(status-class status))
-                   (title ,(status-title status))
-                   (aria-hidden "true"))
-                ""))
+      (td (a (@ (class ,(status-class status))
+                (title ,(status-title status))
+                (aria-hidden "true")
+                ,@(if (completed-with-logs? status)
+                      `((href "/build/" ,(build-id build) "/log/raw"))
+                      '()))
+             ""))
       (th (@ (scope "row"))
           (a (@ (href "/build/" ,(build-id build) "/details"))
              ,(build-id build)))
@@ -1442,11 +1442,7 @@ and BUILD-MAX are global minimal and maximal row identifiers."
                "—"))
       (td ,(build-job-name build))
       (td ,(build-nix-name build))
-      (td ,(build-system build))
-      (td ,(if (completed-with-logs? status)
-               `(a (@ (href "/build/" ,(build-id build) "/log/raw"))
-                   "raw")
-               "—"))))
+      (td ,(build-system build))))
 
   `((p (@ (class "lead"))
        "Builds matching " (em ,query))
