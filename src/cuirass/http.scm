@@ -1180,12 +1180,19 @@ passed, only display JOBS targeting this SYSTEM."
        '())))
 
     (('GET "download" id)
-     (let ((path (db-get-build-product-path id)))
-       (if path
-           (respond-file path)
-           (respond-json-with-error
-            404
-            "Could not find the request build product."))))
+     (let ((file (db-get-build-product-path id))
+           (fail (lambda (code)
+                   (respond-json-with-error
+                    code "Could not find the requested build product."))))
+       (if file
+           (catch 'system-error
+             (lambda ()
+               (respond-file file #:ttl %static-file-ttl))
+             (lambda args
+               (if (= ENOENT (system-error-errno args))
+                   (fail 500)                  ;something's wrong: it vanished
+                   (apply throw args))))
+           (fail 404))))                          ;no such build product
 
     (('GET "machine" name)
      (respond-html
