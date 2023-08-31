@@ -36,7 +36,6 @@
             sexp->build-output
 
             channel->sexp
-            sexp->channel*
 
             %build-types
 
@@ -99,6 +98,7 @@
 
 (define (channel->sexp channel)
   "Return an sexp describing CHANNEL."
+  ;; XXX: This duplicates 'channel-instance->sexp' from (guix channels).
   (let ((intro (channel-introduction channel)))
     `(repository
       (version 0)
@@ -118,21 +118,6 @@
                    (channel-introduction-first-commit-signer
                     intro))))))
             '()))))
-
-(define (sexp->channel* sexp)
-  "Return the channel corresponding to SEXP."
-  (match sexp
-    (('repository ('version 0)
-                  ('url url)
-                  ('branch branch)
-                  ('commit commit)
-                  ('name name)
-                  rest ...)
-     (channel (name name)
-              (url url)
-              (branch branch)
-              (commit commit)))
-    (_ #f)))
 
 
 ;;;

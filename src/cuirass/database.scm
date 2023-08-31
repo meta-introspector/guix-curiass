@@ -610,7 +610,7 @@ FROM Specifications ORDER BY name ASC;")))
                        (name name)
                        (build (with-input-from-string build read))
                        (channels
-                        (map sexp->channel*
+                        (map sexp->channel
                              (with-input-from-string channels read)))
                        (build-outputs
                         (map sexp->build-output
