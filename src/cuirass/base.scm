@@ -326,6 +326,11 @@ Essentially this procedure inverts the inversion-of-control that
       (lambda ()
         (catch #t
           (lambda ()
+            ;; String I/O primitives are going to be used on PORT so make it
+            ;; Unicode-capable and resilient to encoding issues.
+            (set-port-encoding! output "UTF-8")
+            (set-port-conversion-strategy! output 'substitute)
+
             (guard (c ((store-error? c)
                        (atomic-box-set! result c)))
               (parameterize ((current-build-output-port output))
