@@ -126,8 +126,9 @@
                  (and paramfile (read-parameters paramfile))
 
                (if one-shot?
-                   (process-specs (db-get-specifications))
-                   (let ((exit-channel (make-channel)))
+                   (leave (G_ "'--one-shot' is currently unimplemented~%"))
+                   (let ((exit-channel (make-channel))
+                         (update-service (spawn-channel-update-service)))
                      (clear-build-queue)
 
                      ;; If Cuirass was stopped during an evaluation,
@@ -145,15 +146,9 @@
                        (lambda ()
                          (restart-builds))))
 
-                     (spawn-fiber
-                      (essential-task
-                       'build exit-channel
-                       (lambda ()
-                         (while #t
-                           (process-specs (db-get-specifications))
-                           (log-info
-                            "next evaluation in ~a seconds" interval)
-                           (sleep interval)))))
+                     ;; Spawn one monitoring actor for each jobset.
+                     (spawn-jobset-registry update-service
+                                            #:polling-period interval)
 
                      (spawn-fiber
                       (essential-task

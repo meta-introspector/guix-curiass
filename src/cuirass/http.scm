@@ -669,6 +669,10 @@ passed, only display JOBS targeting this SYSTEM."
             #:code 400)
            (begin
              (db-add-or-update-specification spec)
+             ;; FIXME: Notify the jobset registry in the 'cuirass register'
+             ;; process.
+             ;;
+             ;; (register-jobset jobset-registry spec)
              (respond
               (build-response #:code 302
                               #:headers
@@ -684,6 +688,8 @@ passed, only display JOBS targeting this SYSTEM."
        ;; XXX: It is not possible yet to edit build outputs and notifications
        ;; using the web interface.  Use the outputs and notifications from the
        ;; existing specification.
+
+       ;; FIXME: Notify the jobset registry in the 'cuirass register' process.
        (db-add-or-update-specification
         (specification
          (inherit spec)

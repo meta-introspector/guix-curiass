@@ -52,6 +52,7 @@
   #:use-module (ice-9 atomic)
   #:use-module (ice-9 ftw)
   #:use-module (ice-9 threads)
+  #:use-module (ice-9 vlist)
   #:use-module (srfi srfi-1)
   #:use-module (srfi srfi-11)
   #:use-module (srfi srfi-19)
@@ -73,7 +74,10 @@
             restart-builds
             build-packages
             prepare-git
-            process-specs
+            spawn-channel-update-service
+            spawn-jobset-registry
+            lookup-jobset
+            register-jobset
             evaluation-log-file
             latest-checkouts
 
@@ -653,87 +657,190 @@ different from the previous evaluation of SPEC)."
 (define exception-with-kind-and-args?
   (exception-predicate &exception-with-kind-and-args))
 
-(define (process-specs jobspecs)
-  "Evaluate and build JOBSPECS and store results in the database."
-  (define (new-eval? spec)
-    (let ((name (specification-name spec))
-          (period (specification-period spec)))
-      (or (= period 0)
-          (let ((time
-                 (db-get-time-since-previous-eval name)))
-            (cond
-             ((not time) #t)
-             ((> time period) #t)
-             (else #f))))))
+(define (channel-update-service channel)
+  "Return a thunk (an actor) that reads messages on CHANNEL and is responsible
+to update Git checkouts, effectively serializing all Git operations."
+  ;; Note: All Git operations are serialized when in fact it would be enough
+  ;; to serialize operations with the same URL (because they are cached in the
+  ;; same directory).
+  (define (fetch store channels)
+    (let/ec return
+      (with-exception-handler
+          (lambda (exception)
+            (if (exception-with-kind-and-args? exception)
+                (match (exception-kind exception)
+                  ('git-error
+                   (log-error "Git error while fetching channels from~{ ~a~}: ~a"
+                              (map channel-url channels)
+                              (git-error-message
+                               (first (exception-args exception)))))
+                  ('system-error
+                   (log-error "while processing '~a': ~s"
+                              (strerror
+                               (system-error-errno
+                                (cons 'system-error
+                                      (exception-args exception))))))
+                  (kind
+                   (log-error "uncaught '~a' exception: ~s"
+                              kind (exception-args exception))))
+                (log-error "uncaught exception: ~s" exception))
+            (return #f))
+        (lambda ()
+          (non-blocking
+           (latest-channel-instances* store channels))))))
 
-  (define (process spec)
+  (lambda ()
     (with-store store
-      (let* ((name (specification-name spec))
-             (timestamp (time-second (current-time time-utc)))
-             (channels (specification-channels spec))
-             (instances (non-blocking
-                         (log-info "fetching channels for spec '~a'" name)
-                         (latest-channel-instances* store channels)))
-             (new-channels (let ((channels (map channel-instance-channel
-                                                instances)))
-                             (log-info "fetched channels for '~a':~{ ~a~}"
-                                       name (map channel-name channels))
-                             channels))
-             (new-spec (specification
-                        (inherit spec)
-                        (channels new-channels))) ;include possible channel
-                                                  ;dependencies.
-             (checkouttime (time-second (current-time time-utc)))
-             (eval-id (db-add-evaluation name instances
-                                         #:timestamp timestamp
-                                         #:checkouttime checkouttime)))
-        (when eval-id
-          (spawn-fiber
-           (lambda ()
-             (guard (c ((evaluation-error? c)
-                        (log-error "failed to evaluate spec '~a'; see ~a"
-                                   (evaluation-error-spec-name c)
-                                   (evaluation-log-file
-                                    (evaluation-error-id c)))
-                        #f))
-               (log-info "evaluating spec '~a'" name)
+      (let loop ()
+        (match (get-message channel)
+          (`(fetch ,channels ,reply)
+           (log-info "fetching channels:~{ '~a'~}"
+                     (map channel-name channels))
+           (let ((result (fetch store channels)))
+             (if result
+                 (log-info "pulled commits~{ ~a~}"
+                           (zip (map (compose channel-name
+                                              channel-instance-channel)
+                                     result)
+                                (map channel-instance-commit result)))
+                 (log-info "failed to fetch channels~{ '~a'~}"
+                           (map channel-name channels)))
+             (put-message reply result))
+           (loop)))))))
 
-               ;; The LATEST-CHANNEL-INSTANCES procedure may return channel
-               ;; dependencies that are not declared in the initial
-               ;; specification channels.  Update the given SPEC to take
-               ;; them into account.
-               (db-add-or-update-specification new-spec)
-               (evaluate spec eval-id)
-               (db-set-evaluation-time eval-id)
-               (build-packages store eval-id))))
+(define (spawn-channel-update-service)
+  "Spawn an actor responsible for fetching the latest revisions of a set of Guix
+channels, and return its communication channel."
+  (let ((channel (make-channel)))
+    (spawn-fiber (channel-update-service channel))
+    channel))
 
-          ;; 'spawn-fiber' returns zero values but we need one.
-          *unspecified*))))
+(define* (jobset-monitor channel                  ;currently unused
+                         spec update-service
+                         #:key (polling-period 60))
+  (define period
+    (if (> (specification-period spec) 0)
+        (specification-period spec)
+        polling-period))
 
-  (for-each (lambda (spec)
-              ;; Catch Git errors, which might be transient, and keep going.
-              (let/ec return
-                (with-exception-handler
-                    (lambda (exception)
-                      (if (exception-with-kind-and-args? exception)
-                          (match (exception-kind exception)
-                            ('git-error
-                             (log-error "Git error while fetching inputs of '~a': ~a"
-                                        (specification-name spec)
-                                        (git-error-message
-                                         (first (exception-args exception)))))
-                            ('system-error
-                             (log-error "while processing '~a': ~s"
-                                        (strerror
-                                         (system-error-errno
-                                          (cons 'system-error
-                                                (exception-args exception))))))
-                            (kind
-                             (log-error "uncaught '~a' exception: ~s"
-                                        kind (exception-args exception))))
-                          (log-error "uncaught exception: ~s" exception))
-                      (return #f))
-                  (lambda ()
-                    (and (new-eval? spec)
-                         (process spec))))))
-            jobspecs))
+  (define name (specification-name spec))
+  (define channels (specification-channels spec))
+
+  (lambda ()
+    (log-info "starting monitor for spec '~a'" name)
+    (let loop ()
+      (let ((timestamp (time-second (current-time time-utc))))
+        (match (let ((reply (make-channel)))
+                 (log-info "fetching channels for spec '~a'" name)
+                 (put-message update-service
+                              `(fetch ,channels ,reply))
+                 (get-message reply))
+          (#f
+           (log-warning "failed to fetch channels for '~a'" name))
+          (instances
+           (log-info "fetched channels for '~a':~{ ~a~}"
+                     name (map channel-name channels))
+           (let* ((channels (map channel-instance-channel instances))
+                  (new-spec (specification
+                             (inherit spec)
+                             ;; Include possible channel dependencies
+                             (channels channels)))
+                  (checkouttime (time-second (current-time time-utc)))
+                  (eval-id (db-add-evaluation name instances
+                                              #:timestamp timestamp
+                                              #:checkouttime checkouttime)))
+
+             (when eval-id
+               (spawn-fiber
+                (lambda ()
+                  ;; TODO: Move this to an evaluation actor that limits
+                  ;; parallelism.
+                  (guard (c ((evaluation-error? c)
+                             (log-error "failed to evaluate spec '~a'; see ~a"
+                                        (evaluation-error-spec-name c)
+                                        (evaluation-log-file
+                                         (evaluation-error-id c)))
+                             #f))
+                    (log-info "evaluating spec '~a'" name)
+
+                    ;; The LATEST-CHANNEL-INSTANCES procedure may return channel
+                    ;; dependencies that are not declared in the initial
+                    ;; specification channels.  Update the given SPEC to take
+                    ;; them into account.
+                    (db-add-or-update-specification new-spec)
+                    (evaluate spec eval-id)
+                    (db-set-evaluation-time eval-id)
+                    (with-store/non-blocking store
+                      (build-packages store eval-id)))))
+
+               ;; 'spawn-fiber' returns zero values but we need one.
+               *unspecified*))))
+
+        (log-info "polling '~a' channels in ~a seconds" name period)
+        (sleep period)
+        (loop)))))
+
+(define* (spawn-jobset-monitor spec update-service
+                               #:key (polling-period 60))
+  "Spawn an actor responsible for monitoring the jobset corresponding to SPEC,
+a <specification> record, and return it.  The actor will send messages to
+UPDATE-SERVICE anytime it needs Guix channels to be updated, at most every
+POLLING-PERIOD seconds."
+  (let ((channel (make-channel)))
+    (spawn-fiber (jobset-monitor channel spec update-service
+                                 #:polling-period polling-period))
+    channel))
+
+(define* (jobset-registry channel update-service
+                         #:key (polling-period 60))
+  (lambda ()
+    (spawn-fiber
+     (lambda ()
+       (let ((specs (db-get-specifications)))
+         (log-info "registering ~a jobsets" (length specs))
+         (for-each (lambda (spec)
+                     (register-jobset channel spec))
+                   specs))))
+
+    (let loop ((registry vlist-null))
+      (match (get-message channel)
+        (`(lookup ,jobset ,reply)
+         (put-message reply
+                      (match (vhash-assq jobset registry)
+                        (#f #f)
+                        ((_ . actor) actor)))
+         (loop registry))
+        (`(register ,spec)
+         (match (vhash-assq (specification-name spec) registry)
+           (#f
+            (let ((monitor (spawn-jobset-monitor spec update-service
+                                                 #:polling-period
+                                                 polling-period))
+                  (name (specification-name spec)))
+              (log-info "registering new jobset '~a'" name)
+              (loop (vhash-consq (string->symbol name) monitor
+                                 registry))))
+           ((_ . monitor)
+            (log-info "jobset '~a' was already registered"
+                      (specification-name spec))
+            (loop registry))))))))
+
+(define* (spawn-jobset-registry update-service
+                                #:key (polling-period 60))
+  "Spawn a jobset registry.  In turn, the registry creates a new jobset
+monitoring actor for each 'register' message it receives."
+  (let ((channel (make-channel)))
+    (spawn-fiber (jobset-registry channel update-service
+                                  #:polling-period polling-period))
+    channel))
+
+(define* (lookup-jobset registry jobset)
+  "Return the monitor of JOBSET, a specification name (symbol)."
+  (let ((reply (make-channel)))
+    (put-message registry `(lookup ,jobset ,reply))
+    (get-message reply)))
+
+(define (register-jobset registry spec)
+  "Register a new jobset of SPEC.  REGISTRY is the channel returned by
+'spawn-jobset-registry'."
+  (put-message registry `(register ,spec)))
