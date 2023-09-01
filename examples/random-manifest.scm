@@ -44,8 +44,10 @@
                            (fail? #$(zero? (random 4 %state))))
                        (setvbuf (current-output-port) 'line)
                        (setvbuf (current-error-port) 'line)
+                       (set-port-encoding! (current-output-port) "UTF-8")
 
                        (display "Starting build!\n")
+                       (display "Here's a UTF-8-encoded lambda: λ.\n")
                        (sleep (pk 'sleeping delay))
                        (when fail?
                          (error "we're faillliiiiing!"))
