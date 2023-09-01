@@ -19,7 +19,7 @@
 # You should have received a copy of the GNU General Public License
 # along with Cuirass.  If not, see <http://www.gnu.org/licenses/>.
 
-AC_PREREQ([2.61])
+AC_PREREQ([2.71])
 AC_INIT([Cuirass],
   m4_esyscmd([build-aux/git-version-gen .tarball-version]),
   [bug-guix@gnu.org], [cuirass],

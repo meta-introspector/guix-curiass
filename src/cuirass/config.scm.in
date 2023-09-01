@@ -56,3 +56,8 @@
   ;; Define to 'PREFIX/var' which is a modifiable single-machine data
   ;; directory.
   "@localstatedir@")
+
+(define-public %runstatedir
+  ;; Define to 'PREFIX/run' which is a modifiable single-machine data
+  ;; directory.
+  "@runstatedir@")

@@ -1,6 +1,6 @@
 ## Process this file with automake to produce Makefile.in.
 
-# Copyright © 1995-2016 Free Software Foundation, Inc.
+# Copyright © 1995-2016, 2023 Free Software Foundation, Inc.
 # Copyright © 2016, 2017 Mathieu Lirzin <mthl@gnu.org>
 # Copyright © 2018, 2023 Ludovic Courtès <ludo@gnu.org>
 # Copyright © 2018 Clément Lassieur <clement@lassieur.org>
@@ -224,13 +224,14 @@ dist-hook:
 # Use config.status to substitute the remainder where a single expansion is
 # sufficient.  We use a funny notation here to avoid configure substitutions
 # in our text.
-do_subst = ( $(SED) \
-  -e "s,@configure_input[@],Generated from $$in.  Do not edit by hand.,g" \
-  -e 's,@datadir[@],$(datadir),g' \
-  -e 's,@GUILE[@],$(GUILE),g' \
-  -e 's,@localstatedir[@],$(localstatedir),g' \
-  -e 's,@PACKAGE_LOAD_COMPILED_PATH[@],$(guileobjectdir),g' \
-  -e 's,@PACKAGE_LOAD_PATH[@],$(guilesitedir),g' \
+do_subst = ( $(SED)								\
+  -e "s,@configure_input[@],Generated from $$in.  Do not edit by hand.,g"	\
+  -e 's,@datadir[@],$(datadir),g'						\
+  -e 's,@GUILE[@],$(GUILE),g'							\
+  -e 's,@localstatedir[@],$(localstatedir),g'					\
+  -e 's,@runstatedir[@],$(runstatedir),g'					\
+  -e 's,@PACKAGE_LOAD_COMPILED_PATH[@],$(guileobjectdir),g'			\
+  -e 's,@PACKAGE_LOAD_PATH[@],$(guilesitedir),g'				\
   | $(SHELL) ./config.status --file=- )
 
 # Generic instructions to perform the substitution.  Generated files shouldn't

@@ -218,6 +218,12 @@ context."
   (make-parameter (or (getenv "CUIRASS_STATE_DIRECTORY")
                       %localstatedir)))
 
+(define %cuirass-run-state-directory
+  ;; Directory where state files with the same lifetime as the process are
+  ;; stored, usually "/var/run".
+  (make-parameter (or (getenv "CUIRASS_RUN_STATE_DIRECTORY")
+                      (string-append (%cuirass-state-directory) "/run"))))
+
 (define (evaluation-log-file eval-id)
   "Return the name of the file containing the output of evaluation EVAL-ID."
   (string-append (%cuirass-state-directory)
