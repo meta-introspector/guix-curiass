@@ -82,6 +82,7 @@
             latest-checkouts
 
             ;; Parameters.
+            %bridge-socket-file-name
             %package-cachedir
             %gc-root-directory
             %gc-root-ttl
@@ -223,6 +224,10 @@ context."
   ;; stored, usually "/var/run".
   (make-parameter (or (getenv "CUIRASS_RUN_STATE_DIRECTORY")
                       (string-append (%cuirass-state-directory) "/run"))))
+
+(define %bridge-socket-file-name
+  (make-parameter (string-append (%cuirass-run-state-directory)
+                                 "/cuirass/bridge")))
 
 (define (evaluation-log-file eval-id)
   "Return the name of the file containing the output of evaluation EVAL-ID."

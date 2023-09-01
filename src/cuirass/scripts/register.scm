@@ -35,6 +35,7 @@
   #:use-module (fibers)
   #:use-module (fibers channels)
   #:use-module (srfi srfi-19)
+  #:use-module (ice-9 match)
   #:use-module (ice-9 threads)
   #:use-module (ice-9 getopt-long)
   #:export (cuirass-register))
@@ -74,6 +75,69 @@
     (ttl                              (value #t))
     (version        (single-char #\V) (value #f))
     (help           (single-char #\h) (value #f))))
+
+
+;;;
+;;; Bridge with other Cuirass processes.
+;;;
+
+;; Other processes such as 'cuirass web' may need to notify 'cuirass register'
+;; of events--e.g., configuration changes.  Ideally, they'd transparently talk
+;; to the relevant actor, whether it's process-local or not, but we're not
+;; there yet (hi, Goblins!).  The "bridge" below works around this
+;; shortcoming: it takes commands over a Unix-domain socket and forwards them
+;; to the relevant actor.
+
+(define (open-bridge-socket)
+  (let ((sock (socket AF_UNIX
+                      (logior SOCK_STREAM SOCK_NONBLOCK SOCK_CLOEXEC)
+                      0))
+        (file (%bridge-socket-file-name)))
+    (log-info "opening bridge socket at '~a'" file)
+    (mkdir-p (dirname file))
+    (chmod (dirname file) #o700)
+    (false-if-exception (delete-file file))
+    (bind sock AF_UNIX file)
+    (listen sock 2)
+    sock))
+
+(define (bridge channel                           ;currently unused
+                socket registry)
+  (define (serve-client socket)
+    (let loop ((count 0))
+      (define command
+        (false-if-exception (read socket)))
+
+      (if (eof-object? command)
+          (begin
+            (close-port socket)
+            (log-info "terminating bridge server after ~a commands"
+                      count))
+          (begin
+            (log-debug "bridge received command: ~s" command)
+
+            ;; Note: The protocol is bare-bones and unversioned; the 'cuirass'
+            ;; processes are meant to be upgraded in lockstep.
+            (match command
+              (`(register-jobset ,name)
+               (register-jobset registry (db-get-specification name)))
+              (_
+               #f))
+            (loop (+ 1 count))))))
+
+  (lambda ()
+    (let loop ()
+      (match (accept socket (logior SOCK_NONBLOCK SOCK_CLOEXEC))
+        ((connection . peer)
+         (spawn-fiber (lambda ()
+                        (log-info "bridge accepted connection")
+                        (serve-client connection)))
+         (loop))))))
+
+(define (spawn-bridge socket registry)
+  (let ((channel (make-channel)))
+    (spawn-fiber (bridge channel socket registry))
+    channel))
 
 
 ;;;
@@ -147,8 +211,13 @@
                          (restart-builds))))
 
                      ;; Spawn one monitoring actor for each jobset.
-                     (spawn-jobset-registry update-service
-                                            #:polling-period interval)
+                     (let ((registry (spawn-jobset-registry
+                                      update-service
+                                      #:polling-period interval)))
+                       ;; Spawn the bridge through which other 'cuirass'
+                       ;; processes, such as 'cuirass web', may talk to the
+                       ;; registry.
+                       (spawn-bridge (open-bridge-socket) registry))
 
                      (spawn-fiber
                       (essential-task
