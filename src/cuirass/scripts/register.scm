@@ -120,7 +120,9 @@
             ;; processes are meant to be upgraded in lockstep.
             (match command
               (`(register-jobset ,name)
-               (register-jobset registry (db-get-specification name)))
+               (match (db-get-specification name)
+                 (#f (log-warning "requested spec '~a' not found" name))
+                 (spec (register-jobset registry spec))))
               (_
                #f))
             (loop (+ 1 count))))))

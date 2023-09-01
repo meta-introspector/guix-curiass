@@ -96,7 +96,9 @@
      (lambda ()
        (run-fibers
         (lambda ()
-          (run-cuirass-server #:port 6688))
+          (run-cuirass-server #:port 6688
+                              ;; Don't attempt to connect to the bridge.
+                              #:bridge-socket-file-name #f))
         #:drain? #t))))
 
   (test-assert "wait-server"

@@ -529,7 +529,7 @@ passed, only display JOBS targeting this SYSTEM."
   ;; Time-to-live (in seconds) advertised for files under /static.
   (* 12 3600))
 
-(define (url-handler request body)
+(define (url-handler bridge request body)
 
   (define* (respond response #:key body)
     (values response body #f))
@@ -669,10 +669,17 @@ passed, only display JOBS targeting this SYSTEM."
             #:code 400)
            (begin
              (db-add-or-update-specification spec)
-             ;; FIXME: Notify the jobset registry in the 'cuirass register'
-             ;; process.
-             ;;
-             ;; (register-jobset jobset-registry spec)
+
+             (if bridge
+                 (begin
+                   ;; Notify the jobset registry in the 'cuirass register' process.
+                   (write `(register-jobset ,(specification-name spec))
+                          bridge)
+                   (newline bridge))
+                 (log-warning
+                  "cannot notify bridge of the addition of jobset '~a'"
+                  (specification-name spec)))
+
              (respond
               (build-response #:code 302
                               #:headers
@@ -1234,34 +1241,47 @@ passed, only display JOBS targeting this SYSTEM."
     (_
      (respond-not-found (uri->string (request-uri request))))))
 
-(define* (run-cuirass-server #:key (host "localhost") (port 8080))
+(define* (run-cuirass-server #:key (host "localhost") (port 8080)
+                             (bridge-socket-file-name
+                              (%bridge-socket-file-name)))
   (let* ((host-info  (gethostbyname host))
          (address    (inet-ntop (hostent:addrtype host-info)
                                 (car (hostent:addr-list host-info)))))
     (log-info "listening on ~A:~A" address port)
 
-    ;; Here we use our own web backend, call 'fiberized'.  We cannot use the
-    ;; 'fibers' backend that comes with Fibers 1.0.0 because it does its own
-    ;; thread creations and calls 'run-fibers' by itself, which isn't
-    ;; necessary here (and harmful).
-    ;;
-    ;; In addition, we roll our own instead of using Guile's 'run-server' and
-    ;; 'serve-one-client'.  The key thing here is that we spawn a fiber to
-    ;; process each client request and then directly go back waiting for the
-    ;; next client (conversely, Guile's 'run-server' loop processes clients
-    ;; one after another, sequentially.)  We can do that because we don't
-    ;; maintain any state across connections.
-    ;;
-    ;; XXX: We don't do 'call-with-sigint' like 'run-server' does.
-    (let* ((impl (lookup-server-impl 'fiberized))
-           (server (open-server impl `(#:host ,address #:port ,port))))
-      (let loop ()
-        (let-values (((client request body)
-                      (read-client impl server)))
-          ;; Spawn a fiber to handle REQUEST and reply to CLIENT.
-          (spawn-fiber
-           (lambda ()
-             (let-values (((response body state)
-                           (handle-request url-handler request body '())))
-               (write-client impl server client response body)))))
-        (loop)))))
+    ;; With 'cuirass web' running as a separate process, we need to open a
+    ;; connection over the "bridge" to talk to the 'cuirass register' process.
+    (let ((bridge (and bridge-socket-file-name
+                       (socket AF_UNIX
+                               (logior SOCK_STREAM SOCK_NONBLOCK SOCK_CLOEXEC)
+                               0))))
+      (when bridge
+        (log-info "connecting to bridge at '~a'" bridge-socket-file-name)
+        (connect bridge AF_UNIX bridge-socket-file-name))
+
+      ;; Here we use our own web backend, call 'fiberized'.  We cannot use the
+      ;; 'fibers' backend that comes with Fibers 1.0.0 because it does its own
+      ;; thread creations and calls 'run-fibers' by itself, which isn't
+      ;; necessary here (and harmful).
+      ;;
+      ;; In addition, we roll our own instead of using Guile's 'run-server'
+      ;; and 'serve-one-client'.  The key thing here is that we spawn a fiber
+      ;; to process each client request and then directly go back waiting for
+      ;; the next client (conversely, Guile's 'run-server' loop processes
+      ;; clients one after another, sequentially.)  We can do that because we
+      ;; don't maintain any state across connections.
+      ;;
+      ;; XXX: We don't do 'call-with-sigint' like 'run-server' does.
+      (let* ((impl (lookup-server-impl 'fiberized))
+             (server (open-server impl `(#:host ,address #:port ,port))))
+        (let loop ()
+          (let-values (((client request body)
+                        (read-client impl server)))
+            ;; Spawn a fiber to handle REQUEST and reply to CLIENT.
+            (spawn-fiber
+             (lambda ()
+               (let-values (((response body state)
+                             (handle-request (cut url-handler bridge <...>)
+                                             request body '())))
+                 (write-client impl server client response body)))))
+          (loop))))))
