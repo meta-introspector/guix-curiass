@@ -564,7 +564,17 @@ OUTPUTS, a list of <build-output> records."
                                (find-product build build-output))))
                 (when (and file (file-exists? file))
                   (log-info "Adding build product ~a" file)
-                  (register-gc-root file)
+                  (catch 'system-error
+                    (lambda ()
+                      (register-gc-root file))
+                    (lambda args
+                      ;; This might be ENOENT, for instance because
+                      ;; /var/guix/gcroots/profiles is missing, as is the case
+                      ;; in build environments.
+                      (log-warning
+                       "failed to create GC root for '~a' (build '~a'): ~a"
+                       file (build-nix-name build)
+                       (strerror (system-error-errno args)))))
                   (db-add-build-product
                    (build-product
                     (build-id (build-id build))
