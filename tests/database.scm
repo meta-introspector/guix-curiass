@@ -34,6 +34,8 @@
              (rnrs io ports)
              (squee)
              (fibers)
+             (ice-9 control)
+             (ice-9 exceptions)
              (ice-9 match)
              (srfi srfi-19)
              (srfi srfi-64))
@@ -115,12 +117,25 @@
        (lambda ()
          (parameterize ((%db-connection-pool
                          (make-resource-pool (list db))))
-           exp ...))
-       #:drain? #t
+           (let/ec return
+             (with-exception-handler
+                 (lambda (exception)
+                   ;; XXX: 'display-backtrace' might throw in a way that
+                   ;; 'false-if-exception' cannot catch.
+                   ;;
+                   ;; (false-if-exception
+                   ;;  (display-backtrace (make-stack #t) (current-error-port)))
+                   (return exception))
+               (lambda ()
+                 exp ...)))))
+       #:drain? #f
        #:parallelism 1
        #:hz 5))
+
     (db-close db)
-    result))
+    (if (exception? result)
+        (raise-exception result)
+        result)))
 
 (current-logging-level 'debug)
 
