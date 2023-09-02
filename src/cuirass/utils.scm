@@ -1,5 +1,5 @@
 ;;; utils.scm -- helper procedures
-;;; Copyright © 2012, 2013, 2016, 2018, 2019 Ludovic Courtès <ludo@gnu.org>
+;;; Copyright © 2012-2013, 2016, 2018-2019, 2023 Ludovic Courtès <ludo@gnu.org>
 ;;; Copyright © 2015 David Thompson <davet@gnu.org>
 ;;; Copyright © 2016 Mathieu Lirzin <mthl@gnu.org>
 ;;; Copyright © 2018 Clément Lassieur <clement@lassieur.org>
@@ -29,11 +29,14 @@
   #:use-module (srfi srfi-19)
   #:use-module (fibers)
   #:use-module (fibers channels)
+  #:use-module (fibers operations)
+  #:use-module (fibers timers)
   #:export (define-enumeration
 
             make-resource-pool
             with-resource-from-pool
 
+            get-message*
             %non-blocking
             non-blocking
             essential-task
@@ -102,6 +105,20 @@ available.  Return the resource once PROC has returned."
 POOL is empty, wait until a resource is returned to it.  Return RESOURCE when
 evaluating EXP... is done."
   (call-with-resource-from-pool pool (lambda (resource) exp ...)))
+
+(define* (get-message* channel timeout #:optional default)
+  "Receive a message from @var{channel} and return it, or, if the message hasn't
+arrived before @var{timeout} seconds, return @var{default}."
+  (call-with-values
+      (lambda ()
+        (perform-operation
+         (choice-operation (get-operation channel)
+                           (sleep-operation timeout))))
+    (match-lambda*
+      (()                               ;'sleep' operation returns zero values
+       default)
+      ((message)                            ;'get' operation returns one value
+       message))))
 
 (define (%non-blocking thunk)
   (let ((channel (make-channel)))
