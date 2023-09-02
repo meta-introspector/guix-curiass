@@ -1190,6 +1190,21 @@ passed, only display JOBS targeting this SYSTEM."
         (badge-svg spec badge-string summary
                    #:type (or type 0)))))
 
+    (('POST "jobset" spec "hook" "evaluate")
+     (let ((spec (db-get-specification spec)))
+       (if spec
+           (if bridge
+               (let ((name (specification-name spec)))
+                 (write `(trigger-jobset ,(string->symbol name))
+                        bridge)
+                 (newline bridge)
+                 (respond-json
+                  (scm->json-string `((jobset . ,name)))))
+               (begin
+                 (log-warning "evaluation hook disabled")
+                 (respond-json-with-error 500 "Evaluation hook disabled.")))
+           (respond-json-with-error 404 "Jobset not found."))))
+
     (('GET "workers")
      (respond-html
       (html-page

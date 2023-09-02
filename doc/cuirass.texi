@@ -547,7 +547,29 @@ user under which Cuirass is running.
 
 @item --interval=@var{n}
 @itemx -I @var{n}
-Wait @var{n} seconds between each poll.
+Wait at most @var{n} seconds between each poll.
+
+@quotation Note
+We recommend notifying Cuirass when it should evaluate a jobset---e.g.,
+because new code has been pushed to a channel's Git repository---and
+passing a high value of @var{n} like @code{3600} (an hour): this will
+reduce network traffic as Cuirass will update its local checkouts only
+when needed, plus every @var{n} seconds ``just in case''.
+
+To trigger a jobset evaluation, issue an HTTP @code{GET} request, for
+example with a command along these lines:
+
+@example
+wget --post-data="" -O /dev/null \
+  https://cuirass.example.org/@var{jobset}/hooks/evaluate
+@end example
+
+You would typically run that command as a @dfn{push hook} on the servers
+that host the Git repositories relevant to @var{jobset}.
+
+Our course, you may only do this for repositories you control.  For
+other repositories, periodic polling in unavoidable.
+@end quotation
 
 @item --threads=@var{n}
 Use up to @var{n} kernel threads.

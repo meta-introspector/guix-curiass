@@ -726,8 +726,15 @@ channels, and return its communication channel."
     (spawn-fiber (channel-update-service channel))
     channel))
 
-(define* (jobset-monitor channel                  ;currently unused
-                         spec update-service
+(define %jobset-trigger-rate-window
+  ;; Window (seconds) over which the jobset trigger rate is computed.
+  (* 5 60))                                       ;5 minutes
+
+(define %jobset-trigger-maximum-rate
+  ;; Maximum rate (triggers per seconds) at which jobsets may be triggered.
+  (/ 3 (* 2 60.)))                                ;3 times in 2 minutes
+
+(define* (jobset-monitor channel spec update-service
                          #:key (polling-period 60))
   (define period
     (if (> (specification-period spec) 0)
@@ -739,57 +746,79 @@ channels, and return its communication channel."
 
   (lambda ()
     (log-info "starting monitor for spec '~a'" name)
-    (let loop ()
-      (let ((timestamp (time-second (current-time time-utc))))
-        (match (let ((reply (make-channel)))
-                 (log-info "fetching channels for spec '~a'" name)
-                 (put-message update-service
-                              `(fetch ,channels ,reply))
-                 (get-message reply))
-          (#f
-           (log-warning "failed to fetch channels for '~a'" name))
-          (instances
-           (log-info "fetched channels for '~a':~{ ~a~}"
-                     name (map channel-name channels))
-           (let* ((channels (map channel-instance-channel instances))
-                  (new-spec (specification
-                             (inherit spec)
-                             ;; Include possible channel dependencies
-                             (channels channels)))
-                  (checkouttime (time-second (current-time time-utc)))
-                  (eval-id (db-add-evaluation name instances
-                                              #:timestamp timestamp
-                                              #:checkouttime checkouttime)))
+    (let loop ((last-updates '()))
+      (unless (null? last-updates)                ;first time?
+        (match (get-message* channel polling-period 'timeout)
+          ('timeout
+           (log-info "polling jobset '~a' after ~as timeout expiry"
+                     name polling-period))
+          ('trigger
+           (log-info "triggered update of jobset '~a'" name))
+          (message
+           (log-warning "jobset '~a' got bogus message: ~s"
+                        name message))))
 
-             (when eval-id
-               (spawn-fiber
-                (lambda ()
-                  ;; TODO: Move this to an evaluation actor that limits
-                  ;; parallelism.
-                  (guard (c ((evaluation-error? c)
-                             (log-error "failed to evaluate spec '~a'; see ~a"
-                                        (evaluation-error-spec-name c)
-                                        (evaluation-log-file
-                                         (evaluation-error-id c)))
-                             #f))
-                    (log-info "evaluating spec '~a'" name)
+      (let* ((timestamp (time-second (current-time time-utc)))
+             (recent? (lambda (time)
+                        (>= time (- timestamp %jobset-trigger-rate-window)))))
+        (define (rate lst)
+          ;; Return the (approximate) trigger rate (triggers per second).
+          (/ (count recent? lst) %jobset-trigger-rate-window 1.))
 
-                    ;; The LATEST-CHANNEL-INSTANCES procedure may return channel
-                    ;; dependencies that are not declared in the initial
-                    ;; specification channels.  Update the given SPEC to take
-                    ;; them into account.
-                    (db-add-or-update-specification new-spec)
-                    (evaluate spec eval-id)
-                    (db-set-evaluation-time eval-id)
-                    (with-store/non-blocking store
-                      (build-packages store eval-id)))))
+        ;; Mitigate the risk of a DoS attack by rejecting frequent requests.
+        (if (> (rate last-updates) %jobset-trigger-maximum-rate)
+            (begin
+              (log-warning "trigger rate for jobset '~a' exceeded; skipping"
+                           name)
+              (loop last-updates))
+            (begin
+              (match (let ((reply (make-channel)))
+                       (log-info "fetching channels for spec '~a'" name)
+                       (put-message update-service
+                                    `(fetch ,channels ,reply))
+                       (get-message reply))
+                (#f
+                 (log-warning "failed to fetch channels for '~a'" name))
+                (instances
+                 (log-info "fetched channels for '~a':~{ ~a~}"
+                           name (map channel-name channels))
+                 (let* ((channels (map channel-instance-channel instances))
+                        (new-spec (specification
+                                   (inherit spec)
+                                   ;; Include possible channel dependencies
+                                   (channels channels)))
+                        (checkouttime (time-second (current-time time-utc)))
+                        (eval-id (db-add-evaluation name instances
+                                                    #:timestamp timestamp
+                                                    #:checkouttime checkouttime)))
 
-               ;; 'spawn-fiber' returns zero values but we need one.
-               *unspecified*))))
+                   (when eval-id
+                     (spawn-fiber
+                      (lambda ()
+                        ;; TODO: Move this to an evaluation actor that limits
+                        ;; parallelism.
+                        (guard (c ((evaluation-error? c)
+                                   (log-error "failed to evaluate spec '~a'; see ~a"
+                                              (evaluation-error-spec-name c)
+                                              (evaluation-log-file
+                                               (evaluation-error-id c)))
+                                   #f))
+                          (log-info "evaluating spec '~a'" name)
 
-        (log-info "polling '~a' channels in ~a seconds" name period)
-        (sleep period)
-        (loop)))))
+                          ;; The LATEST-CHANNEL-INSTANCES procedure may return channel
+                          ;; dependencies that are not declared in the initial
+                          ;; specification channels.  Update the given SPEC to take
+                          ;; them into account.
+                          (db-add-or-update-specification new-spec)
+                          (evaluate spec eval-id)
+                          (db-set-evaluation-time eval-id)
+                          (with-store/non-blocking store
+                            (build-packages store eval-id)))))
+
+                     ;; 'spawn-fiber' returns zero values but we need one.
+                     *unspecified*))))
+
+              (loop (cons timestamp (take-while recent? last-updates)))))))))
 
 (define* (spawn-jobset-monitor spec update-service
                                #:key (polling-period 60))

@@ -53,7 +53,7 @@
                             Read parameters for PARAMFILE.
   -D  --database=DB         Use DB to store build results.
       --ttl=DURATION        Keep build results live for at least DURATION.
-  -I, --interval=N          Wait N seconds between each poll
+  -I, --interval=N          Wait at most N seconds between each poll
       --build-remote        Use the remote build mechanism
       --threads=N           Use up to N kernel threads
   -V, --version             Display version
@@ -123,6 +123,17 @@
                (match (db-get-specification name)
                  (#f (log-warning "requested spec '~a' not found" name))
                  (spec (register-jobset registry spec))))
+              (`(trigger-jobset ,name)
+               (match (lookup-jobset registry name)
+                 (#f (log-warning "requested jobset '~a' not found" name))
+                 (jobset
+                  ;; Trigger a jobset update.  Since the jobset might take a
+                  ;; while to get our message (it might be waiting for a
+                  ;; previous pull to complete), send it in a separate fiber.
+                  (spawn-fiber
+                   (lambda ()
+                     (log-info "triggering jobset '~a'" name)
+                     (put-message jobset 'trigger))))))
               (_
                #f))
             (loop (+ 1 count))))))
@@ -169,7 +180,7 @@
         ;; on by guix-daemon itself.
         (false-if-exception (mkdir-p (%gc-root-directory)))
         (let ((one-shot? (option-ref opts 'one-shot #f))
-              (interval (string->number (option-ref opts 'interval "300")))
+              (interval (string->number (option-ref opts 'interval "600")))
               (specfile (option-ref opts 'specifications #f))
               (paramfile (option-ref opts 'parameters #f))
 
