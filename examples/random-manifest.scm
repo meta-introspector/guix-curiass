@@ -22,11 +22,12 @@
              (srfi srfi-1)
              (srfi srfi-26))
 
-(define (make-job name lowerable)
+(define* (make-job name lowerable #:optional (output "out"))
   (manifest-entry
     (name name)
     (version "0")
-    (item lowerable)))
+    (item lowerable)
+    (output output)))
 
 (define %seed
   (logxor (cdr (gettimeofday))
@@ -73,6 +74,9 @@
                            (number->string i))))
              (make-job (string-append "entropy-" suffix)
                        (random-computed-file suffix
-                                             multiple-outputs?))))
+                                             multiple-outputs?)
+                       (if multiple-outputs?
+                           "first"
+                           "out"))))
          1+
          0))
