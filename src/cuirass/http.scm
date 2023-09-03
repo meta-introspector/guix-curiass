@@ -1091,7 +1091,7 @@ passed, only display JOBS targeting this SYSTEM."
               (let ((uri (string->uri-reference
                           (string-append "/build/"
                                          (number->string
-                                          (assoc-ref build #:id))
+                                          (assoc-ref build 'id))
                                          "/details"))))
                 (respond (build-response #:code 302
                                          #:headers `((location . ,uri)))
@@ -1110,14 +1110,14 @@ passed, only display JOBS targeting this SYSTEM."
                       (nr . 1)
                       (order . finish-time+build-id))))
              ((build)
-              (let* ((build-id (assoc-ref build #:id))
+              (let* ((build-id (assoc-ref build 'id))
                      (products (vector->list
-                                (assoc-ref build #:buildproducts)))
+                                (assoc-ref build 'buildproducts)))
                      (product (find (lambda (product)
-                                      (string=? (assoc-ref product #:type)
+                                      (string=? (assoc-ref product 'type)
                                                 product-type))
                                     products))
-                     (product-id (assoc-ref product #:id))
+                     (product-id (assoc-ref product 'id))
                      (uri (and product-id
                                (string->uri-reference
                                 (string-append "/download/"
