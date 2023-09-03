@@ -38,7 +38,8 @@
   (seed->random-state %seed))
 
 (define* (random-computed-file #:optional (suffix "")
-                               multiple-outputs?)
+                               multiple-outputs?
+                               dependency)
   (let ((nonce (random 1e6 %state)))
     (computed-file (string-append "random" suffix)
                    #~(let ((delay #$(random 60 %state))
@@ -46,6 +47,14 @@
                        (setvbuf (current-output-port) 'line)
                        (setvbuf (current-error-port) 'line)
                        (set-port-encoding! (current-output-port) "UTF-8")
+
+                       ;; Optionally introduce a dependency.
+                       (let ((dependency
+                              '#$(and dependency
+                                      #~(ungexp (manifest-entry-item dependency)
+                                                (manifest-entry-output dependency)))))
+                         (when dependency
+                           (format #t "dependency on ~a~%" dependency)))
 
                        (display "Starting build!\n")
                        (display "Here's a UTF-8-encoded lambda: λ.\n")
@@ -63,20 +72,29 @@
 (when (zero? (random 7 %state))
   (error "Evaluation is failing!"))
 
+;; Synthesize a manifest that covers various cases: succeeding/failing jobs,
+;; jobs with/without dependencies, etc.
 (manifest
- (unfold (cut > <> 15)
-         (lambda (i)
-           (let* ((multiple-outputs? (zero? (modulo i 5)))
-                  (suffix (string-append
-                           (if multiple-outputs?
-                               "multiple-outputs"
-                               "")
-                           (number->string i))))
-             (make-job (string-append "entropy-" suffix)
-                       (random-computed-file suffix
-                                             multiple-outputs?)
+ (let loop ((i 0)
+            (lst '()))
+   (if (>= i 20)
+       (reverse lst)
+       (let* ((multiple-outputs? (zero? (modulo i 5)))
+              (dependency (and (= 0 (modulo i 3))
+                               (> i 0)
+                               (list-ref lst
+                                         (random (length lst) %state))))
+              (suffix (string-append
                        (if multiple-outputs?
-                           "first"
-                           "out"))))
-         1+
-         0))
+                           "multiple-outputs"
+                           "")
+                       (number->string i))))
+         (loop (+ i 1)
+               (cons (make-job (string-append "entropy-" suffix)
+                               (random-computed-file suffix
+                                                     multiple-outputs?
+                                                     dependency)
+                               (if multiple-outputs?
+                                   "first"
+                                   "out"))
+                     lst))))))
