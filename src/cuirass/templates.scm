@@ -278,10 +278,8 @@ system whose names start with " (code "guile-") ":" (br)
 
   (define (eval-summary eval)
     (find (lambda (s)
-            (eq? (assq-ref s #:evaluation)
-                 (assq-ref
-                  (assq-ref eval #:evaluation)
-                  #:id)))
+            (= (evaluation-summary-id s)
+               (evaluation-id eval)))
           summaries))
 
   (define (summary->percentage summary)
@@ -410,7 +408,8 @@ system whose names start with " (code "guile-") ":" (br)
                                  (evaluation-summary-scheduled summary)))))
                            ((and last-eval (not last-eval-status-ok?))
                             `((center
-                               ,@(evaluation-badges last-eval #f))))
+                               ,@(evaluation-badges
+                                  (eval-summary last-eval) #f))))
                            (else '()))))
                      (td
                       ,@(let* ((name (specification-name spec))
