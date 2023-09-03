@@ -766,7 +766,7 @@ the existing SPEC otherwise."
                (if (> (length dependencies) 0)
                    `(,(map (lambda (id index)
                              (let* ((build (find-dependency id))
-                                    (status (assoc-ref build #:status)))
+                                    (status (build-current-status build)))
                                `((div
                                   ,@(if (> index (1- max-items))
                                         '((@ (class "collapse collapse-dep")))
@@ -777,7 +777,7 @@ the existing SPEC otherwise."
                                         "")
                                   " "
                                   (a (@ (href "/build/" ,id "/details"))
-                                     ,(assoc-ref build #:nix-name))
+                                     ,(build-nix-name build))
                                   (br)))))
                            dependencies
                            (iota (length dependencies)))
