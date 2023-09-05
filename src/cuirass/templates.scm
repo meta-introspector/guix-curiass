@@ -1273,19 +1273,26 @@ the nearest exact even integer."
                (th (@ (class "border-0") (scope "col")) "Commit")))
           (tbody
            ,@(map (lambda (checkout)
-                    (let* ((name  (checkout-channel checkout))
-                           (channel (find (lambda (channel)
-                                            (eq? (channel-name channel)
-                                                 name))
-                                          channels)))
-                      ;; Some checkout entries may refer to removed
-                      ;; inputs.
-                      (if channel
-                          (let ((url (channel-url channel))
-                                (commit (checkout-commit checkout)))
-                            `(tr (td ,url)
-                                 (td (code ,(commit-hyperlink url commit)))))
-                          '())))
+                    ;; Normally CHECKOUT is a <checkout> record that was
+                    ;; returned by 'latest-checkouts'.  However, due to old
+                    ;; bugs, the database might yield #f for channels that are
+                    ;; indirect dependencies; deal with it gracefully.
+                    (if checkout
+                        (let* ((name  (checkout-channel checkout))
+                               (channel (find (lambda (channel)
+                                                (eq? (channel-name channel)
+                                                     name))
+                                              channels)))
+                          ;; Some checkout entries may refer to removed
+                          ;; inputs.
+                          (if channel
+                              (let ((url (channel-url channel))
+                                    (commit (checkout-commit checkout)))
+                                `(tr (td ,url)
+                                     (td (code ,(commit-hyperlink url commit)))))
+                              '()))
+                        `(tr (td "?")
+                             (td (i "checkout information is missing")))))
                   checkouts))))
 
 (define* (build-counter-badge value class title
