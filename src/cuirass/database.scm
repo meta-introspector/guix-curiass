@@ -1872,16 +1872,23 @@ ORDER BY Evaluations.id ASC;"))
   (with-db-worker-thread db
     (let loop ((rows
                 (exec-query/bind db  "SELECT
+Evaluations.id, Evaluations.status,
+Evaluations.timestamp, Evaluations.checkouttime, Evaluations.evaltime,
 SUM(CASE WHEN Jobs.status > -100 THEN 1 ELSE 0 END) as total,
 SUM(CASE WHEN Jobs.status = 0 THEN 1 ELSE 0 END) AS succeeded,
 SUM(CASE WHEN Jobs.status > 0 THEN 1 ELSE 0 END) AS failed,
-SUM(CASE WHEN Jobs.status < 0 THEN 1 ELSE 0 END) AS scheduled,
-Jobs.evaluation FROM Jobs WHERE Jobs.evaluation = ANY(" eval-ids ")
-GROUP BY Jobs.evaluation;"))
+SUM(CASE WHEN Jobs.status < 0 THEN 1 ELSE 0 END) AS scheduled
+FROM Evaluations
+LEFT JOIN Jobs
+ON Jobs.evaluation = Evaluations.id
+WHERE Evaluations.id = ANY(" eval-ids ")
+GROUP BY Evaluations.id
+ORDER BY Evaluations.id ASC;"))
                (summary '()))
       (match rows
         (() (reverse summary))
-        (((total succeeded failed scheduled evaluation) . rest)
+        (((evaluation status timestamp checkouttime evaltime
+                      total succeeded failed scheduled) . rest)
          (loop rest
                (cons (evaluation-summary
                       (id (number evaluation))
@@ -1889,11 +1896,10 @@ GROUP BY Jobs.evaluation;"))
                       (succeeded (number succeeded))
                       (failed (number failed))
                       (scheduled (number scheduled))
-                      ;; FIXME: Info missing; use a different record type?
-                      (status *unspecified*)
-                      (start-time *unspecified*)
-                      (checkout-time *unspecified*)
-                      (completion-time *unspecified*))
+                      (status (number status))
+                      (start-time (number timestamp))
+                      (checkout-time (number checkouttime))
+                      (completion-time (number evaltime)))
                      summary)))))))
 
 (define (db-get-builds-query-min filters)
