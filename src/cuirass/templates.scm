@@ -881,6 +881,20 @@ the existing SPEC otherwise."
           ", ")))
     (if (string=? changes "") '(em "None") changes)))
 
+(define (broken-evaluation-badge eval-id status)
+  (cond ((= status (evaluation-status failed))
+         `((a (@ (href "/eval/" ,eval-id "/log/raw")
+                 (class "oi oi-x text-danger")
+                 (title "Failed")
+                 (aria-hidden "true"))
+              "")))
+        ((= status (evaluation-status aborted))
+         `((a (@ (href "/eval/" ,eval-id "/log/raw")
+                 (class "oi oi-x text-warning")
+                 (title "Aborted")
+                 (aria-hidden "true"))
+              "")))))
+
 (define (evaluation-badges evaluation absolute)
   (define (dashboard-link body)
     `(a (@ (href "/eval/" ,(build-summary-evaluation-id evaluation)
@@ -891,20 +905,6 @@ the existing SPEC otherwise."
     (if (= status (evaluation-status started))
         '((em "In progress…"))
         (cond
-         ((= status (evaluation-status failed))
-          `((a (@ (href "/eval/" ,(build-summary-evaluation-id evaluation)
-                        "/log/raw")
-                  (class "oi oi-x text-danger")
-                  (title "Failed")
-                  (aria-hidden "true"))
-               "")))
-         ((= status (evaluation-status aborted))
-          `((a (@ (href "/eval/" ,(build-summary-evaluation-id evaluation)
-                        "/log/raw")
-                  (class "oi oi-x text-warning")
-                  (title "Aborted")
-                  (aria-hidden "true"))
-               "")))
          ((= status (evaluation-status succeeded))
           `((div
              (@ (class "job-abs d-none"))
@@ -942,7 +942,10 @@ the existing SPEC otherwise."
                                       "/eval/"
                                       (number->string
                                        (build-summary-evaluation-id evaluation))
-                                      "?status=pending")))))))))
+                                      "?status=pending")))))
+         (else
+          (broken-evaluation-badge (build-summary-evaluation-id evaluation)
+                                   status))))))
 
 (define* (evaluation-info-table name evaluations id-min id-max
                                 #:key absolute-summary)
