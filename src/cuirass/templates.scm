@@ -407,9 +407,12 @@ system whose names start with " (code "guile-") ":" (br)
                                ,(scheduled-build-badge
                                  (evaluation-summary-scheduled summary)))))
                            ((and last-eval (not last-eval-status-ok?))
+                            ;; LAST-EVAL is broken so it's missing from
+                            ;; SUMMARIES.
                             `((center
-                               ,@(evaluation-badges
-                                  (eval-summary last-eval) #f))))
+                               ,@(broken-evaluation-badge
+                                  (evaluation-id last-eval)
+                                  (evaluation-current-status last-eval)))))
                            (else '()))))
                      (td
                       ,@(let* ((name (specification-name spec))
