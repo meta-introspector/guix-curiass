@@ -178,11 +178,11 @@
                 ((? symbol? subset)
                  subset)
                 (('packages packages ...)
-                 (cons 'packages (list->vector packages)))
+                 `((packages . ,(list->vector packages))))
                 (('channels channels ...)
-                 (cons 'channels (list->vector channels)))
+                 `((channels . ,(list->vector channels))))
                 (('manifests manifests ...)
-                 (cons 'manifests (list->vector manifests)))
+                 `((manifests . ,(list->vector manifests))))
                 (_
                  'custom)))
     (channels . ,(list->vector
