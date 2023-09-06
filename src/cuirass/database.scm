@@ -1613,6 +1613,12 @@ SELECT id FROM pending_dependencies WHERE deps = 0 LIMIT 1;"))
   (directory checkout-directory))
 
 (define (db-get-checkouts eval-id)
+  "Return the list of checkouts *changed* in EVAL-ID.
+
+For example, if channel A moved from one commit to another, triggering
+EVAL-ID, then channel A is returned.  But perhaps EVAL-ID also depends on
+channels B and C, which are not returned here because they haven't changed
+compared to the previous evaluation of this jobset."
   (with-db-worker-thread db
     (let loop ((rows (exec-query/bind
                       db "SELECT revision, channel, directory FROM Checkouts

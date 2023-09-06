@@ -640,8 +640,9 @@ OUTPUTS, a list of <build-output> records."
     (apply latest-channel-instances args)))
 
 (define (latest-checkouts spec eval-id)
-  "Return the latest checkouts for the EVAL-ID evaluation of the SPEC
-specification."
+  "Return the complete list of checkouts used for the EVAL-ID evaluation of
+SPEC (as opposed to 'db-get-checkouts', which only returns checkouts that
+different from the previous evaluation of SPEC)."
   (let ((name (specification-name spec))
         (channels (specification-channels spec)))
     (map (lambda (channel)
