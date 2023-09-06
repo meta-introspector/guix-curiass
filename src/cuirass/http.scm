@@ -174,7 +174,17 @@
       `((type . mastodon)))))
 
   `((name . ,(specification-name spec))
-    (build . ,(specification-build spec))
+    (build . ,(match (specification-build spec)
+                ((? symbol? subset)
+                 subset)
+                (('packages packages ...)
+                 (cons 'packages (list->vector packages)))
+                (('channels channels ...)
+                 (cons 'channels (list->vector channels)))
+                (('manifests manifests ...)
+                 (cons 'manifests (list->vector manifests)))
+                (_
+                 'custom)))
     (channels . ,(list->vector
                   (map channel->json-object
                        (specification-channels spec))))
