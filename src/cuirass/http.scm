@@ -147,7 +147,13 @@
                 `((commit . ,(checkout-commit checkout))
                   (channel . ,(checkout-channel checkout))
                   (directory . ,(checkout-directory checkout))))
-              (evaluation-checkouts evaluation))))))
+
+              ;; Get the complete lists of checkouts, not just those that are
+              ;; different from the previous evaluation.
+              (let* ((name (evaluation-specification-name evaluation))
+                     (id (evaluation-id evaluation))
+                     (spec (db-get-specification name)))
+                (latest-checkouts spec id)))))))
 
 (define (specification->json-object spec)
   "Turn SPEC into a representation suitable for 'json->scm'."

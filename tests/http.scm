@@ -80,7 +80,10 @@
      (evaltime . 0)
      (checkouts . #(((commit . "fakesha2")
                      (channel . "guix")
-                     (directory . "dir3")))))))
+                     (directory . "dir3"))
+                    ((commit . "fakesha3")
+                     (channel . "packages")
+                     (directory . "dir2")))))))
 
 (test-group-with-cleanup "http"
   (test-assert "db-init"
