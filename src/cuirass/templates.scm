@@ -368,9 +368,9 @@ system whose names start with " (code "guile-") ":" (br)
                       (@
                        (style "vertical-align: middle"))
                       ,@(let* ((summary
-                                (eval-summary
-                                 (spec->latest-eval-ok
-                                  (specification-name spec))))
+                                (and=> (spec->latest-eval-ok
+                                        (specification-name spec))
+                                       eval-summary))
                                (last-eval
                                 (spec->latest-eval
                                  (specification-name spec)))
