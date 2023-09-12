@@ -285,7 +285,9 @@ system whose names start with " (code "guile-") ":" (br)
   (define (summary->percentage summary)
     (let ((total (evaluation-summary-total summary))
           (succeeded (evaluation-summary-succeeded summary)))
-      (nearest-exact-integer (* 100 (/ succeeded total)))))
+      (if (zero? total)
+          0
+          (nearest-exact-integer (* 100 (/ succeeded total))))))
 
   `((div (@ (class "d-flex flex-row mb-3"))
          (div (@ (class "lead mr-auto"))
