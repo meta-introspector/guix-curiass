@@ -131,7 +131,12 @@
                               (build-current-status build))))
     (priority . ,(build-priority build))
     (finished . ,(bool->int finished?))
-    (buildproducts . ,(list->vector (build-products build)))))
+    (buildproducts . ,(list->vector
+                       (map (lambda (product)
+                              `((type . ,(build-product-type product))
+                                (path . ,(build-product-file product))
+                                (file-size . ,(build-product-file-size product))))
+                            (build-products build))))))
 
 (define (evaluation->json-object evaluation)
   "Turn EVALUATION into a representation suitable for 'json->scm'."
