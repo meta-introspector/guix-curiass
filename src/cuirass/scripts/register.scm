@@ -170,7 +170,6 @@
          (%package-database (option-ref opts 'database (%package-database)))
          (%package-cachedir
           (option-ref opts 'cache-directory (%package-cachedir)))
-         (%build-remote? (option-ref opts 'build-remote #f))
          (%fallback? (option-ref opts 'fallback #f))
          (%gc-root-ttl
           (time-second (string->duration (option-ref opts 'ttl "30d")))))
@@ -190,13 +189,13 @@
               (specfile (option-ref opts 'specifications #f))
               (paramfile (option-ref opts 'parameters #f))
 
-              ;; Since our work is mostly I/O-bound, default to a maximum of 4
+              ;; Since our work is mostly I/O-bound, default to a maximum of 8
               ;; kernel threads.  Going beyond that can increase overhead (GC
               ;; may not scale well, work-stealing may become detrimental,
               ;; etc.) for little in return.
               (threads   (or (and=> (option-ref opts 'threads #f)
                                     string->number)
-                             (min (current-processor-count) 4))))
+                             (min (current-processor-count) 8))))
           (prepare-git)
 
           (log-info "running Fibers on ~a kernel threads" threads)
@@ -210,10 +209,14 @@
 
                (if one-shot?
                    (leave (G_ "'--one-shot' is currently unimplemented~%"))
-                   (let ((exit-channel (make-channel))
-                         (evaluator (spawn-jobset-evaluator
-                                     #:max-parallel-evaluations threads))
-                         (update-service (spawn-channel-update-service)))
+                   (let* ((exit-channel (make-channel))
+                          (builder (if (option-ref opts 'build-remote #f)
+                                       (spawn-remote-builder)
+                                       (spawn-local-builder)))
+                          (evaluator (spawn-jobset-evaluator
+                                      #:max-parallel-evaluations threads
+                                      #:builder builder))
+                          (update-service (spawn-channel-update-service)))
                      (clear-build-queue)
 
                      ;; If Cuirass was stopped during an evaluation,
@@ -229,7 +232,7 @@
                       (essential-task
                        'restart-builds exit-channel
                        (lambda ()
-                         (restart-builds))))
+                         (restart-builds builder))))
 
                      ;; Spawn one monitoring actor for each jobset.
                      (let ((registry (spawn-jobset-registry

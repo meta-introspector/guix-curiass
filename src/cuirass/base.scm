@@ -64,8 +64,10 @@
             clear-build-queue
             cancel-old-builds
             restart-builds
-            build-packages
             prepare-git
+
+            spawn-local-builder
+            spawn-remote-builder
             spawn-channel-update-service
             spawn-jobset-evaluator
             spawn-jobset-registry
@@ -80,12 +82,7 @@
             ;; Parameters.
             %bridge-socket-file-name
             %package-cachedir
-            %build-remote?
             %fallback?))
-
-(define %build-remote?
-  ;; Define whether to use the remote build mechanism.
-  (make-parameter #f))
 
 (define %fallback?
   ;; Define whether to fall back to building when the substituter fails.
@@ -315,9 +312,9 @@ This procedure is meant to be called at startup."
   (log-info "marking stale builds as \"scheduled\"...")
   (db-clear-build-queue))
 
-(define (restart-builds)
+(define (restart-builds builder)
   "Restart builds whose status in the database is \"pending\" (scheduled or
-started)."
+started) by sending them to BUILDER."
   (with-store store
     (log-info "retrieving list of pending builds...")
     (let*-values (((valid stale)
@@ -332,9 +329,7 @@ started)."
       ;; Those in VALID can be restarted.  If some of them were built in the
       ;; meantime behind our back, that's fine: 'spawn-builds' will DTRT.
       (log-info "restarting ~a pending builds" (length valid))
-      (unless (%build-remote?)
-        (spawn-builds store valid))
-      (log-info "done with restarted builds"))))
+      (put-message builder `(build ,valid)))))
 
 (define (create-build-outputs build outputs)
   "Given BUILDS, a list of <build> records, save the build products described by
@@ -385,37 +380,54 @@ OUTPUTS, a list of <build-output> records."
                     (checksum ""))))))            ;TODO: Implement it.
             outputs))
 
-(define (build-packages store eval-id)
-  "Build JOBS and return a list of Build results."
-  (define builds
-    (db-get-builds `((evaluation . ,eval-id))))
+(define (local-builder channel)
+  (lambda ()
+    (log-info "builds will be made via the local build daemon")
+    (let loop ()
+      (match (get-message channel)
+        (`(build ,derivations)
+         (spawn-fiber
+          (lambda ()
+            (with-store/non-blocking store
+              (spawn-builds store derivations)
 
-  (define derivations
-    (map build-derivation builds))
+              (let* ((results (filter-map (cut db-get-build <>) derivations))
+                     (status (map build-current-status results))
+                     (success (count (lambda (status)
+                                       (= status (build-status succeeded)))
+                                     status))
+                     (outputs (map build-outputs results))
+                     (outs (append-map build-output-path outputs))
+                     (fail (- (length derivations) success)))
 
-  ;; Register a GC root for each derivation so that they are not garbage
-  ;; collected before getting built.
-  (for-each (cut register-gc-roots <> #:mode 'derivation)
-            derivations)
-  (log-info "evaluation ~a registered ~a new derivations"
-            eval-id (length derivations))
-  (db-set-evaluation-status eval-id
-                            (evaluation-status succeeded))
+                (log-info "outputs:\n~a" (string-join outs "\n"))
+                results))))))
+      (loop))))
 
-  (unless (%build-remote?)
-    (spawn-builds store derivations)
+(define (spawn-local-builder)
+  "Spawn a build actor that executes the derivation build requests it receives
+by handing them to the local build daemon."
+  (let ((channel (make-channel)))
+    (spawn-fiber (local-builder channel))
+    channel))
 
-    (let* ((results (filter-map (cut db-get-build <>) derivations))
-           (status (map build-current-status results))
-           (success (count (lambda (status)
-                             (= status (build-status succeeded)))
-                           status))
-           (outputs (map build-outputs results))
-           (outs (append-map build-output-path outputs))
-           (fail (- (length derivations) success)))
+(define (remote-builder channel)
+  (lambda ()
+    (log-info "builds will be delegated to 'cuirass remote-server'")
+    (let loop ()
+      (match (get-message channel)
+        (`(build ,derivations)
+         ;; Currently there's nothing to do here: 'cuirass remote-server'
+         ;; periodically calls 'db-get-pending-build'.
+         ;; TODO: Push notifications to 'remote-server' instead.
+         (log-info "~a pending derivation builds" (length derivations))))
+      (loop))))
 
-      (log-info "outputs:\n~a" (string-join outs "\n"))
-      results)))
+(define (spawn-remote-builder)
+  "Spawn a build actor that performs builds using \"remote workers\"."
+  (let ((channel (make-channel)))
+    (spawn-fiber (remote-builder channel))
+    channel))
 
 
 ;;;
@@ -613,8 +625,10 @@ the ID of the new evaluation."
            eval-id))))
 
 (define* (jobset-evaluator channel
-                           #:key (max-parallel-evaluations
-                                  (current-processor-count)))
+                           #:key
+                           builder
+                           (max-parallel-evaluations
+                            (current-processor-count)))
   (define pool
     (make-resource-pool (iota max-parallel-evaluations)))
 
@@ -634,20 +648,33 @@ the ID of the new evaluation."
                 (start-evaluation spec instances timestamp)))
 
             (when eval-id
-              (log-info "new evaluation ~a of jobset '~a'"
-                        eval-id (specification-name spec))
-              (with-store/non-blocking store
-                (build-packages store eval-id)))))
+              (let* ((builds (db-get-builds `((evaluation . ,eval-id))))
+                     (derivations (map build-derivation builds)))
+                (log-info "evaluation ~a of jobset '~a' registered ~a builds"
+                          eval-id (specification-name spec) (length builds))
+                (db-set-evaluation-status eval-id
+                                          (evaluation-status succeeded))
+
+                ;; Register a GC root for each derivation so that they are not
+                ;; garbage collected before getting built.
+                (for-each (cut register-gc-roots <> #:mode 'derivation)
+                          derivations)
+
+                ;; Let BUILDER build those derivations.
+                (put-message builder `(build ,derivations))))))
          (loop))))))
 
 
-(define* (spawn-jobset-evaluator #:key (max-parallel-evaluations
-                                        (current-processor-count)))
+(define* (spawn-jobset-evaluator #:key
+                                 builder
+                                 (max-parallel-evaluations
+                                  (current-processor-count)))
   "Spawn the actor responsible for evaluating jobsets for a given spec and set
 of channel instances.  The actor performs at most MAX-PARALLEL-EVALUATIONS
-concurrently."
+concurrently; it sends derivation build requests to BUILDER."
   (let ((channel (make-channel)))
     (spawn-fiber (jobset-evaluator channel
+                                   #:builder builder
                                    #:max-parallel-evaluations
                                    max-parallel-evaluations))
     channel))
