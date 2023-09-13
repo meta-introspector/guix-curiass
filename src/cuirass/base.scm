@@ -233,69 +233,6 @@ context."
   (make-parameter (string-append (%cuirass-run-state-directory)
                                  "/cuirass/bridge")))
 
-(define (evaluation-log-file eval-id)
-  "Return the name of the file containing the output of evaluation EVAL-ID."
-  (string-append (%cuirass-state-directory)
-                 "/log/cuirass/evaluations/"
-                 (number->string eval-id) ".gz"))
-
-(define (evaluate spec eval-id)
-  "Evaluate and build package derivations defined in SPEC, using CHECKOUTS.
-Return a list of jobs that are associated to EVAL-ID."
-  (define log-file
-    (evaluation-log-file eval-id))
-
-  (define log-pipe
-    (pipe))
-
-  (mkdir-p (dirname log-file))
-
-  ;; Spawn a fiber that reads standard error from 'evaluate' and writes it to
-  ;; LOG-FILE.
-  (spawn-fiber
-   (lambda ()
-     (define input
-       (non-blocking-port (car log-pipe)))
-
-     (define output
-       ;; Note: Don't use 'call-with-gzip-output-port' as it doesn't play well
-       ;; with fibers (namely, its dynamic-wind handler would close the output
-       ;; port as soon as a context switch occurs.)
-       (make-gzip-output-port (open-output-file log-file)
-                              #:level 8 #:buffer-size 16384))
-
-     (dump-port input output)
-     (close-port input)
-     (close-port output)))
-
-  (let* ((port (non-blocking-port
-                (with-error-to-port (cdr log-pipe)
-                  (lambda ()
-                    (open-pipe* OPEN_READ "cuirass"
-                                "evaluate"
-                                (%package-database)
-                                (object->string eval-id))))))
-         (result (match (read port)
-                   ;; If an error occured during evaluation report it,
-                   ;; otherwise, suppose that data read from port are
-                   ;; correct and keep things going.
-                   ((? eof-object?)
-                    (db-set-evaluation-status eval-id
-                                              (evaluation-status failed))
-                    #f)
-                   (_ #t))))
-    (close-port (cdr log-pipe))
-    (let ((spec-name (specification-name spec))
-          (status (close-pipe port)))
-      (if (and (zero? status) result)
-          (log-info "evaluation ~a for '~a' completed" eval-id spec-name)
-          (begin
-            (log-info "evaluation ~a for '~a' failed" eval-id spec-name)
-            (raise (condition
-                    (&evaluation-error
-                     (name (specification-name spec))
-                     (id eval-id)))))))))
-
 
 ;;;
 ;;; Read parameters.
@@ -640,6 +577,11 @@ OUTPUTS, a list of <build-output> records."
       (log-info "outputs:\n~a" (string-join outs "\n"))
       results)))
 
+
+;;;
+;;; Updating Git checkouts.
+;;;
+
 (define (prepare-git)
   "Prepare Guile-Git's TLS support and all."
   ;; Catch and report git errors.
@@ -729,6 +671,74 @@ channels, and return its communication channel."
   (let ((channel (make-channel)))
     (spawn-fiber (channel-update-service channel))
     channel))
+
+
+;;;
+;;; Evaluating jobsets.
+;;;
+
+(define (evaluation-log-file eval-id)
+  "Return the name of the file containing the output of evaluation EVAL-ID."
+  (string-append (%cuirass-state-directory)
+                 "/log/cuirass/evaluations/"
+                 (number->string eval-id) ".gz"))
+
+(define (evaluate spec eval-id)
+  "Evaluate and build package derivations defined in SPEC, using CHECKOUTS.
+Return a list of jobs that are associated to EVAL-ID."
+  (define log-file
+    (evaluation-log-file eval-id))
+
+  (define log-pipe
+    (pipe))
+
+  (mkdir-p (dirname log-file))
+
+  ;; Spawn a fiber that reads standard error from 'evaluate' and writes it to
+  ;; LOG-FILE.
+  (spawn-fiber
+   (lambda ()
+     (define input
+       (non-blocking-port (car log-pipe)))
+
+     (define output
+       ;; Note: Don't use 'call-with-gzip-output-port' as it doesn't play well
+       ;; with fibers (namely, its dynamic-wind handler would close the output
+       ;; port as soon as a context switch occurs.)
+       (make-gzip-output-port (open-output-file log-file)
+                              #:level 8 #:buffer-size 16384))
+
+     (dump-port input output)
+     (close-port input)
+     (close-port output)))
+
+  (let* ((port (non-blocking-port
+                (with-error-to-port (cdr log-pipe)
+                  (lambda ()
+                    (open-pipe* OPEN_READ "cuirass"
+                                "evaluate"
+                                (%package-database)
+                                (object->string eval-id))))))
+         (result (match (read port)
+                   ;; If an error occured during evaluation report it,
+                   ;; otherwise, suppose that data read from port are
+                   ;; correct and keep things going.
+                   ((? eof-object?)
+                    (db-set-evaluation-status eval-id
+                                              (evaluation-status failed))
+                    #f)
+                   (_ #t))))
+    (close-port (cdr log-pipe))
+    (let ((spec-name (specification-name spec))
+          (status (close-pipe port)))
+      (if (and (zero? status) result)
+          (log-info "evaluation ~a for '~a' completed" eval-id spec-name)
+          (begin
+            (log-info "evaluation ~a for '~a' failed" eval-id spec-name)
+            (raise (condition
+                    (&evaluation-error
+                     (name (specification-name spec))
+                     (id eval-id)))))))))
 
 (define (start-evaluation spec instances timestamp)
   "Start an evaluation of SPEC using the given channel INSTANCES.  Return #f if
@@ -889,6 +899,11 @@ POLLING-PERIOD seconds."
                                  #:evaluator evaluator
                                  #:polling-period polling-period))
     channel))
+
+
+;;;
+;;; Jobset registry.
+;;;
 
 (define* (jobset-registry channel
                          #:key (polling-period 60)
