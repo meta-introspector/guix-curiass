@@ -205,6 +205,8 @@
                (if one-shot?
                    (leave (G_ "'--one-shot' is currently unimplemented~%"))
                    (let ((exit-channel (make-channel))
+                         (evaluator (spawn-jobset-evaluator
+                                     #:max-parallel-evaluations threads))
                          (update-service (spawn-channel-update-service)))
                      (clear-build-queue)
 
@@ -225,7 +227,8 @@
 
                      ;; Spawn one monitoring actor for each jobset.
                      (let ((registry (spawn-jobset-registry
-                                      update-service
+                                      #:update-service update-service
+                                      #:evaluator evaluator
                                       #:polling-period interval)))
                        ;; Spawn the bridge through which other 'cuirass'
                        ;; processes, such as 'cuirass web', may talk to the
