@@ -27,6 +27,7 @@
   #:use-module (cuirass database)
   #:use-module (cuirass remote)
   #:use-module (cuirass specification)
+  #:use-module (cuirass store)
   #:use-module (cuirass utils)
   #:use-module ((cuirass config) #:select (%localstatedir))
   #:use-module (gnu packages)
@@ -36,9 +37,7 @@
   #:use-module (guix store)
   #:use-module (guix ui)
   #:use-module (guix git)
-  #:use-module (guix cache)
   #:use-module (zlib)
-  #:use-module ((guix config) #:select (%state-directory))
   #:use-module (git)
   #:use-module (ice-9 binary-ports)
   #:use-module (ice-9 control)
@@ -46,12 +45,9 @@
   #:use-module (ice-9 match)
   #:use-module (ice-9 popen)
   #:use-module (ice-9 ports internal)
-  #:use-module (ice-9 rdelim)
-  #:use-module (ice-9 receive)
   #:use-module (ice-9 regex)
-  #:use-module (ice-9 atomic)
   #:use-module (ice-9 ftw)
-  #:use-module (ice-9 threads)
+  #:autoload   (ice-9 threads) (current-processor-count)
   #:use-module (ice-9 vlist)
   #:use-module (srfi srfi-1)
   #:use-module (srfi srfi-11)
@@ -61,13 +57,9 @@
   #:use-module (srfi srfi-35)
   #:use-module (rnrs bytevectors)
   #:export (;; Procedures.
-            default-gc-root-directory
             call-with-time-display
-            register-gc-roots
             read-parameters
             evaluate
-            with-store/non-blocking
-            build-derivations&
             set-build-successful!
             clear-build-queue
             cancel-old-builds
@@ -88,8 +80,6 @@
             ;; Parameters.
             %bridge-socket-file-name
             %package-cachedir
-            %gc-root-directory
-            %gc-root-ttl
             %build-remote?
             %fallback?))
 
@@ -112,71 +102,6 @@
           (scm-error 'wrong-type-arg
                      "%package-cachedir" "Not a string: ~S" (list #f) #f)))))
 
-(define (default-gc-root-directory)
-  (string-append %state-directory
-                 "/gcroots/profiles/per-user/"
-                 (passwd:name (getpwuid (getuid)))
-                 "/cuirass"))
-
-(define %gc-root-directory
-  ;; Directory where garbage collector roots are stored.  We register build
-  ;; outputs there.
-  (make-parameter (default-gc-root-directory)))
-
-(define %gc-root-ttl
-  ;; The "time to live" (TTL) of GC roots.
-  (make-parameter (* 30 24 3600)))
-
-(define (gc-roots directory)
-  ;; Return the list of GC roots (symlinks) in DIRECTORY.
-  (map (cut string-append directory "/" <>)
-       (scandir directory
-                (lambda (file)
-                  (not (member file '("." "..")))))))
-
-(define (gc-root-expiration-time file)
-  "Return \"expiration time\" of FILE (a symlink in %GC-ROOT-DIRECTORY)
-computed as its modification time + TTL seconds."
-  (match (false-if-exception (lstat file))
-    (#f 0)                         ;FILE may have been deleted in the meantime
-    (st (+ (stat:mtime st) (%gc-root-ttl)))))
-
-(define (register-gc-root item)
-  "Create a GC root pointing to ITEM, a store item."
-  (catch 'system-error
-    (lambda ()
-      (symlink item
-               (string-append (%gc-root-directory)
-                              "/" (basename item))))
-    (lambda args
-      ;; If the symlink already exist, assume it points to ITEM.
-      (unless (= EEXIST (system-error-errno args))
-        (apply throw args)))))
-
-(define* (register-gc-roots drv
-                            #:key (mode 'outputs))
-  "Register GC roots for the outputs of the given DRV when MODE is 'outputs or
-for DRV itself when MODE is 'derivation.  Also remove the expired GC roots if
-any."
-  (catch 'system-error
-    (lambda ()
-      (case mode
-        ((outputs)
-         (for-each (match-lambda
-                     ((name . output)
-                      (register-gc-root output)))
-                   (derivation-path->output-paths drv)))
-        ((derivation)
-         (register-gc-root drv))))
-    (lambda args
-      (unless (= ENOENT (system-error-errno args)) ;collected in the meantime
-        (apply throw args))))
-
-  (maybe-remove-expired-cache-entries (%gc-root-directory)
-                                      gc-roots
-                                      #:entry-expiration
-                                      gc-root-expiration-time))
-
 (define (report-git-error error)
   "Report the given Guile-Git error."
   (format (current-error-port)
@@ -193,30 +118,6 @@ any."
   evaluation-error?
   (name evaluation-error-spec-name)
   (id   evaluation-error-id))
-
-(define (non-blocking-port port)
-  "Make PORT non-blocking and return it."
-  (let ((flags (fcntl port F_GETFL)))
-    (when (zero? (logand O_NONBLOCK flags))
-      (fcntl port F_SETFL (logior O_NONBLOCK flags)))
-    port))
-
-(define (ensure-non-blocking-store-connection store)
-  "Mark the file descriptor that backs STORE, a <store-connection>, as
-O_NONBLOCK."
-  (match (store-connection-socket store)
-    ((? file-port? port)
-     (non-blocking-port port))
-    (_ #f)))
-
-(define-syntax-rule (with-store/non-blocking store exp ...)
-  "Like 'with-store', bind STORE to a connection to the store, but ensure that
-said connection is non-blocking (O_NONBLOCK).  Evaluate EXP... in that
-context."
-  (with-store store
-    (ensure-non-blocking-store-connection store)
-    (let ()
-      exp ...)))
 
 (define %cuirass-state-directory
   ;; Directory where state files are stored, usually "/var".
@@ -241,67 +142,6 @@ context."
 (define (read-parameters file)
   (let ((modules (make-user-module '((cuirass parameters)))))
     (load* file modules)))
-
-
-;;;
-;;; Build status.
-;;;
-
-(define (process-build-log port proc seed)
-  "Read from PORT the build log, calling PROC for each build event like 'fold'
-does.  Return the result of the last call to PROC."
-  (define (process-line line state)
-    (when (string-prefix? "@ " line)
-      (match (string-tokenize (string-drop line 2))
-        (((= string->symbol event-name) args ...)
-         (proc (cons event-name args) state)))))
-
-  (let loop ((state seed))
-    (match (read-line port)
-      ((? eof-object?)
-       state)
-      ((? string? line)
-       (loop (process-line line state))))))
-
-(define (build-derivations& store lst)
-  "Like 'build-derivations' but return two values: a file port from which to
-read the build log, and a thunk to call after EOF has been read.  The thunk
-returns the value of the underlying 'build-derivations' call, or raises the
-exception that 'build-derivations' raised.
-
-Essentially this procedure inverts the inversion-of-control that
-'build-derivations' imposes, whereby 'build-derivations' writes to
-'current-build-output-port'."
-  ;; XXX: Make this part of (guix store)?
-  (define result
-    (make-atomic-box #f))
-
-  (match (pipe)
-    ((input . output)
-     (call-with-new-thread
-      (lambda ()
-        (catch #t
-          (lambda ()
-            ;; String I/O primitives are going to be used on PORT so make it
-            ;; Unicode-capable and resilient to encoding issues.
-            (set-port-encoding! output "UTF-8")
-            (set-port-conversion-strategy! output 'substitute)
-
-            (guard (c ((store-error? c)
-                       (atomic-box-set! result c)))
-              (parameterize ((current-build-output-port output))
-                (let ((x (build-derivations store lst)))
-                  (atomic-box-set! result x))))
-            (close-port output))
-          (lambda _
-            (close-port output)))))
-
-     (values (non-blocking-port input)
-             (lambda ()
-               (match (atomic-box-ref result)
-                 ((? condition? c)
-                  (raise c))
-                 (x x)))))))
 
 
 ;;;

@@ -20,7 +20,10 @@
 (define-module (cuirass scripts remote-worker)
   #:use-module (fibers)
   #:use-module (fibers channels)
-  #:use-module (cuirass base)
+  #:autoload   (cuirass store) (build-derivations&
+                                register-gc-roots
+                                %gc-root-directory
+                                %gc-root-ttl)
   #:use-module (cuirass logging)
   #:use-module (cuirass remote)
   #:use-module (cuirass ui)

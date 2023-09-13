@@ -48,6 +48,7 @@ jsdir = $(staticdir)/js
 systemdservicedir = $(libdir)/systemd/system
 
 dist_pkgmodule_DATA =				\
+  src/cuirass/store.scm				\
   src/cuirass/base.scm				\
   src/cuirass/database.scm			\
   src/cuirass/http.scm				\

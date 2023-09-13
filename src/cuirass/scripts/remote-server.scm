@@ -18,7 +18,7 @@
 ;;; along with GNU Guix.  If not, see <http://www.gnu.org/licenses/>.
 
 (define-module (cuirass scripts remote-server)
-  #:use-module (cuirass base)
+  #:autoload   (cuirass base) (read-parameters set-build-successful!)
   #:use-module (cuirass config)
   #:use-module (cuirass database)
   #:use-module (cuirass logging)
@@ -26,6 +26,7 @@
   #:use-module (cuirass notification)
   #:use-module (cuirass parameters)
   #:use-module (cuirass remote)
+  #:use-module (cuirass store)
   #:use-module (cuirass utils)
   #:use-module (gcrypt pk-crypto)
   #:use-module (guix avahi)
