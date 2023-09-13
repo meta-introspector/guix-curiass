@@ -696,12 +696,19 @@ passed, only display JOBS targeting this SYSTEM."
        ;; using the web interface.  Use the outputs and notifications from the
        ;; existing specification.
 
-       ;; FIXME: Notify the jobset registry in the 'cuirass register' process.
        (db-add-or-update-specification
         (specification
          (inherit spec)
          (build-outputs old-outputs)
          (notifications old-notifications)))
+
+       (if bridge
+           (begin
+             (write `(update-jobset ,(string->symbol name))
+                    bridge)
+             (newline bridge))
+           (log-error "cannot notify bridge of modification of jobset '~a'"
+                      name))
        (respond
         (build-response #:code 302
                         #:headers

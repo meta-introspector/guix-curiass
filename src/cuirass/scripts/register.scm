@@ -123,6 +123,11 @@
                (match (db-get-specification name)
                  (#f (log-warning "requested spec '~a' not found" name))
                  (spec (register-jobset registry spec))))
+              (`(update-jobset ,name)
+               (let ((spec (db-get-specification name)))
+                 (if spec
+                     (update-jobset registry spec)
+                     (log-warning "cannot update non-existent spec '~a'" name))))
               (`(trigger-jobset ,name)
                (match (lookup-jobset registry name)
                  (#f (log-warning "requested jobset '~a' not found" name))
