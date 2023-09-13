@@ -84,6 +84,35 @@
             %package-cachedir
             %fallback?))
 
+;;; Commentary:
+;;;
+;;; This file splits continuous integration activity among several "actors",
+;;; currently all running inside the 'cuirass register' process.  Actors are
+;;; implemented as fibers that serve requests received as messages on their
+;;; channel.  The main actors are the following:
+;;;
+;;;  - The "channel updater" is responsible for updating Git checkouts for
+;;;    channels.  There's a single instance of this actor; it limits
+;;;    concurrent Git updates.
+;;;
+;;;  - The "evaluator" spawns evaluations of jobsets for the given channel
+;;;    instances, again limiting the number of concurrent evaluations.
+;;;
+;;;  - The "builder" spawns derivation builds.  There are currently two
+;;;    implementations: the local builder sends build requests to the local
+;;;    'guix-daemon' process, while the remote build delegates builds to
+;;;    'cuirass remote-server'.
+;;;
+;;;  - Each jobset as an associated "monitor"; it requests channel updates,
+;;;    evaluations, and builds to the actors above.  It also receives requests
+;;;    such as evaluation triggers that can come, for example, from the
+;;;    /jobset/NAME/hook/evaluate HTTP endpoint.
+;;;
+;;;  - The "jobset" registry is a directory that maps jobset names to their
+;;;    monitor.
+;;;
+;;; Code:
+
 (define %fallback?
   ;; Define whether to fall back to building when the substituter fails.
   (make-parameter #f))
