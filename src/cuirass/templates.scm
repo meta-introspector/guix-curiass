@@ -721,7 +721,12 @@ the existing SPEC otherwise."
       (tr (th "Evaluation")
           (td (a (@ (href ,(string-append "/eval/"
                                           (number->string evaluation))))
-                 ,(number->string evaluation))))
+                 ,(number->string evaluation))
+              " ("
+              (a (@ (href ,(string-append "/jobset/"
+                                          (build-specification-name build))))
+                 ,(build-specification-name build))
+              ")"))
       (tr (th "Status")
           (td (span (@ (class ,(status-class status))
                        (title ,(status-title status)))
