@@ -839,7 +839,19 @@ the existing SPEC otherwise."
               `((tr (th "Build outputs")
                     (td
                      (ul (@ (class "list-group d-flex flex-row"))
-                         ,product-items))))))))
+                         ,product-items))))))
+      ,@(match (build-worker build)
+          ((or #f "") '())
+          (name
+           (let ((worker (db-get-worker name)))
+             (if worker
+                 `((tr (th "Build machine")
+                       (td (a (@ (href
+                                  ,(string-append "/machine/"
+                                                  (worker-machine worker))))
+                              ,(worker-machine worker))
+                           ", worker " ,name)))
+                 `((tr (th "Worker") (td ,name)))))))))
     ,@(if (null? history)
           '()
           `((h6 "Build history")
