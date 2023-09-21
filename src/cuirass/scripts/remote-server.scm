@@ -221,15 +221,29 @@ and store the result inside the BOX."
 ;;; Build workers.
 ;;;
 
-(define (pop-build name)
-  (define (random-system systems)
-    (list-ref systems (random (length systems))))
+(define (random-seed)
+  (logxor (getpid) (car (gettimeofday))))
 
+(define shuffle                            ;copied from (guix scripts offload)
+  (let ((state (seed->random-state (random-seed))))
+    (lambda (lst)
+      "Return LST shuffled (using the Fisher-Yates algorithm.)"
+      (define vec (list->vector lst))
+      (let loop ((result '())
+                 (i (vector-length vec)))
+        (if (zero? i)
+            result
+            (let* ((j (random i state))
+                   (val (vector-ref vec j)))
+              (vector-set! vec j (vector-ref vec (- i 1)))
+              (loop (cons val result) (- i 1))))))))
+
+(define (pop-build name)
+  "Return a pending build that worker NAME can perform."
   (let ((worker (db-get-worker name)))
     (and worker
-         (let ((system (random-system
-                        (worker-systems worker))))
-           (db-get-pending-build system)))))
+         (any db-get-pending-build
+              (shuffle (worker-systems worker))))))
 
 (define* (read-worker-exp sexp #:key peer-address reply-worker)
   "Read the given SEXP sent by a worker.  REPLY-WORKER is a procedure that can
