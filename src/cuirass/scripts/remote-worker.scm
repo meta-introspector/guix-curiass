@@ -89,7 +89,7 @@ Start a remote build worker.\n" (%program-name))
   (display (G_ "
   -s, --server=SERVER       connect to SERVER"))
   (display (G_ "
-  -S, --systems=SYSTEMS     list of supported SYSTEMS"))
+  -S, --systems=SYSTEMS     build for SYSTEMS, a comma-separated list"))
   (display (G_ "
       --minimum-disk-space=THRESHOLD
                             refuse builds if free space is below THRESHOLD GiB"))
