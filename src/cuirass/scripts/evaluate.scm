@@ -46,12 +46,13 @@ CHECKOUTS."
                                        #:commit commit)))
        checkouts))
 
-(define (user-alists->builds jobs specification-name evaluation-id)
-  "Convert JOBS, the user-supplied list of job alists for SPECIFICATION-NAME and
+(define (user-alists->builds jobs spec evaluation-id)
+  "Convert JOBS, the user-supplied list of job alists for SPEC and
 EVALUATION-ID, into a list of <build> records."
   (map (lambda (alist)
          (build (evaluation-id evaluation-id)
-                (specification-name specification-name)
+                (specification-name (specification-name spec))
+                (priority (specification-priority spec))
                 (job-name (assq-ref alist #:job-name))
                 (nix-name (assq-ref alist #:nix-name))
                 (system (assq-ref alist #:system))
@@ -101,9 +102,7 @@ Pass the BUILD, CHANNELS and SYSTEMS arguments to the EVAL-PROC procedure."
       ;; EVAL-PROC returns a list of job alists: this has the advantage of
       ;; being serializable and immune to ABI and API changes.  Here, convert
       ;; it to <build> records for internal consumption.
-      (db-register-builds (user-alists->builds jobs
-                                               (specification-name spec)
-                                               eval-id)
+      (db-register-builds (user-alists->builds jobs spec eval-id)
                           spec))))
 
 (define (channel-instances->profile instances)
