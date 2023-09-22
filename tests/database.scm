@@ -86,6 +86,10 @@
 (define* (make-dummy-build drv
                            #:optional (eval-id 2)
                            #:key
+                           (system "x86_64-linux")
+                           (jobset "whatever")
+                           (priority 9)
+                           (timestamp 0)
                            (job-name "job")
                            (outputs
                             (list
@@ -94,12 +98,14 @@
                                      (item (format #f "~a.output" drv))))))
   (build (derivation drv)
          (evaluation-id eval-id)
-         (specification-name "whatever")
+         (specification-name jobset)
          (job-name job-name)
-         (system "x86_64-linux")
+         (system system)
          (nix-name "foo")
          (log "log")
-         (outputs outputs)))
+         (outputs outputs)
+         (priority priority)
+         (creation-time timestamp)))
 
 (define %dummy-worker
   (worker
@@ -880,15 +886,45 @@ timestamp, checkouttime, evaltime) VALUES ('guix', 0, 0, 0, 0);")
     (with-fibers
      (build-dependencies (db-get-build "/build-1.drv"))))
 
-  (test-assert "db-get-builds no-dependencies"
+  (test-equal "db-get-pending-build"
+    '("/pending-build-3.drv"                      ;high-priority first
+      "/pending-build-4.drv"
+      "/pending-build-1.drv"                      ;older first
+      "/pending-build-2.drv"
+      #f)                                         ;no more builds!
     (with-fibers
-      (db-update-build-status! "/build-1.drv"
-                               (build-status scheduled))
-      (db-update-build-status! "/build-2.drv"
-                               (build-status scheduled))
-      (string=? (build-derivation
-                 (db-get-pending-build "x86_64-linux"))
-                "/build-2.drv")))
+     (db-add-build (make-dummy-build "/pending-build-1.drv"
+                                     #:system "riscv-gnu"
+                                     #:priority 9 ;low priority
+                                     #:timestamp 1))
+     (db-add-build (make-dummy-build "/pending-build-2.drv"
+                                     #:system "riscv-gnu"
+                                     #:priority 9
+                                     #:timestamp 2))
+     (db-add-build (make-dummy-build "/pending-build-3.drv"
+                                     #:system "riscv-gnu"
+                                     #:priority 1 ;high priority
+                                     #:timestamp 3))
+     (db-add-build (make-dummy-build "/pending-build-4.drv"
+                                     #:system "riscv-gnu"
+                                     #:priority 1
+                                     #:timestamp 4))
+     (for-each (lambda (drv)
+                 (db-update-build-status! drv (build-status scheduled)))
+               '("/pending-build-1.drv"
+                 "/pending-build-2.drv"
+                 "/pending-build-3.drv"
+                 "/pending-build-4.drv"))
+     (let loop ((i 0)
+                (lst '()))
+       (if (= i 5)
+           (reverse lst)
+           (loop (+ 1 i)
+                 (let ((drv (and=> (pk (db-get-pending-build "riscv-gnu"))
+                                   build-derivation)))
+                   (when drv
+                     (db-update-build-status! drv (build-status succeeded)))
+                   (cons drv lst)))))))
 
   (test-assert "dependencies trigger"
     (with-fibers

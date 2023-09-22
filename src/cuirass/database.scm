@@ -1590,8 +1590,8 @@ the database.  The returned list is guaranteed to not have any duplicates."
 SELECT derivation FROM Builds WHERE Builds.status < 0;"))))
 
 (define (db-get-pending-build system)
-  "Return the pending build with no dependencies for SYSTEM that has the
-lowest priority and the highest timestamp."
+  "Return the oldest pending build with no dependencies for SYSTEM that has the
+highest priority (lowest integer value)."
   (with-db-worker-thread db
     (match (expect-one-row
             (exec-query/bind db "
@@ -1601,7 +1601,7 @@ LEFT JOIN BuildDependencies as bd ON bd.source = Builds.id
 LEFT JOIN Builds AS dep ON bd.target = dep.id AND dep.status != 0
 WHERE Builds.status = -2 AND Builds.system = " system
 " GROUP BY Builds.id
-ORDER BY Builds.priority ASC, Builds.timestamp DESC)
+ORDER BY Builds.priority ASC, Builds.timestamp ASC)
 SELECT id FROM pending_dependencies WHERE deps = 0 LIMIT 1;"))
       ((id) (db-get-build (string->number id)))
       (else #f))))
