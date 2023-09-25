@@ -407,7 +407,7 @@ the message."
 (define zmq-socket->port
   (let ((table (make-weak-key-hash-table)))
     (lambda (socket)
-      "Return a port wrapping SOCKET, a file descriptor."
+      "Return a port wrapping SOCKET, a zmq socket."
       (let ((fd (zmq-get-socket-option socket ZMQ_FD)))
         (match (hashq-ref table socket)
           (#f
