@@ -351,7 +351,9 @@ PRIVATE-KEY to sign narinfos."
                (dump-port log compressed)
                (close-port compressed))
              (lambda (key . args)
-               (close-port compressed)
+               ;; Closing COMPRESSED flushes it so it might throw to
+               ;; 'zlib-error'.  Ignore it.
+               (false-if-exception (close-port compressed))
                (unless (eq? key 'zlib-error)
                  (apply throw args)))))
          (close-port sock)))
