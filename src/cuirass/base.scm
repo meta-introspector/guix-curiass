@@ -513,7 +513,8 @@ to update Git checkouts, effectively serializing all Git operations."
                               (git-error-message
                                (first (exception-args exception)))))
                   ('system-error
-                   (log-error "while processing '~a': ~s"
+                   (log-error "while fetching channels from~{ ~a~}': ~s"
+                              (map channel-url channels)
                               (strerror
                                (system-error-errno
                                 (cons 'system-error
