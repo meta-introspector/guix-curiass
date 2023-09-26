@@ -84,10 +84,6 @@
 (define service-name
   "Cuirass remote server")
 
-;; The number of queued fetch requests.
-(define %fetch-queue-size
-  (make-atomic-box 0))
-
 (define (show-help)
   (format #t (G_ "Usage: ~a remote-server [OPTION]...
 Start a remote build server.\n") (%program-name))
@@ -393,19 +389,32 @@ directory."
      (db-update-build-status! drv (build-status failed)))))
 
 (define (fetch-worker channel max-parallel-downloads)
+  (define queue-size
+    ;; The number of queued fetch requests.
+    (make-atomic-box 0))
+
   (lambda ()
     (let ((pool (make-resource-pool (iota max-parallel-downloads))))
       (log-info "starting fetch worker with up to ~a concurrent downloads"
                 max-parallel-downloads)
+
+      (spawn-fiber
+       (lambda ()
+         (let loop ()
+           (sleep 60)
+           (log-info "~a items queued for eventual download"
+                     (atomic-box-ref queue-size))
+           (loop))))
+
       (let loop ()
         (let ((message (get-message channel)))
-          (atomic-box-fetch-and-inc! %fetch-queue-size)
+          (atomic-box-fetch-and-inc! queue-size)
           (spawn-fiber
            (lambda ()
              (with-resource-from-pool pool token
                (log-debug "fetching with token #~a" token)
                (run-fetch message)
-               (atomic-box-fetch-and-dec! %fetch-queue-size)))))
+               (atomic-box-fetch-and-dec! queue-size)))))
         (loop)))))
 
 (define* (spawn-fetch-worker #:key (max-parallel-downloads 8))
@@ -428,9 +437,7 @@ requested received on its channel."
        (let ((resumable (db-update-resumable-builds!))
              (failed (db-update-failed-builds!)))
          (log-info "period update: ~a resumable, ~a failed builds."
-                   resumable failed)
-         (log-info "period update: ~a items in the fetch queue."
-                   (atomic-box-ref %fetch-queue-size)))
+                   resumable failed))
        (sleep 30)
        (loop)))))
 
