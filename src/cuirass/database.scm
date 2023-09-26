@@ -1385,9 +1385,11 @@ CASE WHEN CAST(:borderlowid AS integer) IS NULL THEN
  Builds.id ELSE -Builds.id END DESC"
              "stoptime DESC, Builds.id DESC"))
         ;; With this order, builds in 'running' state (-1) appear
-        ;; before those in 'scheduled' state (-2).
+        ;; before those in 'scheduled' state (-2).  The remaining criteria
+        ;; match what 'db-get-pending-build' does; this is so that /api/queue
+        ;; returns something that matches actual scheduling.
         (('order . 'status+submission-time)
-         "Builds.status DESC, Builds.timestamp DESC, Builds.id ASC")
+         "Builds.status DESC, Builds.priority ASC, Builds.timestamp ASC, Builds.id ASC")
         (('order . 'priority+timestamp)
          "Builds.priority ASC, Builds.timestamp DESC")
         (_ "Builds.id DESC"))))
@@ -1594,6 +1596,8 @@ SELECT derivation FROM Builds WHERE Builds.status < 0;"))))
 highest priority (lowest integer value)."
   (with-db-worker-thread db
     (match (expect-one-row
+            ;; Note: Keep ordering in sync with that of the
+            ;; 'status+submission-time' filter of 'db-get-builds'.
             (exec-query/bind db "
 WITH pending_dependencies AS
 (SELECT Builds.id, count(dep.id) as deps FROM Builds
