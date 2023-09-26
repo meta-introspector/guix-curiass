@@ -40,6 +40,7 @@
   #:use-module (ice-9 match)
   #:use-module (ice-9 rdelim)
   #:use-module (ice-9 suspendable-ports)
+  #:autoload   (ice-9 threads) (current-processor-count)
   #:use-module (fibers)
   #:use-module (fibers scheduler)
   #:export (worker
@@ -209,6 +210,7 @@ given NAME."
 
 (define* (set-build-options* store urls
                              #:key
+                             (build-cores (current-processor-count))
                              timeout
                              max-silent)
   "Use URLS as substitution servers, set TIMEOUT and MAX-SILENT store
@@ -220,7 +222,12 @@ properties."
                      #:timeout timeout
                      #:max-silent-time max-silent
                      #:verbosity 1
-                     #:substitute-urls urls))
+                     #:substitute-urls urls
+
+                     ;; Each worker uses up to BUILD-CORES for its build
+                     ;; processes and at most one build process at a time.
+                     #:build-cores build-cores
+                     #:max-build-jobs 1))
 
 (define* (publish-server port
                          #:key

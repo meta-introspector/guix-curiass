@@ -206,9 +206,11 @@ ADDRESS and PORT."
                     reply
                     timeout
                     max-silent
+                    (parallelism (current-processor-count))
                     worker)
   "Build DRV and send messages upon build start, failure or completion to the
-build server identified by SERVICE-NAME using the REPLY procedure.
+build server identified by SERVICE-NAME using the REPLY procedure.  Each build
+process may use up to PARALLELISM cores.
 
 The publish server of the build server is added to the list of the store
 substitutes-urls.  This way derivations that are not present on the worker can
@@ -219,9 +221,12 @@ still be substituted."
           (publish-url (server-publish-url server))
           (local-publish-url (worker-publish-url worker))
           (name (worker-name worker)))
+      ;; TODO: Choose PARALLELISM dynamically based on the number of currently
+      ;; running jobs and/or the current load.
       (set-build-options* store (if publish-url
                                     (cons publish-url (%substitute-urls))
                                     (%substitute-urls))
+                          #:build-cores parallelism
                           #:timeout timeout
                           #:max-silent max-silent)
       (reply (build-started-message drv name))
@@ -255,7 +260,7 @@ still be substituted."
 
 (define* (run-command command server
                       #:key
-                      reply worker)
+                      reply worker (parallelism (current-processor-count)))
   "Run COMMAND.  SERVICE-NAME is the name of the build server that sent the
 command.  REPLY is a procedure that can be used to reply to this server."
   (match command
@@ -270,6 +275,7 @@ command.  REPLY is a procedure that can be used to reply to this server."
      (run-build drv server
                 #:reply reply
                 #:worker worker
+                #:parallelism parallelism
                 #:timeout timeout
                 #:max-silent max-silent))))
 
@@ -298,9 +304,10 @@ command.  REPLY is a procedure that can be used to reply to this server."
       (< (free-disk-space (or (getenv "TMPDIR") "/tmp"))
          (%minimum-disk-space))))
 
-(define (start-worker wrk serv)
+(define* (start-worker wrk serv #:key (parallelism (current-processor-count)))
   "Start a worker thread named NAME, reading commands from the DEALER socket
-and executing them.  The worker can reply on the same socket."
+and executing them.  The worker can reply on the same socket.  Each build
+process can use up to PARALLELISM cores."
   (define (reply socket)
     (lambda (message)
       (send-message socket message)))
@@ -388,7 +395,8 @@ and executing them.  The worker can reply on the same socket."
                                (worker-name wrk) command)
                     (run-command command server
                                  #:reply (reply socket)
-                                 #:worker worker)))))
+                                 #:worker worker
+                                 #:parallelism parallelism)))))
 
            (loop)))))))
 
@@ -399,17 +407,21 @@ SYSTEMS."
     (let loop ()
       (match (get-message channel)
         (`(start-workers ,count ,server ,local-address)
-         (log-info "starting ~a workers for server at ~a"
-                   count (server-address server))
-         (let spawn ((i 0))
-           (when (< i count)
-             (start-worker (worker (name (generate-worker-name))
-                                   (address local-address)
-                                   (machine (gethostname))
-                                   (publish-url (local-publish-url local-address))
-                                   (systems systems))
-                           server)
-             (spawn (+ i 1))))))
+         (let ((parallelism (max (quotient (current-processor-count) count)
+                                 1)))
+           (log-info
+            "starting ~a workers (parallelism: ~a cores) for server at ~a"
+            count parallelism (server-address server))
+           (let spawn ((i 0))
+             (when (< i count)
+               (start-worker (worker (name (generate-worker-name))
+                                     (address local-address)
+                                     (machine (gethostname))
+                                     (publish-url (local-publish-url local-address))
+                                     (systems systems))
+                             server
+                             #:parallelism parallelism)
+               (spawn (+ i 1)))))))
       (loop))))
 
 
