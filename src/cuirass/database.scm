@@ -221,7 +221,7 @@
             ;; Macros.
             exec-query/bind
             with-database
-            with-db-worker-thread
+            with-db-connection
             with-transaction))
 
 ;; Maximum priority for a Build or Specification.
@@ -388,7 +388,7 @@ dynamic extent."
   ;; Database connection currently being used or #f.
   (make-parameter #f))
 
-(define-syntax-rule (with-db-worker-thread db exp ...) ;TODO: Rename.
+(define-syntax-rule (with-db-connection db exp ...)
   "Evaluate EXP... with DB bound to a database connection.  In a Fiber context,
 the database connection is taken from the current connection pool, waiting if
 none is available.  In a non-Fiber context, a new connection is opened; it is
@@ -417,7 +417,7 @@ closed once EXP... has been evaluated."
 
 (define-syntax-rule (with-transaction exp ...)
   "Evalute EXP within an SQL transaction."
-  (with-db-worker-thread db
+  (with-db-connection db
     (exec-query db "BEGIN TRANSACTION;")
     exp ...
     (exec-query db "COMMIT;")))
@@ -509,7 +509,7 @@ database object."
   "Insert INSTANCE associated with SPEC-NAME and EVAL-ID.  If a checkout with
 the same revision already exists for SPEC-NAME, return #f."
   (let ((channel (channel-instance-channel instance)))
-    (with-db-worker-thread db
+    (with-db-connection db
       (match (expect-one-row
               (exec-query/bind db "\
 INSERT INTO Checkouts (specification, revision, evaluation, channel,
@@ -527,7 +527,7 @@ RETURNING (specification, revision);"))
 
 (define (db-add-or-update-specification spec)
   "Store SPEC in database."
-  (with-db-worker-thread db
+  (with-db-connection db
     (let ((channels (map channel->sexp
                          (specification-channels spec)))
           (build-outputs (map build-output->sexp
@@ -565,13 +565,13 @@ systems = " (specification-systems spec)
 
 (define (db-deactivate-specification name)
   "Deactivate the specification matching NAME from the database."
-  (with-db-worker-thread db
+  (with-db-connection db
     (exec-query/bind db "\
 UPDATE Specifications SET is_active = 0 WHERE name=" name ";")))
 
 (define (db-remove-specification name)
   "Remove the specification matching NAME from the database."
-  (with-db-worker-thread db
+  (with-db-connection db
     (exec-query/bind db "\
 DELETE FROM Specifications WHERE name=" name ";")))
 
@@ -582,7 +582,7 @@ DELETE FROM Specifications WHERE name=" name ";")))
 
 (define* (db-get-specifications #:optional name
                                 #:key (filter-inactive? #t))
-  (with-db-worker-thread db
+  (with-db-connection db
     (let loop
         ((rows  (if name
                     (exec-query/bind db "
@@ -640,7 +640,7 @@ Otherwise, return #f."
   (define now
     (or timestamp (time-second (current-time time-utc))))
 
-  (with-db-worker-thread db
+  (with-db-connection db
     (exec-query db "BEGIN TRANSACTION;")
     (let* ((eval-id
             (match (expect-one-row
@@ -663,13 +663,13 @@ RETURNING id;"))
                  eval-id)))))
 
 (define (db-abort-pending-evaluations)
-  (with-db-worker-thread db
+  (with-db-connection db
     (exec-query/bind db "UPDATE Evaluations SET status =
 " (evaluation-status aborted) " WHERE status = "
 (evaluation-status started))))
 
 (define (db-set-evaluation-status eval-id status)
-  (with-db-worker-thread db
+  (with-db-connection db
     (exec-query/bind db "UPDATE Evaluations SET status =
 " status " WHERE id = " eval-id ";")))
 
@@ -677,7 +677,7 @@ RETURNING id;"))
   (define now
     (time-second (current-time time-utc)))
 
-  (with-db-worker-thread db
+  (with-db-connection db
     (exec-query/bind db "UPDATE Evaluations SET evaltime = " now
                      "WHERE id = " eval-id ";")))
 
@@ -787,7 +787,7 @@ RETURNING id;"))
 
 (define (db-add-output output)
   "Insert OUTPUT, an <output> record, into the database."
-  (with-db-worker-thread db
+  (with-db-connection db
     (exec-query/bind db "\
 INSERT INTO Outputs (derivation, name, path) VALUES ("
                      (output-derivation output) ", " (output-name output)
@@ -797,7 +797,7 @@ ON CONFLICT ON CONSTRAINT outputs_pkey DO NOTHING;")))
 (define (db-add-build build)
   "Store BUILD in database the database only if one of its outputs is new.
 Return #f otherwise.  BUILD outputs are stored in the OUTPUTS table."
-  (match (with-db-worker-thread db
+  (match (with-db-connection db
            (exec-query/bind db "
 INSERT INTO Builds (derivation, evaluation, job_name, system, nix_name, log,
 status, priority, max_silent, timeout, timestamp, starttime, stoptime)
@@ -824,7 +824,7 @@ ON CONFLICT ON CONSTRAINT builds_derivation_key DO NOTHING;"))
 
 (define (db-add-build-product product)
   "Insert PRODUCT into BuildProducts table."
-  (with-db-worker-thread db
+  (with-db-connection db
     (exec-query/bind db "\
 INSERT INTO BuildProducts (build, type, file_size, checksum,
 path) VALUES ("
@@ -837,7 +837,7 @@ ON CONFLICT ON CONSTRAINT buildproducts_pkey DO NOTHING;")))
 
 (define (db-get-output path)
   "Retrieve the OUTPUT for PATH."
-  (with-db-worker-thread db
+  (with-db-connection db
     (match (exec-query/bind db "SELECT derivation, name FROM Outputs
 WHERE path =" path "
 LIMIT 1;")
@@ -848,7 +848,7 @@ LIMIT 1;")
 (define (db-get-outputs derivation)
   "Retrieve the OUTPUTS of the build identified by DERIVATION in the
 database."
-  (with-db-worker-thread db
+  (with-db-connection db
     (let loop ((rows
                 (exec-query/bind db "SELECT name, path FROM Outputs
 WHERE derivation =" derivation ";"))
@@ -863,7 +863,7 @@ WHERE derivation =" derivation ";"))
 
 (define (db-get-time-since-previous-eval specification)
   "Return the time elapsed since the last evaluation of SPECIFICATION."
-  (with-db-worker-thread db
+  (with-db-connection db
     (match (expect-one-row
             (exec-query/bind db "
 SELECT extract(epoch from now())::int - Evaluations.timestamp FROM Evaluations
@@ -881,7 +881,7 @@ WHERE specification = " specification
              (map (compose number->string build-id) builds)
              ",")))
 
-  (with-db-worker-thread db
+  (with-db-connection db
     (let loop ((rows
                 (map (match-lambda
                        ((id percentage)
@@ -920,7 +920,7 @@ JOB derivation."
          (outputs    (build-outputs build))
          (output     (output-item (first outputs)))
          (system     (job-system job)))
-    (with-db-worker-thread db
+    (with-db-connection db
       (exec-query/bind db "\
 WITH b AS
 (SELECT id, status FROM Builds WHERE derivation =
@@ -937,7 +937,7 @@ the symbols system and names."
   (define (format-names names)
     (format #f "{~a}" (string-join names ",")))
 
-  (with-db-worker-thread db
+  (with-db-connection db
     (let ((query "
 SELECT build, status, name, evaluation, system FROM Jobs
 WHERE Jobs.evaluation = :evaluation
@@ -984,7 +984,7 @@ NAMES list, for the last LIMIT evaluations of SPEC specification."
   (define (format-names names)
     (format #f "{~a}" (string-join names ",")))
 
-  (with-db-worker-thread db
+  (with-db-connection db
     (let ((query "
 SELECT name, evaluation, build, status FROM Jobs
 WHERE Jobs.evaluation IN (SELECT id FROM Evaluations
@@ -1031,7 +1031,7 @@ dependencies of the given SOURCE-DERIVATION."
     (format #f "{~a}"
             (string-join target-derivations ",")))
 
-  (with-db-worker-thread db
+  (with-db-connection db
     (exec-query/bind db "
 INSERT INTO BuildDependencies
 (SELECT Builds.id, deps.id FROM Builds,
@@ -1041,7 +1041,7 @@ ON CONFLICT ON CONSTRAINT builddependencies_pkey DO NOTHING;")))
 
 (define (db-get-build-dependencies build)
   "Return the list of the given BUILD dependencies."
-  (with-db-worker-thread db
+  (with-db-connection db
     (let loop ((rows (exec-query/bind db "
 SELECT target FROM BuildDependencies WHERE source = " build))
                (dependencies '()))
@@ -1053,7 +1053,7 @@ SELECT target FROM BuildDependencies WHERE source = " build))
 
 (define (db-get-build-dependencies/derivation build)
   "Return the list of derivations (\".drv\" file names) BUILD depends on."
-  (with-db-worker-thread db
+  (with-db-connection db
     (let loop ((rows (exec-query/bind db "
 SELECT Builds.derivation FROM Builds
 INNER JOIN BuildDependencies AS dep ON dep.target = Builds.id
@@ -1070,7 +1070,7 @@ WHERE dep.source = " build))
 (define (db-update-resumable-builds!)
   "Update the build status of the failed-dependency builds which all
 dependencies are successful to scheduled."
-  (with-db-worker-thread db
+  (with-db-connection db
     (exec-query/bind db "
 UPDATE Builds SET status = " (build-status scheduled)
 " FROM (SELECT Builds.id, count(dep.id) as deps FROM Builds
@@ -1086,7 +1086,7 @@ failed-dependency."
   (define now
     (time-second (current-time time-utc)))
 
-  (with-db-worker-thread db
+  (with-db-connection db
     (exec-query/bind db "
 UPDATE Builds SET status = " (build-status failed-dependency)
 ", starttime = " now ", stoptime = " now
@@ -1127,7 +1127,7 @@ WHERE Builds.status = " (build-status scheduled)
           (inputs (build-dependencies build)))
       (db-add-build-dependencies drv inputs)))
 
-  (with-db-worker-thread db
+  (with-db-connection db
     (log-info "Registering builds for evaluation~{ ~a~}."
               (delete-duplicates
                (map build-evaluation-id builds)))
@@ -1142,7 +1142,7 @@ WHERE Builds.status = " (build-status scheduled)
 (define (db-get-last-status drv)
   "Return the status of the last completed build with the same 'job_name' and
 specification' as DRV."
-  (with-db-worker-thread db
+  (with-db-connection db
     (match (expect-one-row
             (exec-query/bind db "
 SELECT Builds.status FROM
@@ -1166,7 +1166,7 @@ log file for DRV."
   (define now
     (time-second (current-time time-utc)))
 
-  (with-db-worker-thread db
+  (with-db-connection db
     (if (or (= status (build-status started))
             (= status (build-status submitted)))
         (if log-file
@@ -1210,13 +1210,13 @@ UPDATE Builds SET stoptime =" now
 
 (define* (db-update-build-worker! drv worker)
   "Update the database so that DRV's worker is WORKER."
-  (with-db-worker-thread db
+  (with-db-connection db
     (exec-query/bind db "UPDATE Builds SET worker=" worker
                      "WHERE derivation=" drv ";")))
 
 (define (db-restart-build! build-id)
   "Restart the build with BUILD-ID id."
-  (with-db-worker-thread db
+  (with-db-connection db
     (exec-query/bind db "UPDATE Builds SET status="
                      (build-status scheduled)
                      ", starttime = 0, stoptime = 0
@@ -1224,7 +1224,7 @@ UPDATE Builds SET stoptime =" now
 
 (define (db-restart-evaluation! eval-id)
   "Restart the evaluation with EVAL-ID id."
-  (with-db-worker-thread db
+  (with-db-connection db
     (exec-query/bind db "UPDATE Builds SET status="
                      (build-status scheduled)
                      ", starttime = 0, stoptime = 0
@@ -1232,13 +1232,13 @@ UPDATE Builds SET stoptime =" now
 
 (define (db-retry-evaluation! eval-id)
   "Retry the evaluation with EVAL-ID id."
-  (with-db-worker-thread db
+  (with-db-connection db
     (exec-query/bind db "\
 DELETE FROM Checkouts WHERE evaluation=" eval-id ";")))
 
 (define (db-cancel-pending-builds! eval-id)
   "Cancel the pending builds of the evaluation with EVAL-ID id."
-  (with-db-worker-thread db
+  (with-db-connection db
     (exec-query/bind db "UPDATE Builds SET status="
                      (build-status canceled)
                      "WHERE evaluation=" eval-id
@@ -1284,7 +1284,7 @@ DELETE FROM Checkouts WHERE evaluation=" eval-id ";")))
 
 (define (db-get-build-products build-id)
   "Return the build products associated to the given BUILD-ID."
-  (with-db-worker-thread db
+  (with-db-connection db
     (let loop ((rows (exec-query/bind db "
 SELECT id, type, file_size, checksum, path from BuildProducts
 WHERE build = " build-id))
@@ -1305,7 +1305,7 @@ WHERE build = " build-id))
   "Retrieve all builds in the database which are matched by given FILTERS.
 FILTERS is an assoc list whose possible keys are the symbols query,
 border-low-id, border-high-id, and nr."
-  (with-db-worker-thread db
+  (with-db-connection db
     (let* ((query (format #f "
 SELECT * FROM
 (SELECT Builds.id, Builds.timestamp,
@@ -1470,7 +1470,7 @@ OR :borderhightime IS NULL OR :borderhighid IS NULL)")))
         (map string->number (string-split dependencies #\,))
         '()))
 
-  (with-db-worker-thread db
+  (with-db-connection db
     (let* ((order (filters->order filters))
            (where (match (where-conditions filters)
                     (() "")
@@ -1586,7 +1586,7 @@ ORDER BY ~a;"
 (define (db-get-pending-derivations)
   "Return the list of derivation file names corresponding to pending builds in
 the database.  The returned list is guaranteed to not have any duplicates."
-  (with-db-worker-thread db
+  (with-db-connection db
     (map (match-lambda ((drv) drv))
          (exec-query db "
 SELECT derivation FROM Builds WHERE Builds.status < 0;"))))
@@ -1594,7 +1594,7 @@ SELECT derivation FROM Builds WHERE Builds.status < 0;"))))
 (define (db-get-pending-build system)
   "Return the oldest pending build with no dependencies for SYSTEM that has the
 highest priority (lowest integer value)."
-  (with-db-worker-thread db
+  (with-db-connection db
     (match (expect-one-row
             ;; Note: Keep ordering in sync with that of the
             ;; 'status+submission-time' filter of 'db-get-builds'.
@@ -1623,7 +1623,7 @@ For example, if channel A moved from one commit to another, triggering
 EVAL-ID, then channel A is returned.  But perhaps EVAL-ID also depends on
 channels B and C, which are not returned here because they haven't changed
 compared to the previous evaluation of this jobset."
-  (with-db-worker-thread db
+  (with-db-connection db
     (let loop ((rows (exec-query/bind
                       db "SELECT revision, channel, directory FROM Checkouts
 WHERE evaluation =" eval-id " ORDER BY channel ASC;"))
@@ -1640,7 +1640,7 @@ WHERE evaluation =" eval-id " ORDER BY channel ASC;"))
 (define (db-get-latest-checkout spec channel eval-id)
   "Return the first checkout for the CHANNEL channel, part of SPEC
 specification with an evaluation id inferior or equal to EVAL-ID."
-  (with-db-worker-thread db
+  (with-db-connection db
     (match (exec-query/bind
             db " SELECT channel, revision, directory FROM Checkouts
  WHERE specification = " spec " AND channel = " (symbol->string channel)
@@ -1652,7 +1652,7 @@ specification with an evaluation id inferior or equal to EVAL-ID."
                  (directory directory))))))
 
 (define (db-get-evaluation id)
-  (with-db-worker-thread db
+  (with-db-connection db
     (match (exec-query/bind db "SELECT id, specification, status,
 timestamp, checkouttime, evaltime
 FROM Evaluations WHERE id = " id)
@@ -1672,7 +1672,7 @@ FROM Evaluations WHERE id = " id)
 
 (define* (db-get-evaluations limit
                              #:optional spec)
-  (with-db-worker-thread db
+  (with-db-connection db
     (let ((query "SELECT id, specification, status,
 timestamp, checkouttime, evaltime
 FROM Evaluations
@@ -1704,7 +1704,7 @@ ORDER BY id DESC LIMIT :limit;")
   (scheduled     build-summary-scheduled (default 0)))
 
 (define (db-get-evaluations-build-summary spec limit border-low border-high)
-  (with-db-worker-thread db
+  (with-db-connection db
     (let ((query "
 SELECT E.id, E.status,
 SUM(CASE WHEN B.status = 0 THEN 1 ELSE 0 END) as succeeded,
@@ -1743,7 +1743,7 @@ ORDER BY E.id DESC;")
 (define (db-get-previous-eval eval-id)
   "Return the successful evaluation preceeding EVAL-ID, for the same
 specification."
-  (with-db-worker-thread db
+  (with-db-connection db
     (match (expect-one-row
             (exec-query/bind db "
 SELECT id FROM Evaluations WHERE id < " eval-id
@@ -1756,7 +1756,7 @@ SELECT id FROM Evaluations WHERE id < " eval-id
 (define (db-get-next-eval eval-id)
   "Return the successful evaluation succeeding EVAL-ID, for the same
 specification."
-  (with-db-worker-thread db
+  (with-db-connection db
     (match (expect-one-row
             (exec-query/bind db "
 SELECT id FROM Evaluations WHERE id > " eval-id
@@ -1768,7 +1768,7 @@ SELECT id FROM Evaluations WHERE id > " eval-id
 
 (define (db-get-evaluations-id-min spec)
   "Return the min id of evaluations for the given specification SPEC."
-  (with-db-worker-thread db
+  (with-db-connection db
     (match (expect-one-row
             (exec-query/bind db "
 SELECT MIN(id) FROM Evaluations
@@ -1777,7 +1777,7 @@ WHERE specification=" spec))
 
 (define (db-get-evaluations-id-max spec)
   "Return the max id of evaluations for the given specification SPEC."
-  (with-db-worker-thread db
+  (with-db-connection db
     (match (expect-one-row
             (exec-query/bind db "
 SELECT MAX(id) FROM Evaluations
@@ -1786,7 +1786,7 @@ WHERE specification=" spec))
 
 (define (db-get-latest-evaluation spec)
   "Return the latest successful evaluation for the given specification SPEC."
-  (with-db-worker-thread db
+  (with-db-connection db
     (match (expect-one-row
             (exec-query/bind db "
 SELECT max(id) FROM Evaluations
@@ -1800,7 +1800,7 @@ WHERE status = 0 AND specification =  " spec
   "Return the latest evaluation for each specification. Only consider
 evaluations with the given STATUS.  If status is #f, the latest evaluation is
 returned regardless of its status."
-  (with-db-worker-thread db
+  (with-db-connection db
     (let loop ((rows (if status
                          (exec-query/bind db "
 SELECT specification, max(id) FROM Evaluations
@@ -1831,7 +1831,7 @@ GROUP BY Evaluations.specification;") ))
   (completion-time evaluation-summary-completion-time))
 
 (define (db-get-evaluation-summary id)
-  (with-db-worker-thread db
+  (with-db-connection db
     (match (expect-one-row
             (exec-query/bind db "
 SELECT Evaluations.id, Evaluations.status, Evaluations.timestamp,
@@ -1879,7 +1879,7 @@ ORDER BY Evaluations.id ASC;"))
   (define (number n)
     (if n (string->number n) 0))
 
-  (with-db-worker-thread db
+  (with-db-connection db
     (let loop ((rows
                 (exec-query/bind db  "SELECT
 Evaluations.id, Evaluations.status,
@@ -1914,7 +1914,7 @@ ORDER BY Evaluations.id ASC;"))
 
 (define (db-get-builds-query-min filters)
   "Return the smallest build row identifier matching QUERY."
-  (with-db-worker-thread db
+  (with-db-connection db
     (let* ((query "SELECT MIN(Builds.id) FROM Builds
 INNER JOIN Evaluations ON Builds.evaluation = Evaluations.id
 INNER JOIN Specifications ON Evaluations.specification = Specifications.name
@@ -1930,7 +1930,7 @@ AND (Builds.system = :system OR :system IS NULL);")
 
 (define (db-get-builds-query-max filters)
   "Return the largest build row identifier matching QUERY."
-  (with-db-worker-thread db
+  (with-db-connection db
     (let* ((query "SELECT MAX(Builds.id) FROM Builds
 INNER JOIN Evaluations ON Builds.evaluation = Evaluations.id
 INNER JOIN Specifications ON Evaluations.specification = Specifications.name
@@ -1947,7 +1947,7 @@ AND (Builds.system = :system OR :system IS NULL);")
 (define (db-get-builds-min eval status)
   "Return the min build (stoptime, rowid) pair for the given evaluation EVAL
 and STATUS."
-  (with-db-worker-thread db
+  (with-db-connection db
     (let ((query "SELECT stoptime, id FROM Builds
 WHERE evaluation = :eval AND
 ((:status = 'pending' AND Builds.status < 0) OR
@@ -1967,7 +1967,7 @@ LIMIT 1")
 (define (db-get-builds-max eval status)
   "Return the max build (stoptime, rowid) pair for the given evaluation EVAL
 and STATUS."
-  (with-db-worker-thread db
+  (with-db-connection db
     (let ((query "SELECT stoptime, id FROM Builds
 WHERE evaluation = :eval AND
 ((:status = 'pending' AND Builds.status < 0) OR
@@ -1986,7 +1986,7 @@ LIMIT 1")
 
 (define (db-get-evaluation-specification eval)
   "Return specification of evaluation with id EVAL."
-  (with-db-worker-thread db
+  (with-db-connection db
     (match (expect-one-row
             (exec-query/bind db "
 SELECT specification FROM Evaluations
@@ -1996,7 +1996,7 @@ WHERE id = " eval))
 
 (define (db-get-build-product-path id)
   "Return the build product with the given ID."
-  (with-db-worker-thread db
+  (with-db-connection db
     (match (expect-one-row
             (exec-query/bind db "
 SELECT path FROM BuildProducts
@@ -2006,7 +2006,7 @@ WHERE id = " id))
 
 (define (db-push-notification notification build)
   "Insert NOTIFICATION into Notifications table."
-  (with-db-worker-thread db
+  (with-db-connection db
     (exec-query/bind db "\
 INSERT INTO Notifications (type, build)
 VALUES (" (notification->sexp notification) ", " build ");")))
@@ -2014,7 +2014,7 @@ VALUES (" (notification->sexp notification) ", " build ");")))
 (define (db-pop-notification)
   "Return two values, the latest notification from the Notifications table and
 the matching build."
-  (with-db-worker-thread db
+  (with-db-connection db
     (match (expect-one-row
             (exec-query/bind db "
 SELECT id, type, build from Notifications ORDER BY id ASC LIMIT 1;"))
@@ -2029,7 +2029,7 @@ DELETE FROM Notifications WHERE id =" id ";")
 (define (db-register-dashboard specification jobs)
   "Insert a new dashboard for SPECIFICATION and JOBS into Dashboards table."
   (let ((id (random-string 16)))
-    (with-db-worker-thread db
+    (with-db-connection db
       (match (expect-one-row
               (exec-query/bind db "\
 INSERT INTO Dashboards (id, specification, jobs)
@@ -2046,7 +2046,7 @@ RETURNING id;"))
 
 (define (db-get-dashboard id)
   "Return the dashboard specification and jobs with the given ID."
-  (with-db-worker-thread db
+  (with-db-connection db
     (match (expect-one-row
             (exec-query/bind db "
 SELECT specification, jobs from Dashboards WHERE id = " id ";"))
@@ -2058,7 +2058,7 @@ SELECT specification, jobs from Dashboards WHERE id = " id ";"))
 
 (define (db-add-or-update-worker worker)
   "Insert WORKER into Worker table."
-  (with-db-worker-thread db
+  (with-db-connection db
     (exec-query/bind db "\
 INSERT INTO Workers (name, address, machine, systems, last_seen)
 VALUES ("
@@ -2072,7 +2072,7 @@ SET last_seen = " (worker-last-seen worker) ";")))
 
 (define (db-get-worker name)
   "Return the worker with the given NAME."
-  (with-db-worker-thread db
+  (with-db-connection db
     (match (expect-one-row
             (exec-query/bind db "
 SELECT name, address, machine, systems, last_seen from Workers
@@ -2088,7 +2088,7 @@ WHERE name = " name ";"))
 
 (define (db-get-workers)
   "Return the workers in Workers table."
-  (with-db-worker-thread db
+  (with-db-connection db
     (let loop ((rows (exec-query db "
 SELECT name, address, machine, systems, last_seen from Workers"))
                (workers '()))
@@ -2109,7 +2109,7 @@ SELECT name, address, machine, systems, last_seen from Workers"))
   "Return the list of builds that are been built on the available workers.
 Multiple builds can be marked as started on the same worker if the fetching
 workers do not keep up.  Only pick the build with the latest start time."
-  (with-db-worker-thread db
+  (with-db-connection db
     (let loop ((rows (exec-query db "
 SELECT DISTINCT ON (name) name, builds.id FROM Workers
 INNER JOIN Builds ON workers.name = builds.worker
@@ -2125,7 +2125,7 @@ Builds.starttime DESC, Builds.id DESC;"))
 (define (db-remove-unresponsive-workers timeout)
   "Remove the workers that are unresponsive since at least TIMEOUT seconds.
 Also restart the builds that are started on those workers."
-  (with-db-worker-thread db
+  (with-db-connection db
     ;; Restart the builds that are marked as started on those workers.
     (exec-query/bind db "
 UPDATE Builds SET status = -2, worker = null FROM
@@ -2139,18 +2139,18 @@ WHERE status = -1 AND
 
 (define (db-clear-workers)
   "Remove all workers from Workers table."
-  (with-db-worker-thread db
+  (with-db-connection db
     (exec-query db "DELETE FROM Workers;")))
 
 (define (db-clear-build-queue)
   "Reset the status of builds in the database that are marked as \"started\"."
-  (with-db-worker-thread db
+  (with-db-connection db
     (exec-query db "UPDATE Builds SET status = -2
 WHERE status != -2 AND status < 0;")))
 
 (define (db-get-log-from-output output)
   "Return the log file corresponding to the OUTPUT build."
-  (with-db-worker-thread db
+  (with-db-connection db
     (match (expect-one-row
             (exec-query/bind db "
 SELECT log FROM Outputs
@@ -2160,5 +2160,5 @@ WHERE Outputs.path = " output ";"))
       (else #f))))
 
 ;;; Local Variables:
-;;; eval: (put 'with-db-worker-thread 'scheme-indent-function 1)
+;;; eval: (put 'with-db-connection 'scheme-indent-function 1)
 ;;; End:

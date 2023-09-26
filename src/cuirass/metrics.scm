@@ -74,7 +74,7 @@
 (define* (db-average-eval-duration-per-spec spec #:key limit)
   "Return the average evaluation duration for SPEC.  Limit the average
 computation to the most recent LIMIT records if this argument is set."
-  (with-db-worker-thread db
+  (with-db-connection db
     (let ((query "\
 SELECT AVG(m.duration) FROM
 (SELECT (evaltime - timestamp) as duration
@@ -91,7 +91,7 @@ AND evaltime != 0 ORDER BY id DESC LIMIT ~a) m;")
 
 (define (db-builds-previous-day _)
   "Return the builds count of the previous day."
-  (with-db-worker-thread db
+  (with-db-connection db
     (return-exact
      (exec-query/bind db "SELECT COUNT(*) from Builds
 WHERE to_timestamp(timestamp)::date = 'yesterday'::date AND
@@ -99,14 +99,14 @@ to_timestamp(stoptime)::date = 'yesterday'::date;"))))
 
 (define (db-new-derivations-previous-day _)
   "Return the new derivations count of the previous day."
-  (with-db-worker-thread db
+  (with-db-connection db
     (return-exact
      (exec-query/bind db "SELECT COUNT(*) from Builds
 WHERE to_timestamp(timestamp)::date = 'yesterday'::date;"))))
 
 (define (db-pending-builds _)
   "Return the current pending builds count."
-  (with-db-worker-thread db
+  (with-db-connection db
     (return-exact
      (exec-query/bind db "SELECT COUNT(*) from Builds
 WHERE status < 0;"))))
@@ -114,7 +114,7 @@ WHERE status < 0;"))))
 (define* (db-percentage-failed-eval-per-spec spec #:key limit)
   "Return the failed evaluation percentage for SPEC.  If LIMIT is set, limit
 the percentage computation to the most recent LIMIT records."
-  (with-db-worker-thread db
+  (with-db-connection db
     (let ((query "\
 WITH last_evals AS
 (SELECT status from Evaluations WHERE specification = :spec
@@ -133,7 +133,7 @@ COUNT(*) END FROM last_evals;")
 
 (define* (db-average-build-start-time-per-eval eval)
   "Return the average build start time for the given EVAL."
-  (with-db-worker-thread db
+  (with-db-connection db
     (return-inexact
      (exec-query/bind db "\
 SELECT AVG(B.starttime - E.evaltime) FROM
@@ -145,7 +145,7 @@ GROUP BY E.id;"))))
 
 (define* (db-average-build-complete-time-per-eval eval)
   "Return the average build complete time for the given EVAL."
-  (with-db-worker-thread db
+  (with-db-connection db
     (return-inexact
      (exec-query/bind db "\
 SELECT AVG(B.stoptime - E.evaltime) FROM
@@ -165,7 +165,7 @@ expressed in builds per hour."
   ;;
   ;; evaluation_duration (seconds) = max(build_stop_time) - eval_start_time
   ;; If the evaluation builds are all completed.
-  (with-db-worker-thread db
+  (with-db-connection db
     (return-inexact
      (exec-query/bind db "\
 SELECT
@@ -183,21 +183,21 @@ GROUP BY E.id, E.evaltime;"))))
 
 (define (db-previous-day-timestamp)
   "Return the timestamp of the previous day."
-  (with-db-worker-thread db
+  (with-db-connection db
     (return-exact
      (exec-query
       db "SELECT extract(epoch from 'yesterday'::date);"))))
 
 (define (db-current-day-timestamp)
   "Return the timestamp of the current day."
-  (with-db-worker-thread db
+  (with-db-connection db
     (return-exact
      (exec-query
       db "SELECT extract(epoch from 'today'::date);"))))
 
 (define* (db-latest-evaluations #:key (days 3))
   "Return the successful evaluations added during the previous DAYS."
-  (with-db-worker-thread db
+  (with-db-connection db
     (let ((query (format #f "SELECT id from Evaluations
 WHERE to_timestamp(timestamp)::date > 'today'::date - interval '~a day' AND
 status = 0 ORDER BY id DESC" days)))
@@ -211,7 +211,7 @@ status = 0 ORDER BY id DESC" days)))
 
 (define (db-get-machines)
   "Return the list of build machines."
-  (with-db-worker-thread db
+  (with-db-connection db
     (let ((query "SELECT DISTINCT ON (machine) machine FROM Workers"))
       (let loop ((rows (exec-query db query))
                  (machines '()))
@@ -223,7 +223,7 @@ status = 0 ORDER BY id DESC" days)))
 
 (define (db-builds-count-per-machine machine)
   "Return the number of builds performed by MACHINE during the last day."
-  (with-db-worker-thread db
+  (with-db-connection db
     (return-exact
      (exec-query/bind db "SELECT COUNT(*) FROM Workers LEFT JOIN Builds ON
 Workers.name = Builds.worker WHERE machine = " machine "AND
@@ -334,7 +334,7 @@ to identify the metric type in database."
 
 (define* (db-get-metric id field)
   "Return the metric with the given ID and FIELD."
-  (with-db-worker-thread db
+  (with-db-connection db
     (let* ((metric (find-metric id))
            (type (metric->type metric)))
       (return-inexact
@@ -347,7 +347,7 @@ WHERE type = " type " AND field = " field ";")))))
                                  (order "id DESC"))
   "Return the metrics with the given ID.  If LIMIT is set, the resulting list
 if restricted to LIMIT records."
-  (with-db-worker-thread db
+  (with-db-connection db
     (let* ((metric (find-metric id))
            (type (metric->type metric))
            (field-type (metric-field-type metric))
@@ -377,7 +377,7 @@ for periodical metrics for instance."
   (define now
     (time-second (current-time time-utc)))
 
-  (with-db-worker-thread db
+  (with-db-connection db
     (let* ((metric (find-metric id))
            (field-proc (metric-field-proc metric))
            (field (or field (field-proc)))
@@ -400,7 +400,7 @@ UPDATE SET value = " value ", timestamp = " now ";"))
   "Compute and update all available metrics in database."
   ;; We can not update all evaluations metrics for performance reasons.
   ;; Limit to the evaluations that were added during the past three days.
-  (with-db-worker-thread db
+  (with-db-connection db
     (let ((specifications
            (map specification-name (db-get-specifications)))
           (evaluations (db-latest-evaluations))
