@@ -3,17 +3,6 @@
 #+TITLE: What's left to do?
 #+STARTUP: content hidestars
 
-* Agentize everything
-
-  - fetch/evaluate
-  - build
-  - metrics
-
-* Implement web hooks
-
-  - add a POST endpoint so we don't have to pull
-  - see https://docs.gitlab.com/15.11/ee/user/project/integrations/webhooks.html
-
 * Notify instead of polling
 
   - 'register' notifies 'remote-server' of available builds
