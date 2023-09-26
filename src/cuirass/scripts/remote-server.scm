@@ -258,7 +258,7 @@ be used to reply to the worker."
       (server-info-message peer-address (%log-port) (%publish-port))))
     (('worker-request-work name)
      (let ((worker (db-get-worker name)))
-       (when (and (%debug) worker)
+       (when worker
          (log-debug "~a (~a): request work."
                     (worker-address worker)
                     (worker-name worker)))
@@ -268,7 +268,7 @@ be used to reply to the worker."
                    (priority (build-priority build))
                    (timeout (build-timeout build))
                    (max-silent (build-max-silent-time build)))
-               (when (and (%debug) worker)
+               (when worker
                  (log-debug "~a (~a): build ~a submitted."
                             (worker-address worker)
                             (worker-name worker)
@@ -282,7 +282,7 @@ be used to reply to the worker."
                                        #:max-silent max-silent
                                        #:system (build-system build))))
              (begin
-               (when (and (%debug) worker)
+               (when worker
                  (log-debug "~a (~a): no available build."
                             (worker-address worker)
                             (worker-name worker)))
@@ -332,8 +332,7 @@ be used to reply to the worker."
 (define (trigger-substitutes-baking output url)
   (let* ((store-hash (strip-store-prefix output))
          (narinfo-url (publish-narinfo-url url store-hash)))
-    (when (%debug)
-      (log-debug "Bake: ~a" narinfo-url))
+    (log-debug "Bake: ~a" narinfo-url)
     (call-with-temporary-output-file
      (lambda (tmp-file port)
        (url-fetch* narinfo-url tmp-file)))))
@@ -362,12 +361,10 @@ at URL."
 required and #f otherwise."
   (match message
     (('build-succeeded ('drv drv) _ ...)
-     (when (%debug)
-       (log-debug "fetching required for ~a (success)" drv))
+     (log-debug "fetching required for ~a (success)" drv)
      #t)
     (('build-failed ('drv drv) _ ...)
-     (when (%debug)
-       (log-debug "fetching required for ~a (fail)" drv))
+     (log-debug "fetching required for ~a (fail)" drv)
      #t)
     (_ #f)))
 
