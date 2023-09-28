@@ -436,21 +436,21 @@ unspecified value when reading a message without payload.
 When ROUTER? is true, assume messages received start with a routing
 prefix (the identity of the peer, as a bytevector), and return three values:
 the payload, the peer's identity (a bytevector), and the peer address."
-  (define (wait)
-    ;; Events are edge-triggered so before waiting, check whether there are
-    ;; messages available.  See the discussion at
-    ;; <https://lists.zeromq.org/pipermail/zeromq-dev/2016-May/030349.html>.
-    (when (zero? (logand ZMQ_POLLIN
-                         (zmq-get-socket-option socket ZMQ_EVENTS)))
-      ((current-read-waiter) (zmq-socket->port socket))
+  (let ((port (zmq-socket->port socket)))
+    (let wait ()
+      ;; Events are edge-triggered so before waiting, check whether there are
+      ;; messages available.  See the discussion at
+      ;; <https://lists.zeromq.org/pipermail/zeromq-dev/2016-May/030349.html>.
       (when (zero? (logand ZMQ_POLLIN
                            (zmq-get-socket-option socket ZMQ_EVENTS)))
+        ((current-read-waiter) port)
+
+        ;; ZMQ_POLLIN might still be clear after epoll(2) has returned.
         ;; Per <http://api.zeromq.org/master:zmq-getsockopt>, "applications
         ;; should simply ignore this case and restart their polling
         ;; operation/event loop."
         (wait))))
 
-  (wait)
   (if router?
       (match (zmq-message-receive* socket)
         ((sender (= zmq-message-size 0) data)
