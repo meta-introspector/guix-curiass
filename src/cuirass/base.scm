@@ -803,8 +803,8 @@ POLLING-PERIOD seconds."
 ;;;
 
 (define* (jobset-registry channel
-                         #:key (polling-period 60)
-                         update-service evaluator)
+                          #:key (polling-period 60)
+                          update-service evaluator)
   (lambda ()
     (spawn-fiber
      (lambda ()
@@ -833,13 +833,15 @@ POLLING-PERIOD seconds."
         (`(register ,spec)
          (match (vhash-assq (specification-name spec) registry)
            (#f
-            (let ((monitor (spawn-jobset-monitor spec
-                                                 #:update-service
-                                                 update-service
-                                                 #:evaluator evaluator
-                                                 #:polling-period
-                                                 polling-period))
-                  (name (specification-name spec)))
+            (let* ((period (match (specification-period spec)
+                             (0 polling-period)
+                             (period period)))
+                   (monitor (spawn-jobset-monitor spec
+                                                  #:update-service
+                                                  update-service
+                                                  #:evaluator evaluator
+                                                  #:polling-period period))
+                   (name (specification-name spec)))
               (log-info "registering new jobset '~a'" name)
               (loop (vhash-consq (string->symbol name) monitor
                                  registry))))
