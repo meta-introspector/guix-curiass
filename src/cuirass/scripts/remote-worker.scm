@@ -407,7 +407,8 @@ SYSTEMS."
     (let loop ()
       (match (get-message channel)
         (`(start-workers ,count ,server ,local-address)
-         (let ((parallelism (max (quotient (current-processor-count) count)
+         (let ((parallelism (max (ceiling-quotient (current-processor-count)
+                                                   count)
                                  1)))
            (log-info
             "starting ~a workers (parallelism: ~a cores) for server at ~a"
