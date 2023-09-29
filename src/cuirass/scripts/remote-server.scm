@@ -464,6 +464,10 @@ is received, pass it on to FETCH-WORKER to download the build's output(s)."
     ;; that were hanging waiting for request-work responses.
     (zmq-set-socket-option build-socket ZMQ_PROBE_ROUTER 1)
 
+    ;; When a message being sent has an invalid destination, throw an
+    ;; exception instead of silently dropping it.
+    (zmq-set-socket-option build-socket ZMQ_ROUTER_MANDATORY 1)
+
     (zmq-bind-socket build-socket (zmq-backend-endpoint backend-port))
 
     (spawn-fiber

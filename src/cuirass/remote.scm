@@ -446,16 +446,20 @@ the payload, the peer's identity (a bytevector), and the peer address."
         (wait))))
 
   (if router?
+      ;; XXX: Below, call 'bytevector-copy' because 'zmq-message-content'
+      ;; currently returns a bytevector that aliases the data of the
+      ;; underlying message object, which may be freed and reused behind our
+      ;; back.
       (match (zmq-message-receive* socket)
         ((sender (= zmq-message-size 0) data)
          (values (call-with-input-string (bv->string
                                           (zmq-message-content data))
                    read)
-                 (zmq-message-content sender)
+                 (bytevector-copy (zmq-message-content sender))
                  (zmq-message-gets data "Peer-Address")))
         ((sender (and message (= zmq-message-size 0)))
          (values *unspecified*
-                 (zmq-message-content sender)
+                 (bytevector-copy (zmq-message-content sender))
                  (zmq-message-gets message "Peer-Address"))))
       (match (zmq-get-msg-parts-bytevector socket '())
         ((#vu8() data)
