@@ -73,8 +73,6 @@
             receive-logs
             send-log
 
-            zmq-poll*
-
             build-request-message
             no-build-message
             build-started-message
@@ -387,10 +385,6 @@ retries a call to PROC."
             (apply throw key errno rest)))))
 
   safe)
-
-(define zmq-poll*
-  ;; Return a variant of ZMQ-POLL that catches EINTR errors.
-  (EINTR-safe zmq-poll))
 
 (define zmq-message-receive*
   (EINTR-safe zmq-message-receive))
