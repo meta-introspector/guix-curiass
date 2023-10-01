@@ -138,6 +138,13 @@
                                 (file-size . ,(build-product-file-size product))))
                             (build-products build))))))
 
+(define (checkout->json-object checkout)
+  "Return an alist suitable for 'json->scm' representing CHECKOUT,
+a <checkout> record."
+  `((commit . ,(checkout-commit checkout))
+    (channel . ,(checkout-channel checkout))
+    (directory . ,(checkout-directory checkout))))
+
 (define (evaluation->json-object evaluation)
   "Turn EVALUATION into a representation suitable for 'json->scm'."
   `((id . ,(evaluation-id evaluation))
@@ -148,10 +155,7 @@
     (evaltime . ,(evaluation-start-time evaluation))
     (checkouts
      . ,(list->vector
-         (map (lambda (checkout)
-                `((commit . ,(checkout-commit checkout))
-                  (channel . ,(checkout-channel checkout))
-                  (directory . ,(checkout-directory checkout))))
+         (map checkout->json-object
 
               ;; Get the complete lists of checkouts, not just those that are
               ;; different from the previous evaluation.
