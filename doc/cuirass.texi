@@ -59,7 +59,7 @@ Documentation License''.
 * Build modes::                 Build modes.
 * Invocation::                  How to run Cuirass.
 * Authentication::              Configuring TLS authentication.
-* Web API::                     Description of the Web API.
+* Web Interface::               Description of the Web API.
 * Database::                    About the database schema.
 
 * Contributing::                Your help needed!
@@ -830,11 +830,23 @@ should now only allow authenticated users to perform administrative
 tasks.
 
 @c *********************************************************************
-@node Web API
-@chapter Web API
-@cindex web api
+@node Web Interface
+@chapter Web Interface
+@cindex web API
 
-The Cuirass web API is inspired from the Hydra one.
+Cuirass has a web interface that one can navigate through a web browser,
+and it also has a programming interface: HTTP endpoints that can be
+queried to obtain a JSON representation of its state.
+
+This programming interface is inspired by that of Hydra, the continuous
+integration tool of the NixOS project.  The sections below describe the
+available HTTP endpoints.
+
+As a user, note that there are at least two tools that can simplify
+access to this interface: the
+@url{https://notabug.org/alezost/emacs-build-farm,
+@code{emacs-build-farm}} package for Emacs, and the @code{(guix ci)}
+client module from Guix.
 
 @section Evaluation information
 @subheading Single evaluation
