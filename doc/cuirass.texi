@@ -836,11 +836,8 @@ tasks.
 
 The Cuirass web API is inspired from the Hydra one.
 
-@section API description
-@cindex description, json
-
-@subsection Evaluation information
-@subsubheading Single evaluation
+@section Evaluation information
+@subheading Single evaluation
 
 It is possible to query the Cuirass web server for evaluation
 information. The dedicated API is "/api/evaluation?id=@var{eval-id}"
@@ -901,7 +898,7 @@ The evaluation checkouts as a JSON object.
 
 @end table
 
-@subsubheading Multiple evaluations
+@subheading Multiple evaluations
 
 The latest evaluations list can be obtained with the API
 "/api/evaluations".  The output is a JSON array of
@@ -917,7 +914,7 @@ Only consider evaluations that are part of the given @code{spec}
 specification.
 @end table
 
-@subsection Build information
+@section Build information
 
 It is possible to query Cuirass web server for build informations. The
 dedicated API is "/build/@var{build-id}" where @var{build-id} is the
@@ -1032,7 +1029,7 @@ Build products in store as a JSON object.
 
 @end table
 
-@subsection Build raw log output
+@section Build raw log output
 
 It is possible to ask Cuirass for the raw build output log with the API
 "/build/@var{build-id}/log/raw" where @var{build-id} is the
@@ -1058,7 +1055,7 @@ $ curl -s "http://localhost:8080/build/fff/log/raw"
 @{"error" : "Build with ID fff doesn't exist."@}
 @end example
 
-@subsection Jobs
+@section Jobs
 
 The list of jobs associated with a given evaluation can be obtained
 with the API "/api/jobs".  The output is a JSON array of
@@ -1108,7 +1105,7 @@ The job name, as a string.
 
 @end table
 
-@subsection Jobs history
+@section Jobs history
 
 The history of jobs across the last evaluations of a given
 specification can be optained with the API "/api/jobs/history".
@@ -1151,7 +1148,7 @@ The jobs list for this evaluation, as a JSON array.
 
 @end table
 
-@subsection Dashboard registration
+@section Dashboard registration
 
 The user can register a dashboard using the "/api/dashboard/register"
 API.  This request accepts two mandatory parameters.
@@ -1185,7 +1182,7 @@ The registered dashboard id.
 The dashboard is then accessible at the following address:
 @code{http://localhost:8080/dashboard/<id>}.
 
-@subsection Latest builds
+@section Latest builds
 
 The list of latest builds can be obtained with the API
 "/api/latestbuilds".  The output is a JSON array of builds. Builds are
@@ -1223,7 +1220,7 @@ $ curl "http://localhost:8080/api/latestbuilds?nr=5&jobset=guix"
 If no builds matching given parameters are found, an empty JSON array is
 returned.
 
-@subsection Queued builds
+@section Queued builds
 
 The list of queued builds can be obtained with the API
 "/api/queue".  The output is a JSON array of builds. Builds are
