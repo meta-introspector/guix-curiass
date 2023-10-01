@@ -1000,28 +1000,28 @@ AND Jobs.name = ANY(:names);")
         (match rows
           (() (sort evaluations
                     (lambda (a b)
-                      (let ((eval (cut assq-ref <> #:evaluation)))
+                      (let ((eval (cut assq-ref <> 'evaluation)))
                         (> (eval a) (eval b))))))
           (((name evaluation build status)
             . rest)
            (loop rest
                  (let* ((eval (find (lambda (e)
-                                      (eq? (assq-ref e #:evaluation)
+                                      (eq? (assq-ref e 'evaluation)
                                            (string->number evaluation)))
                                     evaluations))
                         (jobs (and eval
-                                   (assq-ref eval #:jobs)))
-                        (job `((#:name . ,name)
-                               (#:build . ,(string->number build))
-                               (#:status . ,(string->number status)))))
+                                   (assq-ref eval 'jobs)))
+                        (job `((name . ,name)
+                               (build . ,(string->number build))
+                               (status . ,(string->number status)))))
                    (if eval
                        (begin
-                         (assq-set! eval #:jobs (cons job jobs))
+                         (assq-set! eval 'jobs (cons job jobs))
                          evaluations)
                        ;; TODO: Define a record type.
-                       (cons `((#:evaluation . ,(string->number evaluation))
-                               (#:checkouts . ,(db-get-checkouts evaluation))
-                               (#:jobs . ,(list job)))
+                       (cons `((evaluation . ,(string->number evaluation))
+                               (checkouts . ,(db-get-checkouts evaluation))
+                               (jobs . ,(list job)))
                              evaluations))))))))))
 
 (define (db-add-build-dependencies source-derivation target-derivations)

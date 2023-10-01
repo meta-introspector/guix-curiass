@@ -334,8 +334,8 @@ timestamp, checkouttime, evaltime) VALUES ('guix', 0, 0, 0, 0);")
                                   #:spec "guix"
                                   #:limit 2)
         ((eval)
-         (and (eq? (assq-ref eval #:evaluation) 4)
-              (eq? (length (assq-ref eval #:jobs)) 1))))))
+         (and (eq? (assq-ref eval 'evaluation) 4)
+              (eq? (length (assq-ref eval 'jobs)) 1))))))
 
   (test-assert "db-update-build-status!"
     (with-fibers

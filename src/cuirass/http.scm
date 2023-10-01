@@ -215,11 +215,11 @@
   (scm->json-string
    (list->vector
     (map (lambda (eval)
-           `((evaluation . ,(assq-ref eval #:evaluation))
+           `((evaluation . ,(assq-ref eval 'evaluation))
              (checkouts . ,(list->vector
-                            (assq-ref eval #:checkouts)))
+                            (assq-ref eval 'checkouts)))
              (jobs . ,(list->vector
-                       (assq-ref eval #:jobs)))))
+                       (assq-ref eval 'jobs)))))
          history))))
 
 (define (handle-build-request build-id)
