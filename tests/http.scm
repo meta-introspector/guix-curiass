@@ -123,7 +123,7 @@
                    (completion-time 1501347493)))
            (build2
             (build (derivation "/gnu/store/fake2.drv")
-                   (evaluation-id 1)
+                   (evaluation-id 2)
                    (specification-name "guix")
                    (job-name "fake-job")
                    (system "x86_64-linux")
@@ -264,6 +264,24 @@
     (json-string->scm
      (utf8->string
       (http-get-body (test-cuirass-uri "/api/evaluations?nr=1")))))
+
+  (test-equal "/api/jobs/history"
+    '#((("jobs" . #((("status" . 0) ("build" . 1) ("name" . "fake-job"))))
+        ("checkouts" . #((("directory" . "dir1") ("channel" . "guix")
+                          ("commit" . "fakesha1"))
+                         (("directory" . "dir2") ("channel" . "packages")
+                          ("commit" . "fakesha3"))))
+        ("evaluation" . 1)))
+    (begin
+      (db-register-builds (list (db-get-build "/gnu/store/fake.drv"))
+                          (db-get-specification "guix"))
+      (db-set-evaluation-status 1 (evaluation-status succeeded))
+      (db-update-build-status! "/gnu/store/fake.drv"
+                               (build-status succeeded))
+      (json-string->scm
+       (utf8->string
+        (http-get-body
+         (test-cuirass-uri "/api/jobs/history?spec=guix&names=fake-job&nr=10"))))))
 
   (test-assert "db-close"
     (begin

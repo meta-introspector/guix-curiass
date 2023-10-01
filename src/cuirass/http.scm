@@ -221,7 +221,8 @@ a <checkout> record."
     (map (lambda (eval)
            `((evaluation . ,(assq-ref eval 'evaluation))
              (checkouts . ,(list->vector
-                            (assq-ref eval 'checkouts)))
+                            (map checkout->json-object
+                                 (assq-ref eval 'checkouts))))
              (jobs . ,(list->vector
                        (assq-ref eval 'jobs)))))
          history))))
