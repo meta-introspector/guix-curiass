@@ -1603,7 +1603,8 @@ WITH pending_dependencies AS
 (SELECT Builds.id, count(dep.id) as deps FROM Builds
 LEFT JOIN BuildDependencies as bd ON bd.source = Builds.id
 LEFT JOIN Builds AS dep ON bd.target = dep.id AND dep.status != 0
-WHERE Builds.status = -2 AND Builds.system = " system
+WHERE Builds.status = " (build-status scheduled)
+" AND Builds.system = " system
 " GROUP BY Builds.id
 ORDER BY Builds.priority ASC, Builds.timestamp ASC)
 SELECT id FROM pending_dependencies WHERE deps = 0 LIMIT 1;"))
