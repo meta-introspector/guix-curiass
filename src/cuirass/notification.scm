@@ -165,7 +165,10 @@ the detailed information about this build here: ~a."
                      notif build)
           (cond
            ((email? notif)
-            (send-email* notif build))
+            ;; 'send-email' calls 'mu-message-send', which in turn spawns a
+            ;; mailer process and blocks until completion with waitpid(2).  Do
+            ;; that in a separate thread to avoid blocking all the fibers.
+            (non-blocking (send-email* notif build)))
            ((mastodon? notif)
             (send-mastodon build))))
          (#f #f))
