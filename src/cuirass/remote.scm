@@ -281,18 +281,25 @@ PRIVATE-KEY to sign narinfos."
     (string-append cache "/" hash ".log.gz")))
 
 (define (receive-logs port cache)
-  (define (read-log port)
-    (match (false-if-exception (read port))
-      (('log ('version 0)
-             ('derivation derivation))
-       (log-debug (G_ "reading build log for ~a") derivation)
-       (let ((file (log-path cache derivation)))
-         (call-with-output-file file
-           (lambda (output)
-             (dump-port port output)))))
-      (_
-       (log-error "invalid log received.")
-       #f)))
+  (define (sockaddr->string address)
+    (inet-ntop (sockaddr:fam address)
+               (sockaddr:addr address)))
+
+  (define (read-log port address)
+    (let ((address (sockaddr->string address)))
+      (match (false-if-exception (read port))
+        (('log ('version 0)
+               ('derivation derivation))
+         (log-debug (G_ "reading build log for ~a from ~a")
+                    derivation address)
+         (let ((file (log-path cache derivation)))
+           (call-with-output-file file
+             (lambda (output)
+               (dump-port port output)))))
+        ((? eof-object?)
+         (log-error "EOF while receiving log from ~a" address))
+        (_
+         (log-error "invalid log received from ~a" address)))))
 
   (define (wait-for-client port)
     (let ((sock (socket AF_INET
@@ -314,11 +321,10 @@ PRIVATE-KEY to sign narinfos."
     (catch 'system-error
       (lambda ()
         (log-debug "preparing to receive build log from ~a"
-                   (inet-ntop (sockaddr:fam address)
-                              (sockaddr:addr address)))
+                   (sockaddr->string address))
         (write '(log-server (version 0)) client)
         (force-output client)
-        (read-log client)
+        (read-log client address)
         (close-port client))
       (lambda args
         (close-port client)
