@@ -561,7 +561,7 @@ example with a command along these lines:
 
 @example
 wget --post-data="" -O /dev/null \
-  https://cuirass.example.org/@var{jobset}/hooks/evaluate
+  https://cuirass.example.org/jobset/@var{jobset}/hook/evaluate
 @end example
 
 You would typically run that command as a @dfn{push hook} on the servers
