@@ -133,7 +133,8 @@
     (finished . ,(bool->int finished?))
     (buildproducts . ,(list->vector
                        (map (lambda (product)
-                              `((type . ,(build-product-type product))
+                              `((id . ,(build-product-id product))
+                                (type . ,(build-product-type product))
                                 (path . ,(build-product-file product))
                                 (file-size . ,(build-product-file-size product))))
                             (build-products build))))))
