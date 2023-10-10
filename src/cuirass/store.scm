@@ -78,15 +78,17 @@ computed as its modification time + TTL seconds."
 
 (define (register-gc-root item)
   "Create a GC root pointing to ITEM, a store item."
-  (catch 'system-error
-    (lambda ()
-      (symlink item
-               (string-append (%gc-root-directory)
-                              "/" (basename item))))
-    (lambda args
-      ;; If the symlink already exist, assume it points to ITEM.
-      (unless (= EEXIST (system-error-errno args))
-        (apply throw args)))))
+  (let ((root (string-append (%gc-root-directory) "/" (basename item))))
+    (catch 'system-error
+      (lambda ()
+        (symlink item root))
+      (lambda args
+        ;; If the symlink already exist, assume it points to ITEM, but update
+        ;; its mtime so it doesn't get GC'd too early.
+        (if (= EEXIST (system-error-errno args))
+            (let ((now (current-time)))
+              (utime root now now 0 0 AT_SYMLINK_NOFOLLOW))
+            (apply throw args))))))
 
 (define* (register-gc-roots drv
                             #:key (mode 'outputs))
