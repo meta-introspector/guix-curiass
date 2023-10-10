@@ -454,10 +454,13 @@ requested received on its channel."
 all network interfaces."
   (string-append "tcp://*:" (number->string backend-port)))
 
-(define (zmq-start-proxy backend-port fetch-worker)
+(define (serve-build-requests backend-port fetch-worker)
   "Open a zmq socket on BACKEND-PORT and listen for messages coming from
-'cuirass remote-worker' messages.  When a message denoting a successful build
-is received, pass it on to FETCH-WORKER to download the build's output(s)."
+'cuirass remote-worker' processes, and reply to 'worker-request-work'
+messages: this is a \"work stealing\" strategy.
+
+When a message denoting a successful build is received, pass it on to
+FETCH-WORKER to download the build's output(s)."
   (let ((build-socket (zmq-create-socket %zmq-context ZMQ_ROUTER)))
 
     ;; Send bootstrap messages on worker connection to wake up the workers
@@ -640,7 +643,7 @@ exiting."
              (let ((fetch-worker (spawn-fetch-worker)))
                (catch 'zmq-error
                  (lambda ()
-                   (zmq-start-proxy backend-port fetch-worker))
+                   (serve-build-requests backend-port fetch-worker))
                  (lambda (key errno message . _)
                    (log-error (G_ "failed to start worker/database proxy: ~a")
                               message)
