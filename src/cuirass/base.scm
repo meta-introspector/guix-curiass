@@ -765,21 +765,30 @@ concurrently; it sends derivation build requests to BUILDER."
                 (loop spec
                       (cons timestamp (take-while recent? last-updates)))))))
 
-      (if (null? last-updates)                    ;first time?
-          (perform-update)
-          (match (get-message* channel polling-period 'timeout)
-            ('timeout
-             (log-info "polling jobset '~a' after ~as timeout expiry"
-                       name polling-period)
-             (perform-update))
-            ('trigger
-             (log-info "triggered update of jobset '~a'" name)
-             (perform-update))
+      (if (specification-is-active? spec)
+          (if (null? last-updates)                ;first time?
+              (perform-update)
+              (match (get-message* channel polling-period 'timeout)
+                ('timeout
+                 (log-info "polling jobset '~a' after ~as timeout expiry"
+                           name polling-period)
+                 (perform-update))
+                ('trigger
+                 (log-info "triggered update of jobset '~a'" name)
+                 (perform-update))
+                (`(update-spec ,spec)
+                 (log-info "updating spec of jobset '~a'" name)
+                 (loop spec last-updates))
+                (message
+                 (log-warning "jobset '~a' got bogus message: ~s"
+                              name message)
+                 (loop spec last-updates))))
+          (match (get-message channel)            ;currently inactive
             (`(update-spec ,spec)
-             (log-info "updating spec of jobset '~a'" name)
+             (log-info "updating spec of inactive jobset '~a'" name)
              (loop spec last-updates))
             (message
-             (log-warning "jobset '~a' got bogus message: ~s"
+             (log-warning "inactive jobset '~a' got unexpected message: ~s"
                           name message)
              (loop spec last-updates)))))))
 
@@ -808,7 +817,7 @@ POLLING-PERIOD seconds."
   (lambda ()
     (spawn-fiber
      (lambda ()
-       (let ((specs (db-get-specifications)))
+       (let ((specs (db-get-specifications #:filter-inactive? #f)))
          (log-info "registering ~a jobsets" (length specs))
          (for-each (lambda (spec)
                      (register-jobset channel spec))
