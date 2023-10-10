@@ -673,6 +673,11 @@ Use @var{database} PostgreSQL connection string.
 @item --cache=@var{directory}
 Use @var{directory} to cache build log files.
 
+@item --log-expiry=@var{duration}
+Periodically delete build logs older than @var{duration}, where
+@samp{2m} means ``2 months'', @samp{10d} means ``10 days'', and so on.
+The default duration is 6 months.
+
 @item --trigger-substitute-url=@var{URL}
 Once a substitute is successfully fetched, trigger substitute baking
 at @var{URL}.

@@ -45,12 +45,13 @@
   #:autoload   (gcrypt pk-crypto) (read-file-sexp)
   #:use-module (simple-zmq)
   #:use-module (srfi srfi-1)
-  #:use-module ((srfi srfi-19) #:select (time-second time-nanosecond))
+  #:use-module ((srfi srfi-19) #:select (time? time-second time-nanosecond))
   #:use-module (srfi srfi-26)
   #:use-module (srfi srfi-34)
   #:use-module (srfi srfi-37)
   #:use-module (srfi srfi-71)
   #:use-module (ice-9 atomic)
+  #:use-module ((ice-9 ftw) #:select (scandir))
   #:use-module (ice-9 match)
   #:use-module ((ice-9 threads)
                 #:select (current-processor-count join-thread))
@@ -97,6 +98,8 @@ Start a remote build server.\n") (%program-name))
   -P, --parameters=FILE     Read parameters from FILE"))
   (display (G_ "
   -t, --ttl=DURATION        keep build results live for at least DURATION"))
+  (display (G_ "
+      --log-expiry=DURATION delete build logs after DURATION"))
   (display (G_ "
   -D, --database=DB         Use DB to read and store build results"))
   (display (G_ "
@@ -158,6 +161,14 @@ Start a remote build server.\n") (%program-name))
         (option '(#\u "user") #t #f
                 (lambda (opt name arg result)
                   (alist-cons 'user arg result)))
+        (option '("log-expiry") #t #f
+                (lambda (opt name arg result)
+                  (alist-cons 'build-log-expiry
+                              (match (string->duration arg)
+                                ((? time? d) (time-second d))
+                                (_ (leave (G_ "~a: invalid duration~%")
+                                          arg)))
+                              result)))
         (option '("public-key") #t #f
                 (lambda (opt name arg result)
                   (alist-cons 'public-key-file arg result)))
@@ -171,6 +182,7 @@ Start a remote build server.\n") (%program-name))
     (publish-port     . 5557)
     (no-publish       . #f)
     (ttl              . "3d")
+    (build-log-expiry . ,(* 6 30 24 3600))        ;6 months
     (public-key-file  . ,%public-key-file)
     (private-key-file . ,%private-key-file)))
 
@@ -498,6 +510,43 @@ FETCH-WORKER to download the build's output(s)."
 
 
 ;;;
+;;; Cleaning up build logs.
+;;;
+
+(define (delete-old-build-logs directory max-age)
+  "Delete from DIRECTORY build logs older than MAX-AGE seconds."
+  (define now
+    (current-time))
+
+  (define (old-log? file)
+    (and (string-suffix? ".log.gz" file)
+         (let* ((file (in-vicinity directory file))
+                (stat (stat file #f)))
+           (and stat
+                (eq? 'regular (stat:type stat))
+                (>= (- now (stat:mtime stat)) max-age)))))
+
+  (log-info "deleting old build logs from '~a'..." directory)
+  (let ((files (scandir directory old-log?)))
+    (log-info "selected ~a build logs to remove" (length files))
+    (for-each (lambda (file)
+                (delete-file (in-vicinity directory file)))
+              files)))
+
+(define* (spawn-build-log-cleaner max-age
+                                  #:optional (period (* 3600 24)))
+  "Spawn an agent that, even PERIOD seconds, deletes build logs older than
+MAX-AGE seconds."
+  (spawn-fiber
+   (lambda ()
+     (let loop ()
+       (delete-old-build-logs (%cache-directory) max-age)
+       (sleep period)
+       (loop))))
+  #t)
+
+
+;;;
 ;;; Entry point.
 ;;;
 
@@ -639,6 +688,7 @@ exiting."
              (receive-logs log-port (%cache-directory))
              (spawn-notification-fiber)
              (spawn-periodic-updates-fiber)
+             (spawn-build-log-cleaner (assoc-ref opts 'build-log-expiry))
 
              (let ((fetch-worker (spawn-fetch-worker)))
                (catch 'zmq-error
