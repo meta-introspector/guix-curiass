@@ -1247,13 +1247,9 @@ passed, only display JOBS targeting this SYSTEM."
                    (respond-json-with-error
                     code "Could not find the requested build product."))))
        (if file
-           (catch 'system-error
-             (lambda ()
-               (respond-file file #:ttl %static-file-ttl))
-             (lambda args
-               (if (= ENOENT (system-error-errno args))
-                   (fail 500)                  ;something's wrong: it vanished
-                   (apply throw args))))
+           (if (file-exists? file)
+               (respond-file file #:ttl %static-file-ttl)
+               (fail 500))                     ;something's wrong: it vanished
            (fail 404))))                          ;no such build product
 
     (('GET "machine" name)
