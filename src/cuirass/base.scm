@@ -34,7 +34,7 @@
   #:use-module (guix build utils)
   #:use-module (guix channels)
   #:use-module (guix derivations)
-  #:use-module (guix store)
+  #:use-module ((guix store) #:hide (build))
   #:use-module (guix ui)
   #:use-module (guix git)
   #:autoload   (guix build syscalls) (set-thread-name)
