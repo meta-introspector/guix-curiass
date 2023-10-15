@@ -37,6 +37,7 @@
   #:use-module (guix store)
   #:use-module (guix ui)
   #:use-module (guix git)
+  #:autoload   (guix build syscalls) (set-thread-name)
   #:use-module (zlib)
   #:use-module (git)
   #:use-module (ice-9 binary-ports)
@@ -526,6 +527,7 @@ to update Git checkouts, effectively serializing all Git operations."
             (return #f))
         (lambda ()
           (non-blocking
+           (set-thread-name "git-checkout")
            (latest-channel-instances* store channels))))))
 
   (lambda ()
