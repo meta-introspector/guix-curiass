@@ -3,6 +3,9 @@
 #+TITLE: What's left to do?
 #+STARTUP: content hidestars
 
+* Allow ‘latest-channel-instances’ to time out
+* Allow builds to be retried several times
+* Display first failure on build page
 * Notify instead of polling
 
   - 'register' notifies 'remote-server' of available builds
@@ -15,7 +18,6 @@
 
 * Improve the user interface
 
-** Clarify the new success/failure/queued figures on eval page
 ** Colorize build logs
 
 With client-side JS; folding of build phases, etc.
