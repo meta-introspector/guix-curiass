@@ -72,6 +72,7 @@
             spawn-channel-update-service
             spawn-jobset-evaluator
             spawn-jobset-registry
+            spawn-gc-root-cleaner
 
             lookup-jobset
             register-jobset
@@ -886,3 +887,55 @@ monitoring actor for each 'register' message it receives."
 (define* (update-jobset registry spec)
   "Update SPEC, so far known under FORMER-NAME, in REGISTRY."
   (put-message registry `(update ,spec)))
+
+
+;;;
+;;; GC root cleanup.
+;;;
+
+(define (derivation-queued? drv)
+  "Return true if DRV corresponds to a build that is still queued."
+  (match (db-get-build drv)
+    (#f #f)
+    (build
+     (memv (build-current-status build)
+           (list (build-status submitted)
+                 (build-status scheduled)
+                 (build-status started))))))
+
+(define (delete-old-gc-roots directory max-age)
+  "Delete from DIRECTORY garbage-collector roots older than MAX-AGE seconds."
+  (define now
+    (time-second (current-time time-utc)))
+
+  (define (old-root? file)
+    (let* ((file (in-vicinity directory file))
+           (stat (false-if-exception (lstat file))))
+      (and stat
+           (eq? 'symlink (stat:type stat))
+           (>= (- now (stat:mtime stat)) max-age)
+
+           ;; If the GC root corresponds to the derivation of a build
+           ;; that's still queued, do not remove it.
+           (or (not (string-suffix? ".drv" file))
+               (not (derivation-queued? (readlink file)))))))
+
+  (log-info "deleting old GC roots from '~a'..." directory)
+  (let ((files (scandir directory old-root?)))
+    (log-info "selected ~a GC roots to remove" (length files))
+    (for-each (lambda (file)
+                (delete-file (in-vicinity directory file)))
+              files)))
+
+(define* (spawn-gc-root-cleaner max-age #:optional (period (* 3600 24)))
+  "Spawn an agent that, every PERIOD seconds, deletes GC roots that are older
+than MAX-AGE seconds and that are known to be no longer needed."
+  (spawn-fiber
+   (lambda ()
+     (log-info "unused GC roots older than ~as will be deleted every ~as"
+               max-age period)
+     (let loop ()
+       (delete-old-gc-roots (%gc-root-directory) max-age)
+       (sleep period)
+       (loop))))
+  #t)

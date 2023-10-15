@@ -22,13 +22,10 @@
   #:autoload   (guix derivations) (build-derivations
                                    derivation-path->output-paths)
   #:use-module ((guix config) #:select (%state-directory))
-  #:autoload   (guix cache) (maybe-remove-expired-cache-entries)
-  #:autoload   (srfi srfi-26) (cut)
   #:use-module (srfi srfi-34)
   #:use-module ((srfi srfi-35) #:select (condition?))
   #:use-module (ice-9 atomic)
   #:use-module (ice-9 match)
-  #:autoload   (ice-9 ftw) (scandir)
   #:autoload   (ice-9 rdelim) (read-line)
   #:use-module (ice-9 threads)
   #:export (non-blocking-port
@@ -62,20 +59,6 @@
   ;; The "time to live" (TTL) of GC roots.
   (make-parameter (* 30 24 3600)))
 
-(define (gc-roots directory)
-  ;; Return the list of GC roots (symlinks) in DIRECTORY.
-  (map (cut string-append directory "/" <>)
-       (scandir directory
-                (lambda (file)
-                  (not (member file '("." "..")))))))
-
-(define (gc-root-expiration-time file)
-  "Return \"expiration time\" of FILE (a symlink in %GC-ROOT-DIRECTORY)
-computed as its modification time + TTL seconds."
-  (match (false-if-exception (lstat file))
-    (#f 0)                         ;FILE may have been deleted in the meantime
-    (st (+ (stat:mtime st) (%gc-root-ttl)))))
-
 (define (register-gc-root item)
   "Create a GC root pointing to ITEM, a store item."
   (let ((root (string-append (%gc-root-directory) "/" (basename item))))
@@ -107,12 +90,7 @@ any."
          (register-gc-root drv))))
     (lambda args
       (unless (= ENOENT (system-error-errno args)) ;collected in the meantime
-        (apply throw args))))
-
-  (maybe-remove-expired-cache-entries (%gc-root-directory)
-                                      gc-roots
-                                      #:entry-expiration
-                                      gc-root-expiration-time))
+        (apply throw args)))))
 
 
 ;;;

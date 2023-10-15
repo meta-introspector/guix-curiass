@@ -244,6 +244,9 @@
                        ;; registry.
                        (spawn-bridge (open-bridge-socket) registry))
 
+                     ;; Periodically delete old GC roots.
+                     (spawn-gc-root-cleaner (%gc-root-ttl))
+
                      (spawn-fiber
                       (essential-task
                        'metrics exit-channel
