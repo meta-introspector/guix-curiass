@@ -384,7 +384,8 @@ directory."
   (match message
     (('build-succeeded ('drv drv) ('url url) _ ...)
      (let ((outputs (build-outputs drv)))
-       (log-info "fetching '~a' from ~a" drv url)
+       (log-info "fetching ~a outputs of '~a' from ~a"
+                 (length outputs) drv url)
        (call-with-time
         (lambda ()
           (add-to-store drv outputs url))
