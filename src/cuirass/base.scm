@@ -390,7 +390,8 @@ OUTPUTS, a list of <build-output> records."
                                 (build-output-job build-output))
                                (find-product build build-output))))
                 (when (and file (file-exists? file))
-                  (log-info "Adding build product ~a" file)
+                  (log-info "adding product '~a' of build ~a"
+                            file (build-id build))
                   (catch 'system-error
                     (lambda ()
                       (register-gc-root file))
