@@ -169,7 +169,7 @@ guix, Guix}).
 The build artifacts that must be saved and proposed to download in the
 web interface as a list of @code{build-outputs} records.
 
-@deftp {Data Type} build-outputs
+@deftp {Data Type} build-output
 @table @asis
 @item @code{job}
 Save the build outputs of the build jobs which names match the
