@@ -939,7 +939,7 @@ jobset, along these lines:
 
 @example
 wget --post-data="" -O /dev/null \
-  https://cuirass.example.org/@var{jobset}/hooks/evaluate
+  https://cuirass.example.org/jobset/@var{jobset}/hook/evaluate
 @end example
 
 A good idea is to do that from the post-push hook of the relevant Git
