@@ -1048,6 +1048,7 @@ not actually failing or if that builds of that job have always failed."
                `((jobset . ,(build-specification-name build))
                  (job . ,(build-job-name build))
                  (oldevaluation . ,(build-evaluation-id build))
+                 (status . failed)
                  (weather . new)
                  (nr . 1)))
          ((first) first)
