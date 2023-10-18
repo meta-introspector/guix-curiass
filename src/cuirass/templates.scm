@@ -854,7 +854,8 @@ the existing SPEC otherwise."
                  `((tr (th "Worker") (td ,name)))))))))
     ,@(if (null? history)
           '()
-          `((h6 "Build history")
+          `((div (@ (class "lead mr-auto"))
+                 "Build history")
             (table
              (@ (class "table table-sm table-hover table-striped"))
              (thead
