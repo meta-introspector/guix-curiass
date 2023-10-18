@@ -5,6 +5,13 @@
 (list (specification
        (name 'random)
        (build '(manifests "examples/random-manifest.scm"))
+       (build-outputs
+        ;; Define a "build product" for some of the jobs.
+        (list (build-output
+               (job "(random|entropy-)1[0-9]")
+               (type "archive")
+               (output "out")
+               (path ""))))
        (channels
         (cons (channel
                (name 'cuirass)
