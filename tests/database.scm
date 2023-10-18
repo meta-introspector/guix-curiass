@@ -704,7 +704,7 @@ timestamp, checkouttime, evaltime) VALUES ('guix', 0, 0, 0, 0);")
                  (>= percentage 50)))))))
 
   (test-equal "db-update-build-status!"
-    (list #f 1)
+    (list #f (build-status failed))
     (with-fibers
       (db-add-evaluation "guix"
                          (make-dummy-instances "fakesha5" "fakesha6"))
@@ -721,8 +721,8 @@ timestamp, checkouttime, evaltime) VALUES ('guix', 0, 0, 0, 0);")
                                              (item "/new")
                                              (derivation "/new-build.drv")))))
 
-      (db-update-build-status! "/old-build.drv" 1)
-      (db-update-build-status! "/new-build.drv" 0)
+      (db-update-build-status! "/old-build.drv" (build-status failed))
+      (db-update-build-status! "/new-build.drv" (build-status succeeded))
       (map build-last-status
            (list (db-get-build "/old-build.drv")
                  (db-get-build "/new-build.drv")))))
