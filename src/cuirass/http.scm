@@ -813,6 +813,11 @@ passed, only display JOBS targeting this SYSTEM."
     (('GET "build" (= string->number id) "details")
      (let* ((build (and id (db-get-build id)))
             (products (and build (build-products build)))
+            (spec (and build (db-get-specification
+                              (build-specification-name build))))
+            (checkouts (and build
+                            (latest-checkouts spec
+                                              (build-evaluation-id build))))
             (dependencies
              (and build
                   (db-get-builds
@@ -825,12 +830,26 @@ passed, only display JOBS targeting this SYSTEM."
                      (oldevaluation . ,(build-evaluation-id build))
                      (status . done)
                      (order . evaluation)
-                     (nr . 10))))))
+                     (nr . 10)))))
+            (previous-checkouts
+             (match history
+               ((previous . _)
+                (latest-checkouts spec (build-evaluation-id previous)))
+               (_ '())))
+            (failure? (and build
+                           (= (build-status failed)
+                              (build-current-status build))))
+            (failure (and failure?
+                          (db-get-first-build-failure build))))
        (if build
            (respond-html
             (html-page
              (string-append "Build " (number->string id))
-             (build-details build dependencies products history)
+             (build-details build dependencies products history
+                            #:channels (specification-channels spec)
+                            #:checkouts checkouts
+                            #:previous-checkouts previous-checkouts
+                            #:first-failure failure)
              `(((#:name . ,(build-specification-name build))
                 (#:link
                  . ,(string-append "/jobset/"
@@ -1250,7 +1269,7 @@ passed, only display JOBS targeting this SYSTEM."
            (if (file-exists? file)
                (respond-file file #:ttl %static-file-ttl)
                (fail 500))                     ;something's wrong: it vanished
-           (fail 404))))                          ;no such build product
+           (fail 404))))                       ;no such build product
 
     (('GET "machine" name)
      (respond-html

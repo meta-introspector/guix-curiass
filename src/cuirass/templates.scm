@@ -665,7 +665,10 @@ the existing SPEC otherwise."
 		 (div (@ (class "col-sm-10 text-warning"))
 		      "Declarative configuration updates may overwrite these settings!"))))))
 
-(define (build-details build dependencies products history)
+(define* (build-details build dependencies products history
+                        #:key (channels '())
+                        (checkouts '()) (previous-checkouts '())
+                        first-failure)
   "Return HTML showing details for the BUILD."
   (define status (build-current-status build))
   (define weather (build-current-weather build))
@@ -694,6 +697,26 @@ the existing SPEC otherwise."
       (td ,(if (completed? status)
                (time->string (build-completion-time build))
                "—"))))
+
+  (define (build-failure-info build)
+    ;; If BUILD failed, provide hints as to the origin of the failure.
+    (if (= (build-status failed) (build-current-status build))
+        (if (= (build-weather new-failure) (build-current-weather build))
+            `((p "Channel changes compared to the "
+                 (a (@ (href "/build/" ,(build-id (first history)) "/details"))
+                    "previous (successful) build")
+                 ":"
+                 ,(checkout-change-table channels
+                                         previous-checkouts checkouts)))
+            (if first-failure
+                `((p "The first failure was "
+                     (a (@ (href "/build/" ,(build-id first-failure)
+                                 "/details"))
+                        "build #"
+                        ,(number->string (build-id first-failure)))
+                     "."))
+                '()))
+        '()))
 
   `((div (@ (class "d-flex flex-row mb-3"))
          (div (@ (class "lead mr-auto"))
@@ -756,7 +779,8 @@ the existing SPEC otherwise."
                        (title ,(weather-title weather))
                        (aria-hidden "true"))
                     "")
-              " " ,(weather-title weather)))
+              " " ,(weather-title weather)
+              ,@(build-failure-info build)))
       (tr (th "Log file")
           (td ,(if (or (= (build-status started) status)
                        (= (build-status succeeded) status)
@@ -852,6 +876,7 @@ the existing SPEC otherwise."
                               ,(worker-machine worker))
                            ", worker " ,name)))
                  `((tr (th "Worker") (td ,name)))))))))
+
     ,@(if (null? history)
           '()
           `((div (@ (class "lead mr-auto"))
@@ -1318,6 +1343,41 @@ the nearest exact even integer."
                         `(tr (td "?")
                              (td (i "checkout information is missing")))))
                   checkouts))))
+
+(define (checkout-change-table channels old new)
+  "Return a table representing the changes from OLD to NEW, both of which are
+lists of <checkout> records.  Use CHANNELS to grab additional metadata such as
+the channel's URL."
+  `(table (@ (class "table table-sm table-hover"))
+          (tbody
+           ,@(map (lambda (checkout)
+                    (let* ((name (checkout-channel checkout))
+                           (commit (checkout-commit checkout))
+                           (previous (find (lambda (checkout)
+                                             (eq? (checkout-channel checkout)
+                                                  name))
+                                           old))
+                           (channel (find (lambda (channel)
+                                            (eq? (channel-name channel)
+                                                 name))
+                                          channels))
+                           (url (and channel (channel-url channel))))
+                      (if (string=? commit (checkout-commit previous))
+                          '()
+                          `(tr (td ,name)
+                               (td (code
+                                    ,(if url
+                                         (commit-hyperlink url
+                                                           (checkout-commit
+                                                            previous)
+                                                           #:shorten? #t)
+                                         (checkout-commit previous))
+                                    " → "
+                                    ,(if url
+                                         (commit-hyperlink url commit
+                                                           #:shorten? #t)
+                                         commit)))))))
+                  new))))
 
 (define* (build-counter-badge value class title
                               #:optional link)

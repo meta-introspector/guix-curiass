@@ -5,7 +5,6 @@
 
 * Allow ‘latest-channel-instances’ to time out
 * Allow builds to be retried several times
-* Display first failure on build page
 * Notify instead of polling
 
   - 'register' notifies 'remote-server' of available builds
