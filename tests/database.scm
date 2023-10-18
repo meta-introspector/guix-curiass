@@ -37,6 +37,7 @@
              (ice-9 control)
              (ice-9 exceptions)
              (ice-9 match)
+             (srfi srfi-1)
              (srfi srfi-19)
              (srfi srfi-64))
 
@@ -959,6 +960,36 @@ timestamp, checkouttime, evaltime) VALUES ('guix', 0, 0, 0, 0);")
         (and (eq? (status drv-4) (build-status failed-dependency))
              (eq? (status drv-6) (build-status failed-dependency))
              (eq? (status drv-7) (build-status failed-dependency))))))
+
+  (test-equal "db-get-first-build-failure"
+    '("/thing.drv2"                               ;last success
+      "/thing.drv3")                              ;first failure
+    (with-fibers
+     (let ((derivation "/thing.drv")
+           (job "thing-that-starts-failing"))
+       (for-each (lambda (status n)
+                   (let ((id (db-add-evaluation "guix"
+                                                (make-dummy-instances
+                                                 (number->string n)
+                                                 "fakesha2")))
+                         (drv (string-append derivation (number->string n))))
+                     (db-add-build (make-dummy-build drv id
+                                                     #:jobset "guix"
+                                                     #:job-name job))
+                     (db-update-build-status! drv status)))
+                 (list (build-status failed)      ;0
+                       (build-status succeeded)   ;1
+                       (build-status succeeded)   ;2
+                       (build-status failed)      ;3
+                       (build-status failed))     ;4
+                 (iota 5))
+       (let ((last (db-get-build (string-append derivation "4")))
+             (all  (db-get-builds `((job . ,job)
+                                    (order . evaluation)))))
+         (and (= (build-id last) (build-id (first all)))
+              (map build-derivation
+                   (list (db-get-previous-successful-build last)
+                         (db-get-first-build-failure last))))))))
 
   (test-assert "db-close"
     (begin

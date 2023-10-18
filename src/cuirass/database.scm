@@ -162,6 +162,8 @@
             db-get-build-percentages
             db-get-jobs
             db-get-jobs-history
+            db-get-previous-successful-build
+            db-get-first-build-failure
             db-add-build-dependencies
             db-get-build-dependencies
             db-update-resumable-builds!
@@ -1023,6 +1025,33 @@ AND Jobs.name = ANY(:names);")
                                (checkouts . ,(db-get-checkouts evaluation))
                                (jobs . ,(list job)))
                              evaluations))))))))))
+
+(define (db-get-previous-successful-build build)
+  "Return the previous successful build of the same job as BUILD, or #f if
+none was found."
+  (match (db-get-builds
+          `((jobset . ,(build-specification-name build))
+            (job . ,(build-job-name build))
+            (oldevaluation . ,(build-evaluation-id build))
+            (status . succeeded)
+            (order . evaluation)
+            (nr . 1)))
+    ((success) success)
+    (() #f)))
+
+(define (db-get-first-build-failure build)
+  "Return the first build failure of the same job as BUILD, or #f if BUILD is
+not actually failing or if that builds of that job have always failed."
+  (and (= (build-status failed)
+          (build-current-status build))
+       (match (db-get-builds
+               `((jobset . ,(build-specification-name build))
+                 (job . ,(build-job-name build))
+                 (oldevaluation . ,(build-evaluation-id build))
+                 (weather . new)
+                 (nr . 1)))
+         ((first) first)
+         (() #f))))
 
 (define (db-add-build-dependencies source-derivation target-derivations)
   "Insert into the BuildDependencies table the TARGET-DERIVATIONS as
