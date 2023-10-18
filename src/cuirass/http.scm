@@ -832,10 +832,9 @@ passed, only display JOBS targeting this SYSTEM."
                      (order . evaluation)
                      (nr . 10)))))
             (previous-checkouts
-             (match history
-               ((previous . _)
-                (latest-checkouts spec (build-evaluation-id previous)))
-               (_ '())))
+             (latest-checkouts spec
+                               (db-get-previous-eval
+                                (build-evaluation-id build))))
             (failure? (and build
                            (= (build-status failed)
                               (build-current-status build))))
