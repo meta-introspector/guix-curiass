@@ -1291,8 +1291,32 @@ and BUILD-MAX are global minimal and maximal (stoptime, rowid) pairs."
       ("gitlab.inria.fr" ,labhub-url)
       ("github.com" ,labhub-url))))
 
+(define %vcs-web-commit-range-views
+  ;; List of host names and corresponding URL to display a commit range.
+  (let ((gitlab-url (lambda (repository-url commit1 commit2)
+                      (string-append
+                       (if (string-suffix? ".git" repository-url)
+                           (string-drop-right repository-url 4)
+                           repository-url)
+                       "/-/compare/" commit1 "..." commit2)))
+        (github-url (lambda (repository-url commit1 commit2)
+                      (string-append
+                       (if (string-suffix? ".git" repository-url)
+                           (string-drop-right repository-url 4)
+                           repository-url)
+                       "/compare/" commit1 ".." commit2))))
+   `(("git.savannah.gnu.org"
+      ,(lambda (repository-url commit1 commit2)
+         (string-append (string-replace-substring repository-url
+                                                  "/git/" "/cgit/")
+                        "/log/?qt=range&q=" commit1 ".." commit2)))
+     ("framagit.org" ,gitlab-url)
+     ("gitlab.com" ,gitlab-url)
+     ("gitlab.inria.fr" ,gitlab-url)
+     ("github.com" ,github-url))))
+
 (define* (commit-hyperlink url commit #:key shorten?)
-  "Return, if possibly, a hyperlink for COMMIT of the repository at URL.  When
+  "Return, if possible, a hyperlink for COMMIT of the repository at URL.  When
 SHORTEN? is true, display a shortened version of COMMIT."
   (let ((str (if shorten?
                  (string-take commit 7)
@@ -1360,6 +1384,24 @@ CHECKOUTS that has changed compared to the previous evaluation."
                              (td (i "checkout information is missing")))))
                   checkouts))))
 
+(define (commit-range-hyperlink url commit1 commit2)
+  "Return, if possible, a hyperlink to a web view of the range
+COMMIT1..COMMIT2 of the Git repository at URL."
+  (define shorten
+    (cut string-take <> 7))
+
+  (define body
+    `(code ,(shorten commit1) " → " ,(shorten commit2)))
+
+  (match (string->uri url)
+    (#f body)
+    (uri
+     (let ((host (uri-host uri)))
+       (match (assoc-ref %vcs-web-commit-range-views host)
+         (#f     body)
+         ((link) `(a (@ (href ,(link url commit1 commit2)))
+                     ,body)))))))
+
 (define (checkout-change-table channels old new)
   "Return a table representing the changes from OLD to NEW, both of which are
 lists of <checkout> records.  Use CHANNELS to grab additional metadata such as
@@ -1381,18 +1423,10 @@ the channel's URL."
                       (if (string=? commit (checkout-commit previous))
                           '()
                           `(tr (td ,name)
-                               (td (code
-                                    ,(if url
-                                         (commit-hyperlink url
-                                                           (checkout-commit
-                                                            previous)
-                                                           #:shorten? #t)
-                                         (checkout-commit previous))
-                                    " → "
-                                    ,(if url
-                                         (commit-hyperlink url commit
-                                                           #:shorten? #t)
-                                         commit)))))))
+                               (td ,(commit-range-hyperlink
+                                     (channel-url channel)
+                                     (checkout-commit previous)
+                                     commit))))))
                   new))))
 
 (define* (build-counter-badge value class title
