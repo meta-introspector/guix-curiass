@@ -28,7 +28,7 @@
   #:use-module (cuirass notification)
   #:use-module (cuirass specification)
   #:use-module ((cuirass store)
-                #:select (%gc-root-directory %gc-root-ttl))
+                #:select (%gc-root-directory))
   #:use-module (cuirass utils)
   #:use-module (cuirass zabbix)
   #:use-module (guix ui)
@@ -170,9 +170,7 @@
          (%package-database (option-ref opts 'database (%package-database)))
          (%package-cachedir
           (option-ref opts 'cache-directory (%package-cachedir)))
-         (%fallback? (option-ref opts 'fallback #f))
-         (%gc-root-ttl
-          (time-second (string->duration (option-ref opts 'ttl "30d")))))
+         (%fallback? (option-ref opts 'fallback #f)))
       (cond
        ((option-ref opts 'help #f)
         (show-help)
@@ -188,6 +186,8 @@
               (interval (string->number (option-ref opts 'interval "600")))
               (specfile (option-ref opts 'specifications #f))
               (paramfile (option-ref opts 'parameters #f))
+              (gc-root-ttl (time-second
+                            (string->duration (option-ref opts 'ttl "30d"))))
 
               ;; Since our work is mostly I/O-bound, default to a maximum of 8
               ;; kernel threads.  Going beyond that can increase overhead (GC
@@ -245,7 +245,7 @@
                        (spawn-bridge (open-bridge-socket) registry))
 
                      ;; Periodically delete old GC roots.
-                     (spawn-gc-root-cleaner (%gc-root-ttl))
+                     (spawn-gc-root-cleaner gc-root-ttl)
 
                      (spawn-fiber
                       (essential-task

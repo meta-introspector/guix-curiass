@@ -145,7 +145,8 @@ Start a remote build server.\n") (%program-name))
                   (alist-cons 'parameters arg result)))
         (option '(#\t "ttl") #t #f
                 (lambda (opt name arg result)
-                  (alist-cons 'ttl arg result)))
+                  (warning (G_ "the '--ttl' option now has no effect~%"))
+                  result))
         (option '(#\D "database") #t #f
                 (lambda (opt name arg result)
                   (alist-cons 'database arg result)))
@@ -607,7 +608,6 @@ exiting."
                               (assoc-ref opts 'publish-port)))
            (cache (assoc-ref opts 'cache))
            (parameters (assoc-ref opts 'parameters))
-           (ttl (assoc-ref opts 'ttl))
            (database (assoc-ref opts 'database))
            (trigger-substitute-url (assoc-ref opts 'trigger-substitute-url))
            (user (assoc-ref opts 'user))
@@ -622,8 +622,6 @@ exiting."
                      (%publish-port publish-port)
                      (%trigger-substitute-url trigger-substitute-url)
                      (%package-database database)
-                     (%gc-root-ttl
-                      (time-second (string->duration ttl)))
                      (%public-key public-key)
                      (%private-key private-key))
 

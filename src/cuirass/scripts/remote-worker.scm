@@ -22,8 +22,7 @@
   #:use-module (fibers channels)
   #:autoload   (cuirass store) (build-derivations&
                                 register-gc-roots
-                                %gc-root-directory
-                                %gc-root-ttl)
+                                %gc-root-directory)
   #:use-module (cuirass logging)
   #:use-module (cuirass remote)
   #:use-module (cuirass ui)
@@ -124,7 +123,8 @@ Start a remote build worker.\n" (%program-name))
                   (alist-cons 'publish-port (string->number* arg) result)))
         (option '(#\t "ttl") #t #f
                 (lambda (opt name arg result)
-                  (alist-cons 'ttl arg result)))
+                  (warning (G_ "the '--ttl' option now has no effect~%"))
+                  result))
         (option '("minimum-disk-space") #t #f
                 (lambda (opt name arg result)
                   (alist-cons 'minimum-disk-space
@@ -460,7 +460,6 @@ exiting."
                              %default-options))
            (workers (assoc-ref opts 'workers))
            (publish-port (assoc-ref opts 'publish-port))
-           (ttl (assoc-ref opts 'ttl))
            (server-address (assoc-ref opts 'server))
            (systems (assoc-ref opts 'systems))
            (urls    (assoc-ref opts 'substitute-urls))
@@ -473,8 +472,7 @@ exiting."
 
       (false-if-exception (mkdir-p (%gc-root-directory)))
 
-      (parameterize ((%gc-root-ttl (time-second (string->duration ttl)))
-                     (%substitute-urls urls)
+      (parameterize ((%substitute-urls urls)
                      (%minimum-disk-space
                       (assoc-ref opts 'minimum-disk-space)))
         (atomic-box-set! %local-publish-port publish-port)

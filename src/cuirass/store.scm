@@ -36,8 +36,7 @@
             register-gc-root
             register-gc-roots
             default-gc-root-directory
-            %gc-root-directory
-            %gc-root-ttl))
+            %gc-root-directory))
 
 
 ;;;
@@ -54,10 +53,6 @@
   ;; Directory where garbage collector roots are stored.  We register build
   ;; outputs there.
   (make-parameter (default-gc-root-directory)))
-
-(define %gc-root-ttl
-  ;; The "time to live" (TTL) of GC roots.
-  (make-parameter (* 30 24 3600)))
 
 (define (register-gc-root item)
   "Create a GC root pointing to ITEM, a store item."
