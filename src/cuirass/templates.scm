@@ -1316,11 +1316,21 @@ the nearest exact even integer."
       (format #f "~a minute~:p" (nearest-exact-integer
                                  (/ duration 60)))))
 
-(define (checkout-table checkouts channels)
-  "Return SHTML for a table representing CHECKOUTS."
+(define* (checkout-table checkouts channels
+                         #:key (changes '()))
+  "Return SHTML for a table representing CHECKOUTS.  CHANGES is the subset of
+CHECKOUTS that has changed compared to the previous evaluation."
+  (define changed-element
+    ;; HTML element to represent a checkout that has changed compared to the
+    ;; previous evaluation.
+    '(span (@ (class "oi oi-arrow-thick-top text-primary mt-1")
+              (aria-hidden "true")
+              (title "Channel updated compared to previous evaluation."))))
+
   `(table (@ (class "table table-sm table-hover"))
           (thead
-           (tr (th (@ (class "border-0") (scope "col")) "Channel")
+           (tr (th (@ (class "border-0") (scope "col")) " ")
+               (th (@ (class "border-0") (scope "col")) "Channel")
                (th (@ (class "border-0") (scope "col")) "Commit")))
           (tbody
            ,@(map (lambda (checkout)
@@ -1338,8 +1348,12 @@ the nearest exact even integer."
                           ;; inputs.
                           (if channel
                               (let ((url (channel-url channel))
-                                    (commit (checkout-commit checkout)))
-                                `(tr (td ,url)
+                                    (commit (checkout-commit checkout))
+                                    (changed? (member checkout changes)))
+                                `(tr (td ,(if changed?
+                                              changed-element
+                                              ""))
+                                     (td ,url)
                                      (td (code ,(commit-hyperlink url commit)))))
                               '()))
                         `(tr (td "?")
@@ -1405,6 +1419,7 @@ the channel's URL."
                                  #:key
                                  channels
                                  (checkouts '())
+                                 (checkout-changes '())
                                  status builds
                                  builds-id-min builds-id-max)
   "Return HTML for an evaluation page, containing a table of builds for that
@@ -1431,7 +1446,8 @@ evaluation."
                      (format #f "Completed ~a in ~a."
                              (time->string evaltime)
                              (seconds->string duration))))))
-    ,(checkout-table checkouts channels)
+    ,(checkout-table checkouts channels
+                     #:changes checkout-changes)
 
     (p (@ (class "lead"))
        ,(format #f "~@[~a~] ~:[B~;b~]uilds"
@@ -2020,6 +2036,8 @@ text-dark d-flex position-absolute w-100"))
     (evaluation-id evaluation))
   (define time
     (evaluation-completion-time evaluation))
+  (define checkout-changes
+    (evaluation-checkouts evaluation))
 
   (let ((jobs
          (if names
@@ -2080,7 +2098,8 @@ text-dark d-flex position-absolute w-100"))
       (details
        (summary ,(format #f "Evaluation completed ~a."
                          (time->string time)))
-       ,(checkout-table checkouts channels))
+       ,(checkout-table checkouts channels
+                        #:changes checkout-changes))
 
       (form (@ (id "get-dashboard")
                (class

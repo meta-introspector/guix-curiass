@@ -288,6 +288,7 @@ Hydra format."
   (define specification* (db-get-specification specification))
   (define channels       (specification-channels specification*))
   (define checkouts      (latest-checkouts specification* id))
+  (define checkout-changes (evaluation-checkouts (db-get-evaluation id)))
 
   (define builds
     (with-time-logging
@@ -309,6 +310,7 @@ Hydra format."
    (evaluation-build-table evaluation
                            #:channels channels
                            #:checkouts checkouts
+                           #:checkout-changes checkout-changes
                            #:status status
                            #:builds builds
                            #:builds-id-min builds-id-min
