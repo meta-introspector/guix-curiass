@@ -17,9 +17,8 @@
 
 * Improve the user interface
 
-** Colorize build logs
-
-With client-side JS; folding of build phases, etc.
+** /eval page includes =channels.scm= snippet and instructions
+** Evaluation dashboard shows completion bar (as on welcome page)
 
 * Add Guix Build Coordinator backend
 
