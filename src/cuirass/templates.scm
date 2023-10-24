@@ -789,8 +789,12 @@ the existing SPEC otherwise."
                        (= (build-status succeeded) status)
                        (= (build-status failed) status)
                        (= (build-status canceled) status))
-                   `(a (@ (href "/build/" ,(build-id build) "/log/raw"))
-                       "raw")
+                   `(div
+                     (a (@ (href "/build/" ,(build-id build) "/log"))
+                         "pretty")
+                     ", "
+                     (a (@ (href "/build/" ,(build-id build) "/log/raw"))
+                         "raw"))
                    "—")))
       (tr (th "Derivation")
           (td (pre ,(build-derivation build))))
@@ -1205,7 +1209,7 @@ and BUILD-MAX are global minimal and maximal (stoptime, rowid) pairs."
                 (title ,(status-title status))
                 (aria-hidden "true")
                 ,@(if (completed-with-logs? status)
-                      `((href "/build/" ,(build-id build) "/log/raw"))
+                      `((href "/build/" ,(build-id build) "/log"))
                       '()))
              ""))
       (td (span (@ (class ,(weather-class weather))
@@ -1579,7 +1583,7 @@ and BUILD-MAX are global minimal and maximal row identifiers."
                 (title ,(status-title status))
                 (aria-hidden "true")
                 ,@(if (completed-with-logs? status)
-                      `((href "/build/" ,(build-id build) "/log/raw"))
+                      `((href "/build/" ,(build-id build) "/log"))
                       '()))
              ""))
       (th (@ (scope "row"))
@@ -1640,8 +1644,8 @@ and BUILD-MAX are global minimal and maximal row identifiers."
       (td ,(time->string
             (build-start-time build)))
       (td ,(build-system build))
-      (td (a (@ (href "/build/" ,(build-id build) "/log/raw"))
-             "raw"))))
+      (td (a (@ (href "/build/" ,(build-id build) "/log"))
+             "log"))))
 
   `((p (@ (class "lead")) "Running builds")
     (table
