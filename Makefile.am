@@ -128,6 +128,7 @@ dist_images_DATA =				\
   src/static/images/icon.png
 dist_js_DATA =					\
   src/static/js/bootstrap.min.js	        \
+  src/static/js/build-log.js		        \
   src/static/js/cuirass.js                      \
   src/static/js/chart.js                        \
   src/static/js/choices.min.js                  \

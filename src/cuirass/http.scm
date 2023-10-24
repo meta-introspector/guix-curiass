@@ -89,6 +89,7 @@
     "images/guix.png"
     "js/chart.js"
     "js/cuirass.js"
+    "js/build-log.js"
     "js/d3.v6.min.js"
     "js/datatables.min.js"
     "js/jquery-3.3.1.min.js"
@@ -863,6 +864,19 @@ passed, only display JOBS targeting this SYSTEM."
             (log   (and build (build-log build))))
        (if (and log (file-exists? log))
            (respond-compressed-file log)
+           (respond-not-found (uri->string (request-uri request))))))
+    (('GET "build" (= string->number id) "log")
+     (let* ((build (and id (db-get-build id)))
+            (log   (and build (build-log build))))
+       (if (and log (file-exists? log))
+           (respond-html
+            (html-page
+             (string-append "Build log of build #" (number->string id))
+             (pretty-build-log id)
+             `(((#:name . ,(string-append "Build #" (number->string id)))
+                (#:link
+                 . ,(string-append "/build/" (number->string id)
+                                   "/details"))))))
            (respond-not-found (uri->string (request-uri request))))))
     (('GET "output" id)
      (let ((output (db-get-output

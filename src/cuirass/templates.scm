@@ -52,6 +52,7 @@
             workers-status
             machine-status
             evaluation-dashboard
+            pretty-build-log
             badge-svg
             javascript-licenses))
 
@@ -2056,6 +2057,26 @@ text-dark d-flex position-absolute w-100"))
                                      #:labels
                                      '("Free store disk space percentage")
                                      #:colors (list "#3e95cd"))))))))
+
+(define (pretty-build-log id)
+  "Return HTML for a pretty rendering of the log of build ID."
+  (let ((url (string-append "/build/" (number->string id)
+                            "/log/raw")))
+    `((noscript
+       "This page requires JavaScript but you can "
+       (a (@ (href ,url)) "view the raw build log")
+       " instead.")
+
+      (script (@ (type "text/javascript")
+                 (src "/static/js/build-log.js"))
+              "")
+      (pre (code (@ (id "build-log") (class "build-log"))
+                 ;; Placeholder filled in by 'build-log.js'.
+                 "⚙️ Loading build log…"))
+
+      (div (@ (class "text-secondary d-flex flex-row mb-3"))
+           (span (@ (class "oi oi-external-link")))
+           (a (@ (href ,url)) "raw build log")))))
 
 (define* (evaluation-dashboard evaluation systems
                                #:key
