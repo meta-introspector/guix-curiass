@@ -694,7 +694,7 @@ exiting."
                  (lambda ()
                    (serve-build-requests backend-port fetch-worker))
                  (lambda (key errno message . _)
-                   (log-error (G_ "failed to start worker/database proxy: ~a")
+                   (log-error (G_ "ZeroMQ error in build server: ~a")
                               message)
                    (terminate-helper-processes)
                    (primitive-exit 1))))))
