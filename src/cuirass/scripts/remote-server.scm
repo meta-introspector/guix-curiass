@@ -452,7 +452,7 @@ requested received on its channel."
      (let loop ()
        (let ((resumable (db-update-resumable-builds!))
              (failed (db-update-failed-builds!)))
-         (log-info "period update: ~a resumable, ~a failed builds."
+         (log-info "periodic update: ~a resumable, ~a failed builds"
                    resumable failed))
        (sleep 30)
        (loop)))))
