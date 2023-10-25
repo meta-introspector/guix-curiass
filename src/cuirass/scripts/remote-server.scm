@@ -36,7 +36,8 @@
   #:use-module ((guix store)
                 #:select (current-build-output-port
                           ensure-path
-                          store-protocol-error?))
+                          store-protocol-error?
+                          store-protocol-error-message))
   #:use-module (guix ui)
   #:use-module ((guix utils)
                 #:select (cache-directory call-with-temporary-output-file))
@@ -320,11 +321,12 @@ be used to reply to the worker."
 
 (define (ensure-path* store output)
   (guard (c ((store-protocol-error? c)
-             (log-error "Failed to add ~a to store: store protocol error." output)
-             (log-error "The remote-worker signing key might not be authorized.")
+             (log-error "failed to add ~a to store: ~a"
+                        output (store-protocol-error-message c))
+             (log-error "The remote-worker signing key might be unauthorized.")
              #f)
             ((nar-error? c)
-             (log-error "Failed to add ~a to store: nar error." output)
+             (log-error "failed to add ~a to store: nar error" output)
              (log-error "The guix-daemon process may have returned unexpectedly.")
              #f))
     (ensure-path store output)))
