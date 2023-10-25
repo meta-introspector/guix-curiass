@@ -51,11 +51,11 @@
   #:autoload   (ice-9 threads) (current-processor-count)
   #:use-module (ice-9 vlist)
   #:use-module (srfi srfi-1)
-  #:use-module (srfi srfi-11)
   #:use-module (srfi srfi-19)
   #:use-module (srfi srfi-26)
   #:use-module (srfi srfi-34)
   #:use-module (srfi srfi-35)
+  #:use-module (srfi srfi-71)
   #:use-module (rnrs bytevectors)
   #:export (;; Procedures.
             call-with-time-display
@@ -261,10 +261,9 @@ items."
              (count total))
     (if (zero? count)
         (log-info "done with ~a derivations" total)
-        (let*-values (((batch rest)
-                       (if (> count max-batch-size)
-                           (split-at drv max-batch-size)
-                           (values drv '()))))
+        (let ((batch rest (if (> count max-batch-size)
+                              (split-at drv max-batch-size)
+                              (values drv '()))))
           (guard (c ((store-protocol-error? c)
                      (log-error "batch of builds (partially) failed: \
 ~a (status: ~a)"
@@ -272,8 +271,7 @@ items."
                                 (store-protocol-error-status c))))
             (log-info "building batch of ~a derivations (~a/~a)"
                       max-batch-size (- total count) total)
-            (let-values (((port finish)
-                          (build-derivations& store batch)))
+            (let ((port finish (build-derivations& store batch)))
               (process-build-log port
                                  (lambda (event state)
                                    ;; Catch any errors so we can keep reading
@@ -348,9 +346,8 @@ This procedure is meant to be called at startup."
 started) by sending them to BUILDER."
   (with-store store
     (log-info "retrieving list of pending builds...")
-    (let*-values (((valid stale)
-                   (partition (cut valid-path? store <>)
-                              (db-get-pending-derivations))))
+    (let ((valid stale (partition (cut valid-path? store <>)
+                                  (db-get-pending-derivations))))
       ;; We cannot restart builds listed in STALE, so mark them as canceled.
       (log-info "canceling ~a stale builds" (length stale))
       (for-each (lambda (drv)

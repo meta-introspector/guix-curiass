@@ -35,8 +35,8 @@
   #:use-module (cuirass specification)
   #:use-module (cuirass zabbix)
   #:use-module (srfi srfi-1)
-  #:use-module (srfi srfi-11)
   #:use-module (srfi srfi-26)
+  #:use-module (srfi srfi-71)
   #:use-module (ice-9 binary-ports)
   #:use-module (ice-9 match)
   #:use-module (ice-9 textual-ports)
@@ -1335,13 +1335,12 @@ passed, only display JOBS targeting this SYSTEM."
       (let* ((impl (lookup-server-impl 'fiberized))
              (server (open-server impl `(#:host ,address #:port ,port))))
         (let loop ()
-          (let-values (((client request body)
-                        (read-client impl server)))
+          (let ((client request body (read-client impl server)))
             ;; Spawn a fiber to handle REQUEST and reply to CLIENT.
             (spawn-fiber
              (lambda ()
-               (let-values (((response body state)
-                             (handle-request (cut url-handler bridge <...>)
-                                             request body '())))
+               (let ((response body state
+                               (handle-request (cut url-handler bridge <...>)
+                                               request body '())))
                  (write-client impl server client response body)))))
           (loop))))))

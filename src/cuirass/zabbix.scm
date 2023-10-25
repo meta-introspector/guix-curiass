@@ -24,7 +24,7 @@
   #:use-module (web response)
   #:use-module (json)
   #:use-module (rnrs bytevectors)
-  #:use-module (srfi srfi-11)
+  #:use-module (srfi srfi-71)
   #:use-module (ice-9 match)
   #:export (zabbix-api-version
             zabbix-available?
@@ -44,12 +44,11 @@
   (let ((headers `((User-Agent . "Cuirass")
                    (Accept . "application/json")
                    (Content-Type . "application/json"))))
-    (let-values (((response port)
-                  (http-post (%zabbix-url)
-                             #:headers headers
-                             #:body (string->utf8
-                                     (scm->json-string params))
-                             #:streaming? #t)))
+    (let ((response port (http-post (%zabbix-url)
+                                    #:headers headers
+                                    #:body (string->utf8
+                                            (scm->json-string params))
+                                    #:streaming? #t)))
       (cond ((= 200 (response-code response))
              (let ((result (json->scm port)))
                (close-port port)
