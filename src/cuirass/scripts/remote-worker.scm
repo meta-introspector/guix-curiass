@@ -236,12 +236,12 @@ still be substituted."
                  (reply (build-failed-message drv local-publish-url))))
         (let-values (((port finish)
                       (build-derivations& store (list drv))))
-          (catch 'system-error
+          (catch #t
             (lambda ()
               (send-log address log-port drv port))
             (lambda args
-              (log-error (G_ "could not send logs to ~a:~a")
-                         address log-port)
+              (log-error (G_ "could not send ~a log to ~a:~a; discarding it")
+                         drv address log-port)
               (dump-port port (%make-void-port "w"))))
           (close-port port)
           (finish)
