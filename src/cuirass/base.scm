@@ -901,7 +901,8 @@ monitoring actor for each 'register' message it receives."
                  (build-status scheduled)
                  (build-status started))))))
 
-(define (delete-old-gc-roots directory max-age)
+(define* (delete-old-gc-roots directory max-age
+                              #:key (check-database? #t))
   "Delete from DIRECTORY garbage-collector roots older than MAX-AGE seconds."
   (define now
     (time-second (current-time time-utc)))
@@ -915,7 +916,8 @@ monitoring actor for each 'register' message it receives."
 
            ;; If the GC root corresponds to the derivation of a build
            ;; that's still queued, do not remove it.
-           (or (not (string-suffix? ".drv" file))
+           (or (not check-database?)
+               (not (string-suffix? ".drv" file))
                (not (derivation-queued? (readlink file)))))))
 
   (log-info "deleting old GC roots from '~a'..." directory)
@@ -925,15 +927,20 @@ monitoring actor for each 'register' message it receives."
                 (delete-file (in-vicinity directory file)))
               files)))
 
-(define* (spawn-gc-root-cleaner max-age #:optional (period (* 3600 24)))
+(define* (spawn-gc-root-cleaner max-age #:optional (period (* 3600 24))
+                                #:key (check-database? #t))
   "Spawn an agent that, every PERIOD seconds, deletes GC roots that are older
-than MAX-AGE seconds and that are known to be no longer needed."
+than MAX-AGE seconds and that are known to be no longer needed.
+
+When CHECK-DATABASE? is true, connect to the database server to get
+information about derivations that are still needed by queued builds."
   (spawn-fiber
    (lambda ()
      (log-info "unused GC roots older than ~as will be deleted every ~as"
                max-age period)
      (let loop ()
-       (delete-old-gc-roots (%gc-root-directory) max-age)
+       (delete-old-gc-roots (%gc-root-directory) max-age
+                            #:check-database? check-database?)
        (sleep period)
        (loop))))
   #t)

@@ -20,6 +20,7 @@
 (define-module (cuirass scripts remote-worker)
   #:use-module (fibers)
   #:use-module (fibers channels)
+  #:autoload   (cuirass base) (spawn-gc-root-cleaner)
   #:autoload   (cuirass store) (build-derivations&
                                 register-gc-roots
                                 %gc-root-directory)
@@ -508,6 +509,12 @@ exiting."
              ;; Spawn the fiber that'll actually create workers as it receives
              ;; requests on MANAGEMENT-CHANNEL.
              (spawn-fiber (worker-management-thunk management-channel systems))
+
+             ;; This program registers roots for successful build results.
+             ;; Normally these build results are sent right away to 'cuirass
+             ;; remote-server', so no need to keep them for too long.
+             (spawn-gc-root-cleaner (* 5 24 3600)
+                                    #:check-database? #f)
 
              (when server-address
                (log-info (N_ "creating ~a worker for build server at ~a"
