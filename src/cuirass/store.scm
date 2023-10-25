@@ -23,11 +23,10 @@
                                    derivation-path->output-paths)
   #:use-module ((guix config) #:select (%state-directory))
   #:use-module (srfi srfi-34)
-  #:use-module ((srfi srfi-35) #:select (condition?))
-  #:use-module (ice-9 atomic)
   #:use-module (ice-9 match)
   #:autoload   (ice-9 rdelim) (read-line)
   #:use-module (ice-9 threads)
+  #:autoload   (fibers channels) (make-channel put-message get-message)
   #:export (non-blocking-port
             with-store/non-blocking
             process-build-log
@@ -135,40 +134,41 @@ does.  Return the result of the last call to PROC."
 (define (build-derivations& store lst)
   "Like 'build-derivations' but return two values: a file port from which to
 read the build log, and a thunk to call after EOF has been read.  The thunk
-returns the value of the underlying 'build-derivations' call, or raises the
+waits for the build process to complete; it then returns #t or raises the
 exception that 'build-derivations' raised.
 
 Essentially this procedure inverts the inversion-of-control that
 'build-derivations' imposes, whereby 'build-derivations' writes to
 'current-build-output-port'."
   ;; XXX: Make this part of (guix store)?
-  (define result
-    (make-atomic-box #f))
+  (define channel
+    (make-channel))
 
   (match (pipe)
     ((input . output)
      (call-with-new-thread
       (lambda ()
-        (catch #t
-          (lambda ()
-            ;; String I/O primitives are going to be used on PORT so make it
-            ;; Unicode-capable and resilient to encoding issues.
-            (set-port-encoding! output "UTF-8")
-            (set-port-conversion-strategy! output 'substitute)
+        ;; String I/O primitives are going to be used on PORT so make it
+        ;; Unicode-capable and resilient to encoding issues.
+        (set-port-encoding! output "UTF-8")
+        (set-port-conversion-strategy! output 'substitute)
 
-            (guard (c ((store-error? c)
-                       (atomic-box-set! result c)))
-              (parameterize ((current-build-output-port output))
-                (let ((x (build-derivations store lst)))
-                  (atomic-box-set! result x))))
-            (close-port output))
-          (lambda _
-            (close-port output)))))
+        (let ((result (with-exception-handler
+                          (lambda (exception) exception)
+                        (lambda ()
+                          (parameterize ((current-build-output-port output))
+                            (build-derivations store lst)))
+                        #:unwind? #t)))
+          (close-port output)
+          (put-message channel result))))
 
      (values (non-blocking-port input)
              (lambda ()
-               (match (atomic-box-ref result)
-                 ((? condition? c)
-                  (raise c))
+               ;; Wait for the build process to complete and return its
+               ;; result.  Note: use 'get-message' rather than 'join-thread'
+               ;; to avoid blocking the thread that runs the calling fiber.
+               (match (get-message channel)
+                 ((? exception? c)
+                  (raise-exception c))
                  (x x)))))))
 
