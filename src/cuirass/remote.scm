@@ -280,11 +280,12 @@ PRIVATE-KEY to sign narinfos."
                       (cut string-take store-hash <>))))
     (string-append cache "/" hash ".log.gz")))
 
-(define (receive-logs port cache)
-  (define (sockaddr->string address)
-    (inet-ntop (sockaddr:fam address)
-               (sockaddr:addr address)))
+(define (sockaddr->string address)
+  "Return a string representation of ADDRESS, a sockaddr."
+  (inet-ntop (sockaddr:fam address)
+             (sockaddr:addr address)))
 
+(define (receive-logs port cache)
   (define (read-log port address)
     (let ((address (sockaddr->string address)))
       (match (false-if-exception (read port))
@@ -365,11 +366,17 @@ PRIVATE-KEY to sign narinfos."
                ;; Closing COMPRESSED flushes it so it might throw to
                ;; 'zlib-error'.  Ignore it.
                (false-if-exception (close-port compressed))
-               (unless (eq? key 'zlib-error)
-                 (apply throw args)))))
+               (if (eq? key 'zlib-error)
+                   (match args
+                     ((proc code . _)
+                      (log-warning
+                       "zlib error in '~a' while sending log to ~a: ~a"
+                       proc (sockaddr->string addr) code)))
+                   (apply throw args)))))
          (close-port sock)))
       (x
-       (log-error "invalid handshake ~s." x)
+       (log-error "invalid handshake with ~a: ~s"
+                  (sockaddr->string addr) x)
        (close-port sock)
        #f))))
 
