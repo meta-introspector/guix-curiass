@@ -463,6 +463,10 @@ exiting."
             (read-file-sexp
              (assoc-ref opts 'private-key-file))))
 
+      ;; Distinguish the worker's GC root directory so that, in case a
+      ;; 'cuirass remote-server' process runs on the same machine as a worker,
+      ;; the worker's doesn't end up deleting the server's GC roots.
+      (%gc-root-directory (string-append (%gc-root-directory) "/worker"))
       (false-if-exception (mkdir-p (%gc-root-directory)))
 
       (parameterize ((%substitute-urls urls)
