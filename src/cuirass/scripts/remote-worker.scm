@@ -234,29 +234,22 @@ still be substituted."
                  (log-info (G_ "~a: derivation `~a' build failed: ~a")
                            name drv (store-protocol-error-message c))
                  (reply (build-failed-message drv local-publish-url))))
-        (let ((result
-               (let-values (((port finish)
-                             (build-derivations& store (list drv))))
-                 (catch 'system-error
-                   (lambda ()
-                     (send-log address log-port drv port))
-                   (lambda args
-                     (log-error (G_ "could not send logs to ~a:~a")
-                                address log-port)
-                     (dump-port port (%make-void-port "w"))))
-                 (close-port port)
-                 (finish))))
-          (if result
-              (begin
-                (log-info (G_ "~a: derivation ~a build succeeded.")
-                          name drv)
-                (register-gc-roots drv)
-                (reply (build-succeeded-message drv local-publish-url)))
-              (begin
-                (log-info (G_ "~a: derivation ~a build failed.")
-                          name drv)
-                (reply
-                 (build-failed-message drv local-publish-url)))))))))
+        (let-values (((port finish)
+                      (build-derivations& store (list drv))))
+          (catch 'system-error
+            (lambda ()
+              (send-log address log-port drv port))
+            (lambda args
+              (log-error (G_ "could not send logs to ~a:~a")
+                         address log-port)
+              (dump-port port (%make-void-port "w"))))
+          (close-port port)
+          (finish)
+
+          (log-info (G_ "~a: derivation ~a build succeeded.")
+                    name drv)
+          (register-gc-roots drv)
+          (reply (build-succeeded-message drv local-publish-url)))))))
 
 (define* (run-command command server
                       #:key
