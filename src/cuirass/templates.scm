@@ -1465,11 +1465,8 @@ the channel's URL."
 evaluation."
   (define id        (evaluation-summary-id evaluation))
   (define total     (evaluation-summary-total evaluation))
-  (define succeeded (evaluation-summary-succeeded evaluation))
   (define timestamp (evaluation-summary-start-time evaluation))
   (define evaltime  (evaluation-summary-completion-time evaluation))
-  (define failed    (evaluation-summary-failed evaluation))
-  (define scheduled (evaluation-summary-scheduled evaluation))
 
   (define duration  (- evaltime timestamp))
   (define spec      (evaluation-specification-name (db-get-evaluation id)))
@@ -1488,77 +1485,104 @@ evaluation."
     ,(checkout-table checkouts channels
                      #:changes checkout-changes)
 
-    (p (@ (class "lead"))
-       ,(format #f "~@[~a~] ~:[B~;b~]uilds"
-                (and=> status string-capitalize)
-                status)
-       "  "
-       (a (@ (class "oi oi-monitor mr-2")
-             (style "font-size:0.8em")
-             (href "/eval/" ,id "/dashboard")
-             (role "button")))
-       (a (@ (id "paginate")
-             (class "oi oi-collapse-down")
-             (style "font-size:0.7em")
-             (href "")
-             (role "button"))))
-    (ul (@ (class "nav nav-tabs"))
-        (li (@ (class "nav-item"))
-            (a (@ (class ,(string-append "nav-link "
-                                         (match status
-                                           (#f "active")
-                                           (_ ""))))
-                  (href "?all="))
-               "All "
-               (span (@ (class "badge badge-light badge-pill"))
-                     ,total)))
-        (li (@ (class "nav-item"))
-            (a (@ (class ,(string-append "nav-link "
-                                         (match status
-                                           ("pending" "active")
-                                           (_ ""))))
-                  (href "?status=pending"))
-               (span (@ (class "oi oi-clock text-warning")
-                        (title "Scheduled")
-                        (aria-hidden "true"))
+    ,(let ((status (evaluation-summary-status evaluation)))
+       (cond ((= status (evaluation-status started))
+              `(p (@ (class "lead"))
+                  (span (@ (class "oi oi-cog pr-2")) "")
+                  "Evaluation is in progress…"))
+             ((= status (evaluation-status failed))
+              `(p (@ (class "lead"))
+                  (a (@ (class "oi oi-circle-x text-danger pr-2")
+                        (href ,(string-append "/eval/"
+                                              (number->string id)
+                                              "/log/raw")))
                      "")
-               " Scheduled "
-               (span (@ (class "badge badge-light badge-pill"))
-                     ,scheduled)))
-        (li (@ (class "nav-item"))
-            (a (@ (class ,(string-append "nav-link "
-                                         (match status
-                                           ("succeeded" "active")
-                                           (_ ""))))
-                  (href "?status=succeeded"))
-               (span (@ (class "oi oi-check text-success")
-                        (title "Succeeded")
-                        (aria-hidden "true"))
+                  "Evaluation failed."))
+             ((= status (evaluation-status aborted))
+              `(p (@ (class "lead"))
+                  (a (@ (class "oi oi-circle-x text-warning pr-2")
+                        (href ,(string-append "/eval/"
+                                              (number->string id)
+                                              "/log/raw")))
                      "")
-               " Succeeded "
-               (span (@ (class "badge badge-light badge-pill"))
-                     ,succeeded)))
-        (li (@ (class "nav-item"))
-            (a (@ (class ,(string-append "nav-link "
-                                         (match status
-                                           ("failed" "active")
-                                           (_ ""))))
-                  (href "?status=failed"))
-               (span (@ (class "oi oi-x text-danger")
-                        (title "Failed")
-                        (aria-hidden "true"))
-                     "")
-               " Failed "
-               (span (@ (class "badge badge-light badge-pill"))
-                     ,failed))))
-    (div (@ (class "tab-content pt-3"))
-         (div (@ (class "tab-pane show active"))
-              ,(build-eval-table
-                id
-                builds
-                builds-id-min
-                builds-id-max
-                status)))))
+                  "Evaluation canceled."))
+             (else "")))
+
+    ,@(if (and (null? builds)
+               (not (= (evaluation-summary-status evaluation)
+                       (evaluation-status succeeded))))
+          '()
+         `((p (@ (class "lead"))
+              ,(format #f "~@[~a~] ~:[B~;b~]uilds"
+                       (and=> status string-capitalize)
+                       status)
+              "  "
+              (a (@ (class "oi oi-monitor mr-2")
+                    (style "font-size:0.8em")
+                    (href "/eval/" ,id "/dashboard")
+                    (role "button")))
+              (a (@ (id "paginate")
+                    (class "oi oi-collapse-down")
+                    (style "font-size:0.7em")
+                    (href "")
+                    (role "button"))))
+           (ul (@ (class "nav nav-tabs"))
+               (li (@ (class "nav-item"))
+                   (a (@ (class ,(string-append "nav-link "
+                                                (match status
+                                                  (#f "active")
+                                                  (_ ""))))
+                         (href "?all="))
+                      "All "
+                      (span (@ (class "badge badge-light badge-pill"))
+                            ,total)))
+               (li (@ (class "nav-item"))
+                   (a (@ (class ,(string-append "nav-link "
+                                                (match status
+                                                  ("pending" "active")
+                                                  (_ ""))))
+                         (href "?status=pending"))
+                      (span (@ (class "oi oi-clock text-warning")
+                               (title "Scheduled")
+                               (aria-hidden "true"))
+                            "")
+                      " Scheduled "
+                      (span (@ (class "badge badge-light badge-pill"))
+                            ,(evaluation-summary-scheduled evaluation))))
+               (li (@ (class "nav-item"))
+                   (a (@ (class ,(string-append "nav-link "
+                                                (match status
+                                                  ("succeeded" "active")
+                                                  (_ ""))))
+                         (href "?status=succeeded"))
+                      (span (@ (class "oi oi-check text-success")
+                               (title "Succeeded")
+                               (aria-hidden "true"))
+                            "")
+                      " Succeeded "
+                      (span (@ (class "badge badge-light badge-pill"))
+                            ,(evaluation-summary-succeeded evaluation))))
+               (li (@ (class "nav-item"))
+                   (a (@ (class ,(string-append "nav-link "
+                                                (match status
+                                                  ("failed" "active")
+                                                  (_ ""))))
+                         (href "?status=failed"))
+                      (span (@ (class "oi oi-x text-danger")
+                               (title "Failed")
+                               (aria-hidden "true"))
+                            "")
+                      " Failed "
+                      (span (@ (class "badge badge-light badge-pill"))
+                            ,(evaluation-summary-failed evaluation)))))
+           (div (@ (class "tab-content pt-3"))
+                (div (@ (class "tab-pane show active"))
+                     ,(build-eval-table
+                       id
+                       builds
+                       builds-id-min
+                       builds-id-max
+                       status)))))))
 
 (define (build-search-results-table query builds build-min build-max)
   "Return HTML for the BUILDS table evaluation matching QUERY.  BUILD-MIN
