@@ -79,14 +79,20 @@ $(document).ready(function() {
 
 	// Add a button to collapse/expand phases.
 	var openness = true;
+	const classOpened = "d-flex mb-3 lead text-info oi oi-fullscreen-exit";
+	const classClosed = "d-flex mb-3 lead text-info oi oi-fullscreen-enter"
 	const button =
-	      $('<div>', { class: "d-flex mb-3 text-info oi oi-collapse-down",
-			   title: "Toggle phase visibility." })
+	      $('<div>', { class: classOpened,
+			   title: "Toggle phase visibility.",
+			   id: "phase-folding-button" })
 	      .on("click", _ => {
 		  openness = !openness;
 		  $("details").each(function(index) {
 		      $(this).attr('open', openness);
 		  });
+		  console.log("button", $("#phase-folding-button"));
+		  $("#phase-folding-button")
+		      .attr("class", openness ? classOpened : classClosed);
 	      });
 	$('#build-log').prepend(button);
 
