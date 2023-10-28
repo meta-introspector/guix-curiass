@@ -2103,7 +2103,7 @@ text-dark d-flex position-absolute w-100"))
                  "⚙️ Loading build log…"))
 
       (div (@ (class "text-secondary d-flex flex-row mb-3"))
-           (span (@ (class "oi oi-external-link")))
+           (span (@ (class "oi oi-data-transfer-download pr-2")) "")
            (a (@ (href ,url)) "raw build log")))))
 
 (define* (evaluation-dashboard evaluation systems
