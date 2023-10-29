@@ -265,6 +265,20 @@ system whose names start with " (code "guile-") ":" (br)
    (else
     "Invalid status")))
 
+(define (success-rate-bar percentage)
+  "Return HTML for a progress bar representing a success rate of PERCENTAGE."
+  (let ((style (format #f "width: ~a%" percentage)))
+    `(div (@ (class "progress job-abs")
+             (title "Success rate"))
+          (div (@ (class "progress-bar")
+                  (role "progressbar")
+                  (style ,style)
+                  (aria-valuemin "0")
+                  (aria-valuemax "100"))
+               (strong
+                (span (@ (class "text-dark"))
+                      ,percentage "%"))))))
+
 (define (specifications-table specs evaluations summaries latest-evaluations)
   "Return HTML for the SPECS table."
   (define (spec->latest-eval-ok name)
@@ -382,24 +396,10 @@ system whose names start with " (code "guile-") ":" (br)
                                      (<= (evaluation-current-status last-eval)
                                          (evaluation-status succeeded))))
                                (percentage
-                                (and summary (summary->percentage summary)))
-                               (style
-                                   (format #f "width: ~a%" percentage)))
+                                (and summary (summary->percentage summary))))
                           (cond
                            ((and summary last-eval-status-ok?)
-                            `((div
-                               (@ (class "progress job-abs")
-                                  (title "Percentage succeeded"))
-                               (div (@ (class "progress-bar")
-                                       (role "progressbar")
-                                       (style ,style)
-                                       (aria-valuemin "0")
-                                       (aria-valuemax "100"))
-                                    (strong
-                                     (span
-                                      (@ (class "text-dark"))
-                                      ,percentage
-                                      "%"))))
+                            `(,(success-rate-bar percentage)
                               " "
                               (div
                                (@ (class "job-rel d-none"))
