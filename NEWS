@@ -55,6 +55,7 @@ Please send Guix bug reports to bug-guix@gnu.org.
 *** Build page provides hints for failed builds
 *** Build page shows the build machine and/or worker ID
 *** New /build/ID/log endpoint, with syntax-highlighted build logs
+*** New ‘etc/new-client-cert.scm’ script; see “Authentication” in the manual
 
 * Changes in 1.1.0 (since 1.0.0)
 ** Database
