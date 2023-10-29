@@ -3,12 +3,58 @@
 #+STARTUP: content hidestars
 
 Copyright © 2021 Mathieu Othacehe <othacehe@gnu.org>
+Copyright © 2023 Ludovic Courtès <ludo@gnu.org>
 
   Copying and distribution of this file, with or without modification,
   are permitted in any medium without royalty provided the copyright
   notice and this notice are preserved.
 
 Please send Guix bug reports to bug-guix@gnu.org.
+
+* Changes in 1.2.0 (since 1.1.0)
+
+** Core
+*** Require Fibers >= 1.1.0
+    (<https://issues.guix.gnu.org/63389>)
+*** Require Guile >= 3.0.6
+*** Channels are always authenticated
+*** Use a database connection pool instead of a worker thread
+*** Now useless (cuirass watchdog) module has been removed
+*** (cuirass database) now uses records instead of alists for data types
+*** (cuirass base) rewritten as a set of actors
+*** ‘cuirass register’ limits the number of concurrent evaluations
+*** ‘cuirass register’ listens to ‘cuirass web’ on a “bridge” local socket
+*** Keep GC roots for derivations that are queued
+    (<https://issues.guix.gnu.org/54447>)
+*** Register a GC root for “build products”
+    (<https://issues.guix.gnu.org/64317>)
+*** Logging level can be controlled with ‘CUIRASS_LOGGING_LEVEL’ env. variable
+
+** Database
+*** Allow specifications to be inactive
+
+** Remote building
+*** Worker stops requesting work when disk space is too low
+*** Worker now asks for work as soon as it’s available
+*** (cuirass remote) provides a higher-level interface for messages
+*** ‘remote-worker’ and ‘remote-server’ are now a fiberized process
+*** ‘remote-worker’ defines distributes available cores among workers
+*** Fix memory corruption leading ‘remote-server’ to never reply
+*** New ‘--log-expiry’ option for ‘cuirass remote-server’
+*** Fix bug that would lead ‘remote-worker’ to wrongfully report failure
+    (<https://issues.guix.gnu.org/66692>)
+*** ‘cuirass remote-worker’ periodically removes its own GC roots
+
+** Web
+*** Add /admin/specification/deactivate endpoint
+*** Evaluation dashboard now supports filtering by build name
+*** Evaluation dashboard shows completion time and commits
+*** New /eval/latest?spec=… endpoint, linking to the latest dashboard
+*** Evaluation page uncluttered
+*** New /jobset/SPEC/hook/evaluation POST endpoint to trigger an evaluation
+*** Build page provides hints for failed builds
+*** Build page shows the build machine and/or worker ID
+*** New /build/ID/log endpoint, with syntax-highlighted build logs
 
 * Changes in 1.1.0 (since 1.0.0)
 ** Database
