@@ -42,7 +42,8 @@
              (srfi srfi-64))
 
 (define (mailer)
-  (string-append "sendmail://" (getcwd) "/tests/mail.sh"))
+  (string-append "sendmail://"
+                 (search-path %load-path "tests/mail.sh")))
 
 ;; The above bash program will be invoked by mailutils.  It copies what's
 ;; passed on the standard input to the following file.

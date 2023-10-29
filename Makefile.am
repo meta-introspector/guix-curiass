@@ -211,7 +211,9 @@ EXTRA_DIST =					\
   examples/cuirass.scm				\
   examples/random.scm				\
   examples/random-manifest.scm			\
-  $(TESTS)
+  $(TESTS)					\
+  tests/common.scm				\
+  tests/mail.sh
 
 dist-hook:
 	$(AM_V_GEN)echo $(VERSION) > $(distdir)/.tarball-version
