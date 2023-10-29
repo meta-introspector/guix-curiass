@@ -268,7 +268,10 @@ etc/cuirass-remote-worker.service: $(srcdir)/etc/cuirass-remote-worker.service.i
 # compilation.
 BUILT_SOURCES = src/cuirass/config.scm
 
-MOSTLYCLEANFILES = $(bin_SCRIPTS) src/cuirass/config.scm
+MOSTLYCLEANFILES =				\
+  $(bin_SCRIPTS)				\
+  src/cuirass/config.scm			\
+  etc/cuirass-remote-worker.service
 
 ## --------------- ##
 ## Documentation.  ##
