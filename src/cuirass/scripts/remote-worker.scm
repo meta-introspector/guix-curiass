@@ -234,6 +234,13 @@ still be substituted."
       (guard (c ((store-protocol-error? c)
                  (log-info (G_ "~a: derivation `~a' build failed: ~a")
                            name drv (store-protocol-error-message c))
+                 (reply (build-failed-message drv local-publish-url)))
+                (else
+                 ;; We might get '&nar-error' or EPIPE when the 'cuirass
+                 ;; remote-server' process terminates prematurely.
+                 (log-error
+                  (G_ "~a: unexpected error while building '~a': ~s")
+                  name drv c)
                  (reply (build-failed-message drv local-publish-url))))
         (let ((port finish (build-derivations& store (list drv))))
           (catch #t
