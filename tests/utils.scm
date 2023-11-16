@@ -21,7 +21,8 @@
              (fibers)
              (fibers channels)
              (srfi srfi-1)
-             (srfi srfi-64))
+             (srfi srfi-64)
+             (system base compile))
 
 ;; Enable debugging output.
 (current-logging-level 'debug)
@@ -61,5 +62,25 @@
 (test-equal "resource pool, contention"
   (iota 100)
   (run-fibers (resource-pool-test 10 100)))
+
+(test-equal "resource pool, exception thrown"
+  42
+  ;; This test used to hang: 'raise-exception' is written in C and a
+  ;; continuation barrier as of Guile 3.0.9, and a call to 'put-message' from
+  ;; the exception handler would lead to "Attempt to suspend fiber within
+  ;; continuation barrier".  See <https://issues.guix.gnu.org/67041>.
+  (compile
+   '(begin
+      (use-modules (fibers)
+                   (cuirass utils))
+      (run-fibers
+       (lambda ()
+         (define pool (make-resource-pool (iota 10)))
+         (catch 'doh!
+           (lambda ()
+             (with-resource-from-pool pool x
+               (throw 'doh!)))
+           (const 42)))))
+   #:to 'value))
 
 (test-end)

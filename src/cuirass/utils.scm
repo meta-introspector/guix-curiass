@@ -27,6 +27,7 @@
   #:use-module (system foreign)
   #:use-module (srfi srfi-1)
   #:use-module (srfi srfi-19)
+  #:use-module (srfi srfi-71)
   #:use-module (fibers)
   #:use-module (fibers channels)
   #:use-module (fibers operations)
@@ -90,15 +91,21 @@ as database connections.  The channel can then be passed to
 available.  Return the resource once PROC has returned."
   (let ((reply (make-channel)))
     (put-message pool `(get ,reply))
-    (let ((resource (get-message reply)))
-      (with-exception-handler
-          (lambda (exception)
-            (put-message pool `(put ,resource))
-            (raise-exception exception))
-        (lambda ()
-          (let ((result (proc resource)))
-            (put-message pool `(put ,resource))
-            result))))))
+    (let* ((resource (get-message reply))
+           (type value (with-exception-handler
+                           (lambda (exception)
+                             ;; Note: Do not call 'put-message' from the
+                             ;; handler because 'raise-exception' is a
+                             ;; continuation barrier as of Guile 3.0.9.
+                             (values 'exception exception))
+                         (lambda ()
+                           (let ((result (proc resource)))
+                             (values 'value result)))
+                         #:unwind? #t)))
+      (put-message pool `(put ,resource))
+      (match type
+        ('exception (raise-exception value))
+        ('value value)))))
 
 (define-syntax-rule (with-resource-from-pool pool resource exp ...)
   "Evaluate EXP... with RESOURCE bound to a resource taken from POOL.  When
