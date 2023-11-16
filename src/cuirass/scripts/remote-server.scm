@@ -513,7 +513,9 @@ FETCH-WORKER to download the build's output(s)."
                          drv))
              (db-update-build-worker! drv name)
              (db-update-build-status! drv (build-status started)
-                                      #:log-file log-file))))
+                                      #:log-file log-file)))
+          (_
+           (log-warning "ignoring unrecognized message: ~s" command)))
 
         (loop)))))
 
