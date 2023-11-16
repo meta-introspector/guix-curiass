@@ -450,8 +450,12 @@ FETCH-WORKER to download the build's output(s)."
           (`(worker-ready ,worker)
            (update-worker! worker))
           (`(worker-request-info)
-           (reply-worker
-            (server-info-message sender-address (%log-port) (%publish-port))))
+           (catch 'zmq-error
+             (lambda ()
+               (reply-worker
+                (server-info-message sender-address
+                                     (%log-port) (%publish-port))))
+             (const #f)))
           (`(worker-request-work ,name)
            (let ((worker (db-get-worker name)))
              (when worker
@@ -471,19 +475,32 @@ FETCH-WORKER to download the build's output(s)."
                                   derivation))
                      (db-update-build-worker! derivation name)
                      (db-update-build-status! derivation (build-status submitted))
-                     (reply-worker
-                      (build-request-message derivation
-                                             #:priority priority
-                                             #:timeout timeout
-                                             #:max-silent max-silent
-                                             #:system (build-system build))))
+                     (catch 'zmq-error
+                       (lambda ()
+                         (reply-worker
+                          (build-request-message derivation
+                                                 #:priority priority
+                                                 #:timeout timeout
+                                                 #:max-silent max-silent
+                                                 #:system (build-system
+                                                            build))))
+                       (lambda (key errno message . _)
+                         (log-error "while submitting ~a to ~a (~a): ~a"
+                                    derivation
+                                    (worker-name worker)
+                                    (worker-address worker)
+                                    message)
+                         (db-update-build-status! derivation
+                                                  (build-status scheduled)))))
                    (begin
                      (when worker
                        (log-debug "~a (~a): no available build."
                                   (worker-address worker)
                                   (worker-name worker)))
-                     (reply-worker
-                      (no-build-message)))))))
+                     (catch 'zmq-error
+                       (lambda ()
+                         (reply-worker (no-build-message)))
+                       (const #f)))))))
           (`(worker-ping ,worker)
            (update-worker! worker))
           (`(build-started (drv ,drv) (worker ,name))
