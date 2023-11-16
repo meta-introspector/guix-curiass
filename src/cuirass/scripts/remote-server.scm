@@ -240,69 +240,6 @@ and store the result inside the BOX."
          (any db-get-pending-build
               (shuffle (worker-systems worker))))))
 
-(define* (read-worker-exp sexp #:key peer-address reply-worker)
-  "Read the given SEXP sent by a worker.  REPLY-WORKER is a procedure that can
-be used to reply to the worker."
-  (define (update-worker! base-worker)
-    (let* ((worker* (worker
-                     (inherit (sexp->worker base-worker))
-                     (last-seen (current-time)))))
-      (log-debug (G_ "worker ~a is up and running")
-                 (worker-name worker*))
-      (db-add-or-update-worker worker*)))
-
-  (match sexp
-    (('worker-ready worker)
-     (update-worker! worker))
-    (('worker-request-info)
-     (reply-worker
-      (server-info-message peer-address (%log-port) (%publish-port))))
-    (('worker-request-work name)
-     (let ((worker (db-get-worker name)))
-       (when worker
-         (log-debug "~a (~a): request work."
-                    (worker-address worker)
-                    (worker-name worker)))
-       (let ((build (pop-build name)))
-         (if build
-             (let ((derivation (build-derivation build))
-                   (priority (build-priority build))
-                   (timeout (build-timeout build))
-                   (max-silent (build-max-silent-time build)))
-               (when worker
-                 (log-debug "~a (~a): build ~a submitted."
-                            (worker-address worker)
-                            (worker-name worker)
-                            derivation))
-               (db-update-build-worker! derivation name)
-               (db-update-build-status! derivation (build-status submitted))
-               (reply-worker
-                (build-request-message derivation
-                                       #:priority priority
-                                       #:timeout timeout
-                                       #:max-silent max-silent
-                                       #:system (build-system build))))
-             (begin
-               (when worker
-                 (log-debug "~a (~a): no available build."
-                            (worker-address worker)
-                            (worker-name worker)))
-               (reply-worker
-                (no-build-message)))))))
-    (('worker-ping worker)
-     (update-worker! worker))
-    (('build-started ('drv drv) ('worker name))
-     (let ((log-file (log-path (%cache-directory) drv))
-           (worker (db-get-worker name)))
-       (when worker
-         (log-info "~a (~a): build started: '~a'."
-                      (worker-address worker)
-                      (worker-name worker)
-                      drv))
-       (db-update-build-worker! drv name)
-       (db-update-build-status! drv (build-status started)
-                                #:log-file log-file)))))
-
 
 ;;;
 ;;; Fetch workers.
@@ -357,18 +294,6 @@ at URL."
                 (trigger-substitutes-baking output
                                             (%trigger-substitute-url)))))
        (map derivation-output-path outputs)))))
-
-(define (need-fetching? message)
-  "Return #t if the received MESSAGE implies that some output fetching is
-required and #f otherwise."
-  (match message
-    (('build-succeeded ('drv drv) _ ...)
-     (log-debug "fetching required for ~a (success)" drv)
-     #t)
-    (('build-failed ('drv drv) _ ...)
-     (log-debug "fetching required for ~a (fail)" drv)
-     #t)
-    (_ #f)))
 
 (define* (run-fetch message)
   "Read MESSAGE and download the corresponding build outputs.  If
@@ -477,6 +402,14 @@ messages: this is a \"work stealing\" strategy.
 
 When a message denoting a successful build is received, pass it on to
 FETCH-WORKER to download the build's output(s)."
+  (define (update-worker! base-worker)
+    (let* ((worker* (worker
+                     (inherit (sexp->worker base-worker))
+                     (last-seen (current-time)))))
+      (log-debug (G_ "worker ~a is up and running")
+                 (worker-name worker*))
+      (db-add-or-update-worker worker*)))
+
   (let ((build-socket (zmq-create-socket %zmq-context ZMQ_ROUTER)))
 
     ;; Send bootstrap messages on worker connection to wake up the workers
@@ -505,11 +438,66 @@ FETCH-WORKER to download the build's output(s)."
              (reply-worker (lambda (message)
                              (send-message build-socket message
                                            #:recipient sender))))
-        (if (need-fetching? command)
-            (put-message fetch-worker command)
-            (read-worker-exp command
-                             #:peer-address sender-address
-                             #:reply-worker reply-worker))
+        (match command
+          (`(build-succeeded (drv ,drv) ,_ ,...)
+           (log-debug "fetching required for ~a (success)" drv)
+           (put-message fetch-worker command)
+           #t)
+          (`(build-failed (drv ,drv) ,_ ,...)
+           (log-debug "fetching required for ~a (fail)" drv)
+           (put-message fetch-worker command)
+           #t)
+          (`(worker-ready ,worker)
+           (update-worker! worker))
+          (`(worker-request-info)
+           (reply-worker
+            (server-info-message sender-address (%log-port) (%publish-port))))
+          (`(worker-request-work ,name)
+           (let ((worker (db-get-worker name)))
+             (when worker
+               (log-debug "~a (~a): request work."
+                          (worker-address worker)
+                          (worker-name worker)))
+             (let ((build (pop-build name)))
+               (if build
+                   (let ((derivation (build-derivation build))
+                         (priority (build-priority build))
+                         (timeout (build-timeout build))
+                         (max-silent (build-max-silent-time build)))
+                     (when worker
+                       (log-debug "~a (~a): build ~a submitted."
+                                  (worker-address worker)
+                                  (worker-name worker)
+                                  derivation))
+                     (db-update-build-worker! derivation name)
+                     (db-update-build-status! derivation (build-status submitted))
+                     (reply-worker
+                      (build-request-message derivation
+                                             #:priority priority
+                                             #:timeout timeout
+                                             #:max-silent max-silent
+                                             #:system (build-system build))))
+                   (begin
+                     (when worker
+                       (log-debug "~a (~a): no available build."
+                                  (worker-address worker)
+                                  (worker-name worker)))
+                     (reply-worker
+                      (no-build-message)))))))
+          (`(worker-ping ,worker)
+           (update-worker! worker))
+          (`(build-started (drv ,drv) (worker ,name))
+           (let ((log-file (log-path (%cache-directory) drv))
+                 (worker (db-get-worker name)))
+             (when worker
+               (log-info "~a (~a): build started: '~a'."
+                         (worker-address worker)
+                         (worker-name worker)
+                         drv))
+             (db-update-build-worker! drv name)
+             (db-update-build-status! drv (build-status started)
+                                      #:log-file log-file))))
+
         (loop)))))
 
 
