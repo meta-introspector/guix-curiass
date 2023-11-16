@@ -220,7 +220,7 @@ and returns the values RESULTS."
      (let* ((stack (make-stack #t))
             (depth (stack-length stack))
             (frame (or (and (> depth 1) (stack-ref stack 1))
-                       (and (> depth 0)) (stack-ref stack 0))))
+                       (and (> depth 0) (stack-ref stack 0)))))
        (print-exception (current-error-port) frame key args)
        (apply values results)))))
 
