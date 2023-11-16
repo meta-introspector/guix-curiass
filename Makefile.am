@@ -161,7 +161,8 @@ TESTS = \
   tests/database.scm \
   tests/http.scm \
   tests/metrics.scm \
-  tests/remote.scm
+  tests/remote.scm \
+  tests/utils.scm
 
 # Compiler warning flags.
 GUILE_WARNINGS =					\
