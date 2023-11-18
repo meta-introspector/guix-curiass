@@ -488,14 +488,15 @@ timestamp, checkouttime, evaltime) VALUES ('guix', 0, 0, 0, 0);")
          (evaluation-id eval)))))
 
   (test-equal "db-get-evaluation-summary"
-    '(2 0 1 1)
+    '(2 0 1 0 1)
     (with-fibers
       (let* ((summary (db-get-evaluation-summary 2))
              (total (evaluation-summary-total summary))
              (succeeded (evaluation-summary-succeeded summary))
              (failed (evaluation-summary-failed summary))
+             (newly-failed (evaluation-summary-newly-failed summary))
              (scheduled (evaluation-summary-scheduled summary)))
-        (list total succeeded failed scheduled))))
+        (list total succeeded failed newly-failed scheduled))))
 
   (test-equal "db-get-evaluation-summary empty"
     '(0 0 0 0)

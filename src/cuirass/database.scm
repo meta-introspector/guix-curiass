@@ -123,6 +123,7 @@
             evaluation-summary-total
             evaluation-summary-succeeded
             evaluation-summary-failed
+            evaluation-summary-newly-failed
             evaluation-summary-scheduled
             evaluation-summary-start-time
             evaluation-summary-checkout-time
@@ -1856,6 +1857,7 @@ GROUP BY Evaluations.specification;") ))
   (total           evaluation-summary-total)
   (succeeded       evaluation-summary-succeeded)
   (failed          evaluation-summary-failed)
+  (newly-failed    evaluation-summary-newly-failed)
   (scheduled       evaluation-summary-scheduled)
   (start-time      evaluation-summary-start-time)
   (checkout-time   evaluation-summary-checkout-time)
@@ -1870,7 +1872,9 @@ Evaluations.checkouttime, Evaluations.evaltime,
 SUM(CASE WHEN B.status > -100 THEN 1 ELSE 0 END) as total,
 SUM(CASE WHEN B.status = 0 THEN 1 ELSE 0 END) as succeeded,
 SUM(CASE WHEN B.status > 0 THEN 1 ELSE 0 END) as failed,
-SUM(CASE WHEN B.status < 0 THEN 1 ELSE 0 END) as scheduled
+SUM(CASE WHEN B.status < 0 THEN 1 ELSE 0 END) as scheduled,
+SUM(CASE WHEN (B.status > 0 AND B.weather = " (build-weather new-failure) ")\
+    THEN 1 ELSE 0 END) as newfailures
 FROM Evaluations
 LEFT JOIN Builds as B
 ON B.evaluation = Evaluations.id
@@ -1878,7 +1882,7 @@ WHERE Evaluations.id = " id
 "GROUP BY Evaluations.id
 ORDER BY Evaluations.id ASC;"))
       ((id status timestamp checkouttime evaltime
-           total succeeded failed scheduled)
+           total succeeded failed scheduled newfailures)
        (evaluation-summary
         (id (string->number id))
         (status (string->number status))
@@ -1888,6 +1892,7 @@ ORDER BY Evaluations.id ASC;"))
         (completion-time (string->number evaltime))
         (succeeded (or (string->number succeeded) 0))
         (failed (or (string->number failed) 0))
+        (newly-failed (or (string->number newfailures) 0))
         (scheduled (or (string->number scheduled) 0))))
       (_ #f))))
 
@@ -1918,10 +1923,14 @@ Evaluations.timestamp, Evaluations.checkouttime, Evaluations.evaltime,
 SUM(CASE WHEN Jobs.status > -100 THEN 1 ELSE 0 END) as total,
 SUM(CASE WHEN Jobs.status = 0 THEN 1 ELSE 0 END) AS succeeded,
 SUM(CASE WHEN Jobs.status > 0 THEN 1 ELSE 0 END) AS failed,
-SUM(CASE WHEN Jobs.status < 0 THEN 1 ELSE 0 END) AS scheduled
+SUM(CASE WHEN Jobs.status < 0 THEN 1 ELSE 0 END) AS scheduled,
+SUM(CASE WHEN (Builds.status > 0 AND Builds.weather = " (build-weather new-failure) ")\
+    THEN 1 ELSE 0 END) as newfailures
 FROM Evaluations
 LEFT JOIN Jobs
 ON Jobs.evaluation = Evaluations.id
+LEFT JOIN Builds
+ON Builds.id = Jobs.build
 WHERE Evaluations.id = ANY(" eval-ids ")
 GROUP BY Evaluations.id
 ORDER BY Evaluations.id ASC;"))
@@ -1929,13 +1938,14 @@ ORDER BY Evaluations.id ASC;"))
       (match rows
         (() (reverse summary))
         (((evaluation status timestamp checkouttime evaltime
-                      total succeeded failed scheduled) . rest)
+                      total succeeded failed scheduled newly-failed) . rest)
          (loop rest
                (cons (evaluation-summary
                       (id (number evaluation))
                       (total (number total))
                       (succeeded (number succeeded))
                       (failed (number failed))
+                      (newly-failed (number newly-failed))
                       (scheduled (number scheduled))
                       (status (number status))
                       (start-time (number timestamp))
