@@ -405,7 +405,7 @@ system whose names start with " (code "guile-") ":" (br)
                                (@ (class "job-rel d-none"))
                                ,(successful-build-badge
                                  (evaluation-summary-succeeded summary))
-                               ,(failed-build-badge
+                               ,(newly-failed-build-badge
                                  (evaluation-summary-failed summary))
                                ,(scheduled-build-badge
                                  (evaluation-summary-scheduled summary)))))
@@ -969,7 +969,7 @@ the existing SPEC otherwise."
                     (evaluation-summary-succeeded absolute)
                     0)))
              ,(dashboard-link
-               (failed-build-badge
+               (newly-failed-build-badge
                 (if absolute
                     (evaluation-summary-failed absolute)
                     0)))
@@ -986,12 +986,15 @@ the existing SPEC otherwise."
                                        (number->string
                                         (build-summary-evaluation-id evaluation))
                                        "?status=succeeded"))
-             ,(failed-build-badge (build-summary-failed evaluation)
-                                  (string-append
-                                   "/eval/"
-                                   (number->string
-                                    (build-summary-evaluation-id evaluation))
-                                   "?status=failed"))
+             ,((if (> (evaluation-summary-newly-failed absolute) 0)
+                   newly-failed-build-badge
+                   failed-build-badge)
+               (build-summary-failed evaluation)
+               (string-append
+                "/eval/"
+                (number->string
+                 (build-summary-evaluation-id evaluation))
+                "?status=failed"))
              ,(scheduled-build-badge (build-summary-scheduled evaluation)
                                      (string-append
                                       "/eval/"
@@ -1450,7 +1453,9 @@ the channel's URL."
 (define successful-build-badge
   (cut build-counter-badge <> "badge-success" "Succeeded" <...>))
 (define failed-build-badge
-  (cut build-counter-badge <> "badge-danger" "Failed" <...>))
+  (cut build-counter-badge <> "badge-warning" "Failed" <...>))
+(define newly-failed-build-badge
+  (cut build-counter-badge <> "badge-danger" "Failed, including new failures" <...>))
 (define scheduled-build-badge
   (cut build-counter-badge <> "badge-secondary" "Scheduled" <...>))
 
