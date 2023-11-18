@@ -1449,7 +1449,11 @@ CASE WHEN CAST(:borderlowid AS integer) IS NULL THEN
          . ,(match (assq-ref filters 'weather)
               (#f         #f)
               ('all       "Builds.weather >= 0")
-              ('new       "(Builds.weather = 0 OR Builds.weather = 1)")))
+              ('new       "(Builds.weather = 0 OR Builds.weather = 1)")
+              ('new-failure
+               (string-append
+                "Builds.weather = "
+                (number->string (build-weather new-failure))))))
         (border-low-time
          . "(((:borderlowtime, :borderlowid) < (Builds.stoptime, Builds.id))
 OR :borderlowtime IS NULL OR :borderlowid IS NULL)")
@@ -1995,6 +1999,8 @@ WHERE evaluation = " eval " AND
 ((" status " = 'pending' AND Builds.status < 0) OR
  (" status " = 'succeeded' AND Builds.status = 0) OR
  (" status " = 'failed' AND Builds.status > 0) OR
+ (" status " = 'newly-failed' AND Builds.status = " (build-status failed) "
+  AND Builds.weather = " (build-weather new-failure) ") OR
   " status "::text IS NULL)
 ORDER BY stoptime ASC, id ASC
 LIMIT 1"))
@@ -2012,6 +2018,8 @@ WHERE evaluation = " eval " AND
 ((" status " = 'pending' AND Builds.status < 0) OR
  (" status " = 'succeeded' AND Builds.status = 0) OR
  (" status " = 'failed' AND Builds.status > 0) OR
+ (" status " = 'newly-failed' AND Builds.status = " (build-status failed) "
+  AND Builds.weather = " (build-weather new-failure) ") OR
   " status "::text IS NULL)
 ORDER BY stoptime DESC, id DESC
 LIMIT 1"))
