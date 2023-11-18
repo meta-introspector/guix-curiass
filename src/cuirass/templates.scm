@@ -1186,7 +1186,8 @@ the existing SPEC otherwise."
    ((= (build-weather still-succeeding) status) "Still succeeding")
    ((= (build-weather still-failing) status) "Still failing")))
 
-(define (build-eval-table eval-id builds build-min build-max status)
+(define* (build-eval-table eval-id builds build-min build-max status
+                           #:key summary)
   "Return HTML for the BUILDS table evaluation with given STATUS.  BUILD-MIN
 and BUILD-MAX are global minimal and maximal (stoptime, rowid) pairs."
   (define (table-header)
@@ -1240,6 +1241,28 @@ and BUILD-MAX are global minimal and maximal (stoptime, rowid) pairs."
   `((table
      (@ (id "eval-table")
         (class "table table-sm table-hover table-striped"))
+
+     ;; Add button to toggle between "all failures" and "new failures".
+     ,(match status
+        ("failed"
+         (match (evaluation-summary-newly-failed summary)
+           (0 "")
+           (newly-failed
+            `(a (@ (class "btn btn-danger")
+                   (href ,(string-append "/eval/"
+                                         (number->string eval-id)
+                                         "?status=newly-failed")))
+                ,(number->string newly-failed) " new failures"))))
+        ("newly-failed"
+         `(a (@ (class "btn btn-warning")
+                (href ,(string-append "/eval/"
+                                      (number->string eval-id)
+                                      "?status=failed")))
+             "View all "
+             ,(number->string (evaluation-summary-failed summary))
+             " failures"))
+        (_ ""))
+
      ,@(if (null? builds)
            `((th (@ (scope "col") (class "border-0")) "No elements here."))
            `(,(table-header)
@@ -1571,6 +1594,7 @@ evaluation."
                    (a (@ (class ,(string-append "nav-link "
                                                 (match status
                                                   ("failed" "active")
+                                                  ("newly-failed" "active")
                                                   (_ ""))))
                          (href "?status=failed"))
                       (span (@ (class "oi oi-x text-danger")
@@ -1587,7 +1611,8 @@ evaluation."
                        builds
                        builds-id-min
                        builds-id-max
-                       status)))))))
+                       status
+                       #:summary evaluation)))))))
 
 (define (build-search-results-table query builds build-min build-max)
   "Return HTML for the BUILDS table evaluation matching QUERY.  BUILD-MIN

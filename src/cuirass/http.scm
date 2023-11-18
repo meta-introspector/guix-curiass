@@ -296,7 +296,12 @@ Hydra format."
      "builds request for evaluation page"
      (db-get-builds
       `((evaluation . ,id)
-        (status . ,(and=> status string->symbol))
+        (status . ,(match (and=> status string->symbol)
+                     ('newly-failed 'failed)
+                     (status status)))
+        ,@(if (and status (string=? status "newly-failed"))
+              `((weather . new-failure))
+              '())
         ,@(if paginate?
               `((nr . ,%page-size)
                 (border-high-time . ,border-high-time)
