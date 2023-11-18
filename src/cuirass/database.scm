@@ -1989,41 +1989,35 @@ AND (Builds.system = :system OR :system IS NULL);")
   "Return the min build (stoptime, rowid) pair for the given evaluation EVAL
 and STATUS."
   (with-db-connection db
-    (let ((query "SELECT stoptime, id FROM Builds
-WHERE evaluation = :eval AND
-((:status = 'pending' AND Builds.status < 0) OR
-(:status = 'succeeded' AND Builds.status = 0) OR
-(:status = 'failed' AND Builds.status > 0) OR
-:status IS NULL)
+    (match (expect-one-row
+            (exec-query/bind db "SELECT stoptime, id FROM Builds
+WHERE evaluation = " eval " AND
+((" status " = 'pending' AND Builds.status < 0) OR
+ (" status " = 'succeeded' AND Builds.status = 0) OR
+ (" status " = 'failed' AND Builds.status > 0) OR
+  " status "::text IS NULL)
 ORDER BY stoptime ASC, id ASC
-LIMIT 1")
-          (params `((#:eval . ,eval)
-                    (#:status . ,status))))
-      (match (expect-one-row
-              (exec-query/bind-params db query params))
-        ((stoptime id) (list (string->number stoptime)
-                             (string->number id)))
-        (else #f)))))
+LIMIT 1"))
+      ((stoptime id) (list (string->number stoptime)
+                           (string->number id)))
+      (else #f))))
 
 (define (db-get-builds-max eval status)
   "Return the max build (stoptime, rowid) pair for the given evaluation EVAL
 and STATUS."
   (with-db-connection db
-    (let ((query "SELECT stoptime, id FROM Builds
-WHERE evaluation = :eval AND
-((:status = 'pending' AND Builds.status < 0) OR
-(:status = 'succeeded' AND Builds.status = 0) OR
-(:status = 'failed' AND Builds.status > 0) OR
-:status IS NULL)
+    (match (expect-one-row
+            (exec-query/bind db "SELECT stoptime, id FROM Builds
+WHERE evaluation = " eval " AND
+((" status " = 'pending' AND Builds.status < 0) OR
+ (" status " = 'succeeded' AND Builds.status = 0) OR
+ (" status " = 'failed' AND Builds.status > 0) OR
+  " status "::text IS NULL)
 ORDER BY stoptime DESC, id DESC
-LIMIT 1")
-          (params `((#:eval . ,eval)
-                    (#:status . ,status))))
-      (match (expect-one-row
-              (exec-query/bind-params db query params))
-        ((stoptime id) (list (string->number stoptime)
-                             (string->number id)))
-        (else #f)))))
+LIMIT 1"))
+      ((stoptime id) (list (string->number stoptime)
+                           (string->number id)))
+      (else #f))))
 
 (define (db-get-evaluation-specification eval)
   "Return specification of evaluation with id EVAL."
