@@ -1735,9 +1735,9 @@ ORDER BY id DESC LIMIT :limit;")
                  (thunked)
                  (default (db-get-checkouts
                            (build-summary-evaluation-id this-build-summary))))
-  (succeeded     build-summary-succeeded (default 0))
-  (failed        build-summary-failed (default 0))
-  (scheduled     build-summary-scheduled (default 0)))
+  (succeeded     build-summary-succeeded)
+  (failed        build-summary-failed)
+  (scheduled     build-summary-scheduled))
 
 (define (db-get-evaluations-build-summary spec limit border-low border-high)
   (with-db-connection db
