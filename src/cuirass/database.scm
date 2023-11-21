@@ -1741,40 +1741,35 @@ ORDER BY id DESC LIMIT :limit;")
 
 (define (db-get-evaluations-build-summary spec limit border-low border-high)
   (with-db-connection db
-    (let ((query "
+    (let loop ((rows (exec-query/bind db "
 SELECT E.id, E.status,
 SUM(CASE WHEN B.status = 0 THEN 1 ELSE 0 END) as succeeded,
 SUM(CASE WHEN B.status > 0 THEN 1 ELSE 0 END) as failed,
 SUM(CASE WHEN B.status < 0 THEN 1 ELSE 0 END) as scheduled FROM
 (SELECT id, status FROM Evaluations
-WHERE specification=:spec
-AND (id > :borderlow OR :borderlow IS NULL)
-AND (id < :borderhigh OR :borderhigh IS NULL)
-ORDER BY CASE WHEN :borderlow IS NULL THEN id ELSE -id END DESC
-LIMIT :limit) E
+ WHERE specification = " spec "
+AND (id > " border-low " OR " border-low "::text IS NULL)
+AND (id < " border-high " OR " border-high "::text IS NULL)
+ORDER BY CASE WHEN " border-low "::text IS NULL THEN id ELSE -id END DESC
+LIMIT " limit ") E
 LEFT JOIN Builds as B
-ON B.evaluation=E.id
+ON B.evaluation = E.id
 GROUP BY E.id, E.status
-ORDER BY E.id DESC;")
-          (params `((#:spec . ,spec)
-                    (#:limit . ,limit)
-                    (#:borderlow . ,border-low)
-                    (#:borderhigh . ,border-high))))
-      (let loop ((rows (exec-query/bind-params db query params))
-                 (summaries '()))
-        (match rows
-          (()
-           (reverse summaries))
-          (((id status succeeded failed scheduled) . rest)
-           (loop rest
-                 (cons (build-summary
-                        (evaluation-id (string->number id))
-                        (status (string->number status))
-                        (checkouts (db-get-checkouts id))
-                        (succeeded (or (string->number succeeded) 0))
-                        (failed (or (string->number failed) 0))
-                        (scheduled (or (string->number scheduled) 0)))
-                       summaries))))))))
+ORDER BY E.id DESC;"))
+               (summaries '()))
+      (match rows
+        (()
+         (reverse summaries))
+        (((id status succeeded failed scheduled) . rest)
+         (loop rest
+               (cons (build-summary
+                      (evaluation-id (string->number id))
+                      (status (string->number status))
+                      (checkouts (db-get-checkouts id))
+                      (succeeded (or (string->number succeeded) 0))
+                      (failed (or (string->number failed) 0))
+                      (scheduled (or (string->number scheduled) 0)))
+                     summaries)))))))
 
 (define (db-get-previous-eval eval-id)
   "Return the successful evaluation preceeding EVAL-ID, for the same
