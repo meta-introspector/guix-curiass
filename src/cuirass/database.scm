@@ -115,6 +115,7 @@
             build-summary-checkouts
             build-summary-succeeded
             build-summary-failed
+            build-summary-newly-failed
             build-summary-scheduled
 
             evaluation-summary?
@@ -1737,6 +1738,7 @@ ORDER BY id DESC LIMIT :limit;")
                            (build-summary-evaluation-id this-build-summary))))
   (succeeded     build-summary-succeeded)
   (failed        build-summary-failed)
+  (newly-failed  build-summary-newly-failed)
   (scheduled     build-summary-scheduled))
 
 (define (db-get-evaluations-build-summary spec limit border-low border-high)
@@ -1745,7 +1747,10 @@ ORDER BY id DESC LIMIT :limit;")
 SELECT E.id, E.status,
 SUM(CASE WHEN B.status = 0 THEN 1 ELSE 0 END) as succeeded,
 SUM(CASE WHEN B.status > 0 THEN 1 ELSE 0 END) as failed,
-SUM(CASE WHEN B.status < 0 THEN 1 ELSE 0 END) as scheduled FROM
+SUM(CASE WHEN B.status < 0 THEN 1 ELSE 0 END) as scheduled,
+SUM(CASE WHEN (B.status > 0 AND B.weather = " (build-weather new-failure) ")\
+    THEN 1 ELSE 0 END) as newfailures
+FROM
 (SELECT id, status FROM Evaluations
  WHERE specification = " spec "
 AND (id > " border-low " OR " border-low "::text IS NULL)
@@ -1760,7 +1765,7 @@ ORDER BY E.id DESC;"))
       (match rows
         (()
          (reverse summaries))
-        (((id status succeeded failed scheduled) . rest)
+        (((id status succeeded failed scheduled newly-failed) . rest)
          (loop rest
                (cons (build-summary
                       (evaluation-id (string->number id))
@@ -1768,6 +1773,7 @@ ORDER BY E.id DESC;"))
                       (checkouts (db-get-checkouts id))
                       (succeeded (or (string->number succeeded) 0))
                       (failed (or (string->number failed) 0))
+                      (newly-failed (or (string->number newly-failed) 0))
                       (scheduled (or (string->number scheduled) 0)))
                      summaries)))))))
 

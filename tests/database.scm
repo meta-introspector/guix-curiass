@@ -414,13 +414,14 @@ timestamp, checkouttime, evaltime) VALUES ('guix', 0, 0, 0, 0);")
            (db-get-evaluations 2))))
 
   (test-equal "db-get-evaluations-build-summary"
-    '((0 0 0) (0 0 0) (0 1 1))
+    '((0 0 0 0) (0 0 0 0) (0 1 0 1))
     (with-fibers
       (let ((summaries
              (db-get-evaluations-build-summary "guix" 3 #f #f)))
         (map (lambda (summary)
                (list (build-summary-succeeded summary)
                      (build-summary-failed summary)
+                     (build-summary-newly-failed summary)
                      (build-summary-scheduled summary)))
              summaries))))
 
