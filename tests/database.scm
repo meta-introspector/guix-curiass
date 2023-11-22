@@ -426,18 +426,19 @@ timestamp, checkouttime, evaltime) VALUES ('guix', 0, 0, 0, 0);")
              summaries))))
 
   (test-equal "db-get-evaluation-absolute-summary"
-    (list 0 1 0 (evaluation-status succeeded))
+    (list 0 1 0 0 (evaluation-status succeeded))
     (with-fibers
       (let ((summary
              (db-get-evaluation-absolute-summary
               (db-get-latest-evaluation "guix"))))
         (list (evaluation-summary-succeeded summary)
               (evaluation-summary-failed summary)
+              (evaluation-summary-newly-failed summary)
               (evaluation-summary-scheduled summary)
               (evaluation-summary-status summary)))))
 
   (test-equal "db-get-evaluations-absolute-summary"
-    '((0 1 0) (0 0 0) (0 1 0))
+    '((0 1 0 0) (0 0 0 0) (0 1 0 0))
     (with-fibers
       (let* ((evaluations
               (db-get-evaluations-build-summary "guix" 3 #f #f))
@@ -446,6 +447,7 @@ timestamp, checkouttime, evaltime) VALUES ('guix', 0, 0, 0, 0);")
         (map (lambda (summary)
                (list (evaluation-summary-succeeded summary)
                      (evaluation-summary-failed summary)
+                     (evaluation-summary-newly-failed summary)
                      (evaluation-summary-scheduled summary)))
              summaries))))
 
