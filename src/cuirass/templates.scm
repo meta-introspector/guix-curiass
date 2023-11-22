@@ -1252,7 +1252,10 @@ and BUILD-MAX are global minimal and maximal (stoptime, rowid) pairs."
                    (href ,(string-append "/eval/"
                                          (number->string eval-id)
                                          "?status=newly-failed")))
-                ,(number->string newly-failed) " new failures"))))
+                ,(number->string newly-failed)
+                ,(if (= 1 newly-failed)
+                     " new failure"
+                     " new failures")))))
         ("newly-failed"
          `(a (@ (class "btn btn-warning")
                 (href ,(string-append "/eval/"
@@ -1260,7 +1263,9 @@ and BUILD-MAX are global minimal and maximal (stoptime, rowid) pairs."
                                       "?status=failed")))
              "View all "
              ,(number->string (evaluation-summary-failed summary))
-             " failures"))
+             ,(if (= 1 (evaluation-summary-failed summary))
+                  " failure"
+                  " failures")))
         (_ ""))
 
      ,@(if (null? builds)
