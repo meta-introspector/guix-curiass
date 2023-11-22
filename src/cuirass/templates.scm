@@ -986,7 +986,7 @@ the existing SPEC otherwise."
                                        (number->string
                                         (build-summary-evaluation-id evaluation))
                                        "?status=succeeded"))
-             ,((if (> (evaluation-summary-newly-failed absolute) 0)
+             ,((if (> (build-summary-newly-failed evaluation) 0)
                    newly-failed-build-badge
                    failed-build-badge)
                (build-summary-failed evaluation)
