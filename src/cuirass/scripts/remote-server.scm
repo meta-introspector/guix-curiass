@@ -644,7 +644,10 @@ exiting."
              (%cache-directory cache))
 
         (when user
+          ;; Now that the private key has been read, drop privileges.
           (gather-user-privileges user))
+        (when (zero? (getuid))
+          (warning (G_ "running with root privileges, which is not recommended~%")))
 
         (and parameters
              (read-parameters parameters))
