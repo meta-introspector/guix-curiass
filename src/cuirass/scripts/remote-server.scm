@@ -589,18 +589,6 @@ exiting."
       (terminate-helper-processes)
       (primitive-exit 1))))
 
-(define (gather-user-privileges user)
-  "switch to the identity of user, a user name."
-  (catch 'misc-error
-    (lambda ()
-      (let ((user (getpw user)))
-        (setgroups #())
-        (setgid (passwd:gid user))
-        (setuid (passwd:uid user))))
-    (lambda (key proc message args . rest)
-      (leave (G_ "user '~a' not found: ~a~%")
-             user (apply format #f message args)))))
-
 (define (cuirass-remote-server args)
   (signal-handler)
   (with-error-handling

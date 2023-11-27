@@ -28,6 +28,8 @@
   #:use-module (srfi srfi-1)
   #:use-module (srfi srfi-19)
   #:use-module (srfi srfi-71)
+  #:autoload   (guix i18n) (G_)
+  #:autoload   (guix ui) (leave)
   #:use-module (fibers)
   #:use-module (fibers channels)
   #:use-module (fibers operations)
@@ -44,7 +46,8 @@
 
             date->rfc822-str
             random-string
-            call-with-time))
+            call-with-time
+            gather-user-privileges))
 
 (define-syntax-rule (define-enumeration name (symbol value) ...)
   "Define an 'enum' type with the given SYMBOL/VALUE pairs.  NAME is defined a
@@ -217,3 +220,15 @@ values."
          (result (call-with-values thunk list))
          (end    (current-time time-monotonic)))
     (apply kont (time-difference end start) result)))
+
+(define (gather-user-privileges user)
+  "switch to the identity of user, a user name."
+  (catch 'misc-error
+    (lambda ()
+      (let ((user (getpw user)))
+        (setgroups #())
+        (setgid (passwd:gid user))
+        (setuid (passwd:uid user))))
+    (lambda (key proc message args . rest)
+      (leave (G_ "user '~a' not found: ~a~%")
+             user (apply format #f message args)))))
