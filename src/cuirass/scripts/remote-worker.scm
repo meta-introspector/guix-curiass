@@ -27,6 +27,7 @@
   #:use-module (cuirass logging)
   #:use-module (cuirass remote)
   #:use-module (cuirass ui)
+  #:autoload   (cuirass utils) (gather-user-privileges)
   #:use-module (gcrypt pk-crypto)
   #:use-module (guix avahi)
   #:use-module (guix config)
@@ -97,6 +98,8 @@ Start a remote build worker.\n" (%program-name))
       --substitute-urls=URLS
                             check for available substitutes at URLS"))
   (display (G_ "
+  -u, --user=USER           change privileges to USER as soon as possible"))
+  (display (G_ "
       --public-key=FILE     use FILE as the public key for signatures"))
   (display (G_ "
       --private-key=FILE    use FILE as the private key for signatures"))
@@ -116,6 +119,9 @@ Start a remote build worker.\n" (%program-name))
         (option '(#\V "version") #f #f
                 (lambda _
                   (show-version-and-exit "cuirass remote-worker")))
+        (option '(#\u "user") #t #f
+                (lambda (opt name arg result)
+                  (alist-cons 'user arg result)))
         (option '(#\w "workers") #t #f
                 (lambda (opt name arg result)
                   (alist-cons 'workers (string->number* arg) result)))
@@ -463,12 +469,19 @@ exiting."
            (server-address (assoc-ref opts 'server))
            (systems (assoc-ref opts 'systems))
            (urls    (assoc-ref opts 'substitute-urls))
+           (user (assoc-ref opts 'user))
            (public-key
             (read-file-sexp
              (assoc-ref opts 'public-key-file)))
            (private-key
             (read-file-sexp
              (assoc-ref opts 'private-key-file))))
+
+        (when user
+          ;; Now that the private key has been read, drop privileges.
+          (gather-user-privileges user))
+        (when (zero? (getuid))
+          (warning (G_ "running with root privileges, which is not recommended~%")))
 
       ;; Distinguish the worker's GC root directory so that, in case a
       ;; 'cuirass remote-server' process runs on the same machine as a worker,
