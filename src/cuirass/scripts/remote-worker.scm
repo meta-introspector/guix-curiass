@@ -406,16 +406,15 @@ process can use up to PARALLELISM cores."
 
            (loop)))))))
 
-(define (worker-management-thunk channel systems)
+(define (worker-management-thunk channel systems cpu-count)
   "Return a thunk that reads from CHANNEL requests to start new workers for
-SYSTEMS."
+SYSTEMS.  CPU-COUNT is the total number of CPU cores available on the system,
+to be distributed among all the workers."
   (lambda ()
     (let loop ()
       (match (get-message channel)
         (`(start-workers ,count ,server ,local-address)
-         (let ((parallelism (max (ceiling-quotient (current-processor-count)
-                                                   count)
-                                 1)))
+         (let ((parallelism (max (ceiling-quotient cpu-count count) 1)))
            (log-info
             "starting ~a workers (parallelism: ~a cores) for server at ~a"
             count parallelism (server-address server))
@@ -469,6 +468,7 @@ exiting."
            (server-address (assoc-ref opts 'server))
            (systems (assoc-ref opts 'systems))
            (urls    (assoc-ref opts 'substitute-urls))
+           (cpu-count (current-processor-count))  ;call it before 'run-fibers'
            (user (assoc-ref opts 'user))
            (public-key
             (read-file-sexp
@@ -532,7 +532,8 @@ exiting."
            (lambda ()
              ;; Spawn the fiber that'll actually create workers as it receives
              ;; requests on MANAGEMENT-CHANNEL.
-             (spawn-fiber (worker-management-thunk management-channel systems))
+             (spawn-fiber
+              (worker-management-thunk management-channel systems cpu-count))
 
              ;; This program registers roots for successful build results.
              ;; Normally these build results are sent right away to 'cuirass
