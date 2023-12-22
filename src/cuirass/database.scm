@@ -1251,8 +1251,9 @@ UPDATE Builds SET stoptime =" now
   (with-db-connection db
     (exec-query/bind db "UPDATE Builds SET status="
                      (build-status scheduled)
-                     ", starttime = 0, stoptime = 0
-                     WHERE id=" build-id ";")))
+                     ", starttime = 0, stoptime = 0, weather = "
+                     (build-weather unknown)
+                     " WHERE id=" build-id ";")))
 
 (define (db-restart-evaluation! eval-id)
   "Restart the evaluation with EVAL-ID id."
