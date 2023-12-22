@@ -155,7 +155,9 @@ the detailed information about this build here: ~a."
                    args)))))
 
 (define (spawn-notification-fiber)
-  "Start a thread sending build notifications."
+  "Start a fiber sending build notifications."
+  ;; TODO: Turn it into an actor that waits for incoming messages instead
+  ;; of polling.
   (spawn-fiber
    (lambda ()
      (let loop ()
@@ -172,5 +174,5 @@ the detailed information about this build here: ~a."
            ((mastodon? notif)
             (send-mastodon build))))
          (#f #f))
-       ((@ (fibers) sleep) 1)
+       ((@ (fibers) sleep) 60)
        (loop)))))
