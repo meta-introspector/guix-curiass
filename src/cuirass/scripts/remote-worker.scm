@@ -395,7 +395,15 @@ process can use up to PARALLELISM cores."
                    (('no-build)
                     (log-info (G_ "~a: no available build.")
                               (worker-name worker))
-                    (sleep (%request-period)))
+
+                    ;; Sleep for a slightly random amount of time to avoid a
+                    ;; situation where all workers ask for work at the same
+                    ;; time, which could lead to this machine grabbing N jobs
+                    ;; at once even though they could have been spread across
+                    ;; several machines.
+                    (let ((delta (- (random (%request-period))
+                                    (quotient (%request-period) 2))))
+                      (sleep (+ (%request-period) delta))))
                    (command
                     (log-debug (G_ "~a: received command: ~s")
                                (worker-name wrk) command)
