@@ -119,10 +119,11 @@ context."
   "Read from PORT the build log, calling PROC for each build event like 'fold'
 does.  Return the result of the last call to PROC."
   (define (process-line line state)
-    (when (string-prefix? "@ " line)
-      (match (string-tokenize (string-drop line 2))
-        (((= string->symbol event-name) args ...)
-         (proc (cons event-name args) state)))))
+    (if (string-prefix? "@ " line)
+        (match (string-tokenize (string-drop line 2))
+          (((= string->symbol event-name) args ...)
+           (proc (cons event-name args) state)))
+        state))
 
   (let loop ((state seed))
     (match (read-line port)
