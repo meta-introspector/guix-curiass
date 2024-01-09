@@ -1,7 +1,7 @@
 ;;; database.scm -- store evaluation and build results
 ;;; Copyright © 2016, 2017 Mathieu Lirzin <mthl@gnu.org>
 ;;; Copyright © 2017, 2020 Mathieu Othacehe <othacehe@gnu.org>
-;;; Copyright © 2018, 2020, 2023 Ludovic Courtès <ludo@gnu.org>
+;;; Copyright © 2018, 2020, 2023-2024 Ludovic Courtès <ludo@gnu.org>
 ;;; Copyright © 2018 Clément Lassieur <clement@lassieur.org>
 ;;; Copyright © 2018 Tatiana Sholokhova <tanja201396@gmail.com>
 ;;; Copyright © 2019, 2020 Ricardo Wurmus <rekado@elephly.net>
@@ -1631,11 +1631,14 @@ SELECT derivation FROM Builds WHERE Builds.status < 0;"))))
 (define (db-get-pending-build system)
   "Return the oldest pending build with no dependencies for SYSTEM that has the
 highest priority (lowest integer value)."
-  (with-db-connection db
-    (match (expect-one-row
-            ;; Note: Keep ordering in sync with that of the
-            ;; 'status+submission-time' filter of 'db-get-builds'.
-            (exec-query/bind db "
+  ;; To maximize responsiveness and build throughput when using
+  ;; 'remote-server', this query must not take too long.
+  (with-timing-check (format #f "getting pending '~a' builds" system)
+    (with-db-connection db
+      (match (expect-one-row
+              ;; Note: Keep ordering in sync with that of the
+              ;; 'status+submission-time' filter of 'db-get-builds'.
+              (exec-query/bind db "
 WITH pending_dependencies AS
 (SELECT Builds.id, count(dep.id) as deps FROM Builds
 LEFT JOIN BuildDependencies as bd ON bd.source = Builds.id
@@ -1645,8 +1648,9 @@ WHERE Builds.status = " (build-status scheduled)
 " GROUP BY Builds.id
 ORDER BY Builds.priority ASC, Builds.timestamp ASC)
 SELECT id FROM pending_dependencies WHERE deps = 0 LIMIT 1;"))
-      ((id) (db-get-build (string->number id)))
-      (else #f))))
+        ((id) (db-get-build (string->number id)))
+        (else #f)))
+    #:threshold 20))
 
 (define-record-type* <checkout> checkout make-checkout
   checkout?
