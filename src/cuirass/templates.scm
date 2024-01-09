@@ -1,6 +1,6 @@
 ;;; templates.scm -- HTTP API
 ;;; Copyright © 2018 Tatiana Sholokhova <tanja201396@gmail.com>
-;;; Copyright © 2018, 2019, 2020, 2021, 2023 Ludovic Courtès <ludo@gnu.org>
+;;; Copyright © 2018-2021, 2023-2024 Ludovic Courtès <ludo@gnu.org>
 ;;; Copyright © 2019, 2020 Ricardo Wurmus <rekado@elephly.net>
 ;;; Copyright © 2020 Mathieu Othacehe <othacehe@gnu.org>
 ;;;
@@ -221,7 +221,7 @@ system whose names start with " (code "guile-") ":" (br)
            (p (@ (class "mt-3"))
               (a (@ (href "http://guix.gnu.org/cuirass/"))
                  ,(string-append "Cuirass " %package-version))
-              " — Copyright © 2016–2023 by the GNU Guix community.")))))
+              " — Copyright © 2016–2024 by the GNU Guix community.")))))
 
 (define (status-class status)
   (cond
