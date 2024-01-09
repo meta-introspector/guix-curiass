@@ -158,6 +158,7 @@ AM_SH_LOG_FLAGS = -x -e
 TESTS = \
   tests/base.scm \
 ## tests/basic.sh # takes too long to execute
+  tests/store.scm \
   tests/database.scm \
   tests/http.scm \
   tests/metrics.scm \

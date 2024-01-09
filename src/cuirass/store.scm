@@ -1,5 +1,5 @@
 ;;; store.scm -- Fiberized access to the store.
-;;; Copyright © 2016-2019, 2022-2023 Ludovic Courtès <ludo@gnu.org>
+;;; Copyright © 2016-2019, 2022-2024 Ludovic Courtès <ludo@gnu.org>
 ;;; Copyright © 2017, 2020, 2021 Mathieu Othacehe <othacehe@gnu.org>
 ;;;
 ;;; This file is part of Cuirass.
@@ -91,6 +91,10 @@ any."
 ;;; Fiberized access to the store.
 ;;;
 
+(define (blocking-port? port)
+  "Return true if PORT is blocking--i.e., lacking O_NONBLOCK."
+  (zero? (logand O_NONBLOCK (fcntl port F_GETFL))))
+
 (define (non-blocking-port port)
   "Make PORT non-blocking and return it."
   (let ((flags (fcntl port F_GETFL)))
@@ -104,6 +108,20 @@ O_NONBLOCK."
   (match (store-connection-socket store)
     ((? file-port? port)
      (non-blocking-port port))
+    (_ #f)))
+
+(define (blocking-port port)
+  "Make PORT as blocking (i.e., ~O_NONBLOCK) and return it."
+  (let ((flags (fcntl port F_GETFL)))
+    (unless (zero? (logand O_NONBLOCK flags))
+      (fcntl port F_SETFL (logand (lognot O_NONBLOCK) flags)))
+    port))
+
+(define (ensure-blocking-store-connection store)
+  "Mark the file descriptor that backs STORE, a <store-connection>, as blocking."
+  (match (store-connection-socket store)
+    ((? file-port? port)
+     (blocking-port port))
     (_ #f)))
 
 (define-syntax-rule (with-store/non-blocking store exp ...)
@@ -145,10 +163,19 @@ Essentially this procedure inverts the inversion-of-control that
   (define channel
     (make-channel))
 
+  (define blocking-store?
+    (blocking-port? (store-connection-socket store)))
+
   (match (pipe)
     ((input . output)
      (call-with-new-thread
       (lambda ()
+        ;; We're now in a non-fiberized thread and Fibers'
+        ;; 'current-read-waiter' and 'current-read-writer' would not work here
+        ;; since there's no fiber to suspend.  Thus, make sure to deal with
+        ;; blocking ports.
+        (ensure-blocking-store-connection store)
+
         ;; String I/O primitives are going to be used on PORT so make it
         ;; Unicode-capable and resilient to encoding issues.
         (set-port-encoding! output "UTF-8")
@@ -170,6 +197,11 @@ Essentially this procedure inverts the inversion-of-control that
                ;; to avoid blocking the thread that runs the calling fiber.
                (match (get-message channel)
                  ((? exception? c)
+                  (unless blocking-store?
+                    (ensure-non-blocking-store-connection store))
                   (raise-exception c))
-                 (x x)))))))
+                 (x
+                  (unless blocking-store?
+                    (ensure-non-blocking-store-connection store))
+                  x)))))))
 
