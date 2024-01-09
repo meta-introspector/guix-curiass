@@ -425,8 +425,8 @@ OUTPUTS, a list of <build-output> records."
                      (success (count (lambda (status)
                                        (= status (build-status succeeded)))
                                      status))
-                     (outputs (map build-outputs results))
-                     (outs (append-map build-output-path outputs))
+                     (outputs (append-map build-outputs results))
+                     (outs (map output-item outputs))
                      (fail (- (length derivations) success)))
 
                 (log-info "outputs:\n~a" (string-join outs "\n"))
