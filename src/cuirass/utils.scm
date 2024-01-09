@@ -1,5 +1,5 @@
 ;;; utils.scm -- helper procedures
-;;; Copyright © 2012-2013, 2016, 2018-2019, 2023 Ludovic Courtès <ludo@gnu.org>
+;;; Copyright © 2012-2013, 2016, 2018-2019, 2023-2024 Ludovic Courtès <ludo@gnu.org>
 ;;; Copyright © 2015 David Thompson <davet@gnu.org>
 ;;; Copyright © 2016 Mathieu Lirzin <mthl@gnu.org>
 ;;; Copyright © 2018 Clément Lassieur <clement@lassieur.org>
@@ -47,6 +47,7 @@
             date->rfc822-str
             random-string
             call-with-time
+            with-timing-check
             gather-user-privileges))
 
 (define-syntax-rule (define-enumeration name (symbol value) ...)
@@ -220,6 +221,20 @@ values."
          (result (call-with-values thunk list))
          (end    (current-time time-monotonic)))
     (apply kont (time-difference end start) result)))
+
+(define* (call-with-timing-check label thunk #:key (threshold 60))
+  (call-with-time thunk
+    (lambda (time . results)
+      (let ((duration (+ (time-second time)
+                         (/ (time-nanosecond time) 1e9))))
+        (when (> duration 60)
+          (log-warning "~a took ~a seconds" label duration)))
+      (apply values results))))
+
+(define-syntax-rule (with-timing-check label exp args ...)
+  "Evaluate EXP, printing a warning if its execution time exceeds #:threshold
+seconds (60 seconds by default)."
+  (call-with-timing-check label (lambda () exp) args ...))
 
 (define (gather-user-privileges user)
   "switch to the identity of user, a user name."

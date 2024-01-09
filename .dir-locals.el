@@ -12,6 +12,8 @@
   (eval put 'with-store/non-blocking 'scheme-indent-function 1)
   (eval put 'call-with-time 'scheme-indent-function 1)
   (eval put 'test-error 'scheme-indent-function 1)
+  (eval put 'with-time-logging 'scheme-indent-function 1)
+  (eval put 'with-timing-check 'scheme-indent-function 1)
   (eval put 'make-parameter 'scheme-indent-function 1)
   (eval put 'with-database 'scheme-indent-function 0)
   (eval put 'with-transaction 'scheme-indent-function 0)

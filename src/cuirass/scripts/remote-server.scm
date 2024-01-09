@@ -1,6 +1,6 @@
 ;;; remote-server.scm -- Remote build server.
 ;;; Copyright © 2020, 2021 Mathieu Othacehe <othacehe@gnu.org>
-;;; Copyright © 2023 Ludovic Courtès <ludo@gnu.org>
+;;; Copyright © 2023, 2024 Ludovic Courtès <ludo@gnu.org>
 ;;;
 ;;; This file is part of Cuirass.
 ;;;
@@ -314,15 +314,8 @@ directory."
      (let ((outputs (build-outputs drv)))
        (log-info "fetching ~a outputs of '~a' from ~a"
                  (length outputs) drv url)
-       (call-with-time
-        (lambda ()
-          (add-to-store drv outputs url))
-        (lambda (time result)
-          (let ((duration (+ (time-second time)
-                             (/ (time-nanosecond time) 1e9))))
-            (when (> duration 60)
-              (log-warning "fetching '~a' took ~a seconds."
-                           drv duration)))))
+       (with-timing-check (format #f "fetching '~a'" drv)
+         (add-to-store drv outputs url))
        (log-info "build succeeded: '~a'" drv)
        (set-build-successful! drv)))
     (('build-failed ('drv drv) ('url url) _ ...)
