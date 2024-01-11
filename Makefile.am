@@ -181,9 +181,9 @@ GUILE_WARNINGS =					\
 # XXX: Use the C locale for when Guile lacks
 # <http://git.sv.gnu.org/cgit/guile.git/commit/?h=stable-2.0&id=e2c6bf3866d1186c60bacfbd4fe5037087ee5e3f>.
 .scm.go:
-	$(guilec_verbose)$(MKDIR_P) `dirname "$@"`; \
-	export GUILE_AUTO_COMPILE=0 ; unset GUILE_LOAD_COMPILED_PATH; \
-	LC_ALL=C \
+	$(guilec_verbose)$(MKDIR_P) `dirname "$@"`;			\
+	export GUILE_AUTO_COMPILE=0 ;					\
+	LC_ALL=C							\
 	$(top_builddir)/pre-inst-env $(GUILD) compile			\
 	  -L "$(top_builddir)/src" -L "$(top_srcdir)/src"		\
 	  $(GUILE_WARNINGS)						\
