@@ -57,8 +57,18 @@
   (run-with-store store
     (lower-object (trivial-thing))))
 
+(define store-available?
+  ;; Is there a running Guix daemon here?
+  (let ((connection (false-if-exception (open-connection))))
+    (when connection
+      (close-connection connection))
+    (->bool connection)))
+
 
 (test-begin "store")
+
+;; These tests require access to the store.
+(unless store-available? (test-skip 100))
 
 (test-equal "build-derivations&, non-fiber"
   '(build-succeeded build-started)
