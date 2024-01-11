@@ -1,7 +1,7 @@
 ;;;; cuirass -- continuous integration tool
 ;;; Copyright © 2016 Mathieu Lirzin <mthl@gnu.org>
 ;;; Copyright © 2017 Mathieu Othacehe <othacehe@gnu.org>
-;;; Copyright © 2018, 2023 Ludovic Courtès <ludo@gnu.org>
+;;; Copyright © 2018, 2023-2024 Ludovic Courtès <ludo@gnu.org>
 ;;; Copyright © 2018 Clément Lassieur <clement@lassieur.org>
 ;;;
 ;;; This file is part of Cuirass.
@@ -140,6 +140,17 @@
                    (lambda ()
                      (log-info "triggering jobset '~a'" name)
                      (put-message jobset 'trigger))))))
+              (`(jobset-last-update-times ,name)
+               (match (lookup-jobset registry name)
+                 (#f
+                  (log-warning "requested jobset '~a' not found" name)
+                  (write `(reply #f) socket))
+                 (jobset
+                  (log-debug "requesting update times of jobset '~a'" name)
+                  (let ((reply (make-channel)))
+                    (put-message jobset `(last-update-times ,reply))
+                    (write `(reply ,(get-message reply)) socket))))
+               (newline socket))
               (_
                #f))
             (loop (+ 1 count))))))

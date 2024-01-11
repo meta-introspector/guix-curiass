@@ -1,7 +1,7 @@
 ;;;; http.scm -- HTTP API
 ;;; Copyright © 2016 Mathieu Lirzin <mthl@gnu.org>
 ;;; Copyright © 2017, 2020, 2021 Mathieu Othacehe <othacehe@gnu.org>
-;;; Copyright © 2018, 2019, 2020, 2023 Ludovic Courtès <ludo@gnu.org>
+;;; Copyright © 2018-2020, 2023-2024 Ludovic Courtès <ludo@gnu.org>
 ;;; Copyright © 2018 Clément Lassieur <clement@lassieur.org>
 ;;; Copyright © 2018 Tatiana Sholokhova <tanja201396@gmail.com>
 ;;; Copyright © 2019, 2020 Ricardo Wurmus <rekado@elephly.net>
@@ -1045,13 +1045,25 @@ passed, only display JOBS targeting this SYSTEM."
                                                             border-low
                                                             border-high))
              (absolute-summary
-              (db-get-evaluations-absolute-summary evaluations)))
+              (db-get-evaluations-absolute-summary evaluations))
+             (last-updates
+              (if bridge
+                  (begin
+                    (write `(jobset-last-update-times ,(string->symbol name))
+                           bridge)
+                    (newline bridge)
+                    (match (read bridge)
+                      (`(reply ,times) times)
+                      (_ #f)))
+                  #f)))
         (html-page name (evaluation-info-table name
                                                evaluations
                                                evaluation-id-min
                                                evaluation-id-max
                                                #:absolute-summary
-                                               absolute-summary)
+                                               absolute-summary
+                                               #:last-update-times
+                                               last-updates)
                    `(((#:name . ,name)
                       (#:link . ,(string-append "/jobset/" name))))))))
 

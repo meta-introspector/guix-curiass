@@ -750,18 +750,23 @@ concurrently; it sends derivation build requests to BUILDER."
                              name)
                 (loop spec last-updates))
               (begin
-                (match (let ((reply (make-channel)))
-                         (log-info "fetching channels for spec '~a'" name)
-                         (put-message update-service
-                                      `(fetch ,channels ,reply))
-                         (get-message reply))
-                  (#f
-                   (log-warning "failed to fetch channels for '~a'" name))
-                  (instances
-                   (log-info "fetched channels for '~a':~{ ~a~}"
-                             name (map channel-name channels))
-                   (put-message evaluator
-                                `(evaluate ,spec ,instances ,timestamp))))
+                ;; Fetch concurrently so the monitor can keep responding.
+                (spawn-fiber
+                 (lambda ()
+                   (match (let ((reply (make-channel)))
+                            (log-info "fetching channels for spec '~a'" name)
+                            (put-message update-service
+                                         `(fetch ,channels ,reply))
+                            (get-message reply))
+                     (#f
+                      ;; TODO: Send the error to CHANNEL so the web interface
+                      ;; can query it and display it.
+                      (log-warning "failed to fetch channels for '~a'" name))
+                     (instances
+                      (log-info "fetched channels for '~a':~{ ~a~}"
+                                name (map channel-name channels))
+                      (put-message evaluator
+                                   `(evaluate ,spec ,instances ,timestamp))))))
 
                 (loop spec
                       (cons timestamp (take-while recent? last-updates)))))))
@@ -780,6 +785,9 @@ concurrently; it sends derivation build requests to BUILDER."
                 (`(update-spec ,spec)
                  (log-info "updating spec of jobset '~a'" name)
                  (loop spec last-updates))
+                (`(last-update-times ,reply)
+                 (put-message reply last-updates)
+                 (loop spec last-updates))
                 (message
                  (log-warning "jobset '~a' got bogus message: ~s"
                               name message)
@@ -787,6 +795,9 @@ concurrently; it sends derivation build requests to BUILDER."
           (match (get-message channel)            ;currently inactive
             (`(update-spec ,spec)
              (log-info "updating spec of inactive jobset '~a'" name)
+             (loop spec last-updates))
+            (`(last-update-times ,reply)
+             (put-message reply last-updates)
              (loop spec last-updates))
             (message
              (log-warning "inactive jobset '~a' got unexpected message: ~s"

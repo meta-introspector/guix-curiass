@@ -1006,9 +1006,12 @@ the existing SPEC otherwise."
                                    status))))))
 
 (define* (evaluation-info-table name evaluations id-min id-max
-                                #:key absolute-summary)
+                                #:key absolute-summary last-update-times)
   "Return HTML for the EVALUATION table NAME. ID-MIN and ID-MAX are
-  global minimal and maximal id."
+global minimal and maximal id.
+
+Optionally, LAST-UPDATE-TIMES is a list of times at which the repositories of
+NAME have been checked; it is #f when that information is unavailable."
   (define (eval-absolute-summary eval)
     (find (lambda (e)
             (= (evaluation-summary-id e)
@@ -1018,6 +1021,7 @@ the existing SPEC otherwise."
   `((div (@ (class "d-flex flex-row mb-3"))
          (div (@ (class "lead mr-auto"))
               "Evaluations of " ,name)
+
          ,(let ((name "Toggle between build changes and build overview"))
             `(div
               (button (@ (class "btn btn-outline-primary job-toggle mr-1")
@@ -1036,6 +1040,14 @@ the existing SPEC otherwise."
                  (i (@ (class "oi oi-rss text-warning py-1")
                        (aria-hidden "true"))
                     "")))))
+
+    ,(match last-update-times
+       ((time _ ...)
+        `(div (@ (class "alert alert-info"))
+              "Last repository check: "
+              ,(time->string time) "."))
+       (_ ""))
+
     (table
      (@ (class "table table-sm table-hover table-striped"))
      ,@(if (null? evaluations)
