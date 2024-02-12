@@ -7,6 +7,7 @@
  *  JavaScript code in this page.
  *
  * Copyright (C) 2021 - Mathieu Othacehe <othacehe@gnu.org>
+ * Copyright (C) 2024 - Ricardo Wurmus <rekado@elephly.net>
  *
  *
  * The JavaScript code in this page is free software: you can
@@ -27,7 +28,13 @@
  * for the JavaScript code in this page.
  *
  */
-$(document).ready(function() {
+
+var ready = (callback) => {
+  if (document.readyState != "loading") callback();
+  else document.addEventListener("DOMContentLoaded", callback);
+}
+
+ready(() => {
     /* Specifications page. */
     var default_opts = {
         paging: false,
