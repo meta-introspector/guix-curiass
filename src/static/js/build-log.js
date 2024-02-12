@@ -7,6 +7,7 @@
  *  JavaScript code in this page.
  *
  * Copyright (C) 2023 Ludovic Courtès <ludo@gnu.org>
+ * Copyright (C) 2024 Ricardo Wurmus <rekado@elephly.net>
  *
  *
  * The JavaScript code in this page is free software: you can
@@ -28,7 +29,17 @@
  *
  */
 
-$(document).ready(function() {
+var ready = (callback) => {
+  if (document.readyState != "loading") callback();
+  else document.addEventListener("DOMContentLoaded", callback);
+};
+var generateElements = function (html) {
+  const template = document.createElement('template');
+  template.innerHTML = html.trim();
+  return template.content.children;
+};
+
+ready(() => {
     const highlights = [
 	{ regexp: new RegExp("^@ build-failed ([^ ]+) (.*)$"),
 	  style: "text-danger"
@@ -75,36 +86,38 @@ $(document).ready(function() {
         }
 
 	// Clear the build log area.
-	$('#build-log').html("");
+        var build_log = document.querySelector('#build-log');
+	build_log.innerHTML = "";
 
 	// Add a button to collapse/expand phases.
 	var openness = true;
 	const classOpened = "d-flex mb-3 lead text-info oi oi-fullscreen-exit";
-	const classClosed = "d-flex mb-3 lead text-info oi oi-fullscreen-enter"
-	const button =
-	      $('<div>', { class: classOpened,
-			   title: "Toggle phase visibility.",
-			   id: "phase-folding-button" })
-	      .on("click", _ => {
-		  openness = !openness;
-		  $("details").each(function(index) {
-		      $(this).attr('open', openness);
-		  });
-		  console.log("button", $("#phase-folding-button"));
-		  $("#phase-folding-button")
-		      .attr("class", openness ? classOpened : classClosed);
-	      });
-	$('#build-log').prepend(button);
+	const classClosed = "d-flex mb-3 lead text-info oi oi-fullscreen-enter";
+	const button = generateElements('<div id="phase-folding-button" title="Toggle phase visibility."></div>');
+        button.className = classOpened;
+        button.addEventListener('click', (e) => {
+	    openness = !openness;
+	    document.querySelectorAll("details").forEach((item) =>
+		item.setAttribute('open', openness));
+	    console.log("button", e.target);
+	    e.target.setAttribute("class", openness ? classOpened : classClosed);
+	});
+        build_log.prepend(button);
 
 	// Format the build log, line by line.
         const lines = body.split('\n');
-	var parent = $('#build-log');
+	var parent = build_log;
         for (const line of lines) {
 	    if (phaseStartRx.exec(line)) {
 		// Open a <details> tag.
 		const match = phaseStartRx.exec(line);
-		parent = $('<details>', { open: "open" }).appendTo($('#build-log'));
-		$('<summary>', { class: "text-info", text: match[1] }).appendTo(parent);
+                var details = generateElements('<details open></details>'),
+                    summary = generateElements('<summary class="text-info"></summary>');
+
+                summary.textContent = match[1];
+                details.append(summary);
+                build_log.append(details);
+		parent = details;
 	    }
 
             var matched = false;
@@ -112,8 +125,10 @@ $(document).ready(function() {
                 const match = highlight.regexp.exec(line);
                 if (match) {
                     parent.append(line.substring(0, match.index));
-		    $('<span>', { class: highlight.style, text: match[0] })
-			.appendTo(parent);
+                    var span = generateElements('<span></span>');
+                    span.className = highlight.style;
+                    span.textContent = match[0];
+                    parent.append(span);
                     parent.append(line.substring(match.index + match[0].length) + '\n');
 		    matched = true;
 		    break;
@@ -126,7 +141,7 @@ $(document).ready(function() {
 
 	    if (phaseEndRx.exec(line)) {
 		// Close the <details> tag.
-		parent = $('#build-log');
+		parent = build_log;
 	    }
 	}
     }
