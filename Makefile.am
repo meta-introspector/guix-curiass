@@ -113,7 +113,7 @@ dist_css_DATA =					\
   src/static/css/choices.min.css		\
   src/static/css/cuirass.css			\
   src/static/css/bootstrap.min.css		\
-  src/static/css/datatables.min.css		\
+  src/static/css/datatables.css			\
   src/static/css/open-iconic-bootstrap.css
 dist_fonts_DATA =				\
   src/static/fonts/open-iconic.eot		\
@@ -140,6 +140,9 @@ dist_js_DATA =					\
 
 dist_systemdservice_DATA =			\
   etc/cuirass-remote-worker.service
+
+src/static/js/datatables.min.js: src/static/js/datatables.js
+	esbuild $< --minify --outfile=$@
 
 TEST_EXTENSIONS = .scm .sh
 AM_TESTS_ENVIRONMENT = \

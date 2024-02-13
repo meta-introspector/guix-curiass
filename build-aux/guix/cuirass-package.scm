@@ -33,7 +33,8 @@
   #:use-module (gnu packages package-management)
   #:use-module (gnu packages pkg-config)
   #:use-module (gnu packages texinfo)
-  #:use-module (gnu packages tls))
+  #:use-module (gnu packages tls)
+  #:use-module (gnu packages web))
 
 (define source-checkout
   (let ((vcs-file? (or (git-predicate
@@ -130,7 +131,7 @@
 
            guix))
     (native-inputs
-     (list autoconf-2.71 automake pkg-config texinfo ephemeralpg))
+     (list autoconf-2.71 automake pkg-config texinfo ephemeralpg esbuild))
     (native-search-paths
      ;; For HTTPS access, Cuirass itself honors these variables, with the
      ;; same semantics as Git and OpenSSL (respectively).

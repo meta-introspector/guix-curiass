@@ -26,6 +26,7 @@
 /doc/version.texi
 /etc/cuirass-remote-worker.service
 /src/cuirass/config.scm
+/src/static/js/datatables.min.js
 /tests/cache
 Makefile
 Makefile.in

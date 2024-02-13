@@ -80,7 +80,7 @@
 (define %file-white-list
   '("css/bootstrap.min.css"
     "css/choices.min.css"
-    "css/datatables.min.css"
+    "css/datatables.css"
     "css/cuirass.css"
     "css/open-iconic-bootstrap.css"
     "fonts/open-iconic.otf"
