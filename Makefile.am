@@ -141,6 +141,8 @@ dist_js_DATA =					\
 dist_systemdservice_DATA =			\
   etc/cuirass-remote-worker.service
 
+src/static/js/d3.v6.min.js: src/static/js/d3.v6.js
+	esbuild $< --minify --outfile=$@
 src/static/js/datatables.min.js: src/static/js/datatables.js
 	esbuild $< --minify --outfile=$@
 
