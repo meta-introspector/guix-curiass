@@ -93,7 +93,6 @@
     "js/d3.v6.min.js"
     "js/datatables.min.js"
     "js/jquery-3.3.1.min.js"
-    "js/popper.min.js"
     "js/bootstrap.min.js"
     "js/choices.min.js"))
 

@@ -147,7 +147,6 @@ system whose names start with " (code "guile-") ":" (br)
           ;; The empty strings are mandatory to force the SXML parser to
           ;; create end script tags.
           (script (@ (src "/static/js/jquery-3.3.1.min.js")) "")
-          (script (@ (src "/static/js/popper.min.js")) "")
           (script (@ (src "/static/js/bootstrap.min.js")) "")
           (script (@ (src "/static/js/datatables.min.js")) "")
           (script (@ (src "/static/js/d3.v6.min.js")) "")
@@ -2318,11 +2317,6 @@ content as a string."
 https://www.gnu.org/software/librejs/free-your-javascript.html."
   '((table
      (@ (id "jslicense-labels1"))
-     (tr
-      (td (a (@ (href "/static/js/popper.min.js")) "popper.min.js"))
-      (td (a (@ (href "https://github.com/popperjs/popper-core/blob/master/LICENSE.md"))
-             "Expat"))
-      (td (a (@ (href "/static/js/popper.min.js")) "popper.js") ))
      (tr
       (td (a (@ (href "/static/js/datatables.min.js")) "datatables.min.js"))
       (td (a (@ (href "https://datatables.net/license/mit")) "Expat"))

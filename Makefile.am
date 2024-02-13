@@ -135,8 +135,7 @@ dist_js_DATA =					\
   src/static/js/choices.min.js                  \
   src/static/js/d3.v6.min.js	                \
   src/static/js/datatables.min.js               \
-  src/static/js/jquery-3.3.1.min.js		\
-  src/static/js/popper.min.js
+  src/static/js/jquery-3.3.1.min.js
 
 dist_systemdservice_DATA =			\
   etc/cuirass-remote-worker.service
