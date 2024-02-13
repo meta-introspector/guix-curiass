@@ -7,5 +7,6 @@
        (channels
         (cons (channel
                (name 'cuirass)
-               (url "https://git.savannah.gnu.org/git/guix/guix-cuirass.git"))
+               (url "https://git.savannah.gnu.org/git/guix/guix-cuirass.git")
+               (branch "main"))
               %default-channels))))
