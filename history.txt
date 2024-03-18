@@ -1,0 +1,19 @@
+  505  guix package -f build-aux/guix.scm
+  507  autoreconf
+  508  automake --add-missing
+  509  autoreconf
+  510  ./configure 
+  511  guix package -f build-aux/guix.scm
+  515  guix package -f guix.scm
+  516  guix build -f guix.scm
+  519  ./configure 
+  520  make
+
+  517  curiass
+  518  ./pre-inst-env curiass
+
+521  make install
+  522  sudo make install
+  523  curiass
+  524  /usr/local/bin/cuirass 
+  525  /usr/local/bin/cuirass  web
