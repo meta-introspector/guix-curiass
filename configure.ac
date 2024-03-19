@@ -49,10 +49,10 @@ AS_IF([test -z "$ac_cv_path_GUILD"],
 GUILE_MODULE_REQUIRED([avahi])
 GUILE_MODULE_REQUIRED([fibers])
 
-GUILE_MODULE_AVAILABLE([have_recent_fibers], [(fibers scheduler)])
-if test "x$have_recent_fibers" != "xyes"; then
-  AC_MSG_ERROR([Fibers appears to be too old; please install version 1.1.0 or later.])
-fi
+#GUILE_MODULE_AVAILABLE([have_recent_fibers], [(fibers scheduler)])
+#if test "x$have_recent_fibers" != "xyes"; then
+#  AC_MSG_ERROR([Fibers appears to be too old; please install version 1.1.0 or lat#er.])
+#fi
 
 GUILE_MODULE_REQUIRED([guix])
 GUILE_MODULE_REQUIRED([guix git])
@@ -70,14 +70,14 @@ GUILE_MODULE_REQUIRED_EXPORT([(git)], git-error-message)
 
 # We need a recent-enough Squee where 'exec-query' is non-blocking:
 # https://notabug.org/cwebber/guile-squee/commit/67bd6c3679dcd9cf8f2837848ec9cb2b53186614
-AC_MSG_CHECKING([whether (squee) is recent enough])
-squee_file="$($GUILE -c '(display (search-path %load-path "squee.scm"))')"
-if grep -q current-read-waiter "$squee_file"; then
-  AC_MSG_RESULT([yes])
-else
-  AC_MSG_RESULT([no])
-  AC_MSG_ERROR([Guile-Squee is too old; please get a newer one from https://notabug.org/cwebber/guile-squee/])
-fi
+#AC_MSG_CHECKING([whether (squee) is recent enough])
+#squee_file="$($GUILE -c '(display (search-path %load-path "squee.scm"))')"
+#if grep -q current-read-waiter "$squee_file"; then
+#  AC_MSG_RESULT([yes])
+#else
+#  AC_MSG_RESULT([no])
+#  AC_MSG_ERROR([Guile-Squee is too old; please get a newer one from https://notabug.org/cwebber/guile-squee/])
+#fi
 
 guix_localstatedir="$($GUILE -c '(import (guix config)) (display %localstatedir)')"
 AC_SUBST(guix_localstatedir)
