@@ -32,3 +32,5 @@ Makefile.in
 pre-inst-env
 stamp-vti
 .tmp-mail
+#*
+\\#*

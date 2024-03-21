@@ -1,0 +1,19 @@
+#/lib/systemd/system/cuirass-registry.service
+[Unit]
+Description=The gnu cuirass registry server
+After=syslog.target network-online.target remote-fs.target nss-lookup.target
+Wants=network-online.target
+
+[Service]
+User=cuirass
+Group=cuirass
+Type=forking
+PIDFile=/run/nginx.pid
+#ExecStartPre=
+ExecStart=bash /usr/local/bin/cuirass.sh register
+#ExecReload=
+ExecStop=/bin/kill -s QUIT $MAINPID
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
