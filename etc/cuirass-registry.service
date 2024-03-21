@@ -7,7 +7,7 @@ Wants=network-online.target
 [Service]
 User=cuirass
 Group=cuirass
-Type=forking
+#Type=forking
 PIDFile=/run/nginx.pid
 #ExecStartPre=
 ExecStart=bash /usr/local/bin/cuirass.sh register
