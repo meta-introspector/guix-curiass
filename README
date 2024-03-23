@@ -154,23 +154,69 @@ You can authenticate the code in this repository by running:
 The command silently exits with zero on success, and errors out
 otherwise.  We recommend invoking it from =.git/hooks/pre-push=.
 
+* setup
 
-sudo guix archive --authorize < signing-key.pub
-  167  guix archive --import < cuirass.nar
-  168  guix package -l
-  169  guix archive --import < cuirass.nar
+#+begin_src psql
+alter user cuirass password '<yourkidding,right?>';
+alter database cuirass owner to cuirass;
+grant all PRIVILEGES on database cuirass to cuirass;
+#+end_src
 
+** build from source
+#+begin_src shell
+guix build -f guix.scm
+#+end_src
+
+install the built package
+#+begin_src shell
+guix install /gnu/store/3mr4ma8fsqc0y94f9bvfhrb00hymdw7n-cuirass-1.99.99-git
+#+end_src
+
+export the archive
+#+begin_src shell
+guix archive --export /gnu/store/3mr4ma8fsqc0y94f9bvfhrb00hymdw7n-cuirass-1\.99.99-git --recursive >  cuirass.nar
+#+end_src
+
+generate the key
+#+begin_src shell
+guix archive --generate-key
+#+end_src
+
+get the key from /etc/guix/signing-key.pub and distribute to servers
+
+on the server setup user
+#+begin_src shell
 adduser cuirass
-
 mkdir  /var/run/cuirass
 chown cuirass:  /var/run/cuirass
+#+end_src
 
+Authorize key
+#+begin_src shell
+sudo guix archive --authorize < signing-key.pub
+#+end_src
+
+import the archive
+
+#+begin_src shell
+guix archive --import < cuirass.nar
+#+end_src
+
+check it is installed
+#+begin_src shell
+guix package -l
+#+end_src
+
+status of services
+
+#+begin_src shell
 systemctl restart cuirass-registry
 systemctl status cuirass-registry
 systemctl restart cuirass-web
 systemctl status cuirass-web
+#+end_src
 
-alter user cuirass password 'cuirass123';
-alter database cuirass owner to cuirass;
-grant all PRIVILEGES on database cuirass to cuirass;
-
+test connection
+#+begin_src shell
+wget --post-data=""   http://localhost:8080/jobset/cuirass/hook/evaluate
+#+end_src
