@@ -153,3 +153,18 @@ You can authenticate the code in this repository by running:
 
 The command silently exits with zero on success, and errors out
 otherwise.  We recommend invoking it from =.git/hooks/pre-push=.
+
+sudo guix archive --authorize < signing-key.pub
+  167  guix archive --import < cuirass.nar
+  168  guix package -l
+  169  guix archive --import < cuirass.nar
+
+adduser cuirass
+
+mkdir  /var/run/cuirass
+chown cuirass:  /var/run/cuirass
+
+systemctl restart cuirass-registry
+systemctl status cuirass-registry
+systemctl restart cuirass-web
+systemctl status cuirass-web
