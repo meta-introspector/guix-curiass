@@ -220,3 +220,18 @@ test connection
 #+begin_src shell
 wget --post-data=""   http://localhost:8080/jobset/cuirass/hook/evaluate
 #+end_src
+
+#+begin_src shell
+  sudo cp cuirass-remote-server.service /etc/systemd/system/
+  sudo systemctl daemon-reload
+  sudo systemctl restart -l cuirass-remote-server
+  sudo systemctl status -l cuirass-remote-server
+#+end_src
+
+allow access to key
+
+#+begin_src shell
+  sudo chown cuirass: /etc/guix/signing-key.sec
+  sudo systemctl restart -l cuirass-remote-server
+  sudo systemctl status -l cuirass-remote-server 
+#+end_src
