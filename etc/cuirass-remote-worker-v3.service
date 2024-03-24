@@ -8,7 +8,7 @@ Description=Continuous integration remote worker for GNU Guix
 
 [Service]
 ExecStart=/gnu/store/3mr4ma8fsqc0y94f9bvfhrb00hymdw7n-cuirass-1.99.99-git/bin/cuirass \
-    remote-worker --workers=2 --server=100.70.151.124:8300
+    remote-worker --workers=2 --server=100.70.151.124:5555
 Environment= LC_ALL=en_US.UTF-8 \
     'GUIX_LOCPATH=/var/guix/profiles/per-user/root/guix-profile/lib/locale'
 
