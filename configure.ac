@@ -25,6 +25,7 @@ AC_INIT([Cuirass],
   [bug-guix@gnu.org], [cuirass],
   [https://guix.gnu.org/en/cuirass/])
 AC_CONFIG_SRCDIR([bin/cuirass.in])
+AC_CONFIG_MACRO_DIR([m4])
 AC_CONFIG_AUX_DIR([build-aux])
 AC_REQUIRE_AUX_FILE([git-version-gen])
 AC_REQUIRE_AUX_FILE([test-driver.scm])
