@@ -1,0 +1,14 @@
+[Unit]
+Description=Continuous integration remote server for GNU Guix
+
+[Service]
+User=cuirass
+Group=cuirass
+
+ExecStart=/gnu/store/3mr4ma8fsqc0y94f9bvfhrb00hymdw7n-cuirass-1.99.99-git/bin/cuirass \
+    remote-server
+Environment= LC_ALL=en_US.UTF-8 \
+    'GUIX_LOCPATH=/var/guix/profiles/per-user/root/guix-profile/lib/locale'
+
+[Install]
+WantedBy=multi-user.target
